@@ -19,7 +19,7 @@ The spec presents two approaches for S3 storage but doesn't make a clear decisio
 ### Questions
 **Q1.1**: Which S3 versioning approach should be implemented for MVP?
 - [ ] A. S3 Object Versioning only
-- [ ] B. Explicit Version Files only  
+- [X] B. Explicit Version Files only  
 - [ ] C. Hybrid (S3 versioning + DynamoDB metadata)
 - [ ] D. Support both with configuration toggle
 
@@ -28,9 +28,9 @@ The spec presents two approaches for S3 storage but doesn't make a clear decisio
 - Options:
   - [ ] Store all metadata in DynamoDB, S3 only for content
   - [ ] Use S3 object metadata where possible, DynamoDB for the rest
-  - [ ] Store metadata in version file frontmatter (requires explicit files)
+  - [X] Store metadata in version file frontmatter (requires explicit files)
 
-**Q1.3**: Should version content be cached, or always fetched from S3?
+**Q1.3**: Should version content be cached, or always fetched from S3? MVP does not need caching, I will only implement it if costs increase or performance degrade
 - Performance vs. cost tradeoff
 - Suggestion needed for caching strategy
 
@@ -48,23 +48,28 @@ The spec presents two approaches for S3 storage but doesn't make a clear decisio
 - GitHub storage uses Git commit SHA as `versionId`
 - Unclear how these two systems relate
 
+#### Clarification
+- All Meta data should be stored in a Meta data file, regardless of storage type
+- Version numbers should be stored in the meta data file and incremented after each update
+
 ### Questions
 **Q2.1**: For GitHub storage, how are version numbers assigned?
 - [ ] A. Sequential numbers stored in DynamoDB (separate from Git)
 - [ ] B. Derived from commit order dynamically
 - [ ] C. Not used; only Git commit SHA serves as identifier
 - [ ] D. Combination: SHA is primary, number is computed
+- [X] E. Store current version numbers in metadata file. e.g. in S3 and increment from there
 
 **Q2.2**: What happens if Git history is rewritten (rebase, force push)?
 - [ ] A. Prevent history rewrites on wiki pages (protected branches)
 - [ ] B. Detect and handle gracefully (show warning)
 - [ ] C. Allow; version numbers may become inconsistent
-- [ ] D. Not a concern (GitHub storage assumes append-only)
+- [X] D. Not a concern (GitHub storage assumes append-only)
 
 **Q2.3**: Should version IDs be universally unique or backend-specific?
 - S3: Can use GUIDs
 - GitHub: Should use commit SHAs
-- Does abstraction layer need to normalize these?
+- Does abstraction layer need to normalize these? All ID's should be GUIDs as they are platform agnostic
 
 ### Impact
 - Affects `IStorageBackend` interface design
@@ -82,14 +87,14 @@ The spec presents two approaches for S3 storage but doesn't make a clear decisio
 
 ### Questions
 **Q3.1**: What mechanism will detect concurrent edits?
-- [ ] A. Optimistic locking with version tokens (ETags)
+- [X] A. Optimistic locking with version tokens (ETags)
 - [ ] B. Timestamp comparison (last-modified checks)
 - [ ] C. Content hash comparison before save
 - [ ] D. Database-level transaction isolation
 
 **Q3.2**: When is the conflict check performed?
 - [ ] A. On page load (pre-emptive warning if newer version exists)
-- [ ] B. On save attempt (block if conflict detected)
+- [X] B. On save attempt (block if conflict detected)
 - [ ] C. Both (warn on load, verify on save)
 - [ ] D. Continuous (websocket notifications of concurrent editors)
 
@@ -97,12 +102,12 @@ The spec presents two approaches for S3 storage but doesn't make a clear decisio
 - User Story 7 acceptance #7 mentions warning, but specifics unclear
 - Options:
   - [ ] A. Show diff of current vs. conflicting version, choose winner
-  - [ ] B. Show both versions side-by-side, manual merge interface
+  - [X] B. Show both versions side-by-side, manual merge interface
   - [ ] C. Force refresh to see latest, user must re-apply changes
   - [ ] D. Auto-merge with conflict markers (Git-style)
 
 **Q3.4**: Is there a time window for considering edits "concurrent"?
-- If User A loads page at 2:00 PM, edits until 2:30 PM, should they be warned about User B's 2:15 PM save?
+- If User A loads page at 2:00 PM, edits until 2:30 PM, should they be warned about User B's 2:15 PM save? No
 - Suggestion needed for staleness threshold
 
 ### Impact
@@ -117,9 +122,15 @@ The spec presents two approaches for S3 storage but doesn't make a clear decisio
 ### Current Ambiguity
 Edge case mentions "maintain history in archive table for recovery within retention period (30 days)" but user-facing behavior is unclear.
 
+#### Clarification
+- State can be held in the meta data file
+- deleted files will be marked as deleted in meta data as that is platform agnostic
+- do not rely on Github or S3 versioning or data retention
+- permanantly deleting a file will delete the markdown file and the metadata file
+
 ### Questions
 **Q4.1**: How do users access deleted page history?
-- [ ] A. "Recently Deleted" section in UI (like trash)
+- [X] A. "Recently Deleted" section in UI (like trash)
 - [ ] B. Still appears in search results but marked as deleted
 - [ ] C. Admin-only access via special tool
 - [ ] D. Not accessible through UI; backend recovery only
@@ -127,12 +138,12 @@ Edge case mentions "maintain history in archive table for recovery within retent
 **Q4.2**: What happens after the 30-day retention period?
 - [ ] A. Permanently deleted (unrecoverable)
 - [ ] B. Moved to long-term archive (S3 Glacier)
-- [ ] C. Configurable retention policy per wiki
+- [X] C. Configurable retention policy per wiki
 - [ ] D. Never deleted if using GitHub storage (Git history retained)
 
 **Q4.3**: Can users permanently delete pages before 30 days?
 - [ ] A. Yes, with "Permanent Delete" action (requires confirmation)
-- [ ] B. No, soft deletes only
+- [X] B. No, soft deletes only
 - [ ] C. Only admins can permanently delete
 - [ ] D. Different rules per storage backend
 
@@ -155,7 +166,7 @@ Edge case mentions "maintain history in archive table for recovery within retent
 
 ### Questions
 **Q5.1**: What permission is required to view page version history?
-- [ ] A. Same as viewing current page (view permission)
+- [X] A. Same as viewing current page (view permission)
 - [ ] B. Read permission for page (may differ from view)
 - [ ] C. Edit permission (only editors see history)
 - [ ] D. Special "history" permission (separate from view/edit)
@@ -163,7 +174,7 @@ Edge case mentions "maintain history in archive table for recovery within retent
 **Q5.2**: Can users view diffs of pages they can't currently access?
 - Scenario: User had access to page, created version, then lost access
 - [ ] A. Yes, they can view their own historical contributions
-- [ ] B. No, permission loss revokes history access
+- [X] B. No, permission loss revokes history access
 - [ ] C. Can see metadata (author, date) but not content
 - [ ] D. Admin configurable per wiki
 
@@ -172,9 +183,9 @@ Edge case mentions "maintain history in archive table for recovery within retent
 - [ ] A. Show all versions (transparency)
 - [ ] B. Hide versions based on per-version permissions
 - [ ] C. Show all but redact content of restricted versions
-- [ ] D. Not applicable (no per-version permissions in MVP)
+- [X] D. Not applicable (no per-version permissions in MVP)
 
-**Q5.4**: Can users export versions they don't have edit permission for?
+**Q5.4**: Can users export versions they don't have edit permission for? yes
 - Story 6 mentions export functionality
 - Security consideration: preventing unauthorized data extraction
 
@@ -190,16 +201,20 @@ Edge case mentions "maintain history in archive table for recovery within retent
 ### Current Ambiguity
 The spec shows DynamoDB `PageVersions` table for both S3 and GitHub storage, but GitHub already has metadata in Git commits.
 
+#### Clarification
+- meta data will be stored in a file next to markdown file
+= Not sure if dynamodb is actually required for page storage
+
 ### Questions
 **Q6.1**: Is DynamoDB required when using GitHub storage?
 - [ ] A. Yes, always required for performance/consistency
-- [ ] B. No, query Git directly (DynamoDB optional cache)
+- [X] B. No, query Git directly (DynamoDB optional cache)
 - [ ] C. Optional based on configuration (perf vs. cost tradeoff)
 - [ ] D. Required only for features Git doesn't support
 
 **Q6.2**: If using DynamoDB with GitHub, is it authoritative or cache?
 - [ ] A. Authoritative (Git syncs to DynamoDB on commit)
-- [ ] B. Cache (Git is source of truth, DynamoDB for fast queries)
+- [X] B. Cache (Git is source of truth, DynamoDB for fast queries)
 - [ ] C. Hybrid (some metadata only in DynamoDB)
 - [ ] D. Separate (track different aspects)
 
@@ -208,9 +223,9 @@ The spec shows DynamoDB `PageVersions` table for both S3 and GitHub storage, but
 - [ ] A. Background sync job reconciles on interval
 - [ ] B. GitHub webhooks trigger DynamoDB updates
 - [ ] C. Lazy sync on first UI access after commit
-- [ ] D. Not supported (all commits must go through wiki)
+- [X] D. Not supported (all commits must go through wiki)
 
-**Q6.4**: Can GitHub storage work without DynamoDB for MVP?
+**Q6.4**: Can GitHub storage work without DynamoDB for MVP? yes, in fact lomng term we may not need it either if we are storing metadata in a file
 - Tradeoff: Simplicity vs. query performance
 - API rate limits may be concern
 
@@ -225,6 +240,9 @@ The spec shows DynamoDB `PageVersions` table for both S3 and GitHub storage, but
 
 ### Current Ambiguity
 User Story 4 acceptance #1 mentions "save dialog" with change description field, but the page editor flow isn't specified elsewhere in the spec.
+
+#### Clarification
+- let's not have a change description
 
 ### Questions
 **Q7.1**: When does the change description dialog appear?
@@ -258,6 +276,9 @@ User Story 4 acceptance #1 mentions "save dialog" with change description field,
 ---
 
 ## 8. Performance Requirements Justification (Priority: LOW)
+
+#### Clarification
+ignore timing requirements - if performance is an issue at MVP it can be addressed then
 
 ### Current Ambiguity
 NFR-001 through NFR-005 specify precise timing requirements (2s, 3s, 5s) without explanation of how these were determined.
@@ -293,6 +314,9 @@ NFR-001 through NFR-005 specify precise timing requirements (2s, 3s, 5s) without
 
 ## 9. Version Retention Policy (Priority: MEDIUM)
 
+#### Clarification
+- versions will be help as seperate files so consistent across storage platforms
+
 ### Current Ambiguity
 The spec mentions different retention policies in different places:
 - Open Question #1: "unlimited for GitHub, configurable for S3"
@@ -304,14 +328,14 @@ The spec mentions different retention policies in different places:
 - [ ] A. Unlimited (never delete)
 - [ ] B. Last 100 versions per page
 - [ ] C. Last 100 + monthly snapshots (as mentioned in edge cases)
-- [ ] D. Configurable per wiki (admin setting)
+- [X] D. Configurable per wiki (admin setting)
 
 **Q9.2**: How are "monthly snapshots" implemented?
 - If keeping "last 100 + monthly snapshots":
 - [ ] A. Special tag/flag on version record
 - [ ] B. Separate DynamoDB table for snapshots
 - [ ] C. S3 lifecycle policy with tagging
-- [ ] D. Not implementing in MVP
+- [X] D. Not implementing in MVP
 
 **Q9.3**: For GitHub storage, are versions truly unlimited?
 - [ ] A. Yes, rely on Git's unlimited history
@@ -320,13 +344,13 @@ The spec mentions different retention policies in different places:
 - [ ] D. Unlimited but warn if repo size exceeds threshold
 
 **Q9.4**: Can administrators configure retention policy?
-- [ ] A. Yes, per-wiki setting
+- [X] A. Yes, per-wiki setting
 - [ ] B. Yes, global setting for all wikis
 - [ ] C. No, hardcoded based on storage backend
 - [ ] D. Phase 2 feature
 
 **Q9.5**: What happens when retention limit is reached?
-- [ ] A. Oldest versions deleted automatically
+- [X] A. Oldest versions deleted automatically
 - [ ] B. Warn admin and pause versioning
 - [ ] C. Compress/archive old versions
 - [ ] D. Use S3 lifecycle transitions to Glacier
@@ -350,28 +374,29 @@ User Story 6 mentions export and permalink features but leaves format choices op
 - [ ] B. CSV only (spreadsheet compatibility)
 - [ ] C. Both formats (user chooses)
 - [ ] D. JSON for API, CSV for UI download
+- [X] E. Not in MVP
 
 **Q10.2**: What should JSON export format look like?
-- Nested structure? Flat array? Include full content or references?
+- Nested structure? Flat array? Include full content or references? Nested
 - Need schema definition
 
 **Q10.3**: For version permalinks, which URL format?
 - Spec shows two options:
-- [ ] A. `/pages/{pageId}/versions/{versionId}` (RESTful path)
+- [X] A. `/pages/{pageId}/versions/{versionId}` (RESTful path)
 - [ ] B. `/pages/{pageId}?version={versionId}` (query parameter)
 - [ ] C. Both supported (canonical + convenience)
 - [ ] D. Short form: `/p/{pageId}/v/{versionId}`
 
 **Q10.4**: Should permalinks include authentication tokens?
 - For sharing with users who might not be logged in
-- [ ] A. No, require authentication always
+- [X] A. No, require authentication always
 - [ ] B. Optional time-limited token in URL
 - [ ] C. Public share links (separate from permalinks)
 - [ ] D. Not in MVP
 
 **Q10.5**: For single version export, include what metadata?
 - Story 6 acceptance #2 mentions "YAML frontmatter with version metadata"
-- Specify exact fields to include?
+- Specify exact fields to include? Do not support version export
 
 ### Impact
 - Affects API design and URL routing
