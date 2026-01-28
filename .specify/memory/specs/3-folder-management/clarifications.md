@@ -102,8 +102,8 @@
 - Option A: Folder shows a list of children (no page content)
 - Option B: Folder shows associated page content + list of children below
 - Option C: User chooses between "View Folder" and "View Page" for folders
-- Which approach does BlueFinWiki use?
-- Can folders have markdown content like pages, or only children list?
+- Which approach does BlueFinWiki use? none, should just show ther pgae associated with the folder, I want a tree view on the left for navigation purposes and that should be highligted
+- Can folders have markdown content like pages, or only children list? folders have a page anfd should display like themm 
 
 ---
 
@@ -113,10 +113,10 @@
 **Current spec says**: "Description is displayed below the folder title before listing contents"
 
 **Needs clarification**:
-- Is description markdown-formatted or plain text?
-- If markdown, does it support full markdown syntax (images, links, etc.)?
-- Maximum length for descriptions?
-- Is description shown in navigation tree, or only when viewing folder contents?
+- Is description markdown-formatted or plain text? mark-down, the folder displays as a page and that is it's decription, no other info is needed
+- If markdown, does it support full markdown syntax (images, links, etc.)? yes
+- Maximum length for descriptions? it is a full page
+- Is description shown in navigation tree, or only when viewing folder contents? no
 
 ---
 
@@ -126,10 +126,10 @@
 **Current spec says**: "Items within each group (folders, pages) are sorted alphabetically by display name"
 
 **Needs clarification**:
-- Is alphabetical the only option, or can users choose other sort orders?
-- Options: alphabetical, manual/custom order, created date, modified date?
-- If manual order, where is order stored? In folder metadata?
-- Can users drag-and-drop to reorder?
+- Is alphabetical the only option, or can users choose other sort orders? user can change roder of folders and pages by dragging and dropping in navigation tree view
+- Options: alphabetical, manual/custom order, created date, modified date? custom
+- If manual order, where is order stored? In folder metadata? probably need a sort order file
+- Can users drag-and-drop to reorder? yes
 
 ---
 
@@ -139,10 +139,10 @@
 **Current spec mentions**: "Deeply nested hierarchy (grandparent/parent/child)"
 
 **Needs clarification**:
-- Maximum nesting depth? (e.g., 10 levels, 20 levels, unlimited?)
+- Maximum nesting depth? (e.g., 10 levels, 20 levels, unlimited?) unlimited
 - Should UI warn when approaching depth limit?
 - Performance considerations for very deep hierarchies?
-- Breadcrumb display for deeply nested folders?
+- Breadcrumb display for deeply nested folders? when gets too long shorted with ...
 
 ---
 
@@ -152,21 +152,21 @@
 **Current spec mentions**: "Validation prevents the circular reference"
 
 **Needs clarification**:
-- Can root folders be moved under other folders?
-- Can folders be moved to become root-level?
-- If folder A contains folder B, can B be moved to root?
-- Should there be confirmation for moves affecting many pages?
+- Can root folders be moved under other folders? no but the pages in a root folder can
+- Can folders be moved to become root-level? no but pages can be moved to root
+- If folder A contains folder B, can B be moved to root? no
+- Should there be confirmation for moves affecting many pages? yes
 
 ---
 
 ### 12. Folder Permissions
-**Question**: Can folders have different permissions than their pages?
+**Question**: Can folders have different permissions than their pages? no
 
 **Not explicitly covered in spec**:
-- Can a folder be marked "read-only" for certain users?
-- Do folder permissions inherit to all child pages?
-- Or are permissions always page-level?
-- Who can create folders (Editor role sufficient, or Admin only)?
+- Can a folder be marked "read-only" for certain users? not for MVP
+- Do folder permissions inherit to all child pages? yes
+- Or are permissions always page-level? yes
+- Who can create folders (Editor role sufficient, or Admin only)? edit role is sufficient
 
 ---
 
@@ -176,10 +176,10 @@
 **Current spec mentions duplication**: "Create a copy of an existing folder"
 
 **Needs clarification**:
-- Should there be a "folder template" system?
-- Can users save folders as templates for reuse?
-- Pre-built templates like "Project Folder", "Meeting Notes", etc.?
-- Or is duplication the only way to copy folder structures?
+- Should there be a "folder template" system? not for MVP
+- Can users save folders as templates for reuse? not for MVP
+- Pre-built templates like "Project Folder", "Meeting Notes", etc.? not for MVP
+- Or is duplication the only way to copy folder structures? yes
 
 ---
 
@@ -189,7 +189,7 @@
 **Current spec mentions**: "Search plugin receives folder path filter"
 
 **Needs clarification**:
-- Can folders themselves be search results (matching folder names)?
+- Can folders themselves be search results (matching folder names)? the page associated with the folder can be searched
 - Or only pages within folders appear in results?
 - If folder name matches, should it show pages within that folder?
 - How is "search within folder" scoping implemented?
@@ -197,7 +197,7 @@
 ---
 
 ### 15. Folder Pagination Threshold
-**Question**: At what point does folder content pagination kick in?
+**Question**: At what point does folder content pagination kick in? no pagination for MVP
 
 **Current spec says**: "Pagination is applied showing 25 items per page"
 
@@ -215,10 +215,10 @@
 **Question**: What's the exact UI flow for creating a folder?
 
 **Needs specification**:
-- Is there a "New Folder" button separate from "New Page"?
+- Is there a "New Folder" button separate from "New Page"? what if we treated evey page as a folder with it's own .md file it becomes easy to add children to an existing page. We do not add a folder we have a '+' buttpon on the page on navigator tree view to add a child page
 - Or is it one "New" button with options "Page" or "Folder"?
 - Does create folder dialog ask for name only, or also description/icon/color?
-- Can folder be created inline in navigation tree (right-click → "New Subfolder")?
+- Can folder be created inline in navigation tree (right-click → "New Subfolder")? yes but it would be a page
 
 ---
 
@@ -226,10 +226,10 @@
 **Question**: How does folder renaming affect page URLs?
 
 **Needs clarification**:
-- If "Projects" folder is renamed to "Active Projects", do child page URLs change?
+- If "Projects" folder is renamed to "Active Projects", do child page URLs change? no as it is all GUID's
 - Example: `/wiki/Projects/Alpha` becomes `/wiki/Active-Projects/Alpha`?
-- Or do child pages maintain stable URLs using GUIDs?
-- Should redirects be created from old paths to new paths?
+- Or do child pages maintain stable URLs using GUIDs? yes
+- Should redirects be created from old paths to new paths? not for MVP
 
 ---
 
@@ -252,7 +252,7 @@ order: "alphabetical"  # Or custom?
 ---
 ```
 - Is this correct and complete?
-- Each folder has a page .md file where this frontmatter serves as the folder metadata
+- Each folder has a page .md file where this frontmatter serves as the folder metadata - in fact each page is a folder
 
 ---
 
@@ -262,10 +262,10 @@ order: "alphabetical"  # Or custom?
 **Current spec mentions**: "Operation shows progress indicator and can be cancelled"
 
 **Needs clarification**:
-- What format? "Moving 15 of 50 pages..." progress bar?
-- Is move operation queued/backgrounded or blocking?
-- Can user continue using wiki while move is in progress?
-- If cancelled mid-move, what's the rollback strategy?
+- What format? "Moving 15 of 50 pages..." progress bar? not for MVP, just move pages
+- Is move operation queued/backgrounded or blocking? ru in background
+- Can user continue using wiki while move is in progress? yes
+- If cancelled mid-move, what's the rollback strategy? no rollback it will stay in the semi moved state and can move it back manually
 
 ---
 
@@ -277,11 +277,11 @@ order: "alphabetical"  # Or custom?
 **Needs clarification**:
 - Should user be able to choose what to duplicate?
   - [ ] Duplicate folder structure only (empty)
-  - [ ] Duplicate pages (with content)
-  - [ ] Duplicate attachments
+  - [X] Duplicate pages (with content)
+  - [X] Duplicate attachments
   - [ ] Update internal links
-- Where is duplicated folder created (same parent, root, user chooses)?
-- How are duplicates named? "Copy of Projects", "Projects (2)", user prompted?
+- Where is duplicated folder created (same parent, root, user chooses)? if a page is a folder it will create it's own directory
+- How are duplicates named? "Copy of Projects", "Projects (2)", user prompted? "Copy of Projects"
 
 ---
 
@@ -289,9 +289,9 @@ order: "alphabetical"  # Or custom?
 **Question**: How do deleted folders appear in trash/recently deleted?
 
 **Not explicitly covered in spec**:
-- If folder is deleted (with contents), does it appear as single item in trash?
+- If folder is deleted (with contents), does it appear as single item in trash? yes
 - Or do all deleted pages appear individually?
-- Can folder be restored as a whole, or only individual pages?
+- Can folder be restored as a whole, or only individual pages? a whole, if the state is inherited if you undelete the parent all children will be reinstated
 
 ---
 
@@ -299,10 +299,10 @@ order: "alphabetical"  # Or custom?
 **Question**: Who can create folders at what levels?
 
 **Not explicitly covered in spec**:
-- Can any Editor create root-level folders?
+- Can any Editor create root-level folders? yes
 - Or are root folders Admin-only?
-- Can Viewers create subfolders (probably not, but worth confirming)?
-- Should there be a setting to control this?
+- Can Viewers create subfolders (probably not, but worth confirming)? yes
+- Should there be a setting to control this? no
 
 ---
 
@@ -310,15 +310,15 @@ order: "alphabetical"  # Or custom?
 **Question**: Should folders show count of children and total size?
 
 **Not explicitly covered in spec**:
-- Should folder listing show "15 pages, 3 folders" count?
-- Total size of all contents "2.3 MB"?
-- Is this computed on-demand or cached?
+- Should folder listing show "15 pages, 3 folders" count? no, this should be visible in explorer
+- Total size of all contents "2.3 MB"? not for MVP
+- Is this computed on-demand or cached? 
 - Performance impact for large folders?
 
 ---
 
 ### 24. Folder Activity Feed
-**Question**: Can users see recent activity within a folder?
+**Question**: Can users see recent activity within a folder? not for MVP
 
 **Not explicitly covered in spec**:
 - "Recently updated pages in this folder"?
@@ -329,7 +329,7 @@ order: "alphabetical"  # Or custom?
 ---
 
 ### 25. Folder Export
-**Question**: Can folders be exported as a unit?
+**Question**: Can folders be exported as a unit? not for MVP
 
 **Not explicitly covered in spec**:
 - "Export folder as ZIP" functionality?
