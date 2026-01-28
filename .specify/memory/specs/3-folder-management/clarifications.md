@@ -14,11 +14,11 @@
 **Why this matters**: The spec mentions "folders" as entities but the S3 storage spec indicates hierarchy is built on page relationships.
 
 **Needs clarification**:
-- Can you create an empty folder without creating a page first?
-- Is a folder just metadata (like a directory) or is there always an associated "index page"?
-- If user creates "Projects" folder, is there automatically a "Projects" page created too?
-- Can folders exist without any pages (empty folders)?
-- Does the storage plugin differentiate between folders and pages?
+- Can you create an empty folder without creating a page first? yes
+- Is a folder just metadata (like a directory) or is there always an associated "index page"? it is a S3 folder with a metadata file in it
+- If user creates "Projects" folder, is there automatically a "Projects" page created too? no
+- Can folders exist without any pages (empty folders)? yes
+- Does the storage plugin differentiate between folders and pages? yes
 
 ---
 
@@ -28,11 +28,11 @@
 **Current spec mentions**: "Folder is created via storage plugin" and mentions different behaviors for S3 and GitHub.
 
 **Needs clarification**:
-- S3: What exactly is created? A `_folder.yml` file? An empty prefix?
-- GitHub: Is it a directory with `.gitkeep` file? Or directory with `_folder.yml`?
-- Should the storage plugin interface have a `createFolder()` method separate from `createPage()`?
-- Or is `createPage()` with a special flag/parameter used for folders?
-- How do we query "is this a folder or a page"?
+- S3: What exactly is created? A `_folder.yml` file? An empty prefix? a metadata file within the appropriate folder
+- GitHub: Is it a directory with `.gitkeep` file? Or directory with `_folder.yml`? directory
+- Should the storage plugin interface have a `createFolder()` method separate from `createPage()`? yes
+- Or is `createPage()` with a special flag/parameter used for folders? no
+- How do we query "is this a folder or a page"? naming of entities should make that clear
 
 ---
 
@@ -42,24 +42,24 @@
 **Current spec says**: "Create a new folder 'Projects' at root level"
 
 **Needs clarification**:
-- If S3 bucket structure is `pages/{guid}.md`, where do root folders go?
-- Is a root folder stored as `folders/projects-guid/_folder.yml`?
-- Or is it implicit (no physical storage until first page is added)?
+- If S3 bucket structure is `pages/{guid}.md`, where do root folders go? pages/
+- Is a root folder stored as `folders/projects-guid/_folder.yml`? no 'pages/{folder guid}/_folder.yml
+- Or is it implicit (no physical storage until first page is added)? no
 - How does this align with the S3 storage plugin spec?
 
 ---
 
 ### 4. Folder Display Names and GUIDs
-**Question**: Do folders use the same GUID-based naming system as pages?
+**Question**: Do folders use the same GUID-based naming system as pages? should be clari
 
 **Why this matters**: The spec doesn't explicitly say if folders have GUIDs or use display names directly.
 
 **Needs clarification**:
 - Does each folder get a GUID like pages do?
-- Is folder metadata stored in `{folder-guid}/_folder.yml`?
-- Or are folders named by display name like `Projects/_folder.yml`?
-- How does folder renaming work with GUIDs vs display names?
-- If folder = parent page, does it use the page's GUID?
+- Is folder metadata stored in `{folder-guid}/_folder.yml`? in `pages/{folder1-guid}/{folder2-guid}/{folder3-guid}/_folder.yml`
+- Or are folders named by display name like `Projects/_folder.yml`? no
+- How does folder renaming work with GUIDs vs display names? name is changes in metadata file
+- If folder = parent page, does it use the page's GUID? no parent page in metadata or frontmatter
 
 ---
 
@@ -69,12 +69,14 @@
 **Current spec says**: "Given an empty folder, when a user deletes it, then the storage plugin removes the folder structure and metadata"
 
 **Needs clarification**:
-- Is cleanup automatic when last page is removed, or must user explicitly delete folder?
-- If automatic, is there a delay or is it immediate?
-- What if user wants to keep an empty folder for future use?
-- Does `_folder.yml` persist even when empty, or is it deleted?
-- In S3, do empty "folders" (prefixes) need explicit cleanup?
+- Is cleanup automatic when last page is removed, or must user explicitly delete folder? expliocit delete
+- If automatic, is there a delay or is it immediate? immediate
+- What if user wants to keep an empty folder for future use? folder stays as it has metadata
+- Does `_folder.yml` persist even when empty, or is it deleted? yes
+- In S3, do empty "folders" (prefixes) need explicit cleanup? no
 
+**clarification**
+- each folder wil have a page with the same guid - by default this will be empty, except for frontmatter
 ---
 
 ## 🟡 High Priority - Important for User Experience
@@ -85,11 +87,11 @@
 **Current spec mentions**: "Optional fields include tags, color code (hex), and icon (emoji or icon name)"
 
 **Needs clarification**:
-- What's the icon name format? Material icons? Font Awesome? Custom set?
-- Example: `icon: "📁"` (emoji) or `icon: "folder-open"` (icon name)?
-- Is there a predefined set of icons to choose from?
-- How is color code used? Background color? Border? Icon color?
-- Should there be defaults if not specified?
+- What's the icon name format? Material icons? Font Awesome? Custom set? Icon Name and Material Icons
+- Example: `icon: "📁"` (emoji) or `icon: "folder-open"` (icon name)? emoji
+- Is there a predefined set of icons to choose from? yes
+- How is color code used? Background color? Border? Icon color? system choice
+- Should there be defaults if not specified? blue
 
 ---
 
