@@ -15,7 +15,7 @@
 
 **Needs clarification**:
 - Can you create an empty folder without creating a page first? yes
-- Is a folder just metadata (like a directory) or is there always an associated "index page"? it is a S3 folder with a metadata file in it
+- Is a folder just metadata (like a directory) or is there always an associated "index page"? it is a S3 folder with a page .md file in it
 - If user creates "Projects" folder, is there automatically a "Projects" page created too? no
 - Can folders exist without any pages (empty folders)? yes
 - Does the storage plugin differentiate between folders and pages? yes
@@ -28,8 +28,8 @@
 **Current spec mentions**: "Folder is created via storage plugin" and mentions different behaviors for S3 and GitHub.
 
 **Needs clarification**:
-- S3: What exactly is created? A `_folder.yml` file? An empty prefix? a metadata file within the appropriate folder
-- GitHub: Is it a directory with `.gitkeep` file? Or directory with `_folder.yml`? directory
+- S3: What exactly is created? A `_folder.yml` file? An empty prefix? a page .md file within the appropriate folder with frontmatter metadata
+- GitHub: Is it a directory with `.gitkeep` file? Or directory with `_folder.yml`? directory with a page .md file
 - Should the storage plugin interface have a `createFolder()` method separate from `createPage()`? yes
 - Or is `createPage()` with a special flag/parameter used for folders? no
 - How do we query "is this a folder or a page"? naming of entities should make that clear
@@ -43,7 +43,7 @@
 
 **Needs clarification**:
 - If S3 bucket structure is `pages/{guid}.md`, where do root folders go? pages/
-- Is a root folder stored as `folders/projects-guid/_folder.yml`? no 'pages/{folder guid}/_folder.yml
+- Is a root folder stored as `folders/projects-guid/_folder.yml`? no 'pages/{folder guid}/page.md with frontmatter
 - Or is it implicit (no physical storage until first page is added)? no
 - How does this align with the S3 storage plugin spec?
 
@@ -56,9 +56,9 @@
 
 **Needs clarification**:
 - Does each folder get a GUID like pages do?
-- Is folder metadata stored in `{folder-guid}/_folder.yml`? in `pages/{folder1-guid}/{folder2-guid}/{folder3-guid}/_folder.yml`
+- Is folder metadata stored in `{folder-guid}/_folder.yml`? in `pages/{folder1-guid}/{folder2-guid}/{folder3-guid}/page.md with frontmatter metadata
 - Or are folders named by display name like `Projects/_folder.yml`? no
-- How does folder renaming work with GUIDs vs display names? name is changes in metadata file
+- How does folder renaming work with GUIDs vs display names? name is changed in page frontmatter
 - If folder = parent page, does it use the page's GUID? no parent page in metadata or frontmatter
 
 ---
@@ -69,14 +69,14 @@
 **Current spec says**: "Given an empty folder, when a user deletes it, then the storage plugin removes the folder structure and metadata"
 
 **Needs clarification**:
-- Is cleanup automatic when last page is removed, or must user explicitly delete folder? expliocit delete
+- Is cleanup automatic when last page is removed, or must user explicitly delete folder? explicit delete
 - If automatic, is there a delay or is it immediate? immediate
-- What if user wants to keep an empty folder for future use? folder stays as it has metadata
-- Does `_folder.yml` persist even when empty, or is it deleted? yes
+- What if user wants to keep an empty folder for future use? folder stays as it has a page .md file with frontmatter metadata
+- Does the folder page .md file persist even when empty, or is it deleted? yes
 - In S3, do empty "folders" (prefixes) need explicit cleanup? no
 
 **clarification**
-- each folder wil have a page with the same guid - by default this will be empty, except for frontmatter
+- each folder will have a page .md file with the same guid - by default this will be empty, except for frontmatter metadata
 ---
 
 ## 🟡 High Priority - Important for User Experience
@@ -234,10 +234,11 @@
 ---
 
 ### 18. Folder Metadata Schema
-**Question**: What is the complete schema for `_folder.yml`?
+**Question**: What is the complete schema for folder page frontmatter?
 
 **Needs definition**:
 ```yaml
+---
 id: "folder-guid-123"  # Or is this the parent page GUID?
 displayName: "Projects"
 description: "All our family projects"
@@ -248,8 +249,10 @@ modified: "2026-01-13T12:00:00Z"
 createdBy: "user-guid-456"
 tags: ["family", "projects"]  # Optional?
 order: "alphabetical"  # Or custom?
+---
 ```
 - Is this correct and complete?
+- Each folder has a page .md file where this frontmatter serves as the folder metadata
 
 ---
 
