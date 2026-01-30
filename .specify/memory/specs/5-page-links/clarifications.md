@@ -25,30 +25,32 @@
 ### 2. Link Resolution Strategy
 **Question**: How are wiki page links resolved to actual pages?
 
-**Current spec mentions**: "Insert wiki link using page title and path"
+**ANSWERED**: URLs use short-code GUID format: `/pages/{short-code-guid}/Page Title`
 
-**Needs clarification**:
-- Are links stored as page GUIDs or display name paths?
-- Example: `[Getting Started](/wiki/abc-123)` (GUID) or `[Getting Started](/wiki/getting-started)` (slug)?
-- If using display names, what happens when page is renamed?
-- Should links be automatically updated when target page is renamed?
-- Or use GUID-based links that are always stable?
+**Implementation**:
+- Links stored as: `[Getting Started](/pages/abc-123/Getting Started)`
+- Short-code GUID (e.g., `abc-123`) is stable and never changes
+- Page title in URL is for SEO/readability but not used for routing
+- System resolves short-code to actual S3 path via pluggable URL mapping service
+- When page is renamed, URL still works (short-code unchanged)
+- Page title in URL can be updated but is optional for link functionality
 
 ---
 
 ### 3. Link Storage Format
 **Question**: What is the exact format of stored links in markdown?
 
-**Needs definition for each type**:
-- Internal wiki page: `[Display](????)`
+**ANSWERED**: Format for each link type:
+- Internal wiki page: `[Display](/pages/{short-code}/Page Title)`
 - External URL: `[Display](https://...)`
-- Attachment: `![Display](????)`
+- Attachment: `![Display](attachment-filename.ext)` (relative to page)
 - Email: `[Email](mailto:...)`
 
-**Critical decision**: Do internal links use:
-- A) Relative paths: `[Page](/wiki/folder/page)`
-- B) GUIDs: `[Page](/pages/abc-123)`
-- C) Custom protocol: `[Page](wiki://abc-123)`
+**Decision**: Internal links use short-code GUID format:
+- Format: `[Page Title](/pages/abc-123/Page Title)`
+- Short-code `abc-123` is stable identifier
+- Page title in URL is optional/cosmetic
+- URL mapping service resolves short-code to S3 path
 
 ---
 
@@ -77,6 +79,23 @@
 - How is hierarchy built (parent-child relationships)?
 - What if wiki has thousands of pages - pagination in picker?
 - Should recently viewed/linked pages appear first?
+
+---
+
+### NEW: URL Mapping Database
+**Question**: How is the short-code to S3 path mapping maintained?
+
+**ANSWERED**: Pluggable URL mapping service
+
+**Implementation**:
+- Pluggable interface to support different cloud providers (not just DynamoDB)
+- Maps: `short-code → { s3Path, pageTitle, status }`
+- Table must be updated for:
+  - Page renames: Update `pageTitle` field
+  - Page moves: Update `s3Path` field
+  - Page deletes: Update `status` to 'deleted'
+- Fast lookup by short-code for URL resolution
+- Optional reverse lookup by S3 path for admin tools
 
 ---
 

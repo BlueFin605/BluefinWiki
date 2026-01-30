@@ -124,19 +124,70 @@ not sure it should be atomic - we need to recursively walk the tree and move all
 ### 8. Display Name to GUID Resolution
 **Question**: How does the system resolve display names to GUIDs for lookups?
 
-**Current spec says**: "System MUST maintain a mapping cache (DynamoDB) for display name to GUID resolution for performance"
+**ANSWERED**: Using pluggable URL mapping service
 
-**Needs clarification**:
-- Is DynamoDB cache mandatory or optional for S3 plugin? not needed for display name, shoul dbe stored in Frontmatter
-- If optional, what's the fallback? Scan all S3 objects and parse frontmatter? always parse frontmatter
-- How is the cache invalidated/updated when pages are renamed? no cache
-- Is the cache indexed by full path (e.g., "Projects/Alpha") or just page title?
-- What happens if cache is stale or unavailable?
-- Should URL paths use slugified display names or always use GUIDs?
+**Implementation**:
+- **URL Mapping Service** (pluggable interface for different cloud providers)
+- Maps: `short-code-guid → { s3Path, pageTitle, folderPath, status, permissions }`
+- Reverse lookup: `s3Path → short-code-guid`
+- Display name stored in page frontmatter
+- URL format: `/pages/{short-code}/Page Title`
+- Short-code provides stable identifier (never changes)
+- Page title in URL is cosmetic/SEO (can differ from actual title)
+- Mapping updated on:
+  - Page create: Add new short-code mapping
+  - Page rename: Update pageTitle field
+  - Page move: Update s3Path field  
+  - Page delete: Update status to 'deleted'
+- No complex caching needed - mapping is lightweight metadata
+---
 
-**clarification**
-- display name should be stored in the Front matter, not in a seperate storage such as dynamodb
-]
+### NEW: URL Mapping Service Interface
+**Question**: What is the interface for the pluggable URL mapping service?
+
+**ANSWERED**: Pluggable interface design for cloud-agnostic implementation
+
+**Interface Definition**:
+```typescript
+interface IUrlMappingService {
+  // Create new short-code mapping
+  createMapping(pageGuid: string, s3Path: string, pageTitle: string): Promise<string>; // returns short-code
+  
+  // Resolve short-code to page metadata
+  resolveShortCode(shortCode: string): Promise<PageUrlMapping>;
+  
+  // Update mapping on page operations
+  updateTitle(shortCode: string, newTitle: string): Promise<void>;
+  updatePath(shortCode: string, newS3Path: string): Promise<void>;
+  markDeleted(shortCode: string): Promise<void>;
+  
+  // Reverse lookup (optional, for admin tools)
+  findByS3Path(s3Path: string): Promise<string>; // returns short-code
+}
+
+interface PageUrlMapping {
+  shortCode: string;
+  pageGuid: string;
+  s3Path: string;
+  pageTitle: string;
+  status: 'active' | 'deleted';
+  lastModified: Date;
+}
+```
+
+**Implementation Options**:
+- DynamoDB (AWS)
+- Cosmos DB (Azure)
+- Firestore (GCP)
+- PostgreSQL (self-hosted)
+- Any key-value store with fast lookups
+
+**Performance Requirements**:
+- < 50ms lookup latency for short-code resolution
+- Strongly consistent reads (not eventual)
+- Indexed on short-code (primary key)
+- Optional index on s3Path for reverse lookup
+
 ---
 
 ### 9. S3 Versioning Configuration

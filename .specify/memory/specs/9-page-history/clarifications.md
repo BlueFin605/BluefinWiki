@@ -8,6 +8,22 @@ This document contains questions and ambiguities identified in the Page History 
 
 ---
 
+### NEW: Version Permalinks with Short-Code URLs
+**Question**: How are version permalinks structured with the new short-code system?
+
+**ANSWERED**: Permalinks use short-code GUID format
+
+**Implementation**:
+- Current version: `/pages/{short-code}/Page Title`
+- Specific version: `/pages/{short-code}/Page Title?v={version-number}`
+- Short-code remains stable across page moves and renames
+- URL mapping service resolves short-code to S3 path
+- Version parameter routes to specific version file
+- When page is renamed, all historical permalinks still work
+- URL mapping tracks current title for display
+
+---
+
 ## 1. Storage Backend Version Strategy (Priority: HIGH)
 
 ### Current Ambiguity

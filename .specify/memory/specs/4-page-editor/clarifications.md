@@ -6,6 +6,22 @@
 
 ---
 
+### NEW: Page URL After Save
+**Question**: What URL structure is used for saved pages?
+
+**ANSWERED**: Pages use short-code GUID URL format
+
+**Implementation**:
+- New page created with short-code GUID
+- URL format: `/pages/{short-code}/Page Title`
+- After save, user redirected to page view at this URL
+- Short-code registered in URL mapping service
+- Mapping links short-code to S3 path
+- Page title in URL updated when page renamed
+- Short-code never changes (stable permalinks)
+
+---
+
 ## 🔴 Critical Priority - Must Answer Before Implementation
 
 ### 1. Editor Library Choice
