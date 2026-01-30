@@ -6,6 +6,21 @@
 
 ---
 
+### NEW: Search Result URL Structure
+**Question**: How are search result links structured?
+
+**ANSWERED**: Search results use short-code GUID URLs
+
+**Implementation**:
+- Result link format: `/pages/{short-code}/Page Title`
+- Search highlighting via query param: `?highlight=search+terms`
+- Full example: `/pages/abc-123/Getting Started?highlight=installation+guide`
+- URL mapping service resolves short-code to S3 path
+- Page renames don't break saved search links
+- Search index can cache short-code mappings for performance
+
+---
+
 ## 🔴 Critical Priority - Must Answer Before Implementation
 
 ### 1. Default Search Implementation Choice
@@ -130,13 +145,15 @@ interface ISearchPlugin {
 ### 9. Search Highlighting Implementation
 **Question**: How is search term highlighting implemented on destination page?
 
-**Current spec mentions**: "Navigate to page from search results, search terms are highlighted"
+**ANSWERED**: Using query string parameter with short-code URLs
 
-**Needs clarification**:
-- Query string parameter: `/wiki/page?highlight=chicken,recipe`?
-- Or stored in session/localStorage?
-- How long do highlights persist (until page refresh, navigate away, explicit clear)?
-- Multiple terms - different colors or same color?
+**Implementation**:
+- Format: `/pages/{short-code}/Page Title?highlight=term1+term2`
+- Multiple terms space-separated in query param
+- Highlights persist until page refresh or navigation away
+- Frontend JavaScript parses query param and highlights matches
+- Same highlight color for all terms (or alternating colors)
+- Clear highlights button in UI optional
 
 ---
 

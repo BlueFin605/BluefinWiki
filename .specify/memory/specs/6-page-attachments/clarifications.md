@@ -60,26 +60,32 @@
 ### 4. Markdown Reference Format
 **Question**: How are attachments referenced in markdown content?
 
-**Current spec shows**: `![filename](attachment-id.jpg)`
+**ANSWERED**: Relative references using filename
 
-**Needs clarification**:
-- Is it: `![family-photo.jpg](abc-123.jpg)` (GUID with extension)?
-- Or: `![family-photo.jpg](attachments/abc-123)` (path)?
-- Or: `![family-photo.jpg](attachment://abc-123)` (custom protocol)?
-- How does markdown renderer know to look in attachments folder?
-- Different syntax for images vs documents?
+**Implementation**:
+- Images: `![family-photo.jpg](family-photo.jpg)`
+- Documents: `[Document](document.pdf)`
+- Attachments stored alongside page in S3: `pages/folder-path/{page-guid}-attach-{filename}`
+- Markdown renderer resolves relative paths to attachment URLs
+- When page is rendered, attachment URLs generated dynamically
+- No need to update markdown when page moves (relative references)
+- URL generation uses page's short-code for context
 
 ---
 
 ### 5. Attachment URL Generation
 **Question**: How are attachment URLs generated for browser access?
 
-**Needs clarification**:
-- CloudFront URL: `https://cdn.bluefin.com/pages/{page-guid}/_attachments/{attachment-guid}.jpg`?
-- Or direct S3 presigned URL?
-- Or served through application with auth check?
-- How long are URLs valid (cached, presigned expiry)?
-- Different URL strategy for public vs authenticated access?
+**ANSWERED**: URLs generated using page short-code context
+
+**Implementation**:
+- When rendering page at `/pages/{short-code}/Page Title`
+- Attachment URLs: `/pages/{short-code}/attachments/{filename}`
+- Backend resolves short-code to S3 path via URL mapping
+- Retrieves attachment: `pages/folder-path/{page-guid}-attach-{filename}`
+- Can use CloudFront for CDN distribution
+- Presigned URLs for private pages/attachments
+- Auth check before serving attachment (permission verification)
 
 ---
 

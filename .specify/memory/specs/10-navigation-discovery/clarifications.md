@@ -13,12 +13,13 @@
 
 **Current spec shows**: "Home > Projects > 2024 > Q4 > Planning"
 
-**Needs clarification**:
-- Are breadcrumbs based on folder structure in storage (S3 paths)?
-- Or based on parent references in page frontmatter?
-- If page is moved, do breadcrumbs update automatically?
-- What if parent page is deleted - does breadcrumb break?
-- Should breadcrumb generation use cached metadata (DynamoDB) or query storage on each page load?
+**ANSWERED**: Breadcrumbs use short-code GUID URLs
+- Each breadcrumb segment links to: `/pages/{short-code}/Display Name`
+- Hierarchy determined by folder structure in S3
+- URL mapping service resolves short-codes to S3 paths
+- When pages/folders are moved, breadcrumbs update automatically (short-codes unchanged)
+- Breadcrumbs can be generated from cached metadata for performance
+- Deleted parent folders/pages handled gracefully (show "[Deleted]" or skip)
 
 ---
 
@@ -71,6 +72,24 @@
 - Or separate data source?
 - Should they share the same backend events/tables?
 - Can we consolidate to avoid duplication?
+
+---
+
+### NEW: URL Structure Impact on Navigation
+**Question**: How does the short-code URL structure affect navigation features?
+
+**ANSWERED**: All navigation uses short-code GUID URLs
+
+**Implementation**:
+- Recent changes: Links use `/pages/{short-code}/Page Title`
+- Sitemap: All links use short-code format
+- Activity feed: User actions tracked by short-code
+- URL mapping service maintains:
+  - Short-code → S3 path mapping
+  - Page title for URL display
+  - Deletion status for broken link detection
+- Navigation can cache mappings for performance
+- Broken links detected by checking deletion status
 
 ---
 

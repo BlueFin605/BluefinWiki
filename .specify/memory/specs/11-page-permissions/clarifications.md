@@ -6,6 +6,22 @@
 
 ---
 
+### NEW: Permission Checking with Short-Code URLs
+**Question**: How are permissions checked when using short-code URLs?
+
+**ANSWERED**: URL mapping service integrates with permission system
+
+**Implementation**:
+- User requests: `/pages/{short-code}/Page Title`
+- URL mapping service resolves short-code to S3 path and page metadata
+- Metadata includes permission information (or reference to it)
+- Permission check performed before serving content
+- Cache permission results with short-code for performance
+- Permissions updated in mapping when changed (page settings)
+- Access denied returns 403 with appropriate error page
+
+---
+
 ## 🔴 Critical Priority - Must Answer Before Implementation
 
 ### 1. Permissions Storage Location

@@ -6,6 +6,21 @@
 
 ---
 
+### NEW: Folder URL Structure
+**Question**: How are folder URLs structured with the new short-code system?
+
+**ANSWERED**: Folders use the same short-code GUID URL format as pages
+
+**Implementation**:
+- Folder URL format: `/pages/{folder-short-code}/Folder Name`
+- Each folder has a page.md file with its own short-code GUID
+- URL mapping service maps folder short-code to S3 folder path
+- Folder renames update the URL mapping (short-code stays same)
+- Folder moves update the S3 path in URL mapping
+- Folder deletes mark status as 'deleted' in URL mapping
+
+---
+
 ## 🔴 Critical Priority - Must Answer Before Implementation
 
 ### 1. Folder vs. Page Distinction
