@@ -181,10 +181,6 @@ Users can update their own profile information and change their password without
   - Attributes: invitationId (unique), recipientEmail, invitationToken (unique, secure), createdByUserId, status (pending/used/expired), createdAt, expiresAt, usedAt
   - Relationships: Created by an admin user, consumed when user registers
 
-- **AuthSession**: Represents an active user session
-  - Attributes: sessionId (unique), userId, sessionToken (secure), createdAt, expiresAt, rememberMe (boolean), lastActivityAt
-  - Relationships: Belongs to one user, invalidated on logout or expiration
-
 - **PasswordResetToken**: Represents a temporary password reset request
   - Attributes: tokenId (unique), userId, resetToken (unique, secure), createdAt, expiresAt, usedAt
   - Relationships: Belongs to one user, single-use, expires after 1 hour
@@ -206,6 +202,18 @@ Users can update their own profile information and change their password without
 - **SC-011**: Rate limiting successfully blocks brute force attacks (max 5 failed login attempts per 15 minutes per email)
 - **SC-012**: All authentication events are logged for security audit with timestamps and IP addresses
 
+## Out of Scope
+
+- **Immediate session revocation**: Due to stateless JWT approach, sessions cannot be revoked before token expiration
+  - When a user is deleted or disabled, they can continue accessing the wiki until their current token expires (max 7-30 days)
+  - Refresh token validation prevents new tokens from being issued to deleted/disabled users
+  - For immediate revocation needs, consider implementing token blacklist (post-MVP enhancement)
+- **Session activity tracking**: No tracking of individual user sessions, login history, or active session counts
+- **Device management**: No "sign out from all devices" or "view active sessions" functionality
+- **Two-factor authentication (2FA)**: Security enhancement for future release
+- **Social login**: OAuth providers (Google, GitHub, etc.) not included in MVP
+- **Custom password policies**: Password requirements are fixed in MVP (configurable in Admin Config post-MVP)
+
 ## Assumptions
 
 - Email delivery service is configured and operational (e.g., AWS SES, SendGrid, or similar)
@@ -214,7 +222,11 @@ Users can update their own profile information and change their password without
 - Email addresses are unique identifiers for users (one account per email)
 - Admin users are trusted family members who will manage invitations responsibly
 - No two-factor authentication (2FA) in initial release (can be added as optional module later)
-- Session storage will use secure, httpOnly cookies with appropriate security flags
+- **Session Management**: Stateless JWT tokens stored in secure, httpOnly cookies
+  - Access tokens expire after 7 days (default) or 30 days with "Remember me"
+  - No server-side session tracking - tokens are self-contained
+  - **Implication**: Sessions cannot be revoked until token expiration
+  - Refresh tokens are validated against user status (deleted/disabled users fail refresh)
 - System will comply with basic security best practices (HTTPS, secure headers, CSRF protection)
 - Password reset emails are sent from a trusted domain that family members will recognize
 - Initial admin setup occurs in a trusted environment (family member's device, not public computer)

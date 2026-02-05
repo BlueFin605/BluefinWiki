@@ -6,6 +6,55 @@ This document tracks important design decisions and clarifications made to the s
 
 ---
 
+## Session Management Approach (Feb 6, 2026)
+
+**Issue Identified**: Ambiguity between stateless JWT tokens and tracked sessions in authentication specification.
+
+**Original Conflict**:
+- [1-user-authentication.md](1-user-authentication.md) defined `AuthSession` entity suggesting session tracking
+- Clarifications document stated: "We do not need to track sessions, access token should expire"
+- Unclear whether sessions could be immediately revoked
+
+**Resolution - Stateless JWT Approach**:
+- **No server-side session tracking** - JWT tokens are self-contained
+- Access tokens stored in secure, httpOnly cookies
+- Token expiration: 7 days (default) or 30 days with "Remember me"
+- **Sessions cannot be revoked** until token naturally expires
+- Refresh token validation checks user status (deleted/disabled users cannot refresh)
+
+**Implications**:
+1. **User Suspension Delay**: When an admin suspends a user, that user can continue accessing the wiki until their token expires (7-30 days)
+2. **No "Sign Out Everywhere"**: Cannot force logout from all devices
+3. **No Active Session View**: Admin cannot see list of active user sessions
+4. **Cost-Effective**: No DynamoDB storage/queries for session management
+5. **Serverless-Friendly**: No session state to maintain across Lambda invocations
+
+**Trade-offs**:
+- ✅ **Pros**: Simpler architecture, lower cost, better serverless scalability
+- ❌ **Cons**: Cannot immediately revoke access, no session management visibility
+
+**Future Enhancement Option**:
+- Post-MVP: Implement token blacklist in DynamoDB for immediate revocation capability
+- Would add ~$0.10-0.50/month cost but enable "Sign Out Everywhere" feature
+
+**Updated Specifications**:
+- [1-user-authentication.md](1-user-authentication.md):
+  - Removed `AuthSession` entity from Key Entities section
+  - Updated Assumptions to clarify stateless JWT approach
+  - Added Out of Scope section documenting session revocation limitations
+- [8-user-management.md](8-user-management.md):
+  - US-4: Added Important Note about suspension delay (7-30 days)
+  - Updated acceptance criteria to reflect token expiration behavior
+  - Modified warning message to inform admin about session expiration delay
+
+**Rationale**:
+1. **Architectural Consistency**: Aligns with serverless, stateless design principles
+2. **Cost Optimization**: Eliminates DynamoDB reads/writes for every request
+3. **Family Use Case**: Low security risk - family wikis have trusted users
+4. **Simplicity**: Reduces complexity, no session cleanup jobs needed
+
+---
+
 ## Draft Page Permissions (Feb 6, 2026)
 
 **Issue Identified**: Original spec for page status ([16-page-metadata.md](16-page-metadata.md)) stated "Draft pages visible to all authenticated users" which contradicted the purpose of draft status.
