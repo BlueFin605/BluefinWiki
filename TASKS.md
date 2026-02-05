@@ -53,29 +53,29 @@
 - [x] Document contributing guidelines and PR template
 
 #### 1.2 Local Development with Aspire
-- [ ] Set up Aspire AppHost project structure
-  - [ ] Create `aspire/BlueFinWiki.AppHost` directory
-  - [ ] Initialize with `dotnet new aspire-apphost -n BlueFinWiki.AppHost`
-  - [ ] Create `aspire/BlueFinWiki.ServiceDefaults` for shared configuration
-  - [ ] Initialize with `dotnet new aspire-servicedefaults -n BlueFinWiki.ServiceDefaults`
-- [ ] Configure Aspire service orchestration
-  - [ ] Add Node.js project reference for backend (Lambda functions running locally)
-  - [ ] Add Node.js project reference for frontend (Vite dev server)
-  - [ ] Configure port mappings and environment variables
-  - [ ] Set up service-to-service communication
-- [ ] Configure local AWS service emulation
-  - [ ] Add LocalStack container resource to Aspire
-  - [ ] Configure S3, DynamoDB, and SES emulation
-  - [ ] Set up automatic container startup with Aspire
-- [ ] Set up Aspire Dashboard
-  - [ ] Configure telemetry collection (OpenTelemetry)
-  - [ ] Enable distributed tracing between services
-  - [ ] Configure structured logging
-  - [ ] Set up metrics collection
-- [ ] Create local environment configuration
-  - [ ] Define appsettings.Development.json for Aspire
-  - [ ] Configure connection strings and service endpoints
-  - [ ] Set up local secrets management
+- [x] Set up Aspire AppHost project structure
+  - [x] Create `aspire/BlueFinWiki.AppHost` directory
+  - [x] Initialize with `dotnet new aspire-apphost -n BlueFinWiki.AppHost`
+  - [x] Create `aspire/BlueFinWiki.ServiceDefaults` for shared configuration
+  - [x] Initialize with `dotnet new aspire-servicedefaults -n BlueFinWiki.ServiceDefaults`
+- [x] Configure Aspire service orchestration
+  - [x] Add Node.js project reference for backend (Lambda functions running locally)
+  - [x] Add Node.js project reference for frontend (Vite dev server)
+  - [x] Configure port mappings and environment variables
+  - [x] Set up service-to-service communication
+- [x] Configure local AWS service emulation
+  - [x] Add LocalStack container resource to Aspire
+  - [x] Configure S3, DynamoDB, and SES emulation
+  - [x] Set up automatic container startup with Aspire
+- [x] Set up Aspire Dashboard
+  - [x] Configure telemetry collection (OpenTelemetry)
+  - [x] Enable distributed tracing between services
+  - [x] Configure structured logging
+  - [x] Set up metrics collection
+- [x] Create local environment configuration
+  - [x] Define appsettings.Development.json for Aspire
+  - [x] Configure connection strings and service endpoints
+  - [x] Set up local secrets management
 
 #### 1.3 AWS Cloud Infrastructure as Code
 - [ ] Choose IaC tool (AWS CDK with C# recommended)
