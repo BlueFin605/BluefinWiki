@@ -1,0 +1,29 @@
+{
+  "name": "@bluefinwiki/infrastructure",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "test": "echo \"No tests yet\"",
+    "synth": "cdk synth",
+    "deploy:dev": "cdk deploy --all --require-approval never --context env=dev",
+    "deploy:staging": "cdk deploy --all --require-approval never --context env=staging",
+    "deploy:prod": "cdk deploy --all --require-approval never --context env=production",
+    "diff": "cdk diff",
+    "destroy": "cdk destroy --all"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.126.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "@typescript-eslint/eslint-plugin": "^7.0.1",
+    "@typescript-eslint/parser": "^7.0.1",
+    "aws-cdk": "^2.126.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  }
+}

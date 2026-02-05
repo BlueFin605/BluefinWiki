@@ -1,0 +1,25 @@
+{
+  "name": "bluefinwiki",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BlueFinWiki - Family Wiki Platform",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "infrastructure"
+  ],
+  "scripts": {
+    "lint": "npm run lint --workspaces",
+    "type-check": "npm run type-check --workspaces",
+    "test": "npm run test --workspaces",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

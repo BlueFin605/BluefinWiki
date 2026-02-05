@@ -32,20 +32,20 @@
 **Goal**: Establish development environment and AWS infrastructure
 
 #### 1.1 Repository & CI/CD Setup
-- [ ] Initialize monorepo structure (frontend, backend, infrastructure)
+- [x] Initialize monorepo structure (frontend, backend, infrastructure)
 - [ ] Create GitHub repository with branch protection rules
-- [ ] Configure Git hooks (pre-commit: lint, type-check)
-- [ ] Set up GitHub Actions workflows:
-  - [ ] Frontend build and test
-  - [ ] Backend build and test
-  - [ ] Infrastructure validation (CDK synth)
-  - [ ] Deploy to dev environment on main branch
-- [ ] Create README.md with setup instructions
-- [ ] Document contributing guidelines and PR template
+- [x] Configure Git hooks (pre-commit: lint, type-check)
+- [x] Set up GitHub Actions workflows:
+  - [x] Frontend build and test
+  - [x] Backend build and test
+  - [x] Infrastructure validation (CDK synth)
+  - [x] Deploy to dev environment on main branch
+- [x] Create README.md with setup instructions
+- [x] Document contributing guidelines and PR template
 
 #### 1.2 AWS Infrastructure as Code
 - [ ] Choose IaC tool (AWS CDK recommended)
-- [ ] Initialize CDK project (TypeScript)
+- [ ] Initialize CDK project (c#)
 - [ ] Define three environments: dev, staging, production
 - [ ] Create CloudFormation stacks:
   - [ ] Network stack (VPC, subnets - if needed)

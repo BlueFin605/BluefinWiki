@@ -1,0 +1,15 @@
+{
+  "*": "echo 'Running pre-commit hooks...'",
+  "*.{ts,tsx}": [
+    "eslint --fix --max-warnings 0"
+  ],
+  "frontend/**/*.{ts,tsx}": [
+    "npm run type-check --workspace=frontend"
+  ],
+  "backend/**/*.ts": [
+    "npm run type-check --workspace=backend"
+  ],
+  "infrastructure/**/*.ts": [
+    "npm run type-check --workspace=infrastructure"
+  ]
+}
