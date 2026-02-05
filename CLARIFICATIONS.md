@@ -55,6 +55,65 @@ This document tracks important design decisions and clarifications made to the s
 
 ---
 
+## Notification System Scope (Feb 6, 2026)
+
+**Issue Identified**: Multiple specifications referenced notification features without a defined notification system.
+
+**Affected References**:
+- [15-page-comments.md](15-page-comments.md) - US-10.3: Reply notifications, US-10.6: @mention notifications
+- [11-page-permissions.md](11-page-permissions.md) - US-6: Ownership transfer notifications, FR-014: Permission grant notifications
+- [17-admin-configuration.md](17-admin-configuration.md) - US-12.8: Email notification settings for page changes and comments
+- Error Handling spec - Admin notifications for service degradation
+- Folder Management spec - Notifications for folder operations
+
+**Resolution - Post-MVP Approach**:
+All notification features marked as **Post-MVP** pending specification of notification module.
+
+**MVP Email Capabilities** (via AWS SES):
+- ✅ User invitation emails (Spec #1)
+- ✅ Password reset emails (Spec #1)
+- ✅ No other notifications in MVP
+
+**Post-MVP Notification Module** (to be specified):
+When specified, notification module should include:
+1. **Email Notifications**: Configurable alerts via AWS SES
+   - Comment replies and @mentions
+   - Permission grants/changes
+   - Page changes (watch/subscribe)
+   - Admin alerts (service issues, security events)
+2. **In-App Notifications**: Notification center in UI
+3. **Notification Preferences**: Per-user settings (global opt-out, notification types)
+4. **Delivery Management**: Immediate vs. digest, frequency settings
+5. **Template System**: Customizable email templates
+
+**Updated Specifications**:
+- [15-page-comments.md](15-page-comments.md):
+  - US-10.3: Clarified reply notifications require Post-MVP module
+  - US-10.6: Clarified @mention notifications require Post-MVP module
+  - Updated Cross-References section
+  - Resolved Open Question #1
+- [11-page-permissions.md](11-page-permissions.md):
+  - US-6: Clarified ownership transfer notifications are Post-MVP
+  - FR-014: Changed from MUST to SHOULD (Post-MVP)
+  - Resolved Open Question #3
+- [17-admin-configuration.md](17-admin-configuration.md):
+  - US-12.8: Clearly separated MVP email (invites, resets) from Post-MVP notifications
+  - Updated priority rationale
+
+**Data Preservation**:
+- Comment mentions are stored in `mentions: [userId1, userId2]` array for future notification integration
+- Permission changes can be logged in audit trail for future notification generation
+- No functionality lost - data ready when notification module is implemented
+
+**Rationale**:
+1. **MVP Focus**: Keeps scope manageable - core wiki features without complex notification infrastructure
+2. **Cost Control**: AWS SES notifications add minimal cost, but complex notification system needs careful design
+3. **User Feedback**: Family wikis may not need extensive notifications - can validate need post-launch
+4. **Clean Architecture**: Notification module can be fully pluggable when specified
+5. **Data Ready**: Store notification-relevant data (mentions, permission changes) now for future use
+
+---
+
 ## Draft Page Permissions (Feb 6, 2026)
 
 **Issue Identified**: Original spec for page status ([16-page-metadata.md](16-page-metadata.md)) stated "Draft pages visible to all authenticated users" which contradicted the purpose of draft status.

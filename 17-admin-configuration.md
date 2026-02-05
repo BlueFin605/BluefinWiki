@@ -222,12 +222,13 @@ P3 - Nice-to-have for advanced scenarios but not essential for single-family wik
 **So that** users receive appropriate alerts without spam
 
 **Acceptance Criteria:**
-- Can enable/disable notification types:
-  - User invitations (always enabled)
-  - Password resets (always enabled)
-  - Page change notifications (optional)
-  - Comment notifications (optional, future)
-  - Digest emails (optional, future)
+- Can enable/disable email notification types:
+  - User invitations (always enabled) ✅ MVP
+  - Password resets (always enabled) ✅ MVP
+  - **Post-MVP Features** (require notification module):
+    - Page change notifications
+    - Comment notifications
+    - Digest emails
 - Can configure "From" email address and name
 - Can customize email templates (P3 future)
 - Can set notification frequency (immediate/daily/weekly digest)
@@ -236,7 +237,7 @@ P3 - Nice-to-have for advanced scenarios but not essential for single-family wik
 - Email settings stored in DynamoDB config table
 
 **Priority Rationale:**
-P2 - Important for user engagement but basic email (invites, password resets) sufficient for MVP.
+P2 - Basic email delivery (invitations, password resets) is P1/MVP. Advanced notification features (page changes, comments, digests) are Post-MVP pending notification module specification.
 
 ---
 
