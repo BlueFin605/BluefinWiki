@@ -114,6 +114,46 @@ When specified, notification module should include:
 
 ---
 
+## CSRF Protection & API Rate Limiting Added (Feb 6, 2026)
+
+**Issue Identified**: Security gaps - CSRF protection mentioned but not detailed, API rate limiting inconsistently specified across specifications.
+
+**Original State**:
+- CSRF mentioned only in Auth spec assumptions ("basic security best practices")
+- Rate limiting documented for login attempts only (5 per 15 minutes)
+- No comprehensive API rate limiting strategy
+- Cross-artifact consistency analysis identified these as high-priority security gaps
+
+**Resolution - Comprehensive Security Requirements**:
+
+### CSRF Protection
+- [1-user-authentication.md](1-user-authentication.md):
+  - Added FR-021, FR-022, FR-023 for CSRF requirements
+  - Expanded Assumptions section with implementation details (double-submit cookie pattern)
+  - CSRF tokens required for all POST/PUT/DELETE/PATCH requests
+  - 403 Forbidden response for invalid/missing tokens
+
+### API Rate Limiting
+- [19-error-handling-edge-cases.md](19-error-handling-edge-cases.md):
+  - Updated Story 4 with comprehensive rate limiting requirements
+  - Added Story 11: Rate Limit Exceeded error handling
+  - Defined rate limits: General API (100/min, 1000/hr), Comments (10/hr), Uploads (20/hr), Exports (5/day)
+  - Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After
+  - Clear user-facing error messages with countdown timers
+
+**Implementation Approach**:
+- **CSRF**: Double-submit cookie, unique tokens per session, httpOnly storage
+- **Rate Limiting**: Token bucket algorithm, Redis/DynamoDB storage, per-user and per-IP tracking
+- **Admin Exemption**: Higher general API limits, same auth limits for security
+
+**Rationale**:
+1. **Security**: Industry-standard protection against CSRF attacks and brute force
+2. **Stability**: Prevents system overload from excessive requests
+3. **User Experience**: Clear feedback when limits hit
+4. **Cost Control**: Protects against runaway AWS costs
+
+---
+
 ## Draft Page Permissions (Feb 6, 2026)
 
 **Issue Identified**: Original spec for page status ([16-page-metadata.md](16-page-metadata.md)) stated "Draft pages visible to all authenticated users" which contradicted the purpose of draft status.

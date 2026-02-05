@@ -14,8 +14,10 @@ This specification defines how BlueFinWiki handles errors, service failures, edg
 - [4-page-editor.md](4-page-editor.md) - Story 3: Network connectivity loss with localStorage drafts
 
 **Security & Validation:**
-- Story 4: Input validation and XSS prevention applies to all user input across specifications
+- Story 4: Input validation, XSS prevention, **CSRF protection**, and **comprehensive API rate limiting**
+- Story 11: Rate limit exceeded handling with clear user feedback
 - Story 9: Data corruption detection for all page content
+- Coordinates with [1-user-authentication.md](1-user-authentication.md) for CSRF token validation (FR-021, FR-022, FR-023)
 
 ---
 
@@ -130,7 +132,15 @@ This specification defines how BlueFinWiki handles errors, service failures, edg
   - MIME type verification (not just extension)
 - [ ] SQL injection prevented through parameterized queries
 - [ ] Path traversal attacks blocked (e.g., `../../etc/passwd`)
-- [ ] Rate limiting applied to all API endpoints
+- [ ] **API Rate Limiting** enforced globally:
+  - Authentication endpoints: 5 login attempts per email per 15 minutes
+  - General API endpoints: 100 requests per user per minute, 1000 per hour
+  - Comment creation: 10 comments per user per hour
+  - File uploads: 20 uploads per user per hour
+  - Export generation: 5 exports per user per day
+  - Rate limit headers included in responses (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+  - 429 Too Many Requests response when limits exceeded with retry-after header
+- [ ] **CSRF Protection** validated on all state-changing requests (POST/PUT/DELETE/PATCH)
 - [ ] Suspicious activity logged and admin notified
 - [ ] Error messages don't reveal sensitive system information
 
@@ -143,6 +153,16 @@ This specification defines how BlueFinWiki handles errors, service failures, edg
 - Implement express-validator or zod for input validation
 - Use AWS WAF for additional protection
 - Log all validation failures with context
+- **Rate Limiting Implementation**:
+  - Use Redis or DynamoDB for distributed rate limit tracking
+  - Token bucket algorithm for smooth rate limiting
+  - Per-user and per-IP tracking
+  - Admin users exempt from general API limits (but not auth limits)
+- **CSRF Implementation**:
+  - Double-submit cookie pattern (token in cookie + request header)
+  - Generate new token on login/session start
+  - Validate on all POST/PUT/DELETE/PATCH endpoints
+  - 403 Forbidden for invalid/missing tokens
 
 ---
 
@@ -318,6 +338,41 @@ This specification defines how BlueFinWiki handles errors, service failures, edg
 - Implement polyfills for critical features
 - Test on minimum supported browser versions
 - Progressive enhancement approach
+
+---
+
+### Story 11: Rate Limit Exceeded
+**As a** wiki user  
+**I want** clear feedback when I hit rate limits  
+**So that** I understand why my request failed and when I can retry
+
+**Priority:** P1  
+**Rationale:** Rate limiting is critical for security and stability. Users need to understand limits.
+
+**Acceptance Criteria:**
+- [ ] When rate limit exceeded, user sees 429 response with clear message:
+  - Login attempts: "Too many failed login attempts. Please wait 15 minutes before trying again."
+  - API requests: "You're making requests too quickly. Please wait [X] seconds and try again."
+  - Comments: "You've posted too many comments. Please wait [X] minutes before posting again."
+  - File uploads: "Upload limit reached. You can upload [X] more files in [Y] hours."
+  - Exports: "Export limit reached. You can create [X] more exports tomorrow."
+- [ ] Rate limit information included in response headers:
+  - `X-RateLimit-Limit`: Maximum requests allowed
+  - `X-RateLimit-Remaining`: Requests remaining in current window
+  - `X-RateLimit-Reset`: Unix timestamp when limit resets
+  - `Retry-After`: Seconds to wait before retrying
+- [ ] Client shows countdown timer: "You can try again in 2:35"
+- [ ] Admin users see different limits (less restrictive for general API, same for auth)
+- [ ] Rate limit status visible in browser dev tools network tab
+- [ ] Hitting rate limit doesn't log as error (expected behavior, logged as info)
+
+**Technical Notes:**
+- Token bucket algorithm for smooth limiting
+- Use Redis or DynamoDB for distributed rate limit state
+- Per-user tracking (via userId from JWT token)
+- Per-IP tracking for unauthenticated requests
+- Graceful handling when rate limit store unavailable (allow request, log warning)
+- Admin dashboard shows users approaching rate limits (optional P3 feature)
 
 ---
 

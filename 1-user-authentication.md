@@ -170,6 +170,9 @@ Users can update their own profile information and change their password without
 - **FR-018**: System MUST use secure password hashing (bcrypt with salt) for all stored passwords
 - **FR-019**: System MUST implement rate limiting on login attempts (max 5 attempts per email per 15 minutes)
 - **FR-020**: System MUST provide intentionally vague error messages for failed login attempts to prevent email enumeration
+- **FR-021**: System MUST implement CSRF protection for all state-changing requests (login, registration, password changes)
+- **FR-022**: System MUST validate CSRF tokens on server-side for POST, PUT, DELETE, and PATCH requests
+- **FR-023**: System MUST generate unique CSRF tokens per user session and store in httpOnly cookies
 
 ### Key Entities
 
@@ -227,7 +230,15 @@ Users can update their own profile information and change their password without
   - No server-side session tracking - tokens are self-contained
   - **Implication**: Sessions cannot be revoked until token expiration
   - Refresh tokens are validated against user status (deleted/disabled users fail refresh)
-- System will comply with basic security best practices (HTTPS, secure headers, CSRF protection)
+- **Security Best Practices**:
+  - HTTPS/TLS required for all connections
+  - Secure HTTP headers (X-Frame-Options, X-Content-Type-Options, CSP)
+  - **CSRF Protection**: Double-submit cookie pattern
+    - CSRF token generated per user session
+    - Token stored in httpOnly cookie + sent in request header/body
+    - Server validates token match on all state-changing requests
+    - Invalid tokens result in 403 Forbidden response
+  - Rate limiting on authentication endpoints (details in FR-019)
 - Password reset emails are sent from a trusted domain that family members will recognize
 - Initial admin setup occurs in a trusted environment (family member's device, not public computer)
 
