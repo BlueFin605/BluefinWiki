@@ -8,7 +8,15 @@
     },
     "chat.tools.terminal.autoApprove": {
         ".specify/scripts/bash/": true,
-        ".specify/scripts/powershell/": true
+        ".specify/scripts/powershell/": true,
+        "/^bash \\.specify/scripts/bash/check-prerequisites\\.sh --json --require-tasks --include-tasks$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd 'c:\\\\Users\\\\mitch\\\\Development\\\\Projects\\\\SpecKit\\\\projects\\\\BlueFinWiki' ; bash \\.specify/scripts/bash/check-prerequisites\\.sh --json --require-tasks --include-tasks$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
 
