@@ -486,6 +486,53 @@ Admin Settings (Left Sidebar)
 
 ---
 
+## Accessibility Requirements (WCAG 2.1 AA)
+
+### Keyboard Navigation
+- All admin settings accessible via keyboard
+- Tab order follows logical grouping of settings
+- Module toggles operable with Space/Enter
+- Color pickers keyboard-accessible
+- Theme preview updates announced
+
+### Screen Reader Support
+- Settings page has clear heading structure
+- Module toggles announce state: "Comments module enabled"
+- Color picker announces current color value
+- Theme changes announced: "Theme changed to Dark mode"
+- Save confirmation announced: "Settings saved successfully"
+- System health status announced: "All systems operational"
+
+### Visual Design
+- Settings groups clearly separated
+- Toggle switches show clear on/off states
+- Save button prominently displayed
+- Success/error messages meet contrast requirements
+- Module status uses icons + text labels
+
+### System Health Dashboard
+- Status indicators use color + icons + text:
+  - Green checkmark + "Operational"
+  - Yellow warning + "Degraded"
+  - Red X + "Unavailable"
+- Metrics clearly labeled with units
+- Charts include text alternatives
+- Real-time updates announced to screen readers
+
+### Content Structure
+- Form fields properly labeled
+- Required fields marked clearly
+- Help text associated with inputs via `aria-describedby`
+- Error messages linked to relevant fields
+
+### Mobile Accessibility
+- All touch targets minimum 44x44px
+- Settings navigable without horizontal scroll
+- Module toggles easy to tap
+- Color picker mobile-friendly
+
+---
+
 ## Edge Cases & Error Handling
 
 ### Logo Upload Failures

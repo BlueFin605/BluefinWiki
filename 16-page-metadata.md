@@ -624,6 +624,46 @@ Attributes: PageTitle, Status, ModifiedAt
 
 ---
 
+## Accessibility Requirements (WCAG 2.1 AA)
+
+### Keyboard Navigation
+- Tab through tag input and suggestions
+- Arrow keys navigate tag autocomplete list
+- Enter adds selected tag
+- Backspace removes last tag when input empty
+- Delete/Backspace removes tag when focused
+- Status dropdown navigable with arrow keys
+
+### Screen Reader Support
+- Tag input has `aria-label="Add tags to page"`
+- Tag suggestions announced as list with count
+- Added tags announced: "Added tag: Family Recipes"
+- Removed tags announced: "Removed tag: Vacation"
+- Status badge has clear label: "Page status: Draft"
+- Category dropdown describes current selection
+
+### Visual Design
+- Tag pills have 4.5:1 contrast ratio
+- Status badges color-coded with text labels (not color alone):
+  - Draft: Yellow badge + "Draft" text
+  - Archived: Gray badge + "Archived" text
+- Focus indicator on tag pills and controls
+- Remove tag button (×) clearly visible
+
+### Content Structure
+- Tags as list with semantic HTML (`<ul>`, `<li>`)
+- Status badge uses `<span role="status">`
+- Category breadcrumb uses `<nav>` with proper structure
+- Custom fields have associated `<label>` elements
+
+### Mobile Accessibility
+- Tag pill touch targets minimum 44x44px
+- Tag remove buttons easy to tap
+- Status dropdown accessible on touch devices
+- Tag autocomplete doesn't obscure keyboard
+
+---
+
 ## Success Metrics
 
 - **Tag Adoption**: % of pages with at least one tag

@@ -446,6 +446,47 @@ Delete export file from S3
 
 ---
 
+## Accessibility Requirements (WCAG 2.1 AA)
+
+### Keyboard Navigation
+- Export button accessible via Tab key
+- Export dialog navigable with keyboard
+- Configuration options selectable with Space/Enter
+- Progress indicator announces updates
+
+### Screen Reader Support
+- Export button has clear label: "Export page to PDF"
+- Export dialog has `role="dialog"` with descriptive title
+- Progress announced: "Export in progress: 45% complete"
+- Completion announced: "Export complete. Download ready."
+- File size estimates announced: "Estimated size: 2.3 MB"
+
+### Visual Design
+- Export button clearly visible and labeled
+- Progress bar meets contrast requirements
+- Success/error states use icons + text (not color alone)
+- Download link clearly styled and visible
+
+### PDF Export Accessibility
+- Generated PDFs are tagged for accessibility
+- PDF headings maintain hierarchy
+- PDF links are accessible
+- PDF images have alt text from source
+- PDF tables properly structured
+
+### HTML Export Accessibility
+- Exported HTML maintains accessibility features
+- Navigation structure preserved
+- Links remain keyboard accessible
+- Color contrast maintained in exported theme
+
+### Mobile Accessibility
+- Export button touch target minimum 44x44px
+- Configuration options easy to select on mobile
+- Progress visible without obscuring content
+
+---
+
 ## Edge Cases & Error Handling
 
 ### Error Scenarios

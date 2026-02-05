@@ -528,6 +528,44 @@ modules:
 
 ---
 
+## Accessibility Requirements (WCAG 2.1 AA)
+
+### Keyboard Navigation
+- Tab through comment form fields and buttons
+- Enter submits comment (with Ctrl/Cmd modifier to add line break)
+- Arrow keys navigate between comments
+- Escape cancels reply or edit mode
+- Focus moves to new comment after posting
+
+### Screen Reader Support
+- Comments section has `role="region"` with `aria-label="Page comments"`
+- Comment count announced: "5 comments on this page"
+- Each comment has semantic structure: author, timestamp, content
+- Reply button indicates parent comment: "Reply to Alice's comment"
+- Edit mode announced: "Now editing comment"
+- Comment posted confirmation: "Comment added successfully"
+
+### Visual Design
+- Comment text meets 4.5:1 contrast ratio
+- Author names and timestamps distinguishable
+- Reply indentation clear with visual connector
+- Edit/Delete buttons have clear hover states
+- Threaded replies use color and indentation
+
+### Content Structure
+- Each comment has proper heading level for author
+- Timestamps in `<time>` element with ISO datetime
+- Markdown rendered with semantic HTML
+- "Deleted comment" clearly marked with styling
+
+### Mobile Accessibility
+- Comment action buttons minimum 44x44px
+- Reply form accessible without horizontal scroll
+- Virtual keyboard doesn't obscure comment form
+- Swipe actions have button alternatives
+
+---
+
 ## Constitutional Alignment Summary
 
 This specification aligns with BlueFinWiki Constitution principles:

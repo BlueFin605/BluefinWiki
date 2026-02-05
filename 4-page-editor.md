@@ -403,3 +403,39 @@ const toolbarActions = {
   image: () => openImageUploadDialog()
 };
 ```
+
+
+---
+
+## Accessibility Requirements (WCAG 2.1 AA)
+
+### Keyboard Navigation
+- All toolbar buttons accessible via Tab key
+- Keyboard shortcuts for common formatting:
+  - Ctrl+B (Bold), Ctrl+I (Italic)
+  - Ctrl+K (Link), Ctrl+Shift+I (Image)
+  - Ctrl+1-6 (Headings)
+  - Ctrl+S (Save), Ctrl+P (Preview)
+- Arrow keys navigate within editor
+- Escape exits fullscreen mode
+- Tab in editor inserts spaces (not focus change)
+
+### Screen Reader Support
+- Editor has `role="textbox"` with `aria-multiline="true"`
+- Toolbar buttons have clear `aria-label` attributes
+- Preview pane has `role="region"` with `aria-label="Markdown preview"`
+- Save confirmation announced: "Page saved successfully"
+- Auto-save status announced periodically
+
+### Visual Design
+- Toolbar buttons have 4.5:1 contrast ratio
+- Active/selected buttons clearly indicated
+- Focus indicators visible on all controls
+- Split-pane divider clearly visible
+- Preview matches page rendering exactly
+
+### Mobile Accessibility
+- Toolbar buttons minimum 44x44px touch targets
+- Virtual keyboard doesn't obscure editor
+- Preview toggle easy to access
+- Formatting menu accessible on mobile

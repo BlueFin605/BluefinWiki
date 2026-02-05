@@ -156,6 +156,19 @@ All 19 specifications include:
 - ✅ Technical implementation notes
 - ✅ Edge case considerations
 - ✅ Independent test descriptions
+- ✅ Cross-reference sections (12 specs)
+- ✅ **NEW**: Accessibility requirements (WCAG 2.1 AA) in 7 specs
+
+**Accessibility Coverage**:
+- ✅ [4-page-editor.md](4-page-editor.md) - Editor accessibility
+- ✅ [7-wiki-search.md](7-wiki-search.md) - Search accessibility  
+- ✅ [14-export-functionality.md](14-export-functionality.md) - Export accessibility
+- ✅ [15-page-comments.md](15-page-comments.md) - Comments accessibility
+- ✅ [16-page-metadata.md](16-page-metadata.md) - Metadata UI accessibility
+- ✅ [17-admin-configuration.md](17-admin-configuration.md) - Admin accessibility
+- ✅ [18-onboarding-help.md](18-onboarding-help.md) - Comprehensive help accessibility
+
+**Template Available**: [.specify/templates/accessibility-template.md](.specify/templates/accessibility-template.md)
 
 **Status**: Production-ready for implementation 🚀
 
