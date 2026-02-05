@@ -6,6 +6,18 @@
 **Status**: Clarified  
 **Input**: User description: "How users view page history, compare versions, and restore previous versions: View page version history, Compare two versions (diff view), Restore previous version, Track who made what changes"
 
+## Cross-References
+
+**Depends on:**
+- [2-s3-storage-plugin.md](2-s3-storage-plugin.md) - Version files stored in S3 with GUID-based naming
+- [8-user-management.md](8-user-management.md) - Author attribution for each version
+- [11-page-permissions.md](11-page-permissions.md) - View permission required to access history
+
+**Referenced by:**
+- [19-error-handling-edge-cases.md](19-error-handling-edge-cases.md) - Story 2 handles concurrent editing conflicts with ETag-based optimistic locking
+- [14-export-functionality.md](14-export-functionality.md) - US-9.5 exports pages with version history (P3)
+- [16-page-metadata.md](16-page-metadata.md) - Status changes logged in version history
+
 ## Design Decisions
 
 Based on clarifications documented in `clarifications.md`:

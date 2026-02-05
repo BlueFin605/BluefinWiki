@@ -77,29 +77,58 @@
 
 ## 🔍 Cross-Reference Map
 
+All specifications now include **Cross-Reference** sections showing dependencies and integrations.
+
 ### Features that integrate with each other:
 
-**Search (7) ← integrates with:**
-- Metadata (16) - Tags and categories
-- Page content (4, 5) - Full-text indexing
-- Attachments (6) - File metadata
+**Storage (2) - Core Infrastructure:**
+- Used by: Editor (4), Folder Management (3), Page History (9), Attachments (6), Exports (14)
+- Monitored by: Admin Config (17), Error Handling (19)
 
-**Comments (15) ← references:**
-- Future: Notifications (not yet spec'd)
-- User Management (8) - Author attribution
+**Search (7) - Discovery:**
+- Integrates with: Metadata (16) for tags/categories, Attachments (6) for file metadata
+- Respects: Permissions (11), Draft status (16)
+- Supports: Folder-scoped search (3)
 
-**Export (14) ← references:**
-- Page History (9) - Version exports
-- Folder Management (3) - Section exports
+**Page Permissions (11) - Security:**
+- Enforced by: Search (7), Navigation (10), Exports (14), Comments (15), History (9)
+- Works with: Draft status (16) independently
+- Based on: User Management (8) roles
 
-**Error Handling (19) ← covers:**
-- Page History (9) - Concurrent edit conflicts
-- Storage (2) - AWS S3 outages
-- Authentication (1) - Auth failures
+**Page History (9) - Versioning:**
+- Depends on: Storage (2), User Management (8)
+- Referenced by: Error Handling (19) for conflicts, Exports (14) for version exports
+- Logs: Status changes from Metadata (16)
 
-**Page Metadata (16) ← integrates with:**
-- Search (7) - Tag indexing
-- Drafts: May need permission clarification (currently "visible to all")
+**Comments (15) - Collaboration:**
+- Depends on: User Management (8) for authors, Permissions (11) for access
+- Uses: Same Markdown renderer as Editor (4)
+- Future: Notifications (not yet specified)
+
+**Export (14) - Content Distribution:**
+- Depends on: History (9), Attachments (6), Folder Management (3)
+- Respects: Permissions (11), includes Metadata (16)
+- Storage: Temporary files in S3 (2)
+
+**Error Handling (19) - Reliability:**
+- Covers: Storage (2) outages, History (9) conflicts, Auth (1) failures
+- Handles: Attachments (6) upload errors, Search (7) unavailability, Editor (4) network loss
+
+**Page Metadata (16) - Organization:**
+- Integrates with: Search (7) indexing, History (9) logging, Exports (14)
+- Works with: Permissions (11) independently for draft status
+- Enables: Discovery via tags and categories
+
+**User Management (8) - Identity:**
+- Used by: History (9) attribution, Comments (15) authors, Permissions (11) access lists
+- Depends on: Authentication (1) for invitations
+- Configured by: Admin Config (17)
+
+**Page Editor (4) - Content Creation:**
+- Saves to: Storage (2)
+- Integrates with: Links (5), Attachments (6), Markdown Help (18)
+- Requires: Permissions (11) for edit access
+- References: Metadata (16) status dropdown
 
 ---
 

@@ -5,6 +5,19 @@
 **Status**: Draft  
 **Input**: User description: "Page Permissions (Granular) Can specific pages be made private or restricted to certain users? Family wikis often need 'adults only' or 'specific person only' pages"
 
+## Cross-References
+
+**Referenced by (features that respect permissions):**
+- [7-wiki-search.md](7-wiki-search.md) - Search results filtered by user access
+- [10-navigation-discovery.md](10-navigation-discovery.md) - Navigation hides restricted pages from unauthorized users
+- [14-export-functionality.md](14-export-functionality.md) - Exports only include pages user can access
+- [15-page-comments.md](15-page-comments.md) - Only users with page access can view/add comments
+- [9-page-history.md](9-page-history.md) - View permission required to access version history
+
+**Works with:**
+- [16-page-metadata.md](16-page-metadata.md) - Draft status is independent from page permissions (can combine)
+- [8-user-management.md](8-user-management.md) - Permission assignment based on user roles
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Set Page as Private (Admin/Owners Only) (Priority: P1)

@@ -5,6 +5,15 @@
 **Status**: Draft  
 **Input**: User description: "ability to search, default version should be cheapest implementation. plug-in architecture should allow us to add more complex and expensive solutions optionally"
 
+## Cross-References
+
+**Integrates with:**
+- [16-page-metadata.md](16-page-metadata.md) - Indexes tags, categories, and custom metadata fields for advanced search filtering
+- [6-page-attachments.md](6-page-attachments.md) - Searches file metadata (names, types) and optionally file contents
+- [11-page-permissions.md](11-page-permissions.md) - Respects page permissions; results filtered based on user access
+- [16-page-metadata.md](16-page-metadata.md) - Draft pages excluded from search results for non-authors
+- [3-folder-management.md](3-folder-management.md) - Supports scoped search within folder hierarchies
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Basic Text Search Across All Pages (Priority: P1)

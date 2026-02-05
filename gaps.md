@@ -153,26 +153,26 @@ Here's what **most wiki systems** have and your coverage status:
 
 **Excellent Progress!** Your specifications are now comprehensive and production-ready:
 
-✅ **19 Complete Specifications:**
+✅ **19 Complete Specifications** with cross-references:
 1. User Authentication - [1-user-authentication.md](1-user-authentication.md)
-2. S3 Storage Plugin - [2-s3-storage-plugin.md](2-s3-storage-plugin.md)
+2. S3 Storage Plugin - [2-s3-storage-plugin.md](2-s3-storage-plugin.md) ⭐ Cross-refs added
 3. Folder Management - [3-folder-management.md](3-folder-management.md)
-4. Page Editor - [4-page-editor.md](4-page-editor.md)
+4. Page Editor - [4-page-editor.md](4-page-editor.md) ⭐ Cross-refs added
 5. Page Links - [5-page-links.md](5-page-links.md)
 6. Page Attachments - [6-page-attachments.md](6-page-attachments.md)
-7. Wiki Search - [7-wiki-search.md](7-wiki-search.md)
-8. User Management - [8-user-management.md](8-user-management.md)
-9. **Page History & Versioning** - [9-page-history.md](9-page-history.md) ⭐ NEW
-10. **Navigation & Discovery** - [10-navigation-discovery.md](10-navigation-discovery.md) ⭐ NEW
-11. Page Permissions - [11-page-permissions.md](11-page-permissions.md)
+7. Wiki Search - [7-wiki-search.md](7-wiki-search.md) ⭐ Cross-refs added
+8. User Management - [8-user-management.md](8-user-management.md) ⭐ Cross-refs added
+9. **Page History & Versioning** - [9-page-history.md](9-page-history.md) ⭐ NEW + Cross-refs
+10. **Navigation & Discovery** - [10-navigation-discovery.md](10-navigation-discovery.md) ⭐ NEW + Cross-refs
+11. Page Permissions - [11-page-permissions.md](11-page-permissions.md) ⭐ Cross-refs added
 12. Mobile Experience - [12-mobile-experience.md](12-mobile-experience.md)
 13. Home/Dashboard - [13-home-dashboard.md](13-home-dashboard.md)
-14. Export Functionality - [14-export-functionality.md](14-export-functionality.md)
-15. Page Comments - [15-page-comments.md](15-page-comments.md)
-16. Page Metadata - [16-page-metadata.md](16-page-metadata.md)
-17. Admin Configuration - [17-admin-configuration.md](17-admin-configuration.md)
+14. Export Functionality - [14-export-functionality.md](14-export-functionality.md) ⭐ Cross-refs added
+15. Page Comments - [15-page-comments.md](15-page-comments.md) ⭐ Cross-refs added
+16. Page Metadata - [16-page-metadata.md](16-page-metadata.md) ⭐ Cross-refs added + Draft clarification
+17. Admin Configuration - [17-admin-configuration.md](17-admin-configuration.md) ⭐ Cross-refs added
 18. Onboarding & Help - [18-onboarding-help.md](18-onboarding-help.md)
-19. Error Handling & Edge Cases - [19-error-handling-edge-cases.md](19-error-handling-edge-cases.md)
+19. Error Handling & Edge Cases - [19-error-handling-edge-cases.md](19-error-handling-edge-cases.md) ⭐ Cross-refs added
 
 ### 🎯 **Remaining Gaps (Optional Enhancements)**
 

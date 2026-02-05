@@ -5,6 +5,23 @@
 **Status**: Draft  
 **Input**: User description: "Create a page editor with markdown support"
 
+## Cross-References
+
+**Depends on:**
+- [2-s3-storage-plugin.md](2-s3-storage-plugin.md) - Editor saves content to storage
+- [11-page-permissions.md](11-page-permissions.md) - Edit permission required to access editor
+- [16-page-metadata.md](16-page-metadata.md) - Status dropdown in editor toolbar
+
+**Integrates with:**
+- [5-page-links.md](5-page-links.md) - Supports internal wiki links in markdown
+- [6-page-attachments.md](6-page-attachments.md) - Toolbar button to upload and insert attachments
+- [15-page-comments.md](15-page-comments.md) - Uses same Markdown renderer
+- [18-onboarding-help.md](18-onboarding-help.md) - Markdown help reference accessible from editor (US-13.2)
+
+**Referenced by:**
+- [19-error-handling-edge-cases.md](19-error-handling-edge-cases.md) - Story 3 handles network loss with localStorage drafts
+- [12-mobile-experience.md](12-mobile-experience.md) - Mobile-optimized editor interface
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Create New Page with Markdown Editor (Priority: P1)

@@ -3,6 +3,21 @@
 ## Overview
 Enable users to leave comments on wiki pages, facilitating discussion and collaboration around content without modifying the page itself. Comments support CRUD operations and threaded replies.
 
+## Cross-References
+
+**Depends on:**
+- [8-user-management.md](8-user-management.md) - Author attribution and user lookups for @mentions
+- [11-page-permissions.md](11-page-permissions.md) - Comments respect page permissions; only accessible users can comment
+- [1-user-authentication.md](1-user-authentication.md) - All authenticated users can add comments
+
+**Future Integration:**
+- Notifications system (not yet specified) - US-10.6 mentions user notifications for @mentions
+- Real-time updates via WebSocket for collaborative viewing
+
+**Related:**
+- [4-page-editor.md](4-page-editor.md) - Uses same Markdown renderer as page content
+- [16-page-metadata.md](16-page-metadata.md) - Comment count displayed in page metadata
+
 ## User Stories
 
 ### US-10.1: View Comments on a Page (P1)

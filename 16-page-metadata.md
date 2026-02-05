@@ -3,6 +3,18 @@
 ## Overview
 This specification defines how pages in BlueFinWiki can be organized, categorized, and managed through metadata including tags, categories, custom fields, and page status. This system enables users to structure content meaningfully and discover related information efficiently.
 
+## Cross-References
+
+**Integrates with:**
+- [7-wiki-search.md](7-wiki-search.md) - Tags and categories indexed for advanced search filtering
+- [11-page-permissions.md](11-page-permissions.md) - Draft status works independently from page permissions
+- [9-page-history.md](9-page-history.md) - Status changes logged in version history
+- [14-export-functionality.md](14-export-functionality.md) - Metadata included in PDF exports
+
+**Related:**
+- [3-folder-management.md](3-folder-management.md) - Categories complement folder-based organization
+- [10-navigation-discovery.md](10-navigation-discovery.md) - Tags enable discovery and navigation
+
 ## Constitutional Alignment
 - **Simplicity First**: Metadata should enhance organization without adding complexity to basic page creation
 - **Family-Friendly**: Intuitive categorization that makes sense to non-technical family members

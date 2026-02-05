@@ -5,6 +5,19 @@
 **Status**: Draft  
 **Input**: User description: "Implement S3 storage plugin for wiki pages. This storage also manages the parent-child page relationships using the S3 folder structure. To allow renaming of pages and folders they should be named by GUID's. The display names should be stored as meta data in the .md file or a special file in each folder storing meta data for the folder"
 
+## Cross-References
+
+**Core dependency for:**
+- [4-page-editor.md](4-page-editor.md) - All page content saved to S3
+- [3-folder-management.md](3-folder-management.md) - Folder structure managed in S3
+- [9-page-history.md](9-page-history.md) - Version files stored in S3 with explicit naming convention
+- [6-page-attachments.md](6-page-attachments.md) - Attachment files stored in S3
+- [14-export-functionality.md](14-export-functionality.md) - Temporary export files stored in S3
+
+**Monitored by:**
+- [17-admin-configuration.md](17-admin-configuration.md) - US-12.5 system health monitoring
+- [19-error-handling-edge-cases.md](19-error-handling-edge-cases.md) - Story 1 handles S3 outages
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Create New Wiki Page (Priority: P1)

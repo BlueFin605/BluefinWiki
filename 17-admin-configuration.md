@@ -3,6 +3,23 @@
 ## Overview
 The Configuration & Admin Settings feature provides administrators with comprehensive tools to manage site-wide settings, configure modules/plugins, and monitor system health. This ensures the wiki can be customized to family needs while maintaining operational visibility.
 
+## Cross-References
+
+**Manages Configuration for:**
+- All specifications - US-12.3 Module Configuration UI enables/disables optional features
+- [2-s3-storage-plugin.md](2-s3-storage-plugin.md) - US-12.5 monitors S3 connection status
+- [1-user-authentication.md](1-user-authentication.md) - US-12.4 configures session timeout and password requirements
+- [6-page-attachments.md](6-page-attachments.md) - US-12.4 sets max file upload size and allowed types
+
+**System Health Monitoring for:**
+- [2-s3-storage-plugin.md](2-s3-storage-plugin.md) - S3 connection status
+- [7-wiki-search.md](7-wiki-search.md) - Search service availability (future)
+- [1-user-authentication.md](1-user-authentication.md) - Auth service status
+
+**Related:**
+- [19-error-handling-edge-cases.md](19-error-handling-edge-cases.md) - US-12.6 error logs for troubleshooting
+- [8-user-management.md](8-user-management.md) - Admin role required for access
+
 ## Constitutional Alignment
 - **Simplicity First**: Admin interface remains clean and intuitive, avoiding overwhelming configuration options
 - **Pluggable Architecture**: Module configuration UI supports enabling/disabling plugins without code changes
