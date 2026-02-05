@@ -134,9 +134,9 @@ A page owner or admin can transfer page ownership to another user, useful when a
 1. **Given** a page owner opens permissions, **When** viewing settings, **Then** they see an "Owner" section showing their email with a "Transfer Ownership" button
 2. **Given** "Transfer Ownership" is clicked, **When** selected, **Then** a user picker appears with all active wiki users
 3. **Given** a new owner is selected, **When** confirmed, **Then** a dialog warns "You will lose owner privileges unless you add yourself to the permission list"
-4. **Given** ownership is transferred, **When** completed, **Then** the new owner receives a notification and can now manage page permissions
+4. **Given** ownership is transferred, **When** completed, **Then** the new owner can now manage page permissions (notification requires Post-MVP notification module)
 5. **Given** ownership is transferred, **When** completed, **Then** the previous owner only has access if they were explicitly added to the permission list
-6. **Given** an admin transfers page ownership, **When** transferring someone else's page, **Then** both old and new owners are notified of the change
+6. **Given** an admin transfers page ownership, **When** transferring someone else's page, **Then** ownership is transferred (notifications require Post-MVP notification module)
 
 ---
 
@@ -189,7 +189,7 @@ Users can apply pre-defined permission templates like "Adults Only" (specific li
 - **FR-011**: System MUST prevent users with "Can View" access from editing pages
 - **FR-012**: System MUST prevent non-owners from changing page permissions (only owner and admins can manage permissions)
 - **FR-013**: System MUST allow page owners and admins to transfer page ownership to another user
-- **FR-014**: System MUST notify users when they are granted access to a page or when their access level changes
+- **FR-014**: System SHOULD notify users when granted page access (Post-MVP - requires notification module)
 - **FR-015**: System MUST handle permission checks efficiently for large wikis (100+ pages with various permission levels)
 - **FR-016**: System MUST preserve permission settings when pages are moved between folders (unless permissions are inherited)
 - **FR-017**: System MUST show tooltip on permission icons explaining the access level (e.g., "Private", "Shared with 5 users")
@@ -357,7 +357,7 @@ Users can apply pre-defined permission templates like "Adults Only" (specific li
 
 2. **Permission Audit Log**: Should all permission changes be logged with timestamps and who made the change? (Recommend: yes, for security and family accountability)
 
-3. **Notification Preferences**: When someone is granted access to a page, should they always be notified, or should this be configurable? (Recommend: always notify, but allow users to disable notifications globally)
+3. **Notification Preferences**: ✅ **RESOLVED** - Marked as Post-MVP. When notification module is specified, recommend always notifying users of permission grants with global opt-out setting.
 
 4. **Default Permission for New Pages**: Should new pages default to "Everyone" or inherit parent folder permissions automatically? (Recommend: inherit if in folder, "Everyone" if at root)
 

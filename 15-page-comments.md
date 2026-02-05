@@ -11,8 +11,8 @@ Enable users to leave comments on wiki pages, facilitating discussion and collab
 - [1-user-authentication.md](1-user-authentication.md) - All authenticated users can add comments
 
 **Future Integration:**
-- Notifications system (not yet specified) - US-10.6 mentions user notifications for @mentions
-- Real-time updates via WebSocket for collaborative viewing
+- **Notification System (Post-MVP)** - Not yet specified; US-10.3 reply notifications and US-10.6 @mention notifications will require this module
+- Real-time updates via WebSocket for collaborative viewing (Post-MVP)
 
 **Related:**
 - [4-page-editor.md](4-page-editor.md) - Uses same Markdown renderer as page content
@@ -105,7 +105,7 @@ Enable users to leave comments on wiki pages, facilitating discussion and collab
 - Reply appears nested under parent comment when posted
 - Maximum nesting depth: 3 levels (prevent excessive threading)
 - If max depth reached, "Reply" redirects to parent level with "@mention"
-- Reply notifications sent to parent comment author
+- **Note**: Reply notifications require notification module (Post-MVP feature)
 - Replies have visual connector (line or indentation) to parent
 
 **Technical Notes:**
@@ -195,7 +195,7 @@ Enable users to leave comments on wiki pages, facilitating discussion and collab
 - Dropdown shows list of wiki users matching typed characters
 - Selecting user inserts "@Username" in comment
 - Mentioned users highlighted in rendered comment (blue background)
-- Mentioned users receive notification (if notifications enabled)
+- **Note**: @mention notifications require notification module (Post-MVP feature)
 - Clicking mentioned username links to user profile/recent activity
 - Can mention multiple users in one comment
 - Invalid mentions (non-existent users) render as plain text
@@ -203,7 +203,7 @@ Enable users to leave comments on wiki pages, facilitating discussion and collab
 **Technical Notes:**
 - Parse comment text for @mentions on save
 - Store mentioned user IDs in `mentions: [userId1, userId2]` array
-- Trigger notification service for each mentioned user
+- Store mention data for future notification integration (Post-MVP)
 - Autocomplete queries user list from DynamoDB (cache for performance)
 
 **Constitutional Alignment:**
@@ -508,7 +508,7 @@ modules:
 
 ## Open Questions
 
-1. **Comment Notifications**: Should comment creation trigger email notifications? (Depends on notification module)
+1. **Comment Notifications**: ✅ **RESOLVED** - Marked as Post-MVP. Notification module must be specified before implementing reply/mention notifications.
 2. **Export**: Should comments be included in PDF/HTML exports? (Recommend: yes, as appendix)
 3. **Search**: Should comment content be searchable? (Recommend: yes, but lower priority than page content)
 4. **Anonymous Comments**: Allow guest comments with moderation? (Recommend: no, invite-only wiki)

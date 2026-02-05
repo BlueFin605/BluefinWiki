@@ -136,7 +136,7 @@ All specifications now include **Cross-Reference** sections showing dependencies
 
 From gaps analysis, these features are NOT yet specified but could be added:
 
-1. **Notifications System** - Mentioned in comments spec, not fully specified
+1. **Notification System** ✅ **RESOLVED** - Marked as Post-MVP across all specs (Comments, Permissions, Admin Config). MVP includes only invitation and password reset emails. Full notification module to be specified based on user feedback after launch.
 2. **Page Templates** - For structured content creation
 3. **Backlinks** - "What links here" functionality (partially mentioned in spec 10)
 4. **Page Redirects** - For renamed/moved pages
