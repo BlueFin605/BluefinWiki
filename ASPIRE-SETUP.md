@@ -38,72 +38,35 @@ dotnet workload update
 dotnet workload install aspire
 ```
 
-### 2. Create Aspire Projects
+### 2. Aspire Projects (Already Created)
 
-```bash
-# From project root
-cd aspire
+The Aspire projects are already set up in the repository:
+- `aspire/BlueFinWiki.AppHost` - Orchestration configuration
+- `aspire/BlueFinWiki.ServiceDefaults` - Shared telemetry and health checks
 
-# Create AppHost
-dotnet new aspire-apphost -n BlueFinWiki.AppHost
+No need to create them manually.
 
-# Create ServiceDefaults
-dotnet new aspire-servicedefaults -n BlueFinWiki.ServiceDefaults
+### 3. AppHost Configuration (Already Complete)
 
-# Add references
-cd BlueFinWiki.AppHost
-dotnet add reference ../BlueFinWiki.ServiceDefaults
-```
+The AppHost is already configured in `aspire/BlueFinWiki.AppHost/Program.cs` with:
+- LocalStack container for AWS service emulation (S3, DynamoDB, SES)
+- MailHog container for email testing
+- Backend Node.js service with automatic environment configuration
+- Frontend Vite service with API URL injection
 
-### 3. Configure AppHost Program.cs
-
-```csharp
-var builder = DistributedApplication.CreateBuilder(args);
-
-// LocalStack for AWS service emulation
-var localstack = builder.AddContainer("localstack", "localstack/localstack")
-    .WithEnvironment("SERVICES", "s3,dynamodb,ses")
-    .WithEnvironment("DEBUG", "1")
-    .WithHttpEndpoint(port: 4566, targetPort: 4566, name: "aws")
-    .WithHttpEndpoint(port: 4571, targetPort: 4571, name: "web");
-
-// SMTP server for email testing (MailHog)
-var mailhog = builder.AddContainer("mailhog", "mailhog/mailhog")
-    .WithHttpEndpoint(port: 8025, targetPort: 8025, name: "ui")
-    .WithEndpoint(port: 1025, targetPort: 1025, name: "smtp");
-
-// Backend (Node.js/TypeScript Lambda functions)
-var backend = builder.AddNpmApp("backend", "../backend")
-    .WithReference(localstack)
-    .WithReference(mailhog)
-    .WithEnvironment("AWS_ENDPOINT", localstack.GetEndpoint("aws"))
-    .WithEnvironment("AWS_ACCESS_KEY_ID", "test")
-    .WithEnvironment("AWS_SECRET_ACCESS_KEY", "test")
-    .WithEnvironment("AWS_REGION", "us-east-1")
-    .WithEnvironment("SMTP_HOST", "localhost")
-    .WithEnvironment("SMTP_PORT", "1025")
-    .WithHttpEndpoint(port: 3000, env: "PORT")
-    .WithExternalHttpEndpoints()
-    .PublishAsDockerFile();
-
-// Frontend (Vite React app)
-var frontend = builder.AddNpmApp("frontend", "../frontend", "dev")
-    .WithReference(backend)
-    .WithEnvironment("VITE_API_URL", backend.GetEndpoint("http"))
-    .WithHttpEndpoint(port: 5173, env: "PORT")
-    .WithExternalHttpEndpoints()
-    .PublishAsDockerFile();
-
-builder.Build().Run();
-```
+No manual configuration needed.
 
 ### 4. Run the Application
 
 ```bash
-# From aspire/BlueFinWiki.AppHost directory
+# From project root
+cd aspire/BlueFinWiki.AppHost
 dotnet run
+```
 
-# Or from project root
+Or with the shorthand from anywhere in the project:
+
+```bash
 dotnet run --project aspire/BlueFinWiki.AppHost
 ```
 
@@ -112,7 +75,7 @@ This will:
 2. Start MailHog (email viewing at http://localhost:8025)
 3. Start the backend Node.js service
 4. Start the frontend Vite dev server
-5. Open Aspire Dashboard (typically at http://localhost:15888)
+5. Open Aspire Dashboard (typically at http://localhost:15000)
 
 ## Aspire Dashboard
 
@@ -124,7 +87,7 @@ The Aspire Dashboard provides real-time observability:
 - **Metrics**: Performance metrics and resource usage
 - **Environment**: View and edit environment variables
 
-Access at: http://localhost:15888 (or port shown in console)
+Access at: http://localhost:15000 (or port shown in console)
 
 ## Service Configuration
 

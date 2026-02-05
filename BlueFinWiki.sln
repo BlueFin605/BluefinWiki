@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "aspire", "aspire", "{64880D93-BAB4-FF83-898C-B934B68C31A9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlueFinWiki.AppHost", "aspire\BlueFinWiki.AppHost\BlueFinWiki.AppHost.csproj", "{4C7AB16A-D7F7-D65C-F33A-39A438DE5A8F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C7AB16A-D7F7-D65C-F33A-39A438DE5A8F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C7AB16A-D7F7-D65C-F33A-39A438DE5A8F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C7AB16A-D7F7-D65C-F33A-39A438DE5A8F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C7AB16A-D7F7-D65C-F33A-39A438DE5A8F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{4C7AB16A-D7F7-D65C-F33A-39A438DE5A8F} = {64880D93-BAB4-FF83-898C-B934B68C31A9}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F14B4499-E7F6-4537-8E30-A7644543FD60}
+	EndGlobalSection
+EndGlobal

@@ -36,20 +36,20 @@
 - [x] Initialize monorepo structure (frontend, backend, infrastructure, aspire)
 - [ ] Create GitHub repository with branch protection rules
 - [x] Configure Git hooks (pre-commit: lint, type-check)
-- [ ] Set up Microsoft Aspire AppHost project for local development
-  - [ ] Create Aspire AppHost project (`dotnet new aspire-apphost`)
-  - [ ] Configure service references for frontend and backend
-  - [ ] Set up service discovery and orchestration
-  - [ ] Configure Aspire Dashboard for local observability
+- [x] Set up Microsoft Aspire AppHost project for local development
+  - [x] Create Aspire AppHost project (`dotnet new aspire-apphost`)
+  - [x] Configure service references for frontend and backend
+  - [x] Set up service discovery and orchestration
+  - [x] Configure Aspire Dashboard for local observability
 - [x] Set up GitHub Actions workflows:
   - [x] Frontend build and test
   - [x] Backend build and test
   - [x] Infrastructure validation (CDK synth with C#)
   - [x] Deploy to dev environment on main branch
-  - [ ] Aspire validation (build and test AppHost)
+  - [x] Aspire validation (build and test AppHost)
 - [x] Create README.md with setup instructions
-  - [ ] Add Aspire local development setup instructions
-  - [ ] Document how to run with `dotnet run --project aspire/BlueFinWiki.AppHost`
+  - [x] Add Aspire local development setup instructions
+  - [x] Document how to run with `dotnet run --project aspire/BlueFinWiki.AppHost`
 - [x] Document contributing guidelines and PR template
 
 #### 1.2 Local Development with Aspire

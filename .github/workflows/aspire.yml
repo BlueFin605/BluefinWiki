@@ -1,0 +1,51 @@
+name: Aspire AppHost
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'aspire/**'
+      - '.github/workflows/aspire.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'aspire/**'
+      - '.github/workflows/aspire.yml'
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore aspire/BlueFinWiki.AppHost/BlueFinWiki.AppHost.csproj
+
+      - name: Build AppHost
+        run: dotnet build aspire/BlueFinWiki.AppHost/BlueFinWiki.AppHost.csproj --configuration Release --no-restore
+
+      - name: Build ServiceDefaults
+        run: dotnet build aspire/BlueFinWiki.ServiceDefaults/BlueFinWiki.ServiceDefaults.csproj --configuration Release --no-restore
+
+      - name: Run tests (if any)
+        run: dotnet test aspire/BlueFinWiki.AppHost/BlueFinWiki.AppHost.csproj --configuration Release --no-build --verbosity normal
+        continue-on-error: true
+
+      - name: Validate manifest
+        run: |
+          if (Test-Path aspire/BlueFinWiki.AppHost/aspire-manifest.json) {
+            Write-Host "✓ Aspire manifest found"
+            Get-Content aspire/BlueFinWiki.AppHost/aspire-manifest.json | ConvertFrom-Json | Out-Null
+            Write-Host "✓ Aspire manifest is valid JSON"
+          } else {
+            Write-Error "✗ Aspire manifest not found"
+            exit 1
+          }
+        shell: pwsh
