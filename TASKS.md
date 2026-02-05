@@ -38,14 +38,15 @@
 - [x] Set up GitHub Actions workflows:
   - [x] Frontend build and test
   - [x] Backend build and test
-  - [x] Infrastructure validation (CDK synth)
+  - [x] Infrastructure validation (CDK synth with C#)
   - [x] Deploy to dev environment on main branch
 - [x] Create README.md with setup instructions
 - [x] Document contributing guidelines and PR template
 
 #### 1.2 AWS Infrastructure as Code
-- [ ] Choose IaC tool (AWS CDK recommended)
-- [ ] Initialize CDK project (c#)
+- [ ] Choose IaC tool (AWS CDK with C# recommended)
+- [ ] Initialize CDK project with C# (`cdk init app --language csharp`)
+- [ ] Configure C# project structure (Program.cs, Stack classes)
 - [ ] Define three environments: dev, staging, production
 - [ ] Create CloudFormation stacks:
   - [ ] Network stack (VPC, subnets - if needed)
@@ -161,7 +162,7 @@
 **Goal**: Implement pluggable S3 storage backend
 
 #### 3.1 Storage Plugin Architecture
-- [ ] Define storage plugin TypeScript interface:
+- [ ] Define storage plugin TypeScript interface (for backend Lambda functions):
   ```typescript
   interface StoragePlugin {
     savePage(guid: string, content: PageContent): Promise<void>;
