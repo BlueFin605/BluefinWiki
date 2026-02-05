@@ -157,7 +157,6 @@ A user searches for pages within a specific folder and its subfolders, limiting 
 - What happens when storage plugin fails during folder creation? Error is returned to user, operation is not persisted, and user can retry.
 - What happens when moving a large folder with 100+ pages? Operation is queued as background job with progress tracking, user receives notification when complete.
 - What happens when folder metadata file is corrupted or missing? System falls back to using the folder's GUID or scanning contained pages to infer folder name.
-- What happens when user has Viewer role and tries to create a folder? Operation is blocked with error "Insufficient permissions - Editor or Admin role required".
 - What happens when a folder is renamed to contain invalid characters (e.g., slashes)? Characters are automatically sanitized (replaced or removed) while preserving readability.
 - What happens when deleting a folder with pages currently being edited by other users? System warns about active editors and either blocks deletion or notifies other users of the delete operation.
 - What happens when a folder has no child pages but has subfolders with pages? System considers it non-empty and applies same deletion protection as folders with direct children.
@@ -170,10 +169,9 @@ A user searches for pages within a specific folder and its subfolders, limiting 
 
 - **FR-001**: System MUST provide folder CRUD operations through abstraction layer that delegates to storage plugin
 - **FR-002**: System MUST call storage plugin's appropriate methods for all folder operations (create, read, update, delete, move)
-- **FR-003**: Users with Editor or Admin role MUST be able to create folders at any level in the hierarchy
-- **FR-004**: Users with Viewer role MUST NOT be able to create, rename, move, or delete folders
-- **FR-005**: System MUST validate folder names to ensure they are non-empty and contain valid characters
-- **FR-006**: System MUST support creating folders at root level (no parent) and nested within other folders
+- **FR-003**: All authenticated users MUST be able to create folders at any level in the hierarchy
+- **FR-004**: System MUST validate folder names to ensure they are non-empty and contain valid characters
+- **FR-005**: System MUST support creating folders at root level (no parent) and nested within other folders
 - **FR-007**: System MUST retrieve folder contents by calling storage plugin's `listChildren()` method with folder path
 - **FR-008**: System MUST display folder contents with subfolders listed before pages, both sorted alphabetically
 - **FR-009**: System MUST support renaming folders through storage plugin while preserving child page references

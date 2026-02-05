@@ -122,7 +122,7 @@ This specification defines how pages in BlueFinWiki can be organized, categorize
 **Acceptance Criteria**:
 - Three statuses available: Draft, Published, Archived
 - New pages default to Published (or Draft if user preference set)
-- Draft pages visible only to editors and admins (not viewers)
+- Draft pages visible to all authenticated users (including Standard users)
 - Archived pages visible but clearly marked and excluded from main navigation
 - Status indicator visible on page (badge/label)
 - Status filter in search and page lists
@@ -143,7 +143,7 @@ This specification defines how pages in BlueFinWiki can be organized, categorize
 **Technical Notes**:
 - Status stored as enum string in DynamoDB page item
 - GSI on Status for efficient filtering
-- ACL check: viewers cannot see drafts
+- Draft pages visible to all authenticated users
 - Version history includes status changes with timestamp
 
 ---
@@ -491,9 +491,9 @@ Attributes: PageTitle, Status, ModifiedAt
 
 ## Security Considerations
 
-- Only editors/admins can modify metadata
-- Viewers can see all metadata (within wiki ACL)
-- Draft pages hidden from viewers via server-side ACL
+- All authenticated users can modify page metadata
+- All metadata visible to all authenticated users
+- Draft pages visible to all authenticated users
 - Category/custom field management restricted to admins
 - SQL injection prevented via parameterized queries
 - XSS prevented via input sanitization on tag/category names
@@ -519,7 +519,7 @@ Attributes: PageTitle, Status, ModifiedAt
 6. Browse pages by category
 
 ### Page Status
-1. Create draft page (hidden from viewers)
+1. Create draft page (visible to all authenticated users)
 2. Publish draft (visible to all)
 3. Archive page (visible but marked)
 4. Filter search by status
@@ -589,10 +589,7 @@ Attributes: PageTitle, Status, ModifiedAt
 2. Maximum number of categories per wiki?
    - **Recommendation**: 100 (sufficient for family wikis)
 
-3. Should viewers see draft pages they created?
-   - **Recommendation**: Yes, creators always see their own drafts
-
-4. Custom field types - which are truly needed for MVP?
+3. Custom field types - which are truly needed for MVP?
    - **Recommendation**: Start with text, number, date only
 
 5. Should archived pages appear in search by default?

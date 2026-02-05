@@ -95,7 +95,7 @@ P1 - Critical for pluggable architecture. Aligns with constitution's modularity 
 **So that** I can control access and user behavior
 
 **Acceptance Criteria:**
-- Can set default user role (Viewer/Editor) for new invites
+- Can set default user role (Standard/Admin) for new invites
 - Can enable/disable user self-registration (off by default for invite-only)
 - Can configure session timeout (default 30 days)
 - Can set password requirements:
@@ -132,10 +132,11 @@ P2 - Important for security and control but defaults work for MVP. Can be refine
     - Total storage used (pages, attachments)
     - Storage limit (if applicable)
     - Number of pages/attachments
-  - **User Activity:**
-    - Active users (last 24 hours)
+  - **User Statistics (MVP):**
     - Total registered users
-    - Recent page edits
+  - **User Activity (Post-MVP):**
+    - Active users (last 24 hours) [Post-MVP]
+    - Recent page edits [Post-MVP]
 - Metrics updated every 5 minutes
 - Color-coded indicators (green/yellow/red) for each metric
 - Click metric to see detailed breakdown
@@ -307,7 +308,7 @@ P1 - Constitution mandates WCAG 2.1 AA compliance. Admin must have tools to ensu
 {
   "configKey": "user-settings",
   "configValue": {
-    "defaultRole": "Viewer",
+    "defaultRole": "Standard",
     "sessionTimeout": 30,
     "maxUploadSize": 10485760, // 10MB in bytes
     "allowedFileTypes": ["pdf", "docx", "jpg", "png", "gif"]
@@ -426,10 +427,10 @@ Admin Settings (Left Sidebar)
 │ Total Pages:    487                  │
 │ Attachments:    1,234                │
 │                                      │
-│ User Activity (24h)                  │
-│ Active Users:   12                   │
-│ Page Edits:     34                   │
-│ New Pages:      5                    │
+│ User Statistics                      │
+│ Total Users:    25                   │
+│                                      │
+│ [Activity tracking: Post-MVP]        │
 │                                      │
 │         [Refresh] [Export Report]    │
 └──────────────────────────────────────┘
@@ -646,7 +647,7 @@ Admin Settings (Left Sidebar)
 3. **Multi-Language Support**: Translate UI based on user preference
 4. **Custom Email Templates**: Drag-and-drop email designer
 5. **Webhook Integrations**: Trigger external services on config changes
-6. **Role Permissions Editor**: Custom roles beyond Admin/Editor/Viewer
+6. **Role Permissions Editor**: Custom roles beyond Admin/Standard (future enhancement)
 7. **Automated Backups**: Schedule daily config + data backups
 8. **Performance Alerts**: Email admin if load time exceeds threshold
 9. **Usage Analytics**: Page views, popular pages, user engagement

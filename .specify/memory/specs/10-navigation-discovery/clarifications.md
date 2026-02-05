@@ -26,52 +26,63 @@
 ### 2. Table of Contents Heading Extraction
 **Question**: How are headings extracted from markdown for TOC generation?
 
-**Needs clarification**:
-- Is TOC generated server-side or client-side (JavaScript)?
-- If server-side, what markdown parser is used?
-- If client-side, performance impact for large pages?
-- How are heading IDs/anchors generated ("section-1" vs "section-heading-text")?
-- What if two headings have identical text - how to make anchors unique?
+**ANSWERED**: Server-side generation using standard markdown parser
+- Server-side generation: Storage plugin parses markdown during page render
+- Use existing markdown parser (markdown-it, marked, or similar)
+- Heading IDs: Slugify heading text ("My Section" → "my-section")
+- Duplicate handling: Append numeric suffix ("intro", "intro-2", "intro-3")
+- Cache TOC with rendered HTML for performance
+- Maximum depth: H1-H4 (configurable)
 
 ---
 
 ### 3. Recent Changes Data Source
 **Question**: Where does recent changes activity data come from?
 
-**Current spec mentions**: "Queries the storage plugin's page history/metadata or maintains a separate activity log in DynamoDB"
-
-**Needs decision**:
-- Option A: Query storage plugin for all page metadata sorted by modified date (potentially slow for large wikis)
-- Option B: Maintain separate DynamoDB ActivityLog table with events (more performant but adds complexity)
-- Option C: Use CloudWatch logs or similar
-- Which approach? What are the trade-offs?
+**ANSWERED**: Hybrid approach - DynamoDB index with S3 fallback
+- Primary: DynamoDB GSI on page metadata table (ModifiedDate-GSI)
+- Query: Sort by modified timestamp, paginate 50 items
+- Storage plugin maintains LastModified metadata
+- Simple event: {pageId, title, author, action, timestamp}
+- Cost: ~$0.25/million queries (on-demand pricing)
+- Fallback: Storage plugin metadata if DynamoDB unavailable
+- No separate activity log needed - use existing page metadata
 
 ---
 
 ### 4. Sitemap Data Retrieval
 **Question**: How is the full sitemap hierarchy data retrieved?
 
-**Current spec says**: "Retrieves hierarchy data from DynamoDB page metadata or queries the storage plugin's list operations"
-
-**Needs clarification**:
-- Is this a full scan of all pages (expensive)?
-- Or cached/indexed hierarchy structure?
-- How frequently is sitemap refreshed?
-- Performance expectations for 1000+ page wiki?
-- Should sitemap be generated on-demand or pre-built?
+**ANSWERED**: Lazy-load with CloudFront caching
+- On-demand: API endpoint returns children for expanded folder only
+- Root level: Single DynamoDB query for top-level pages (~10-50 items)
+- Child load: Query by parent folder path on expand
+- CloudFront cache: 5 minutes (configurable)
+- Page metadata includes: {id, shortCode, title, parentPath, hasChildren}
+- Performance: <200ms per level load, <2 seconds full tree (1000 pages)
+- Refresh: Cache invalidation on page create/move/delete
+- No full scan needed - hierarchical queries only
 
 ---
 
 ### 5. Activity Feed vs Page History Integration
 **Question**: How does this spec relate to page history spec (#9)?
 
-**Why this matters**: Both specs deal with change tracking and history.
+**ANSWERED**: Separate but complementary features
+- **Recent Changes**: Lightweight overview across all pages (last 50-100)
+- **Page History**: Detailed version history for single page
+- Data source: Same page metadata, different views
+- Recent changes: Query ModifiedDate-GSI across all pages
+- Page history: Query VersionHistory attribute for specific page
+- No duplication - page metadata stores both current + history
+- Recent changes shows summary; history shows full diffs/versions
 
-**Needs clarification**:
-- Is "recent changes" a different view of page history data?
-- Or separate data source?
-- Should they share the same backend events/tables?
-- Can we consolidate to avoid duplication?
+**Aligned with Spec #13 (Dashboard)**:
+- Dashboard shows last 10 recent changes (no pagination)
+- Recent Changes page (this spec) shows same data with pagination
+- Both use same backend query - DRY principle
+- Dashboard = quick overview, Recent Changes = full history browsing
+- No personal/user-specific activity tracking (MVP decision)
 
 ---
 
@@ -98,124 +109,145 @@
 ### 6. Breadcrumb Truncation Strategy
 **Question**: How exactly do breadcrumbs truncate on narrow screens?
 
-**Current spec says**: "Names are truncated with ellipsis if exceeding 30 characters" and "On mobile, collapse to show only the last 2 segments with a '...' menu"
-
-**Needs clarification**:
-- Is 30 characters the right threshold (feels short)?
-- Desktop truncation: "Projects > Very Long Proj... > Page" ?
-- Mobile collapse: Shows "... > Q4 > Planning" with menu for earlier segments?
-- How does the "..." menu work - dropdown or modal?
+**ANSWERED**: CSS-based responsive truncation
+- Desktop: CSS `text-overflow: ellipsis` at 40 characters per segment
+- Desktop example: "Home > Projects > Very Long Project Na... > Current Page"
+- Mobile (<768px): Show last 2 segments with dropdown menu
+- Mobile example: "[≡] ... > Q4 > Planning"
+- Dropdown: Native `<select>` or simple popover (click "≡" icon)
+- Dropdown shows full breadcrumb trail (all segments)
+- No JavaScript required for truncation - pure CSS
+- Hover shows full text in tooltip (CSS `title` attribute)
 
 ---
 
 ### 7. TOC Scroll Highlighting
 **Question**: How is the "current position" in TOC determined and highlighted?
 
-**Current spec says**: "The corresponding TOC entry is highlighted to show current position"
-
-**Needs clarification**:
-- Using Intersection Observer API for scroll tracking?
-- What threshold - when heading is at top of viewport, or when in middle?
-- How is highlight styled (background color, bold, indicator line)?
-- Performance consideration for pages with 50+ headings?
+**ANSWERED**: Intersection Observer API with top threshold
+- Use Intersection Observer API (modern, performant)
+- Threshold: Heading crosses top 20% of viewport (rootMargin: '-20% 0px -80% 0px')
+- Highlight style: Blue left border (3px) + bold text + slight background tint
+- Active class: `toc-item-active`
+- Performance: Efficient even with 100+ headings (native browser optimization)
+- Fallback: No highlighting if browser doesn't support (graceful degradation)
+- Auto-scroll TOC to keep active item visible
 
 ---
 
 ### 8. Recent Changes Grouping Logic
 **Question**: How does the optional grouping of sequential edits work?
 
-**Current spec says**: "Optionally group sequential edits by the same author within 1 hour with '3 edits' label"
-
-**Needs clarification**:
-- Is grouping enabled by default or user preference?
-- Can user expand grouped edits to see individual timestamps?
-- Does grouping apply across different pages by same author?
-- Or only same page, same author, within time window?
+**ANSWERED**: Simple same-page grouping, enabled by default
+- Grouping: Same page + same author + within 1 hour window
+- Enabled by default (user preference toggle in settings)
+- Display: "3 edits" badge, click to expand inline
+- Shows: Individual timestamps when expanded
+- Across pages: Not grouped (too complex, less useful)
+- Client-side logic: Process after fetching activity data
+- Example: "John edited Planning (3 edits) - 2:30 PM" → expands to "2:30 PM, 2:15 PM, 1:45 PM"
 
 ---
 
 ### 9. Deleted Page Display in Activity Feed
 **Question**: How long do deleted pages remain in activity feed?
 
-**Current spec says**: "Page title is displayed but not linked, with strike-through styling and '(deleted)' label"
-
-**Needs clarification**:
-- Do deleted pages eventually age out of activity feed?
-- Or remain permanently (until pushed off by pagination)?
-- Should there be filter to "hide deleted pages"?
-- What if deleted page is later restored (page history feature)?
+**ANSWERED**: Natural aging with filter option
+- Deleted pages remain in feed until aged out by pagination (natural)
+- Shown with strike-through + "(deleted)" label + no link
+- Filter toggle: "Hide deleted pages" (default: show)
+- Keep metadata for 90 days, then archive/remove
+- If restored: Automatically re-appears as normal link
+- Deletion flag in metadata: `status: 'deleted', deletedAt: timestamp`
+- Activity feed queries include deleted items, client filters if toggle enabled
 
 ---
 
 ### 10. Sitemap Lazy Loading Implementation
 **Question**: How does lazy loading work for large sitemaps?
 
-**Current spec says**: "Initially shows root level only with lazy loading of children on expand"
-
-**Needs clarification**:
-- Are children loaded one level at a time or all descendants at once?
-- Cache loaded children or reload on next expand?
-- Loading indicator during fetch?
-- What's the threshold for "large wiki" requiring lazy loading (100 pages? 500?)?
+**ANSWERED**: One level at a time with caching
+- Load: Direct children only (one level at a time)
+- Cache: Store loaded children in memory, persist on re-expand
+- Loading indicator: Spinner icon while fetching (~200ms)
+- Threshold: Always use lazy loading (even small wikis - consistent UX)
+- API call: `GET /api/sitemap/children?parentPath=/folder/subfolder`
+- Returns: Array of {shortCode, title, hasChildren, order}
+- Cache invalidation: Clear on page create/move/delete events
+- Progressive disclosure: Prevents overwhelming UI with 1000+ pages
 
 ---
 
 ### 11. Activity Feed Performance
 **Question**: What are the performance targets for loading recent changes?
 
-**Needs clarification**:
-- Maximum load time: 500ms? 1 second? 2 seconds?
-- How many items to fetch per query (50 mentioned in spec)?
-- Should older items be archived to optimize queries?
-- Different performance expectations for filtered vs unfiltered views?
+**ANSWERED**: Sub-second load with pagination
+- Target: <500ms initial load (p95)
+- Items per page: 50 (configurable, range: 25-100)
+- Pagination: Cursor-based using timestamp
+- Archive: Keep 90 days active, archive older to cold storage (S3)
+- DynamoDB query: Limit 50, reverse sort by timestamp
+- CloudFront cache: 1 minute for recently active wikis
+- Filtered views: Same performance (filtered server-side via query parameters)
+- Degrade gracefully: Show cached data if query >2 seconds
 
 ---
 
 ### 12. Sitemap Tree Interaction
 **Question**: What interactions are supported beyond expand/collapse?
 
-**Needs clarification**:
-- Right-click context menu (rename, delete, move)?
-- Drag and drop to reorganize?
-- Select multiple pages for bulk operations?
-- Or purely navigation (click to open page)?
+**ANSWERED**: Simple navigation-focused interactions
+- Primary: Click to navigate to page (opens in same/new tab)
+- Expand/collapse: Click folder icon or arrow
+- Context menu: Right-click for "Open in new tab", "Copy link"
+- No drag-drop: Too complex for initial version (use move page feature)
+- No multi-select: Out of scope for navigation feature
+- No inline editing: Use dedicated page management features
+- Keep it simple: Focus on browsing and discovery, not management
+- Future enhancement: Drag-drop can be added later if needed
 
 ---
 
 ### 13. TOC Visibility Rules
 **Question**: When exactly is TOC shown or hidden?
 
-**Current spec says**: "If page has fewer than 3 headings, TOC is not displayed"
-
-**Needs clarification**:
-- Is 3 headings the right threshold?
-- Does page length matter (e.g., short page with 5 headings still shows TOC)?
-- Can user manually toggle TOC visibility?
-- Should TOC be sticky (follow scroll) or fixed position?
+**ANSWERED**: Heading count threshold with user toggle
+- Threshold: Show if page has ≥3 headings (H1-H4)
+- Page length: Irrelevant, only heading count matters
+- Manual toggle: User preference saved in localStorage
+- Position: Sticky sidebar on desktop, scrolls with page
+- Mobile: Floating button (bottom-right) opens modal overlay
+- Default state: Auto (follows 3-heading rule) + respects user preference
+- Setting: "Show TOC" - Auto / Always / Never
+- Sticky behavior: Fixed position when scrolling past page header
 
 ---
 
 ### 14. Breadcrumb Home Link Behavior
 **Question**: What does clicking "Home" in breadcrumbs do?
 
-**Needs clarification**:
-- Navigate to dashboard (spec #13)?
-- Navigate to sitemap/all pages?
-- Navigate to root folder view?
-- Configurable behavior?
+**ANSWERED**: Navigate to wiki homepage/dashboard
+- Default: Navigate to wiki homepage (spec #13 - dashboard)
+- Homepage shows: Welcome, recent changes, quick links
+- Configurable: Admin can set homepage to specific page
+- Setting: `homepage.shortCode` in wiki configuration
+- Fallback: Root sitemap view if no homepage configured
+- Consistent with user expectation: "Home" = starting point
 
 ---
 
 ### 15. Activity Feed Action Types
 **Question**: What action types are tracked beyond created/edited/deleted?
 
-**Needs clarification**:
-- Page renamed?
-- Page moved?
-- Permissions changed?
-- Attachment uploaded?
-- Comment added (if comment feature exists)?
-- How granular should activity tracking be?
+**ANSWERED**: Core page actions only for simplicity
+- Tracked: created, edited, deleted, moved, renamed
+- Action metadata: {type, pageId, title, author, timestamp, oldValue}
+- Moved: Shows "moved from [old path]"
+- Renamed: Shows "renamed from [old title]"
+- Not tracked (out of scope): permissions, attachments, comments
+- Keep it simple: Focus on page content changes
+- Extensible: Action type enum can expand in future
+- Avoid noise: Only significant changes in feed
 
 ---
 
@@ -224,101 +256,139 @@
 ### 16. TOC Print Behavior
 **Question**: Should TOC be included when printing pages?
 
-**Not explicitly covered in spec**:
-- Show TOC in print view?
-- Or hide it (print only page content)?
-- Separate print stylesheet?
+**ANSWERED**: Hide TOC in print view
+- Print stylesheet: `@media print { .toc { display: none; } }`
+- Rationale: Page content is primary, TOC is navigation aid
+- Print-friendly: Full width for content without sidebar
+- Optional: User can toggle "Include TOC in print" (advanced)
+- Default: Hide TOC, show only page content + breadcrumbs
+- Simple and clean printed output
 
 ---
 
 ### 17. Breadcrumb SEO Markup
 **Question**: Should breadcrumbs include structured data for SEO?
 
-**Not explicitly covered in spec**:
-- JSON-LD breadcrumb schema?
-- Relevant for family wiki (likely private)?
-- Or not needed?
+**ANSWERED**: Skip SEO markup (not needed)
+- Family wiki: Likely private/authenticated access
+- No public search indexing required
+- Skip JSON-LD structured data (unnecessary complexity)
+- Keep HTML semantic: Use `<nav>` and `<ol>` for breadcrumbs
+- Future: Add if wiki becomes public-facing
+- Cost savings: Simpler implementation, no SEO maintenance
 
 ---
 
 ### 18. Recent Changes RSS Feed
 **Question**: Should recent changes be available as RSS/Atom feed?
 
-**Not explicitly covered in spec**:
-- Useful for subscribing to wiki updates?
-- Email notifications based on activity feed?
-- Or overkill for family wiki?
+**ANSWERED**: Skip RSS feed (future enhancement)
+- V1: No RSS/Atom feed (YAGNI - You Aren't Gonna Need It)
+- Rationale: Users can check activity feed in-app
+- Email notifications: Separate feature if needed (future)
+- Alternative: Simple API endpoint for external integrations
+- Cost savings: Avoid RSS generation and caching complexity
+- Future: Add if users request external monitoring tools
 
 ---
 
 ### 19. TOC Deeplink Sharing
 **Question**: Can users share links to specific sections (anchors)?
 
-**Not explicitly covered in spec**:
-- Copy link to section from TOC?
-- URL updates with anchor when clicking TOC (#section)?
-- Useful for referencing specific parts of long pages?
+**ANSWERED**: Yes, anchor links supported
+- TOC links: Update URL with anchor fragment (#section-name)
+- Format: `/pages/{shortCode}/Page Title#section-name`
+- Copy link: Right-click TOC item → "Copy link to section"
+- Share: Paste URL, recipient scrolls to section automatically
+- Browser behavior: Smooth scroll to anchor on load
+- Simple implementation: Standard HTML anchor behavior
+- Very useful for long reference pages
 
 ---
 
 ### 20. Sitemap Search/Filter
 **Question**: Should sitemap have search/filter capability?
 
-**Not explicitly covered in spec**:
-- Search within sitemap to find page quickly?
-- Filter by author, date, tags?
-- Highlight matching pages in tree?
+**ANSWERED**: Simple text search only
+- Search: Text input at top of sitemap (filter by page title)
+- Client-side: Filter visible pages as user types (instant)
+- Matching: Case-insensitive substring match on page titles
+- Display: Show matching pages + their parent chain (context)
+- No advanced filters: Skip author/date/tags (too complex)
+- Alternative: Use global search feature for advanced queries
+- Keep sitemap simple: Browse hierarchy, quick text filter
 
 ---
 
 ### 21. Activity Feed Subscription
 **Question**: Can users subscribe to specific folders/pages for notifications?
 
-**Not explicitly covered in spec**:
-- "Watch" a folder to see its changes in personalized feed?
-- Email notifications for watched content?
-- Part of this spec or separate notifications feature?
+**ANSWERED**: Not in V1 (separate notifications feature)
+- V1: Show all recent changes (no personalization)
+- Filter: User can manually filter by folder/author
+- Notifications: Separate feature spec (future enhancement)
+- Rationale: Simpler implementation, family wiki = small team
+- Alternative: Filter dropdown ("Show only: Folder X")
+- Future: Add "watch" feature if wiki grows large
+- Keep V1 simple and low-cost
 
 ---
 
 ### 22. Breadcrumb Microinteractions
 **Question**: Should breadcrumbs have hover/interaction effects?
 
-**Not explicitly covered in spec**:
-- Hover shows full folder path tooltip?
-- Hover shows folder contents preview?
-- Just simple underline on hover?
+**ANSWERED**: Simple hover state only
+- Hover: Underline + color change (blue → darker blue)
+- Tooltip: Show full segment text if truncated (CSS `title`)
+- No preview: Avoid complexity, keep breadcrumbs fast
+- Cursor: Pointer on links, default on current page
+- Focus: Keyboard accessible with visible focus ring
+- Keep it simple: Standard link interaction patterns
+- Performance: No JavaScript or API calls on hover
 
 ---
 
 ### 23. TOC Keyboard Navigation
 **Question**: Should TOC support keyboard navigation?
 
-**Not explicitly covered in spec**:
-- Tab to focus TOC items?
-- Arrow keys to navigate?
-- Enter to jump to section?
-- Accessibility consideration?
+**ANSWERED**: Yes, full keyboard accessibility
+- Tab: Focus TOC items (standard link behavior)
+- Arrow keys: Navigate through TOC items (optional enhancement)
+- Enter/Space: Jump to section
+- Escape: Close mobile TOC overlay
+- Skip link: "Skip to main content" bypasses TOC
+- ARIA labels: `aria-label="Table of Contents"`
+- Focus visible: Clear focus ring for keyboard users
+- Accessibility: WCAG 2.1 AA compliance required
 
 ---
 
 ### 24. Recent Changes Export
 **Question**: Can activity feed be exported?
 
-**Not explicitly covered in spec**:
-- Export as CSV for record-keeping?
-- Generate activity report?
-- Useful for family history/documentation?
+**ANSWERED**: Not in V1 (future enhancement)
+- V1: No export functionality
+- Rationale: Rare use case, adds complexity
+- Alternative: Users can copy/paste visible feed
+- Future: Add "Export to CSV" if requested
+- Format would be: Date, Time, Page, Author, Action
+- Cost savings: Skip export feature, simple UI
+- YAGNI: Implement only when needed
 
 ---
 
 ### 25. Sitemap Print/Export
 **Question**: Can sitemap be printed or exported?
 
-**Not explicitly covered in spec**:
-- Print wiki structure as outline?
-- Export as indented text or mind map?
-- Useful for planning/documentation?
+**ANSWERED**: Simple print support only
+- Print: CSS print stylesheet for sitemap
+- Format: Indented outline (expand all folders)
+- Export: Not in V1 (future enhancement)
+- Print includes: Page titles and hierarchy
+- Print excludes: Interactive elements (expand buttons)
+- Alternative: Use browser print to PDF
+- Keep it simple: Standard print functionality
+- Future: Add export formats if requested
 
 ---
 

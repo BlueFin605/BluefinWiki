@@ -11,14 +11,26 @@
 ### 1. Wiki Link Syntax Choice
 **Question**: What wiki link syntax should be used?
 
-**Current spec shows two options**: `[[Page Title]]` and `[Page Title](/wiki/path)`
+**ANSWERED**: Support wiki-style typing, store as standard markdown
 
-**Needs clarification**:
-- Should system support BOTH syntaxes?
-- Or choose ONE as the standard?
-- If `[[Page Title]]` is used, how is it converted to markdown for storage?
-- Is `[[` trigger for autocomplete only, or actual stored syntax?
-- What happens if markdown renderer doesn't support `[[` syntax?
+**Implementation**:
+- **User types**: `[[Page Title]]` (wiki-style for convenience)
+- **System stores**: `[Page Title](/pages/abc-123/Page Title)` (standard markdown)
+- **Conversion process**:
+  1. User types `[[` which triggers autocomplete
+  2. User selects/types page title like "Getting Started"
+  3. On save, system looks up page title to find its short-code GUID (e.g., "abc-123")
+  4. System converts `[[Getting Started]]` → `[Getting Started](/pages/abc-123/Getting Started)`
+  5. Markdown file stores standard format only
+- **Benefits**:
+  - Fast typing experience with `[[` syntax
+  - Compatible with any markdown renderer (stores standard format)
+  - Works seamlessly with short-code URL resolution
+- **Editor behavior**:
+  - `[[` triggers autocomplete dropdown
+  - Typing continues to filter page list
+  - `]]` or Enter completes the selection
+  - Conversion happens automatically on save/blur
 
 ---
 
@@ -55,7 +67,7 @@
 ---
 
 ### 4. Broken Link Detection Performance
-**Question**: How frequently are broken links checked?
+**Question**: How frequently are broken links checked? on page load if this is not too inefficient
 
 **Current spec mentions**: "System validates the target page exists"
 
@@ -74,11 +86,11 @@
 **Current spec says**: "Searchable tree view shows the wiki page hierarchy"
 
 **Needs clarification**:
-- Does it query storage plugin for all pages?
-- Or use cached index (DynamoDB, search index)?
-- How is hierarchy built (parent-child relationships)?
-- What if wiki has thousands of pages - pagination in picker?
-- Should recently viewed/linked pages appear first?
+- Does it query storage plugin for all pages? yes
+- Or use cached index (DynamoDB, search index)? no
+- How is hierarchy built (parent-child relationships)? parent-child, each page is it's own folder
+- What if wiki has thousands of pages - pagination in picker? yes, but not for MVP
+- Should recently viewed/linked pages appear first? no (aligned with Spec #13: no user activity tracking for MVP)
 
 ---
 
@@ -107,11 +119,11 @@
 **Current spec mentions**: "Tabs for 'Wiki Page' and 'External URL'"
 
 **Needs design specification**:
-- Two tabs side-by-side or dropdown selector?
-- For wiki pages: Tree view, flat list with search, or both?
-- For external URLs: Just URL+description fields?
-- Should there be "Recent links" for quick re-insertion?
-- Preview of link target before inserting?
+- Two tabs side-by-side or dropdown selector? just have a link option, and depending on the link pasted in it can decide whether it is external or internal
+- For wiki pages: Tree view, flat list with search, or both? no search, just copy&paste
+- For external URLs: Just URL+description fields? when external link is pasted in, get the description from the link
+- Should there be "Recent links" for quick re-insertion? no
+- Preview of link target before inserting? not for MVP
 
 ---
 
@@ -121,20 +133,20 @@
 **Current spec says**: "When URL is complete (ends with space or newline)"
 
 **Needs clarification**:
-- Only trigger on space, or also on punctuation (period, comma)?
+- Only trigger on space, or also on punctuation (period, comma)? follow best practice
 - What about URLs inside sentences: "Visit https://example.com for info"?
-- Should it trigger mid-sentence or only at boundaries?
-- Can user opt-out of auto-detection globally?
+- Should it trigger mid-sentence or only at boundaries? mid-sentence
+- Can user opt-out of auto-detection globally? nope
 
 ---
 
 ### 8. Link Hover Tooltip Timing
-**Question**: What are the exact timing and behavior for link tooltips?
+**Question**: What are the exact timing and behavior for link tooltips? follow best practice for UX design
 
 **Current spec says**: "Appears within 500ms"
 
 **Needs clarification**:
-- 500ms hover delay before showing tooltip?
+- 500ms hover delay before showing tooltip? 
 - How long does tooltip stay visible?
 - Does it follow cursor or stay fixed near link?
 - What if user hovers multiple links quickly - debounce behavior?
@@ -142,7 +154,7 @@
 ---
 
 ### 9. Page Picker Search Behavior
-**Question**: How does search in the page picker work?
+**Question**: How does search in the page picker work? no page picker, just copy&paste
 
 **Current spec says**: "Pages are filtered by title in real-time"
 
@@ -162,9 +174,9 @@
 
 **Needs clarification**:
 - If user selects "click here" and inserts link, result is `[click here](url)`?
-- What if selected text spans multiple lines or paragraphs?
-- Should there be character limit for link text?
-- What if selection includes existing link - replace or error?
+- What if selected text spans multiple lines or paragraphs? works
+- Should there be character limit for link text? not for MVP
+- What if selection includes existing link - replace or error? replace
 
 ---
 
@@ -174,10 +186,10 @@
 **Current spec says**: "Validation error shows 'Please enter a valid URL starting with http:// or https://'"
 
 **Needs clarification**:
-- Are other protocols allowed (ftp://, mailto:, tel:)?
-- What about relative URLs or fragments (#anchor)?
-- Strict URL format validation or lenient?
-- Should system check if URL is accessible (HTTP HEAD request)?
+- Are other protocols allowed (ftp://, mailto:, tel:)? standardprotocols that are secure
+- What about relative URLs or fragments (#anchor)? yes
+- Strict URL format validation or lenient? strict
+- Should system check if URL is accessible (HTTP HEAD request)? if url is broken it should be reflected on the page, so you can add an inaccesible url without error but it will look broken
 
 ---
 
@@ -187,10 +199,10 @@
 **Current spec mentions**: "Ctrl+K" as edit link shortcut
 
 **Needs clarification**:
-- Does Ctrl+K work for both insert and edit?
-- How does system know: cursor in link = edit, otherwise = insert?
-- What if cursor is just after link (not in it)?
-- Should there be a different shortcut for edit vs insert?
+- Does Ctrl+K work for both insert and edit? just edit
+- How does system know: cursor in link = edit, otherwise = insert? if it is a url then it is edit, if you paste a url over text then that creates a link
+- What if cursor is just after link (not in it)? does nothing
+- Should there be a different shortcut for edit vs insert? if it is a url it is edit otherwise it is insert
 
 ---
 
@@ -200,10 +212,10 @@
 **Current spec says**: "Batch conversion option 'Convert all X URLs to links'"
 
 **Needs clarification**:
-- Does system show preview of all detected URLs?
-- Can user select which ones to convert (checkboxes)?
-- Are descriptions auto-suggested for each?
-- Or all converted with domain as description?
+- Does system show preview of all detected URLs? no preview
+- Can user select which ones to convert (checkboxes)? no
+- Are descriptions auto-suggested for each? yes
+- Or all converted with domain as description? no
 
 ---
 
@@ -213,9 +225,9 @@
 **Current spec lists**: Wiki link `[[Title]]`, Markdown `[Title](url)`, Full URL
 
 **Needs clarification**:
-- Should there be HTML format too: `<a href="...">Title</a>`?
-- Plain text format: "Title - URL"?
-- Can user set default copy format in preferences?
+- Should there be HTML format too: `<a href="...">Title</a>`? no
+- Plain text format: "Title - URL"? yes
+- Can user set default copy format in preferences? no
 - Where in UI are these options (dropdown, context menu)?
 
 ---
@@ -226,10 +238,10 @@
 **Current spec says**: "Styled differently (e.g., red underline) with tooltip 'Broken link'"
 
 **Needs clarification**:
-- Red underline, red text, strikethrough, or icon?
+- Red underline, red text, strikethrough, or icon? red underline
 - Tooltip on hover or always visible icon?
-- Different styling for "page not found" vs "permission denied"?
-- Should broken links be visible in editor preview or only published pages?
+- Different styling for "page not found" vs "permission denied"? yes
+- Should broken links be visible in editor preview or only published pages? both
 
 ---
 
@@ -239,15 +251,15 @@
 **Question**: Can links target specific sections within pages?
 
 **Not explicitly covered in spec**:
-- Link to heading: `[Link](#heading-anchor)`?
-- Combined: `[Link](/wiki/page#section)`?
-- How are heading anchors generated (auto-slugify)?
-- Should there be UI for selecting section within page picker?
+- Link to heading: `[Link](#heading-anchor)`? yes
+- Combined: `[Link](/wiki/page#section)`? yes
+- How are heading anchors generated (auto-slugify)? auto
+- Should there be UI for selecting section within page picker? no, but you can create or copy a link from heading
 
 ---
 
 ### 17. Link Preview Cards
-**Question**: Should hovering over internal links show page preview card?
+**Question**: Should hovering over internal links show page preview card? not for mvp
 
 **Not explicitly covered in spec**:
 - Show first few lines of target page content?
@@ -258,7 +270,7 @@
 ---
 
 ### 18. Link Statistics and Analytics
-**Question**: Should system track link usage?
+**Question**: Should system track link usage? no
 
 **Not explicitly covered in spec**:
 - "Most linked pages" report?
@@ -266,10 +278,15 @@
 - Link analytics for admins?
 - Is this separate feature or part of links?
 
+**Aligned with Spec #13 (Dashboard)**: No analytics/statistics for MVP
+- No link usage tracking
+- Orphaned pages can be detected without tracking (query for pages with zero backlinks)
+- Keep it simple for MVP
+
 ---
 
 ### 19. Link Suggestions Based on Context
-**Question**: Should system suggest relevant links based on content?
+**Question**: Should system suggest relevant links based on content? no
 
 **Not explicitly covered in spec**:
 - While typing "vacation", suggest linking to "Family Vacations" page?
@@ -279,11 +296,11 @@
 ---
 
 ### 20. External Link Security Warnings
-**Question**: Should external links have security indicators?
+**Question**: Should external links have security indicators? yes
 
 **Not explicitly covered in spec**:
-- Icon indicating "external link"?
-- Warning for non-HTTPS links?
+- Icon indicating "external link"? yes
+- Warning for non-HTTPS links? yes
 - "Open in new tab" default for external links?
 - Rel="noopener noreferrer" for security?
 
@@ -293,14 +310,14 @@
 **Question**: What if a linked page is moved or deleted?
 
 **Not explicitly covered in spec**:
-- Should system maintain redirects from old URL to new?
+- Should system maintain redirects from old URL to new? the short url should now point to the new location so nothing will break
 - Update all referring links automatically?
 - Or leave as broken links for manual fixing?
 
 ---
 
 ### 22. Link Shortening/Aliasing
-**Question**: Can users create short aliases for long URLs?
+**Question**: Can users create short aliases for long URLs? yes if the short url allows it
 
 **Not explicitly covered in spec**:
 - Create alias "latest-update" → "/wiki/updates/2026/jan/13"?
@@ -310,7 +327,7 @@
 ---
 
 ### 23. Link Autocomplete Context Awareness
-**Question**: Should `[[` autocomplete consider current location?
+**Question**: Should `[[` autocomplete consider current location? no autocomplete for MVP
 
 **Not explicitly covered in spec**:
 - If editing page in "Projects" folder, prioritize sibling pages?
@@ -320,7 +337,7 @@
 ---
 
 ### 24. Bidirectional Links (Backlinks)
-**Question**: Can users see what pages link TO current page?
+**Question**: Can users see what pages link TO current page? no
 
 **Not explicitly covered in spec (might be separate feature)**:
 - "What links here" section on each page?
@@ -330,7 +347,7 @@
 ---
 
 ### 25. Link Import from Other Formats
-**Question**: When importing content, how are links handled?
+**Question**: When importing content, how are links handled? no import for MVP
 
 **Not explicitly covered in spec**:
 - Importing from Notion, Confluence, MediaWiki - convert links?

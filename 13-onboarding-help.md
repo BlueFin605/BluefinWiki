@@ -30,7 +30,7 @@ The Onboarding & Help System provides new and existing users with guidance on us
 - Tour progress is saved (user can resume if interrupted)
 - After completing/skipping, tour doesn't show again automatically
 - User can manually restart tour from Help menu
-- Tour adapts based on user role (Admin sees admin features, Viewer doesn't see editing)
+- Tour adapts based on user role (Admin sees admin features, Standard users see standard features)
 
 **Priority Rationale:** P2 - Significantly improves first-time experience, but not blocking for MVP. Users can learn by exploring.
 
@@ -130,7 +130,7 @@ The Onboarding & Help System provides new and existing users with guidance on us
 - Help link in main navigation (e.g., header or user menu)
 - Help page includes:
   - **Getting Started** guide (expanded version of onboarding tour)
-  - **User Guides** by role (Admin, Editor, Viewer)
+  - **User Guides** by role (Admin, Standard)
   - **Common Tasks** (how-to guides):
     - Creating and organizing pages
     - Formatting with Markdown
@@ -143,7 +143,7 @@ The Onboarding & Help System provides new and existing users with guidance on us
   - **Contact/Support** information
 - Help content is searchable
 - Help pages are themselves wiki pages (dogfooding) OR static Markdown files
-- Help center is accessible to all users (Viewer role can see it)
+- Help center is accessible to all authenticated users
 - Mobile-friendly layout
 
 **Priority Rationale:** P2 - Nice to have for comprehensive support, but inline help and Markdown reference cover most needs for MVP.
@@ -220,7 +220,6 @@ The Onboarding & Help System provides new and existing users with guidance on us
 **Dependencies:**
 - User dashboard/home page
 - User preferences storage
-- Activity tracking
 
 ---
 

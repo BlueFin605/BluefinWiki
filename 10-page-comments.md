@@ -52,7 +52,7 @@ Enable users to leave comments on wiki pages, facilitating discussion and collab
   - Character counter (max 5000 characters)
   - "Add Comment" button
   - "Cancel" button (clears input)
-- Viewer role can see comments but cannot add them
+- All authenticated users can add comments
 - Comment is posted immediately on "Add Comment" click
 - User sees success notification: "Comment added"
 - Page auto-scrolls to the new comment
@@ -340,8 +340,7 @@ PUT    /api/comments/{commentId}/resolve           - Mark resolved
 
 - **Authentication**: All comment operations require authenticated user
 - **Authorization**:
-  - Viewers: Read-only access
-  - Editors: CRUD on own comments, read all
+  - Standard users: CRUD on own comments, read all
   - Admins: Full CRUD on all comments
 - **Input Validation**:
   - Sanitize Markdown to prevent XSS
@@ -404,7 +403,6 @@ modules:
   comments:
     enabled: true
     settings:
-      allowViewersToComment: false
       maxCommentLength: 5000
       maxNestingDepth: 3
       editWindowHours: 24
@@ -442,7 +440,7 @@ modules:
 - User edits own comment and sees "(edited)" indicator
 - User deletes comment and sees "[Comment deleted]"
 - Admin deletes other user's comment
-- Viewer cannot create comments
+- Standard user can create and edit their own comments
 
 ### Accessibility Tests
 - Keyboard navigation through comments

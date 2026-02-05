@@ -284,7 +284,7 @@ A user can specify image dimensions in markdown to control display size, allowin
 - Attachment IDs (GUIDs) are globally unique to prevent collisions
 - Markdown parser supports standard image syntax `![alt](url)` and link syntax `[text](url)`
 - Users have sufficient storage quota; quota enforcement is separate concern
-- Attachment security/permissions inherit from parent page permissions
+- Attachment security requires authentication (all authenticated users can access all attachments)
 - Orphaned attachments (no markdown reference) are acceptable; cleanup is optional maintenance task
 - Clipboard API is available in modern browsers for paste functionality
 - Drag-and-drop uses standard HTML5 drag-and-drop API

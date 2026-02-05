@@ -65,7 +65,7 @@
 - [x] Feature aligns with "Family-Friendly Experience" (toolbar makes it accessible)
 - [x] Feature respects "Simplicity" principle (straightforward editor without complexity)
 - [x] Feature supports "Pluggable Architecture" (could swap editor implementations)
-- [x] Feature follows "Role-Based Access Control" (Editor/Viewer permissions)
+- [x] Feature follows "Role-Based Access Control" (all authenticated users can edit)
 - [x] Feature supports "Mobile-Responsive Design" (works on tablets and phones)
 
 ## User Experience Validation

@@ -2,7 +2,8 @@
 
 **Feature**: Home/Dashboard Page  
 **Generated**: 2026-01-13  
-**Status**: Awaiting Answers
+**Updated**: 2026-02-06  
+**Status**: ✅ Completed for MVP
 
 ---
 
@@ -13,11 +14,12 @@
 
 **Current spec says**: "User logs in and lands on dashboard page"
 
-**Needs clarification**:
-- Always redirect to dashboard after login?
-- Or remember last page and return there?
-- What about deep links - if user clicks link to specific page while logged out, after login go to that page or dashboard?
-- Should there be user preference "Landing page: Dashboard / Last Visited / Specific Page"?
+**ANSWER (MVP)**:
+- Simple approach: Login redirects to dashboard at `/`
+- Deep links preserved: If user clicks link to specific page while logged out, after login redirect to that page (not dashboard)
+- No "remember last page" - adds complexity and requires tracking
+- No user preference for landing page - adds complexity
+- Dashboard is home page (`/`) for simplicity
 
 ---
 
@@ -26,11 +28,12 @@
 
 **Why this matters**: Both specs mention "recent activity" and "recent changes".
 
-**Needs clarification**:
-- Is dashboard's "Recent Activity" the same data as spec #10's "Recent Changes"?
-- Should they share backend implementation?
-- Or are they different views (dashboard = last 10, recent changes = paginated full list)?
-- Avoid duplication of functionality and code!
+**ANSWER (MVP)**:
+- Dashboard's "Recent Activity" and spec #10's "Recent Changes" are THE SAME data
+- Single backend implementation querying PageHistory table
+- Dashboard shows last 10 entries (no pagination)
+- Recent Changes page (spec #10) shows same data with pagination
+- Reuse same query/function - DRY principle
 
 ---
 
@@ -39,12 +42,13 @@
 
 **Current spec says**: "System records page views and edits in DynamoDB with userId, pageId, timestamp, and action type"
 
-**Needs clarification**:
-- Separate UserActivity table or part of PageHistory?
-- How long is history retained (30 days, 90 days, forever)?
-- Privacy consideration - can user clear their history?
-- What if user views 1000 pages - storage cost?
-- Should there be automatic cleanup of old history?
+**ANSWER (MVP)**:
+- **NOT IMPLEMENTED FOR MVP** - No user activity tracking to keep costs low and simplicity high
+- No page view tracking (only page edits tracked via PageHistory)
+- No "Recently Viewed" section on dashboard
+- Significant cost savings: No writes for every page view, no storage for user activity
+- Future enhancement if needed
+- Dashboard focuses on global recent changes only
 
 ---
 
@@ -53,34 +57,35 @@
 
 **Current spec says**: "Saved per-user in DynamoDB UserPreferences table"
 
-**Needs schema definition**:
+**ANSWER (MVP)**:
 ```json
 {
   "userId": "user-guid-123",
   "pinnedPages": [
-    {
-      "pageId": "page-guid-456",
-      "pinnedAt": "2026-01-13T10:00:00Z",
-      "order": 1
-    }
-  ],
-  "dashboardLayout": { /* customization data */ }
+    "page-guid-456",
+    "page-guid-789"
+  ]
 }
 ```
-- Is this correct structure?
-- Maximum number of pinned pages?
+- Simple array of pageIds (simpler than objects with metadata)
+- Order preserved by array index
+- Maximum: 10 pinned pages (reasonable limit)
+- No dashboardLayout customization for MVP - fixed layout
+- One item per user in UserPreferences table - minimal cost
 
 ---
 
 ### 5. Dashboard Performance for Large Wikis
 **Question**: How does dashboard perform with large datasets?
 
-**Needs clarification**:
-- If wiki has 10,000 page edits, querying "last 10 changes" - indexed properly?
-- If user has viewed 5,000 pages, querying "last 5 personal views" - performant?
-- DynamoDB query patterns optimized?
-- Caching strategy?
-- Performance targets: dashboard load in <1 second?
+**ANSWER (MVP)**:
+- PageHistory table has GSI on timestamp for efficient queries
+- Query: Get last 10 items sorted by timestamp descending - always fast regardless of total items
+- No personal view history to query - removed that complexity
+- Simple caching: CloudFront caches dashboard API response for 30 seconds (stale-while-revalidate)
+- Target: <500ms dashboard load
+- For 10-user family wiki, performance is not a concern
+- If scaling needed later, can add DynamoDB DAX caching
 
 ---
 
@@ -91,12 +96,12 @@
 
 **Current spec says**: "Welcome back, [User Name]!"
 
-**Needs clarification**:
-- User's display name or first name?
-- Time-based greeting: "Good morning" vs "Good evening"?
-- Last login timestamp: "Last visit: 2 days ago"?
-- Personalized tips: "You have 3 unread changes"?
-- Or keep it simple?
+**ANSWER (MVP)**:
+- Simple: "Welcome back, [First Name]!" (extract first name from full name)
+- No time-based greeting - unnecessary complexity
+- No last login tracking - would require additional storage/tracking
+- No personalized tips - no activity tracking means no "unread" concept
+- Keep it simple and friendly
 
 ---
 
@@ -105,11 +110,13 @@
 
 **Current spec lists**: "Create New Page, All Pages, Recent Changes, Search, My Profile"
 
-**Needs clarification**:
-- Fixed set or user-customizable?
-- Show/hide individual links?
-- Add custom links to frequently accessed pages?
-- Different defaults based on user role (Admin sees "User Management")?
+**ANSWER (MVP)**:
+- Fixed set - no customization
+- All users see: Create New Page, All Pages, Recent Changes, Search
+- Admins additionally see: User Management, Configuration
+- No show/hide options - adds complexity
+- No custom links - use pinned pages for that
+- Simple, role-based visibility
 
 ---
 
@@ -118,11 +125,13 @@
 
 **Current spec says**: "Navigate directly to that page"
 
-**Needs clarification**:
-- Open in same tab or new tab?
-- If page has been edited multiple times, go to current version or specific version from activity?
-- Should there be "view diff" option?
-- Context menu for more options?
+**ANSWER (MVP)**:
+- Click opens page in same tab (standard web behavior)
+- Always goes to current version of page (not historical version)
+- No "view diff" on dashboard - keep it simple
+- No context menu for MVP
+- Users can Ctrl+Click or middle-click for new tab (browser standard)
+- View history/diff from page view itself if needed
 
 ---
 
@@ -131,12 +140,13 @@
 
 **Current spec mentions**: Empty state for "No recent activity"
 
-**Needs clarification**:
-- Should there be onboarding wizard?
-- Tutorial/welcome message?
-- Suggested first actions?
-- Sample pages or templates?
-- Or just empty with "Create your first page" button?
+**ANSWER (MVP)**:
+- Simple empty state: "No pages yet. Get started by creating your first page!"
+- Large "Create New Page" button
+- No onboarding wizard - over-engineered for family wiki
+- No tutorial - wiki should be intuitive
+- No sample pages - they can create what they need
+- Keep it simple and inviting
 
 ---
 
@@ -145,12 +155,14 @@
 
 **Current spec says**: "Shows page title, folder path, and 'Unpin' icon"
 
-**Needs clarification**:
-- Card layout, list layout, or grid layout?
-- Show page preview/description?
-- Show last modified date?
-- Thumbnail if page has images?
-- Drag-to-reorder functionality?
+**ANSWER (MVP)**:
+- Simple list layout (most space-efficient)
+- Shows: page title, folder path/breadcrumb, unpin icon
+- No preview/description - would require additional queries
+- No last modified date - keep it simple
+- No thumbnails - adds complexity and storage
+- No drag-to-reorder for MVP - manual order via unpin/repin
+- Clean, functional, fast
 
 ---
 
@@ -159,58 +171,68 @@
 
 **Current spec says**: "Relative timestamp (e.g., '2 hours ago')"
 
-**Needs clarification**:
-- Always relative, or switch to absolute after certain threshold (e.g., "3 days ago" vs "Jan 10, 2026")?
-- Hover to see exact timestamp?
-- Time zone consideration?
-- Update in real-time (e.g., "1 minute ago" refreshes to "2 minutes ago")?
+**ANSWER (MVP)**:
+- Relative for recent: "5 minutes ago", "2 hours ago", "3 days ago"
+- Switches to absolute after 7 days: "Jan 10, 2026"
+- Hover shows exact timestamp: "January 10, 2026 at 3:45 PM"
+- All times in user's browser timezone (client-side formatting)
+- No real-time updates - static after page load (refresh page for updates)
+- Use library like date-fns or Intl API for formatting
 
 ---
 
-### 12. Viewer Role Quick Links
+### 12. Role-Based Dashboard Adaptation
 **Question**: How does dashboard adapt for different roles?
 
-**Current spec mentions**: "Create New Page link is hidden/disabled" for viewers
+**CLARIFIED**: All authenticated users see the same dashboard and can create/edit content
 
-**Needs clarification**:
-- What other differences for Viewer vs Editor vs Admin?
-- Admin sees "User Management" link?
-- Different activity feed (viewers see less)?
-- Or same dashboard for all with role-specific filtering?
+**ANSWER (MVP)**:
+- All users see same dashboard content
+- All users see same activity feed (no filtering by role)
+- Quick links section shows different links based on role:
+  - All users: Create New Page, All Pages, Recent Changes, Search
+  - Admins additionally see: User Management, Configuration
+- No content access restrictions - keep authorization simple
+- Pinned pages personal to each user regardless of role
 
 ---
 
 ### 13. Dashboard Mobile Experience
 **Question**: How does dashboard adapt for mobile?
 
-**Not explicitly covered in spec**:
-- Single column layout?
-- Collapse sections by default?
-- Different section order?
-- Hide some sections on mobile?
-- Swipe between sections?
+**ANSWER (MVP)**:
+- Single column layout (responsive CSS)
+- All sections visible (no collapsing) - content is minimal anyway
+- Same section order: Welcome → Quick Links → Pinned Pages → Recent Activity
+- No swipe gestures - standard scrolling
+- Quick links may wrap to multiple rows
+- Use CSS media queries for responsive design
+- Test on mobile but keep implementation simple
 
 ---
 
 ### 14. Multiple Quick Link Rows
 **Question**: If there are many quick links, how are they displayed?
 
-**Needs clarification**:
-- Wrap to multiple rows?
-- Horizontal scroll?
-- "More" dropdown for additional links?
-- Maximum number of quick links shown?
+**ANSWER (MVP)**:
+- Wrap to multiple rows naturally (CSS flexbox)
+- Max 6 links for non-admins, 8 for admins - won't wrap often
+- No horizontal scroll - poor UX
+- No dropdown - unnecessary with limited links
+- Simple, clean flexbox layout
 
 ---
 
 ### 15. Refresh Behavior
 **Question**: Does dashboard auto-refresh or require manual refresh?
 
-**Not explicitly covered in spec**:
-- Auto-refresh activity feed every X minutes?
-- Real-time updates via WebSocket?
-- Manual refresh button?
-- Or always requires page reload?
+**ANSWER (MVP)**:
+- No auto-refresh - adds complexity and cost (polling)
+- No WebSocket - over-engineered for family wiki
+- No manual refresh button - use browser refresh
+- Page reload fetches latest data
+- For 10-user family wiki, updates aren't frequent enough to warrant auto-refresh
+- Keep it simple - users can refresh browser if needed
 
 ---
 
@@ -219,43 +241,54 @@
 ### 16. Dashboard Widgets Beyond Core
 **Question**: What other widgets could be added to dashboard?
 
-**Not explicitly covered in spec**:
-- "My drafts" (unsaved pages)?
-- "Pages I'm watching"?
-- "Upcoming events" (from calendar pages)?
-- "To-do items" (from pages with tasks)?
-- Extensible widget system?
+**ANSWER (MVP)**:
+- **None for MVP** - keep dashboard simple
+- Core widgets only: Welcome, Quick Links, Pinned Pages, Recent Activity
+- No drafts system - pages save immediately
+- No page watching - no notification system for MVP
+- No calendar/events parsing - out of scope
+- No task tracking - out of scope
+- No extensible widget system - YAGNI for family wiki
+- Can add features later based on actual usage
 
 ---
 
 ### 17. Activity Feed Filtering on Dashboard
 **Question**: Can users filter activity feed on dashboard?
 
-**Not explicitly covered in spec (spec #10 has full filter)**:
-- Quick filters: "My edits only", "Last 24 hours"?
-- Or always show global activity (go to spec #10 for filtering)?
+**ANSWER (MVP)**:
+- No filtering on dashboard - always shows last 10 global changes
+- Want filtering? Go to Recent Changes page (spec #10)
+- Dashboard is overview, Recent Changes is detailed view
+- Keeps dashboard simple and fast
+- No duplicate functionality
 
 ---
 
 ### 18. Dashboard Statistics/Metrics
 **Question**: Should dashboard show wiki statistics?
 
-**Not explicitly covered in spec**:
-- Total pages, total edits, active users?
-- "This week: 15 pages edited, 23 changes"?
-- Growth charts?
-- Only for admins or everyone?
+**ANSWER (MVP)**:
+- **No statistics for MVP** - adds complexity and query cost
+- No total pages/edits counters
+- No "this week" metrics
+- No charts - significant frontend and backend work
+- For family wiki, these stats aren't critical
+- Can add later if there's demand
+- Focus on core functionality first
 
 ---
 
 ### 19. Dashboard Notifications
 **Question**: Should dashboard show notifications?
 
-**Not explicitly covered in spec**:
-- "3 pages you're watching were updated"?
-- "Mom mentioned you in a comment"?
-- "New user joined the wiki"?
-- Separate notifications feature or part of dashboard?
+**ANSWER (MVP)**:
+- **No notification system for MVP** - significant feature scope
+- No page watching
+- No @mentions (no comment system for MVP)
+- No user join notifications
+- Recent activity feed serves as lightweight notification mechanism
+- Full notification system is future enhancement if needed
 
 ---
 
@@ -264,11 +297,12 @@
 
 **Current spec says**: "Data is per-user and not visible to other users (even admins)"
 
-**Needs clarification**:
-- Confirm admins definitely cannot see user view history?
-- Or can admins see for support/debugging?
-- Edit history is likely public (page history), but VIEW history is private?
-- Important privacy distinction!
+**ANSWER (MVP)**:
+- **N/A - No view history tracking for MVP**
+- Only edit history exists (PageHistory table)
+- Edit history is visible to all users (public)
+- No privacy concerns since no personal tracking
+- Simplifies both implementation and privacy considerations
 
 ---
 
@@ -277,11 +311,13 @@
 
 **Current spec says**: "If more than 6 pages, display first 6 with 'View All Pinned' link"
 
-**Needs clarification**:
-- What's the actual maximum (6, 20, 100, unlimited)?
-- Why 6 specifically?
-- Should there be recommended limit?
-- Performance consideration?
+**ANSWER (MVP)**:
+- Hard limit: 10 pinned pages maximum
+- Display all pinned pages on dashboard (no "View All" link)
+- If user tries to pin 11th page, show error: "Maximum 10 pinned pages. Unpin one first."
+- Simple validation in API
+- 10 is reasonable for quick access without cluttering dashboard
+- No "View All Pinned" page needed - just show all on dashboard
 
 ---
 
@@ -299,44 +335,69 @@
 ### 23. Dashboard Print View
 **Question**: Can dashboard be printed?
 
-**Not explicitly covered in spec**:
-- Useful for "weekly activity report"?
-- Print stylesheet to show only relevant sections?
-- Or printing dashboard doesn't make sense?
+**ANSWER (MVP)**:
+- **No special print styles for MVP**
+- Printing dashboard doesn't make sense for family wiki
+- Users can print individual wiki pages if needed
+- Not a priority feature
+- Can add print CSS later if requested
 
 ---
 
 ### 24. Dashboard Export
 **Question**: Can dashboard data be exported?
 
-**Not explicitly covered in spec**:
-- Export activity feed as CSV?
-- Export pinned pages list?
-- Useful for record-keeping?
-- Or not needed?
+**ANSWER (MVP)**:
+- **No export functionality for MVP**
+- Not needed for family wiki
+- Activity data is visible on screen
+- If export needed, can export from Recent Changes page later
+- Out of scope for MVP
 
 ---
 
 ### 25. Dashboard Onboarding
 **Question**: Is there a first-time user experience?
 
-**Not explicitly covered in spec**:
-- Tour of dashboard features?
-- Tooltips highlighting sections?
-- "Skip tour" option?
-- Only for new users or everyone after feature updates?
+**ANSWER (MVP)**:
+- **No onboarding tour for MVP**
+- Dashboard should be intuitive enough without tour
+- For family wiki, can explain features in person or via help doc
+- No tooltips/tours - adds frontend complexity
+- Keep UI self-explanatory with clear labels
+- Can add contextual help later if users struggle
 
 ---
 
-## 📝 Recommendations
+## 📝 MVP Summary
 
-1. **Answer Critical Priority (🔴) questions FIRST** - especially relationship with spec #10 and data storage
-2. **Consolidate with navigation/discovery spec** - avoid duplicate implementations
-3. **Design dashboard layout mockups** - desktop and mobile versions
-4. **Define user preferences schema** - complete UserPreferences table structure
+### ✅ Included in MVP
+- Welcome message with user's first name
+- Quick links (role-based visibility)
+- Pinned pages (max 10, simple list, stored in UserPreferences)
+- Recent activity (last 10 global changes, shared with spec #10)
+- Responsive design (mobile-friendly)
+- Simple, clean UI
 
-Would you like me to:
-- Help consolidate dashboard and navigation/discovery specs?
-- Create dashboard layout mockups?
-- Design the UserPreferences data model?
-- Draft the activity feed query optimization strategy?
+### ❌ Excluded from MVP (Future Enhancements)
+- Personal view history tracking (cost savings)
+- Dashboard statistics/metrics
+- Notification system
+- Activity feed filtering on dashboard
+- Auto-refresh/real-time updates
+- Onboarding tour
+- Print/export functionality
+- Additional widgets
+- Drag-to-reorder pinned pages
+
+### 💰 Cost Optimization
+- No user activity tracking = no DynamoDB writes for every page view
+- Simple caching (CloudFront 30s cache)
+- Minimal queries (just recent changes + user preferences)
+- Small UserPreferences items (just array of pageIds)
+
+### 🎯 Next Steps
+1. Update spec #13 based on these clarifications
+2. Ensure spec #10 alignment (shared Recent Changes data)
+3. Define UserPreferences DynamoDB table schema
+4. Create simple dashboard UI mockup

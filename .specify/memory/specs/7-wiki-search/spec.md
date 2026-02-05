@@ -219,7 +219,7 @@ The system uses a default cost-effective search implementation (DynamoDB scan or
 - **FR-011**: System MUST complete index updates within 5 seconds of page change (eventual consistency acceptable)
 - **FR-012**: System MUST provide search UI accessible via keyboard shortcut (Ctrl+K or Cmd+K)
 - **FR-013**: System MUST display search results in paginated format (10 results per page)
-- **FR-014**: System MUST respect page permissions in search results (users only see pages they can access)
+- **FR-014**: System MUST require authentication to access search (all authenticated users see all results)
 - **FR-015**: System MUST sanitize search queries to prevent injection attacks (SQL injection, XSS)
 - **FR-016**: System MUST support search scoped to current folder and descendants (P2 feature)
 - **FR-017**: System MUST support title-only search filter (P2 feature)
@@ -332,7 +332,7 @@ interface ISearchProvider extends IModule {
 - Full-text search on markdown content is sufficient (no need to parse/index rendered HTML initially)
 - Search query volume is low (<1000 queries/day) for family wiki use case
 - Advanced search features (fuzzy matching, synonym expansion) can wait for plugin providers
-- Page permissions are checked during search result generation (not during indexing)
+- All search results visible to all authenticated users (no per-page permissions)
 - Search index can be rebuilt from scratch if corrupted (reindexAll operation)
 - Browser localStorage is available for storing recent searches
 - Search UI is a modal/dialog overlay, not a dedicated search results page initially

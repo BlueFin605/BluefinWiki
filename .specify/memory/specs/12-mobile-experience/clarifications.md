@@ -13,11 +13,11 @@
 
 **Why this matters**: Affects fundamental CSS architecture and design approach.
 
-**Needs clarification**:
-- Mobile-first design (base styles for mobile, adapt up for desktop)?
-- Or desktop-first with mobile overrides?
-- What's the primary use case (mobile or desktop)?
-- Different component libraries optimized for each approach?
+**ANSWER**: Desktop-first with responsive adaptations
+- Primary use case is desktop (documentation/wiki creation is desktop-heavy)
+- Base styles for desktop, use media queries with `max-width` for mobile overrides
+- Simplifies development since desktop features are richer and can be progressively simplified for mobile
+- Use standard CSS frameworks that support desktop-first (can work with most libraries)
 
 ---
 
@@ -26,12 +26,14 @@
 
 **Current spec mentions**: "375px viewport"
 
-**Needs complete definition**:
-- Minimum supported width: 320px (iPhone SE)? 375px (iPhone)? 360px (Android)?
-- Breakpoints: Mobile (<768px), Tablet (768-1024px), Desktop (>1024px)?
-- Or more granular breakpoints?
-- Test devices: iPhone 15, Pixel 8, iPad, etc.?
-- Support for landscape orientation?
+**ANSWER**: Standard 3-breakpoint system
+- Minimum supported width: **375px** (covers most modern phones, iPhone 12+)
+- Breakpoints:
+  - Desktop: base styles (>1024px)
+  - Tablet: 768px-1024px (`max-width: 1024px`)
+  - Mobile: <768px (`max-width: 767px`)
+- Test targets: Chrome DevTools responsive mode, iPhone 13/14, iPad, modern Android
+- Landscape orientation supported automatically through responsive breakpoints
 
 ---
 
@@ -40,12 +42,12 @@
 
 **Current spec says**: "Minimum 44px touch target height"
 
-**Needs clarification**:
-- 44px x 44px (iOS HIG) or 48px x 48px (Material Design)?
-- Apply to ALL buttons/links or just primary actions?
-- Spacing between touch targets (how much buffer)?
-- Exceptions for dense UI (data tables)?
-- Enforcement/validation strategy?
+**ANSWER**: 44px minimum standard (iOS HIG)
+- **44px × 44px minimum** for all interactive elements (buttons, links, icons)
+- Apply to all touchable elements on mobile breakpoint (<768px)
+- Minimum **8px spacing** between adjacent touch targets
+- Exceptions: In-content links can be smaller (inherit text size) but have adequate padding
+- Enforcement: CSS utility classes (`.touch-target { min-height: 44px; min-width: 44px; }`)
 
 ---
 
@@ -54,11 +56,13 @@
 
 **Why this matters**: Desktop editors often fail on mobile (keyboard issues, poor touch support).
 
-**Needs decision**:
-- Use same editor as desktop with mobile adaptations?
-- Or different editor for mobile (SimpleMDE, EasyMDE, custom)?
-- Native textarea with custom toolbar (simplest)?
-- Does chosen editor handle mobile keyboards well?
+**ANSWER**: Same editor with mobile adaptations (simplest, lowest cost)
+- Use same markdown editor library as desktop (consistency, single codebase)
+- Apply mobile-specific CSS for touch-friendly toolbar buttons (44px minimum)
+- Disable preview split-pane on mobile, use toggle instead
+- Ensure textarea has proper mobile attributes (`autocapitalize="sentences"`, `autocorrect="on"`)
+- Test with iOS Safari and Chrome Android for keyboard handling
+- Fallback: If editor fails badly on mobile, swap to native `<textarea>` with simple toolbar on mobile only
 
 ---
 
@@ -67,12 +71,12 @@
 
 **Current spec says**: "Priority P3"
 
-**Needs clarification**:
-- If P3, can it be completely deferred?
-- Or are some PWA features (manifest, service worker) needed earlier?
-- Offline capability - essential or nice-to-have?
-- App icon and splash screen - easy wins or complex?
-- What's the minimum viable PWA implementation?
+**ANSWER**: Minimal PWA in MVP, full features post-MVP
+- MVP: Include basic `manifest.json` (app name, icons, theme color) - 30 minutes of work
+- MVP: Meta tags for "Add to Home Screen" appearance
+- Post-MVP: Service worker for offline caching
+- Post-MVP: Background sync, push notifications
+- Rationale: Manifest is nearly free, service worker adds complexity - defer for now
 
 ---
 
@@ -83,12 +87,12 @@
 
 **Current spec says**: "Collapsible hamburger menu provides access to folder tree"
 
-**Needs clarification**:
-- Slide-in from left, right, or full-screen overlay?
-- Dismiss by clicking outside, swipe, or only close button?
-- Does menu close after navigation or stay open?
-- Is folder tree same component as desktop or simplified?
-- Search integrated into menu or separate?
+**ANSWER**: Left slide-in overlay (standard pattern)
+- Slides in from **left** (280px width, covers ~75% of screen)
+- Dismiss: Click outside overlay OR close button (X) in header
+- Menu closes automatically after page navigation (better mobile UX)
+- Same folder tree component as desktop (code reuse)
+- Search as separate full-screen modal (activated from hamburger menu or header icon)
 
 ---
 
@@ -97,12 +101,12 @@
 
 **Current spec says**: "Editor viewport adjusts to remain visible above the keyboard"
 
-**Needs clarification**:
-- Using `visualViewport` API?
-- Or fixed positioning hacks?
-- What about iOS Safari keyboard toolbar?
-- Does save button remain accessible with keyboard open?
-- Scroll to cursor position when keyboard opens?
+**ANSWER**: Standard viewport handling (simple approach)
+- Use viewport meta tag: `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`
+- Let browser handle keyboard naturally (avoid complex `visualViewport` API unless needed)
+- Save button in fixed header remains accessible (above keyboard)
+- Textarea auto-scrolls to cursor on focus (native browser behavior)
+- Test on iOS Safari and Chrome Android to validate behavior
 
 ---
 
@@ -111,12 +115,13 @@
 
 **Current spec says**: "Defaults to single-pane view (not split-pane)" with toggle
 
-**Needs clarification**:
-- Toggle button location (top of editor, floating, tab bar)?
-- Animation between edit/preview (slide, fade)?
-- Remember last view mode per session?
-- Can user quickly swap between modes (important for checking formatting)?
-- Preview opens in same view or as overlay?
+**ANSWER**: Tab-based toggle in editor header
+- Two tabs in editor header: **Edit** | **Preview**
+- Tabs switch content below (same view, not overlay)
+- Simple **fade transition** (200ms) between modes
+- Remember last mode in sessionStorage (persists per session)
+- Quick toggle enables fast formatting checks
+- Default to Edit tab on new page
 
 ---
 
@@ -125,12 +130,13 @@
 
 **Current spec lists options**: "Wrap cells, scroll horizontally, or convert to card-based layout"
 
-**Needs decision**:
-- Which approach for which types of tables?
-- Simple tables (3-4 columns) - different from complex tables (10+ columns)?
-- Scrollable tables - show scroll affordance (shadow gradient)?
-- Card conversion - automatic or user toggle?
-- What about nested tables?
+**ANSWER**: Horizontal scroll with visual affordance (simplest)
+- All tables: Wrap in scrollable container (`overflow-x: auto`)
+- Show **shadow gradient** on right edge to indicate more content
+- Minimum column width to prevent text crushing
+- No automatic card conversion (adds complexity, inconsistent with markdown)
+- Tables remain tables on mobile (predictable behavior)
+- Consider alternative data presentation in documentation rather than complex tables
 
 ---
 
@@ -139,12 +145,12 @@
 
 **Current spec mentions**: "Floating action button (FAB)" for quick actions
 
-**Needs clarification**:
-- Location (bottom-right corner, bottom-center)?
-- Actions shown (create page, upload, scan QR - list from spec)?
-- Expand as radial menu or bottom sheet?
-- Hide on scroll or always visible?
-- Collision with other UI elements?
+**ANSWER**: Defer FAB to post-MVP (simplicity)
+- MVP: Primary actions in header/navigation (standard mobile pattern)
+- Post-MVP: If needed, single FAB at bottom-right (16px from edges)
+- Post-MVP: Bottom sheet expansion on tap (simpler than radial menu)
+- Rationale: FAB adds UI complexity; header actions are more standard and discoverable
+- Mobile users can access "Create Page" from navigation menu
 
 ---
 
@@ -153,12 +159,13 @@
 
 **Current spec says**: "Minimum 16px"
 
-**Needs clarification**:
-- Exactly 16px or larger (18px)?
-- Scalable text (rem/em) or fixed (px)?
-- Different sizes for different content (headings, body, captions)?
-- User preference for text size?
-- Line height and letter spacing?
+**ANSWER**: 16px base with relative sizing
+- Body text: **16px** (1rem) minimum - prevents iOS zoom on input focus
+- Use **rem** units for scalability (respects user browser settings)
+- Headings: Scale proportionally (h1: 2rem, h2: 1.5rem, h3: 1.25rem, etc.)
+- Line height: 1.6 for body text (readability)
+- No user preference control in MVP (defer to post-MVP if requested)
+- Let users zoom page with browser controls if needed
 
 ---
 
@@ -167,12 +174,13 @@
 
 **Current spec says**: "Images scale to fit viewport width (max-width: 100%)"
 
-**Needs clarification**:
-- Can users zoom/pinch images?
-- Open in full-screen lightbox?
-- Lazy loading implementation?
-- What about very tall images (crop, scale)?
-- Support for image galleries/carousels?
+**ANSWER**: Simple responsive images with native zoom
+- Images: `max-width: 100%; height: auto;` (responsive by default)
+- Native pinch-to-zoom enabled (browser default - no JavaScript needed)
+- No lightbox in MVP (adds complexity and library dependency)
+- Lazy loading: Use native `loading="lazy"` attribute (no JavaScript)
+- Tall images scale proportionally (no cropping)
+- Post-MVP: Consider lightbox library if users request it
 
 ---
 
@@ -181,12 +189,13 @@
 
 **Current spec mentions**: "Floating 'back to top' and 'menu' button appears"
 
-**Needs clarification**:
-- Trigger threshold (scroll 100px, 500px, 1 screen height)?
-- Position (bottom-right, bottom-left)?
-- Animated scroll or instant jump?
-- Fade in/out animation?
-- Conflicts with FAB?
+**ANSWER**: Simple scroll-triggered button
+- Appears after scrolling **400px** down (approximately 1 viewport height)
+- Position: **bottom-right** corner (60px from bottom, 20px from right)
+- **Smooth scroll** to top (`behavior: 'smooth'`)
+- Fade in/out with CSS transition (200ms)
+- Since FAB deferred to post-MVP, no conflict in MVP
+- Post-MVP: If FAB added, place back-to-top above it or combine functionality
 
 ---
 
@@ -195,11 +204,13 @@
 
 **Current spec mentions**: "Edit, Delete, Move, Share"
 
-**Needs clarification**:
-- Different menus for different contexts (page list vs page view)?
-- Platform-native menu or custom styled?
-- What other actions (Pin, Copy link, History)?
-- Haptic feedback on long-press?
+**ANSWER**: Context-aware custom menu
+- **Page list context**: Edit, Delete, Move, Share
+- **Page view context**: Edit, Share, Copy Link
+- **Custom styled** menu (better branding control than native)
+- Use CSS bottom sheet style (slides up from bottom)
+- Include haptic feedback via Vibration API (`navigator.vibrate(50)`) where supported
+- Cancel: Tap outside menu or Cancel button at bottom
 
 ---
 
@@ -208,11 +219,12 @@
 
 **Current spec mentions**: "User rotates device to landscape, then editor adapts layout"
 
-**Needs clarification**:
-- Use wider space for split-pane on landscape tablets?
-- Or stay single-pane on phones even in landscape?
-- Different breakpoints for landscape vs portrait?
-- Test all features in both orientations?
+**ANSWER**: Responsive by viewport width, not orientation
+- Breakpoints based on **width only** (simpler than orientation-specific)
+- Tablets (>768px width): Can show split-pane editor even in portrait if width allows
+- Phones (<768px width): Single-pane editor in both portrait and landscape
+- Landscape phones (e.g., 812px × 375px): Still single-pane (height too limited for split)
+- Test: All features should work in both orientations at each breakpoint
 
 ---
 
@@ -222,11 +234,13 @@
 **Question**: What touch gestures are supported?
 
 **Not explicitly covered in spec**:
-- Swipe back/forward for navigation?
-- Pull-to-refresh?
-- Swipe to delete in lists?
-- Pinch to zoom pages (not just images)?
-- Two-finger scroll?
+
+**ANSWER**: Minimal gestures in MVP (simplicity)
+- **Native browser gestures only**: Pinch-to-zoom (enabled), tap, long-press
+- **No custom gestures** in MVP (reduces complexity and potential conflicts)
+- Post-MVP considerations: Pull-to-refresh (easy with libraries), swipe back (browser-native in iOS)
+- Rationale: Custom gestures require libraries, testing, and conflict resolution with native behaviors
+- Focus on solid touch targets and standard interactions first
 
 ---
 
@@ -234,10 +248,14 @@
 **Question**: Should there be "Add to Home Screen" banner?
 
 **Not explicitly covered in spec**:
-- iOS Smart App Banner?
-- Android install prompt?
-- Custom banner with "Add to Home Screen" call-to-action?
-- Dismissible and remember dismissal?
+
+**ANSWER**: Simple custom banner post-manifest
+- Include **custom dismissible banner** after manifest.json is added (low effort)
+- Show once per session at bottom of screen (non-intrusive)
+- "Install app for better experience" with Add/Dismiss buttons
+- Remember dismissal in localStorage (don't spam users)
+- Skip iOS Smart App Banner (requires specific meta tag, auto-appears anyway)
+- Android will show native install prompt automatically when PWA criteria met
 
 ---
 
@@ -245,10 +263,14 @@
 **Question**: How are loading states shown on mobile?
 
 **Not explicitly covered in spec**:
-- Skeleton screens?
-- Spinners?
-- Progressive loading (show header first)?
-- Different for slow connections?
+
+**ANSWER**: Simple spinner for MVP
+- **Centered spinner** (CSS animation, no library needed) for page loads
+- Spinner in button during save operations (inline feedback)
+- MVP: Single loading pattern for consistency
+- Post-MVP: Skeleton screens for perceived performance improvement
+- Post-MVP: Progressive loading (header first) for slow connections
+- Keep loading indicators simple and consistent across all breakpoints
 
 ---
 
@@ -256,10 +278,14 @@
 **Question**: How are errors displayed on mobile?
 
 **Not explicitly covered in spec**:
-- Toast notifications at bottom?
-- Full-screen error pages?
-- Inline error messages?
-- Dismiss mechanism?
+
+**ANSWER**: Toast notifications at top (consistent with desktop)
+- **Toast at top** of viewport (won't be hidden by keyboard like bottom toasts)
+- Auto-dismiss after 5 seconds OR manual close button
+- Critical errors: Keep toast visible until dismissed
+- Form validation: Inline error messages below fields
+- Network errors: Toast + retry button
+- Same error handling as desktop for code consistency
 
 ---
 
@@ -268,11 +294,13 @@
 
 **Current spec mentions**: "Full-screen modal"
 
-**Needs clarification**:
-- Keyboard auto-focus on open?
-- Recent searches more prominent?
-- Voice search support?
-- Autocomplete how many results (fewer than desktop)?
+**ANSWER**: Full-screen modal with mobile optimizations
+- **Full-screen modal** (better use of limited mobile space)
+- **Auto-focus** search input on open (brings up keyboard immediately)
+- Show **recent searches** more prominently (top 3-5 results)
+- No voice search in MVP (adds complexity, limited browser support)
+- Autocomplete: Show **3-5 results** max (vs 7-10 on desktop)
+- Close: Back button, Cancel button, or ESC key (tablet keyboards)
 
 ---
 
@@ -280,11 +308,14 @@
 **Question**: How does file upload work on mobile?
 
 **Not explicitly covered in spec**:
-- Access device camera for photos?
-- Access photo library?
-- Access files app?
-- Multiple file selection?
-- File picker UI?
+
+**ANSWER**: Native file input (simplest approach)
+- Standard `<input type="file" />` - mobile browsers handle the rest
+- iOS automatically shows: Camera, Photo Library, Files
+- Android shows: Camera, Gallery, File Manager
+- Support `multiple` attribute for multi-file selection
+- Accept attribute for file types: `accept="image/*,.pdf,.md"`
+- Native UI = zero code, works everywhere, familiar to users
 
 ---
 
@@ -293,11 +324,13 @@
 
 **Current spec mentions**: "Offline indicator"
 
-**Needs clarification**:
-- Banner at top?
-- Toast notification?
-- Gray out edit controls?
-- Queue actions for when online?
+**ANSWER**: Top banner with status
+- **Banner at top** of page (yellow/orange background): "No internet connection"
+- Listen to `online`/`offline` events
+- Gray out Edit buttons (prevent lost work)
+- **No action queue** in MVP (defer to service worker implementation later)
+- Banner disappears when back online
+- Same offline detection logic as desktop
 
 ---
 
@@ -305,10 +338,14 @@
 **Question**: What are the performance targets for mobile?
 
 **Not explicitly covered in spec**:
-- Page load time on 3G: <3 seconds?
-- Time to interactive?
-- Bundle size limit?
-- Lighthouse score targets?
+
+**ANSWER**: Pragmatic mobile performance targets
+- **Initial JS bundle**: <200KB gzipped (reasonable for wiki app)
+- **Time to Interactive (TTI)**: <5 seconds on 3G (test with Chrome DevTools throttling)
+- **First Contentful Paint (FCP)**: <2 seconds
+- **Lighthouse score**: >70 mobile (good baseline, not perfect)
+- Code splitting: Split markdown editor into separate chunk (loaded only on edit)
+- Monitor with Lighthouse CI in development
 
 ---
 
@@ -316,10 +353,14 @@
 **Question**: What mobile accessibility standards to meet?
 
 **Not explicitly covered in spec**:
-- WCAG 2.1 Level AA?
-- Screen reader testing (VoiceOver, TalkBack)?
-- Keyboard navigation on tablet?
-- Color contrast requirements?
+
+**ANSWER**: WCAG 2.1 Level AA (same as desktop)
+- **WCAG 2.1 Level AA** compliance (industry standard)
+- Screen reader testing: **iOS VoiceOver** (primary), TalkBack (if time permits)
+- Touch target minimum: 44px (already covered in Q3)
+- Color contrast: 4.5:1 for text, 3:1 for UI components
+- Keyboard navigation: Important for tablets with keyboards
+- Test: Lighthouse accessibility audit, manual screen reader testing on key flows
 
 ---
 
@@ -327,22 +368,54 @@
 **Question**: Should mobile usage be tracked separately?
 
 **Not explicitly covered in spec**:
-- Track mobile vs desktop usage?
-- Most used features on mobile?
-- Performance monitoring mobile-specific?
-- User agent analysis?
+
+**ANSWER**: Basic segmentation with existing analytics
+- Track mobile vs desktop via **device type dimension** (standard in Google Analytics, etc.)
+- Track **viewport width** as custom dimension (identifies actual breakpoints used)
+- Track **performance metrics** (Core Web Vitals) by device type
+- No separate mobile analytics implementation needed (use same analytics library)
+- Post-MVP: Analyze most-used features by device type to optimize mobile UX
+- Keep analytics simple and privacy-conscious
 
 ---
 
-## 📝 Recommendations
+## 📝 Implementation Summary
 
-1. **Answer Critical Priority (🔴) questions FIRST** - especially design strategy and editor choice
-2. **Create mobile UI mockups** - for all key screens (navigation, editor, page view)
-3. **Define complete breakpoint system** - with exact pixel values and device targets
-4. **Test on real devices early** - emulators don't catch all mobile issues
+### Desktop-First Responsive Approach
 
-Would you like me to:
-- Research mobile markdown editor options?
-- Create mobile UI mockups for key screens?
-- Design a complete responsive breakpoint system?
-- Draft a mobile performance budget?
+**Core Strategy**:
+- Desktop-first development with responsive breakpoints
+- Bias toward simplicity and low-cost solutions
+- Reuse desktop components with mobile CSS adaptations
+- Defer complex features (FAB, PWA service worker) to post-MVP
+
+**Breakpoint System**:
+```css
+/* Desktop: Base styles (>1024px) */
+
+@media (max-width: 1024px) {
+  /* Tablet: 768-1024px */
+}
+
+@media (max-width: 767px) {
+  /* Mobile: <768px */
+}
+```
+
+**Key Technical Decisions**:
+1. ✅ Same markdown editor for mobile and desktop (CSS adaptations)
+2. ✅ Native HTML5 file input (zero-cost mobile file picker)
+3. ✅ CSS-only touch targets and responsive design
+4. ✅ Standard browser behaviors (keyboard, zoom, gestures)
+5. ✅ Simple spinners and toasts (no complex loading states in MVP)
+6. ✅ Horizontal scroll for tables (no card conversion)
+7. ❌ Defer: FAB, service worker, skeleton screens, custom gestures
+
+**MVP Effort Estimate**:
+- Breakpoint CSS: 2-3 days
+- Mobile navigation menu: 1 day
+- Touch-friendly controls: 1 day
+- Testing on devices: 1-2 days
+- **Total: ~5-7 days** for solid mobile responsive experience
+
+All 25 clarification questions have been answered with practical, implementable solutions.
