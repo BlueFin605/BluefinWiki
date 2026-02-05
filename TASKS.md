@@ -63,13 +63,7 @@
   - PK: `userId` (GUID)
   - Attributes: email, passwordHash, role, inviteCode, status, createdAt
   - GSI: `email-index` for login lookups
-- [ ] Create DynamoDB table: `folders`
-  - PK: `guid`
-  - Attributes: name, parentGuid, createdBy, createdAt, updatedAt
-  - GSI: `parentGuid-index` for tree traversal
-- [ ] Create DynamoDB table: `metadata`
-  - PK: `pageGuid`
-  - Attributes: title, tags, status, createdBy, modifiedBy, timestamps
+- [ ] Note: Folders and metadata are stored via storage plugin (S3/GitHub), not DynamoDB
 - [ ] Configure billing alarms for DynamoDB and S3
 - [ ] Document schema design decisions
 
@@ -184,9 +178,9 @@
   - [ ] Implement error handling wrapper
 - [ ] Implement `savePage` method
   - [ ] Generate GUID if not provided (uuid v4)
-  - [ ] Serialize page content to JSON
+  - [ ] Serialize page content and metadata to JSON
+  - [ ] PageContent includes: guid, title, content, tags, status, createdBy, modifiedBy, timestamps
   - [ ] Upload to S3: `pages/{guid}.json`
-  - [ ] Add metadata tags (author, timestamp)
   - [ ] Enable versioning on S3 bucket
 - [ ] Implement `loadPage` method
   - [ ] Fetch object from S3 by GUID
@@ -194,35 +188,42 @@
   - [ ] Handle 404 errors gracefully
   - [ ] Return page content with metadata
 - [ ] Implement `deletePage` method
-  - [ ] Soft delete: add `deleted=true` tag
+  - [ ] Soft delete: add `deleted=true` flag in page data
   - [ ] Or hard delete: remove S3 object
-  - [ ] Clean up associated metadata
+  - [ ] Update page data via save
 - [ ] Implement `listVersions` method
   - [ ] Query S3 object versions API
   - [ ] Return sorted list (newest first)
   - [ ] Include version metadata
+- [ ] Implement `saveFolder` method
+  - [ ] Serialize folder data to JSON
+  - [ ] Upload to S3: `folders/{guid}.json`
+  - [ ] Update folder index/cache
+- [ ] Implement `loadFolder` method
+  - [ ] Fetch folder object from S3 by GUID
+  - [ ] Deserialize JSON
+  - [ ] Return folder data
 
 #### 3.3 Lambda API Endpoints
 - [ ] Create API Gateway REST API resource: `/pages`
 - [ ] Implement Lambda: `pages-create` (POST /pages)
   - [ ] Validate request body (title, content, folderId)
+  - [ ] Build PageContent object with metadata (title, tags, status, author, timestamps)
   - [ ] Call storage plugin `savePage`
-  - [ ] Store metadata in DynamoDB
   - [ ] Return page GUID and creation timestamp
 - [ ] Implement Lambda: `pages-get` (GET /pages/{guid})
   - [ ] Extract GUID from path parameters
   - [ ] Call storage plugin `loadPage`
-  - [ ] Fetch metadata from DynamoDB
-  - [ ] Merge and return complete page data
+  - [ ] Return complete page data with metadata
 - [ ] Implement Lambda: `pages-update` (PUT /pages/{guid})
   - [ ] Validate request body
+  - [ ] Load existing page from storage
+  - [ ] Update content and metadata (modifiedBy, modifiedAt)
   - [ ] Call storage plugin `savePage` (creates new version)
-  - [ ] Update metadata timestamps
   - [ ] Return success response
 - [ ] Implement Lambda: `pages-delete` (DELETE /pages/{guid})
   - [ ] Verify user permissions
   - [ ] Call storage plugin `deletePage`
-  - [ ] Update metadata (soft delete flag)
   - [ ] Return confirmation
 
 #### 3.4 Testing & Documentation
@@ -246,37 +247,43 @@
 **Goal**: Implement hierarchical folder organization
 
 #### 4.1 Folder Data Model
-- [ ] Extend storage plugin for folder operations
-- [ ] Implement folder hierarchy tracking in DynamoDB
-  - [ ] Store parent-child relationships
-  - [ ] Support GSI query by `parentGuid`
-  - [ ] Add folder metadata (name, description, color)
+- [ ] Define folder data structure in storage plugin
+  - [ ] FolderData: guid, name, parentGuid, description, color, createdBy, createdAt, updatedAt
+  - [ ] Store as JSON in S3: `folders/{guid}.json`
+  - [ ] Store parent-child relationships within folder data
+- [ ] Implement folder hierarchy traversal in storage plugin
+  - [ ] Cache folder tree in memory for performance
+  - [ ] Build index of all folders on startup
 - [ ] Create root folder during wiki initialization
 
 #### 4.2 Folder API Endpoints
 - [ ] Implement Lambda: `folders-create` (POST /folders)
   - [ ] Generate folder GUID
-  - [ ] Validate parent folder exists
+  - [ ] Validate parent folder exists via storage plugin
   - [ ] Prevent duplicate names in same parent
-  - [ ] Store in DynamoDB and S3
+  - [ ] Call storage plugin `saveFolder` method
 - [ ] Implement Lambda: `folders-get` (GET /folders/{guid})
-  - [ ] Retrieve folder metadata
-  - [ ] Fetch immediate children (subfolders + pages)
+  - [ ] Call storage plugin `loadFolder` method
+  - [ ] Fetch immediate children (subfolders + pages) from storage
   - [ ] Return folder tree node
 - [ ] Implement Lambda: `folders-update` (PUT /folders/{guid})
+  - [ ] Load folder via storage plugin
   - [ ] Allow rename and description update
   - [ ] Prevent name conflicts
   - [ ] Update modification timestamp
+  - [ ] Save via storage plugin `saveFolder` method
 - [ ] Implement Lambda: `folders-delete` (DELETE /folders/{guid})
-  - [ ] Check if folder is empty
+  - [ ] Check if folder is empty via storage plugin
   - [ ] Implement recursive delete (with confirmation flag)
   - [ ] Move pages to archive folder (soft delete option)
+  - [ ] Delete via storage plugin
   - [ ] Return count of affected items
 - [ ] Implement Lambda: `folders-move` (PUT /folders/{guid}/move)
-  - [ ] Validate target parent folder
+  - [ ] Load folder via storage plugin
+  - [ ] Validate target parent folder exists
   - [ ] Prevent circular references
-  - [ ] Update parent-child relationships
-  - [ ] Maintain folder order
+  - [ ] Update parentGuid in folder data
+  - [ ] Save via storage plugin `saveFolder` method
 
 #### 4.3 Frontend Folder Components
 - [ ] Build recursive folder tree component
@@ -360,8 +367,9 @@
   - [ ] Author display (read-only)
   - [ ] Created/modified timestamps
 - [ ] Implement metadata save
-  - [ ] Update DynamoDB metadata table
-  - [ ] Sync with S3 object tags
+  - [ ] Update metadata fields in page data
+  - [ ] Save entire page (content + metadata) via storage plugin
+  - [ ] Metadata is part of PageContent JSON in storage
 
 #### 5.5 Page API Integration
 - [ ] Connect editor to backend APIs
@@ -393,11 +401,13 @@
 #### 6.2 Link Resolution Service
 - [ ] Build link resolver Lambda: `links-resolve`
   - [ ] Input: page title or GUID
-  - [ ] Search DynamoDB metadata by title (fuzzy match)
+  - [ ] Search through storage plugin (list all pages, filter by title)
+  - [ ] Implement fuzzy matching on page titles
   - [ ] Return best match with confidence score
   - [ ] Handle ambiguous titles (multiple matches)
+  - [ ] Consider caching page index for performance
 - [ ] Implement broken link detection
-  - [ ] Query for non-existent GUIDs
+  - [ ] Query storage plugin for page existence
   - [ ] Mark links with `?` icon
   - [ ] Provide "Create Page" quick action
 
@@ -542,9 +552,10 @@
 - [ ] Build search indexer Lambda: `search-index-page`
   - [ ] Triggered by S3 event (page save)
   - [ ] Or triggered by SQS queue (decoupled)
-  - [ ] Extract plain text from Markdown
+  - [ ] Load page via storage plugin `loadPage`
+  - [ ] Extract plain text from Markdown content
   - [ ] Remove code blocks and special syntax
-  - [ ] Fetch metadata from DynamoDB
+  - [ ] Extract metadata from PageContent (title, tags, author, etc.)
   - [ ] Submit document to CloudSearch
 - [ ] Implement batch indexing
   - [ ] Lambda: `search-reindex-all` (admin operation)
@@ -723,10 +734,9 @@
 
 #### 10.2 Version Retrieval API
 - [ ] Implement Lambda: `pages-versions-list` (GET /pages/{guid}/versions)
-  - [ ] Call S3 ListObjectVersions API
-  - [ ] Fetch version metadata from DynamoDB
-  - [ ] Merge S3 versions with DynamoDB metadata (author, timestamp)
-  - [ ] Return chronological list (newest first)
+  - [ ] Call storage plugin `listVersions` method
+  - [ ] For each version, load page data to get metadata (author, timestamp, title)
+  - [ ] Return chronological list (newest first) with metadata
 - [ ] Implement Lambda: `pages-versions-get` (GET /pages/{guid}/versions/{versionId})
   - [ ] Retrieve specific version from S3
   - [ ] Deserialize page content
@@ -773,18 +783,19 @@
   - [ ] Compare any two versions
 
 #### 10.5 Version Metadata Tracking
-- [ ] Create DynamoDB table: `page_versions`
-  - [ ] PK: `pageGuid`, SK: `versionId`
-  - [ ] Attributes: author, timestamp, changeDescription, charsDiff
+- [ ] Enhance page data to track version metadata
+  - [ ] Store version history in separate S3 objects or within page metadata
+  - [ ] Track: versionId (from S3), author, timestamp, changeDescription
+  - [ ] Option: Create `page-versions/{pageGuid}/{versionId}.json` for version metadata
 - [ ] Update page save flow to record version metadata
-  - [ ] On every save, insert row into `page_versions`
-  - [ ] Capture author from JWT
-  - [ ] Optional: prompt for change description
+  - [ ] On every save, capture author from JWT
+  - [ ] Store modifiedBy and modifiedAt in page data
+  - [ ] Optional: prompt for change description and store with version
 - [ ] Implement change attribution
-  - [ ] Show "Last edited by [User] on [Date]" below page title
+  - [ ] Show "Last edited by [User] on [Date]" from page metadata
   - [ ] Link to version history
 - [ ] Add cleanup for old versions
-  - [ ] DynamoDB TTL on versions older than 1 year
+  - [ ] Use S3 lifecycle policies for versions older than 1 year
   - [ ] Or manual archive process for old wikis
 
 ---
@@ -1121,8 +1132,9 @@
 **Goal**: Add tags, categories, and custom fields
 
 #### 14.1 Metadata Data Model
-- [ ] Extend `metadata` DynamoDB table
-  - [ ] Add fields: tags (string set), category (string), status (Draft/Published/Archived), customFields (JSON)
+- [ ] Extend PageContent structure in storage plugin
+  - [ ] Add fields: tags (array), category (string), status (Draft/Published/Archived), customFields (object)
+  - [ ] All metadata stored within page JSON in storage
 - [ ] Define status values
   - [ ] Draft: Visible to author + admins
   - [ ] Published: Visible to all users
@@ -1130,17 +1142,22 @@
 
 #### 14.2 Metadata API
 - [ ] Implement Lambda: `metadata-update` (PUT /pages/{guid}/metadata)
+  - [ ] Load page from storage plugin
   - [ ] Allow updates to tags, category, status, customFields
   - [ ] Validate status transitions (Draft → Published → Archived)
-  - [ ] Update metadata in DynamoDB
+  - [ ] Update page data and save via storage plugin
   - [ ] Trigger search reindex
 - [ ] Implement Lambda: `tags-list` (GET /tags)
-  - [ ] Return all unique tags across pages
+  - [ ] List all pages from storage plugin
+  - [ ] Extract and aggregate unique tags
   - [ ] Include usage count per tag
   - [ ] Sort by popularity or alphabetically
+  - [ ] Consider caching this data
 - [ ] Implement Lambda: `categories-list` (GET /categories)
-  - [ ] Return all unique categories
+  - [ ] List all pages from storage plugin
+  - [ ] Extract and aggregate unique categories
   - [ ] Include page count per category
+  - [ ] Consider caching this data
 
 #### 14.3 Frontend Metadata UI
 - [ ] Build metadata panel in editor
