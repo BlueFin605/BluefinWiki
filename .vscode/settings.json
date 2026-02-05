@@ -16,7 +16,8 @@
         "/^cd 'c:\\\\Users\\\\mitch\\\\Development\\\\Projects\\\\SpecKit\\\\projects\\\\BlueFinWiki' ; bash \\.specify/scripts/bash/check-prerequisites\\.sh --json --require-tasks --include-tasks$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "Test-Path": true
     }
 }
 

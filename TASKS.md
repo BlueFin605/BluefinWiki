@@ -94,17 +94,17 @@
 - [X] Document differences between Aspire local setup and AWS cloud deployment
 
 #### 1.4 Database Schema Design
-- [ ] Create DynamoDB table: `users`
+- [X] Create DynamoDB table: `users`
   - PK: `userId` (GUID)
   - Attributes: email, passwordHash, role, inviteCode, status, createdAt
   - GSI: `email-index` for login lookups
-- [ ] Configure LocalStack DynamoDB for local development via Aspire
-  - [ ] Add DynamoDB Local container resource in AppHost
-  - [ ] Configure table auto-creation on startup
-  - [ ] Seed development data for testing
-- [ ] Note: Folders and metadata are stored via storage plugin (S3/GitHub), not DynamoDB
+- [X] Configure LocalStack DynamoDB for local development via Aspire
+  - [X] Add DynamoDB Local container resource in AppHost
+  - [X] Configure table auto-creation on startup
+  - [X] Seed development data for testing
+- [X] Note: Folders and metadata are stored via storage plugin (S3/GitHub), not DynamoDB
 - [ ] Configure billing alarms for DynamoDB and S3 (cloud only)
-- [ ] Document schema design decisions and local vs. cloud differences
+- [X] Document schema design decisions and local vs. cloud differences
 
 ---
 
