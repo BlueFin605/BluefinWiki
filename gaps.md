@@ -83,6 +83,7 @@ Based on typical wiki sites and your constitution, here are some areas you might
 - **Status**: Fully specified in [16-page-metadata.md](16-page-metadata.md)
 - Includes: Tags, categories, custom metadata fields, page status (draft/published/archived)
 - Priority: P1 for tags, P2 for status and categories
+- **Clarification**: Draft pages now correctly specified as visible only to author + admins (not all users)
 
 #### **11. Configuration & Admin Settings** ✅ COMPLETED
 - **Status**: Fully specified in [17-admin-configuration.md](17-admin-configuration.md)
