@@ -51,10 +51,11 @@ Based on typical wiki sites and your constitution, here are some areas you might
 - Your constitution mentions "Comments" as a future feature module
 - Consider if you want this for MVP or later
 
-#### **5. Page Permissions (Granular)**
-- You have role-based access (Admin/Editor/Viewer)
-- **Missing**: Can specific pages be made private or restricted to certain users?
-- Family wikis often need "adults only" or "specific person only" pages
+#### **5. Page Permissions (Granular)** - ✅ DESIGN DECISION: NOT IMPLEMENTED
+- Simple two-role system only: Admin and Standard
+- All authenticated users have equal access to all content
+- No per-page or per-folder permissions
+- Access control is at account level (invite-only)
 
 #### **6. Export Functionality**
 - Export single page to PDF
@@ -128,8 +129,7 @@ Here's what **most wiki systems** have that I didn't see fully spec'd:
 1. **Page History & Versioning** - Your constitution mentions this as a core principle
 2. **Recent Changes/Activity Feed** - Essential for collaborative wikis
 3. **Basic Home/Dashboard** - Users need a landing page
-4. **Granular Page Permissions** - Families need privacy controls
-5. **Accessibility Requirements** - Your constitution mandates WCAG 2.1 AA
+4. **Accessibility Requirements** - Your constitution mandates WCAG 2.1 AA
 
 #### **Consider for MVP (P2):**
 6. Page templates
@@ -158,9 +158,7 @@ Here's what **most wiki systems** have that I didn't see fully spec'd:
 
 3. **Add accessibility section** to each existing spec showing how it meets WCAG 2.1 AA
 
-4. **Consider a "11-page-permissions" spec** for granular access control beyond roles
-
-5. **Add edge cases** for concurrent editing conflicts (briefly mentioned but needs more detail)
+4. **Add edge cases** for concurrent editing conflicts (briefly mentioned but needs more detail)
 
 ### ✨ **Your Specs Are Production-Ready For**
 

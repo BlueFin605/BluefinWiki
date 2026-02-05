@@ -333,7 +333,7 @@ Logs should be written to the cloud provider, so if it is in AWS Lambda it will 
 **Consideration**:
 - Should "Remember me" sessions be revoked on password change? no
 - Should there be additional verification for sensitive actions even with valid session? no
-- Should "Remember me" work differently for Admin vs Editor roles? no
+- Should "Remember me" work differently for Admin vs Standard roles? no
 
 ---
 

@@ -177,11 +177,10 @@
 ### 12. Folder Permissions
 **Question**: Can folders have different permissions than their pages? no
 
-**Not explicitly covered in spec**:
-- Can a folder be marked "read-only" for certain users? not for MVP
-- Do folder permissions inherit to all child pages? yes
-- Or are permissions always page-level? yes
-- Who can create folders (Editor role sufficient, or Admin only)? edit role is sufficient
+**CLARIFIED**: No individual folder permissions in MVP
+- All authenticated users can create, edit, and manage folders
+- No read-only folders or per-folder access controls
+- Folder permissions do not exist (all content accessible to all authenticated users)
 
 ---
 

@@ -197,7 +197,6 @@ When multiple users are editing the same page simultaneously, the system detects
 - What happens when storage plugin fails during save operation? Error message shows "Failed to save. Please try again or copy your content to a safe location."
 - What happens when a user uploads an attachment with duplicate filename? System generates unique attachment GUID, avoiding filename collision; original name stored in metadata.
 - What happens when preview pane rendering takes more than 2 seconds (complex markdown)? Loading spinner shows with message "Rendering preview..." and preview updates when complete.
-- What happens when a user has Editor role but page is in a protected folder? Save operation blocked with error "You don't have permission to edit pages in this folder" (if folder-level permissions exist).
 - What happens when a user clicks "Back" browser button while editing unsaved changes? Browser prompts "Leave site? Changes you made may not be saved" using beforeunload event.
 
 ## Requirements *(mandatory)*
@@ -317,7 +316,7 @@ This feature aligns with the BlueFinWiki Constitution:
 - **Family-Friendly Experience (Principle IV)**: Toolbar and live preview make editing accessible to all skill levels
 - **Simplicity (Principle III)**: Straightforward markdown editor without overwhelming features
 - **Pluggable Architecture (Principle I)**: Editor integrates with storage plugin via interface; could support alternative editor modules
-- **Role-Based Access (Principle VI)**: Respects Editor/Viewer/Admin permissions
+- **Role-Based Access (Principle VI)**: All authenticated users can edit; admin features restricted to Admin role
 - **Mobile-Responsive (Principle IV)**: Editor works on tablets and phones for family access anywhere
 
 ## Technical Notes

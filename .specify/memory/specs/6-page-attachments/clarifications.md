@@ -11,26 +11,29 @@
 ### 1. Attachment Storage Path Consistency
 **Question**: Are attachments stored using the same structure across all storage plugins?
 
-**Current spec says**: "Stored alongside the markdown file"
+**ANSWERED**: Attachments stored in same folder as page using original filename
 
-**Needs clarification**:
-- S3: Is it `{page-guid}/_attachments/{attachment-guid}.ext`?
-- GitHub: Same structure in git repo?
-- What if page is at root level - where do attachments go?
-- Must align exactly with S3 storage plugin spec (spec #2)
+**Implementation**:
+- Attachments stored alongside the markdown file in the same directory
+- Uses original filename (not renamed to GUID)
+- Example: If page is at `folder/page.md`, attachment is at `folder/image.jpg`
+- Same structure across all storage plugins (S3, GitHub, etc.)
+- Root level pages: attachments at root level too
+- No separate `_attachments` subdirectory
 
 ---
 
 ### 2. Attachment GUID vs Filename
 **Question**: Are attachments always renamed to GUIDs, or can they keep original filenames?
 
-**Current spec shows**: `{attachment-guid}.jpg` but also mentions "original filename"
+**ANSWERED**: Attachments keep original filename
 
-**Needs clarification**:
-- Are ALL attachments renamed to GUIDs?
-- Or only when filename has spaces/special characters?
-- If GUID-based, how do users identify files in file manager?
-- Should filenames be sanitized instead of replaced with GUIDs?
+**Implementation**:
+- Files stored with their original filename
+- No GUID renaming
+- Filenames may be sanitized for special characters if needed
+- Users can easily identify files in file manager
+- Duplicate filenames in same folder may need handling (auto-rename or replace prompt)
 
 ---
 
@@ -53,39 +56,40 @@
   "dimensions": { "width": 1920, "height": 1080 }  // For images?
 }
 ```
-- Is this correct and complete?
+- Is this correct and complete? yes
 
 ---
 
 ### 4. Markdown Reference Format
 **Question**: How are attachments referenced in markdown content?
 
-**ANSWERED**: Relative references using filename
+**ANSWERED**: Relative references using original filename
 
 **Implementation**:
 - Images: `![family-photo.jpg](family-photo.jpg)`
 - Documents: `[Document](document.pdf)`
-- Attachments stored alongside page in S3: `pages/folder-path/{page-guid}-attach-{filename}`
+- Attachments stored alongside page in same folder: `folder/page.md` and `folder/family-photo.jpg`
 - Markdown renderer resolves relative paths to attachment URLs
 - When page is rendered, attachment URLs generated dynamically
-- No need to update markdown when page moves (relative references)
-- URL generation uses page's short-code for context
+- No need to update markdown when page moves (relative references maintain)
+- Simple filename-based references, no complex path resolution needed
 
 ---
 
 ### 5. Attachment URL Generation
 **Question**: How are attachment URLs generated for browser access?
 
-**ANSWERED**: URLs generated using page short-code context
+**ANSWERED**: URLs generated using page context
 
 **Implementation**:
 - When rendering page at `/pages/{short-code}/Page Title`
 - Attachment URLs: `/pages/{short-code}/attachments/{filename}`
-- Backend resolves short-code to S3 path via URL mapping
-- Retrieves attachment: `pages/folder-path/{page-guid}-attach-{filename}`
+- Backend resolves page context to storage folder location
+- Retrieves attachment from same folder as page: `folder/filename.jpg`
 - Can use CloudFront for CDN distribution
-- Presigned URLs for private pages/attachments
-- Auth check before serving attachment (permission verification)
+- Presigned URLs for attachments (authenticated access only)
+- Auth check before serving attachment (verify user is logged in)
+- Simple lookup: find page's folder, retrieve file by original filename
 
 ---
 
@@ -108,7 +112,7 @@
 ---
 
 ### 7. File Size Limits Per Type
-**Question**: What are the size limits for each attachment type?
+**Question**: What are the size limits for each attachment type? unlimited for MVP
 
 **Current spec says**: "10MB" for images
 
@@ -128,11 +132,11 @@
 **Current spec says**: "Displays inline at full width or specified dimensions"
 
 **Needs clarification**:
-- How are dimensions specified? `![img](url)` or `![img](url){width=500px}`?
-- Should there be UI for setting image size (small/medium/large/full)?
-- Responsive images for different screen sizes?
-- Can images be aligned (left, center, right)?
-- Clickable to view full size?
+- How are dimensions specified? `![img](url)` or `![img](url){width=500px}`? yes
+- Should there be UI for setting image size (small/medium/large/full)? user can resize image by dragging border
+- Responsive images for different screen sizes? yes
+- Can images be aligned (left, center, right)? yes
+- Clickable to view full size? yes
 
 ---
 
@@ -142,12 +146,12 @@
 **Current spec mentions**: "HTML5 video player with standard controls"
 
 **Needs clarification**:
-- Controls: play/pause, volume, fullscreen - what else?
-- Playback speed control?
-- Captions/subtitles support?
-- Picture-in-picture?
-- Autoplay (probably not for UX)?
-- Should videos be hosted or just embedded (YouTube, Vimeo)?
+- Controls: play/pause, volume, fullscreen - what else? yes
+- Playback speed control? yes
+- Captions/subtitles support? yes if the source supports it
+- Picture-in-picture? no
+- Autoplay (probably not for UX)? no
+- Should videos be hosted or just embedded (YouTube, Vimeo)? if it is a link do not host it
 
 ---
 
@@ -157,25 +161,27 @@
 **Current spec says**: "File icon, name, type, size, upload date"
 
 **Needs clarification**:
-- File icon - generic or type-specific (PDF icon, Word icon)?
-- Name - original filename or display name?
-- Type - extension or MIME type ("PDF" vs "application/pdf")?
-- Size - MB, KB, or auto-format (e.g., "2.3 MB", "450 KB")?
-- Upload date - relative ("2 days ago") or absolute ("Jan 13, 2026")?
-- Who uploaded?
+- File icon - generic or type-specific (PDF icon, Word icon)? type-specific
+- Name - original filename or display name? original filename
+- Type - extension or MIME type ("PDF" vs "application/pdf")?no
+- Size - MB, KB, or auto-format (e.g., "2.3 MB", "450 KB")? size
+- Upload date - relative ("2 days ago") or absolute ("Jan 13, 2026")?no
+- Who uploaded?no
 
 ---
 
 ### 11. Duplicate Attachment Handling
 **Question**: What happens when uploading file with name that already exists?
 
-**Current spec says**: "System generates unique attachment GUID, avoiding filename collision"
+**CRITICAL**: Since attachments use original filename in same folder
 
 **Needs clarification**:
-- GUID prevents collision, but does system warn user?
-- Should it ask "family-photo.jpg already exists. Upload anyway, Replace, or Cancel"?
-- Or silently allow duplicates (different GUIDs, same name)?
-- How can user identify which is which?
+- Must check if filename already exists in page's folder
+- Should prompt: "family-photo.jpg already exists. Replace, Rename, or Cancel"? yes
+- Auto-rename option: family-photo-1.jpg, family-photo-2.jpg? no
+- Or require user to rename manually? yes
+- Cannot silently overwrite (data loss risk) no
+- Markdown references won't break if replacing same filename
 
 ---
 
@@ -185,7 +191,7 @@
 **Current spec says**: "Confirmation prompt asks 'Delete filename.jpg? This cannot be undone.'"
 
 **Needs clarification**:
-- Simple OK/Cancel dialog?
+- Simple OK/Cancel dialog? yes
 - Should it show preview of attachment being deleted?
 - Warning if attachment is still referenced in markdown?
 - Checkbox "Also remove references from page content"?
@@ -199,16 +205,16 @@
 **Current spec mentions**: "Placeholder shows 'Image not found'" or "⚠️ Missing attachment"
 
 **Needs clarification**:
-- Should it show original filename in placeholder?
-- "Image not found: family-photo.jpg"?
-- Different placeholder for images vs documents?
-- Should editor highlight broken attachment references?
-- Can user re-upload or remove broken reference?
+- Should it show original filename in placeholder? yes
+- "Image not found: family-photo.jpg"? yes
+- Different placeholder for images vs documents? no
+- Should editor highlight broken attachment references? yes
+- Can user re-upload or remove broken reference? user shoul dbe able to remove, maybe just be deleting the text
 
 ---
 
 ### 14. Drag and Drop Multiple Files
-**Question**: Can users drag multiple files at once?
+**Question**: Can users drag multiple files at once? not for MVP
 
 **Current spec says**: "Multiple files are dropped, when processed, then all files upload in sequence"
 
@@ -226,9 +232,9 @@
 **Current spec says**: "Image is in clipboard, when user presses Ctrl+V, then image is detected"
 
 **Needs clarification**:
-- What if clipboard has both text and image (rich content)?
-- What if clipboard has HTML with embedded image?
-- What if clipboard has file reference (copied from file explorer)?
+- What if clipboard has both text and image (rich content)? preferenc to rich content
+- What if clipboard has HTML with embedded image? are we supporting html in the ,markdown file
+- What if clipboard has file reference (copied from file explorer)? import file and add to the page
 - Priority/fallback behavior?
 
 ---
@@ -236,17 +242,17 @@
 ## 🟢 Medium Priority - Nice to Have Clarity
 
 ### 16. Attachment Versioning
-**Question**: Can attachments be versioned like pages?
+**Question**: Can attachments be versioned like pages? no
 
 **Not explicitly covered in spec**:
-- If user uploads new version of diagram.png, keep old version?
-- Access to previous versions?
-- Or replacement is permanent?
+- If user uploads new version of diagram.png, keep old version? no
+- Access to previous versions? no
+- Or replacement is permanent? permanent
 
 ---
 
 ### 17. Attachment Search
-**Question**: Can users search within attachments?
+**Question**: Can users search within attachments? not for MVP
 
 **Not explicitly covered in spec**:
 - Search by filename?
@@ -259,10 +265,13 @@
 ### 18. Attachment Permissions
 **Question**: Do attachments inherit page permissions?
 
-**Not explicitly covered in spec**:
-- If page is restricted, are attachments also restricted?
-- Or can attachments be public while page is private?
-- Direct attachment URLs bypass page auth?
+**CLARIFIED**: No individual page permissions exist. All attachments are accessible to all authenticated users.
+
+**Implementation**:
+- All authenticated users can view and download all attachments
+- Authentication check required (must be logged in)
+- No granular access controls per page or attachment
+- Direct attachment URLs require valid user session
 
 ---
 
@@ -270,10 +279,10 @@
 **Question**: Should images have thumbnail previews?
 
 **Not explicitly covered in spec**:
-- Generate thumbnails on upload?
-- Different sizes (small, medium) for different contexts?
-- Storage cost consideration?
-- Performance for pages with many images?
+- Generate thumbnails on upload? yes
+- Different sizes (small, medium) for different contexts? no
+- Storage cost consideration? not for MVP
+- Performance for pages with many images? not for MVP
 
 ---
 
@@ -283,24 +292,24 @@
 **Current spec mentions**: "Video is lazy-loaded to prevent blocking page render"
 
 **Needs clarification**:
-- Lazy loading for all images or just below-the-fold?
-- Native browser lazy loading or custom implementation?
-- What about PDFs - lazy load or immediate?
+- Lazy loading for all images or just below-the-fold? all images
+- Native browser lazy loading or custom implementation? native
+- What about PDFs - lazy load or immediate? lazy
 
 ---
 
 ### 21. Attachment Copy/Move
-**Question**: Can attachments be moved to different pages?
+**Question**: Can attachments be moved to different pages? no
 
 **Not explicitly covered in spec**:
-- Copy attachment to another page?
-- Move attachment between pages?
+- Copy attachment to another page? no
+- Move attachment between pages? no
 - Affects storage structure?
 
 ---
 
 ### 22. Attachment Metadata Editing
-**Question**: Can users edit attachment metadata after upload?
+**Question**: Can users edit attachment metadata after upload? no
 
 **Not explicitly covered in spec**:
 - Change description/caption?
@@ -311,7 +320,7 @@
 ---
 
 ### 23. Batch Attachment Operations
-**Question**: Can users select multiple attachments for batch operations?
+**Question**: Can users select multiple attachments for batch operations? no
 
 **Not explicitly covered in spec**:
 - Select multiple → Delete all?
@@ -321,7 +330,7 @@
 ---
 
 ### 24. Attachment Upload Progress Cancellation
-**Question**: Can users cancel uploads in progress?
+**Question**: Can users cancel uploads in progress? not for MVP
 
 **Current spec mentions**: "Progress indicator" but not cancellation
 
@@ -338,7 +347,7 @@
 **Not explicitly covered in spec**:
 - Link to Dropbox, Google Drive, OneDrive files?
 - Display preview like native attachments?
-- Or just regular link?
+- Or just regular link? treat them as a normal link
 
 ---
 

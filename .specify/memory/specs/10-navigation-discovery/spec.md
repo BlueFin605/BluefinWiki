@@ -44,11 +44,11 @@ A user viewing a long page sees an auto-generated table of contents sidebar that
 
 ---
 
-### User Story 3 - Recent Changes/Activity Feed (Priority: P1)
+### User Story 3 - Recent Changes/Activity Feed (Priority: P3 - Post-MVP)
 
 A user accesses a "Recent Changes" page showing a chronological list of all wiki edits, page creations, and deletions across the entire wiki, helping users discover new content and track activity.
 
-**Why this priority**: Activity feed is a core wiki feature that enables collaboration awareness. Users need to see what's changed since their last visit. Essential for family wikis where members want to stay updated.
+**Why this priority**: Post-MVP feature. While activity feeds enhance collaboration awareness, basic navigation and search cover essential discovery needs for MVP. Activity tracking adds complexity with DynamoDB logging and can be added after core wiki functionality is validated.
 
 **Independent Test**: Create 2 new pages and edit 3 existing pages, navigate to "Recent Changes" page, and verify all 5 activities are listed chronologically with timestamps, page names, authors, and links to view the pages.
 

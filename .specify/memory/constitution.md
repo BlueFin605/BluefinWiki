@@ -68,7 +68,7 @@ The following requirements are **mandatory and immutable**. Any feature, archite
 ### VI. Privacy & Security
 - Family data is private by default (not public internet access without authentication)
 - User authentication required for all access (AWS Cognito or similar)
-- Role-based access control: Admin, Editor, Viewer roles
+- Role-based access control: Admin and Standard roles (all users have equal content access)
 - All user inputs sanitized to prevent XSS/injection attacks
 - HTTPS/TLS mandatory for all connections
 - Regular security audits and dependency updates

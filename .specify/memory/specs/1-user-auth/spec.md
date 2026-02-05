@@ -101,11 +101,11 @@ A user who forgets their password can request a password reset link via email, a
 
 ### User Story 6 - Admin Manages User Roles and Access (Priority: P2)
 
-Admins can view all users, change their roles (Admin/Editor/Viewer), and revoke access when needed (e.g., if a family member should no longer have access).
+Admins can view all users, change their roles (Admin/Standard), and revoke access when needed (e.g., if a family member should no longer have access).
 
-**Why this priority**: Role management is important for wiki operations but not needed for basic functionality. The system can work initially with everyone as "Editor" and a single admin.
+**Why this priority**: Role management is important for wiki operations but not needed for basic functionality. The system can work initially with everyone as "Standard" and a single admin.
 
-**Independent Test**: Log in as admin, change a user's role from Editor to Viewer, log in as that user, and verify they can view but not edit pages.
+**Independent Test**: Log in as admin, change a user's role from Standard to Admin, log in as that user, and verify they can access admin features.
 
 **Acceptance Scenarios**:
 
@@ -174,8 +174,8 @@ Users can update their own profile information and change their password without
 ### Key Entities
 
 - **User**: Represents a family member with access to the wiki
-  - Attributes: userId (unique), email (unique), passwordHash, displayName, role (Admin/Editor/Viewer), accountStatus (active/disabled), createdAt, lastLoginAt
-  - Relationships: Created by invitation (except first admin), can create pages/edits based on role
+  - Attributes: userId (unique), email (unique), passwordHash, displayName, role (Admin/Standard), accountStatus (active/disabled), createdAt, lastLoginAt
+  - Relationships: Created by invitation (except first admin), all users have equal content access
 
 - **Invitation**: Represents a single-use invite link for a new family member
   - Attributes: invitationId (unique), recipientEmail, invitationToken (unique, secure), createdByUserId, status (pending/used/expired), createdAt, expiresAt, usedAt
