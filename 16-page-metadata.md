@@ -122,29 +122,44 @@ This specification defines how pages in BlueFinWiki can be organized, categorize
 **Acceptance Criteria**:
 - Three statuses available: Draft, Published, Archived
 - New pages default to Published (or Draft if user preference set)
-- Draft pages visible to all authenticated users (including Standard users)
-- Archived pages visible but clearly marked and excluded from main navigation
+- **Draft pages visible only to page author and admins** (hidden from other users)
+- Archived pages visible to all but clearly marked and excluded from main navigation
 - Status indicator visible on page (badge/label)
-- Status filter in search and page lists
+- Status filter in search and page lists (admins can search drafts, others cannot)
 - Status change logged in page history
 
 **Status Definitions**:
-- **Draft**: Work in progress, not ready for general viewing
-- **Published**: Complete and visible to all authenticated users
-- **Archived**: Historical content, no longer actively maintained
+- **Draft**: Work in progress, not ready for general viewing. Only visible to the author and wiki admins. Hidden from navigation, search results, and page lists for other users.
+- **Published**: Complete and visible according to page permissions (respects private/specific user settings from spec #11)
+- **Archived**: Historical content, no longer actively maintained. Visible to all but excluded from default search/navigation. Shows archive badge.
 
 **UI/UX Notes**:
 - Status dropdown in page editor toolbar
-- Status badge displayed near page title (color-coded)
-- Draft pages have yellow/amber indicator
-- Archived pages have gray indicator
-- Search can filter by status (default: exclude drafts and archived)
+- Status badge displayed near page title (color-coded):
+  - Draft: Yellow/amber badge with "Draft" label
+  - Published: No status badge (default state)
+  - Archived: Gray badge with "Archived" label
+- Draft pages show banner to author: "🔒 Draft - Only you and admins can see this page"
+- Search default behavior: excludes both drafts and archived (users can opt-in to include archived)
+- Admin search includes option to "Show drafts from all users"
 
 **Technical Notes**:
-- Status stored as enum string in DynamoDB page item
+- Status stored as enum string in DynamoDB page item: `Draft | Published | Archived`
 - GSI on Status for efficient filtering
-- Draft pages visible to all authenticated users
+- **Draft visibility logic**: Query checks if `status === 'Draft' AND (currentUserId === authorId OR currentUserRole === 'Admin')`
+- Draft pages excluded from:
+  - Navigation trees for non-authors
+  - Search results for non-authors
+  - Recent changes feed for non-authors (or shown with draft indicator)
 - Version history includes status changes with timestamp
+- Status transitions logged: Draft→Published (publishing), Published→Draft (unpublishing), any status→Archived
+
+**Permission Interaction**:
+- Draft status is **independent of page permissions** (spec #11)
+- A page can be both "Draft" AND "Private" - doubly restricted
+- Example: Draft + Private = Only author + admins (draft rule applies)
+- Example: Published + Private = Only owner + admins + specific users (permission rules apply)
+- When draft is published, page permissions (if set) take effect immediately
 
 ---
 
