@@ -52,17 +52,58 @@ BlueFinWiki is a monorepo containing four main packages:
 
 ## 🚀 Getting Started
 
-### Option 1: Local Development with Aspire (Recommended)
+### Quick Start (3 Steps)
 
-#### 1. Clone and Install
+1. **First-Time Setup** (one time only):
+   ```powershell
+   .\setup-aspire.ps1
+   ```
+
+2. **Start Development**:
+   ```powershell
+   dotnet run --project aspire/BlueFinWiki.AppHost
+   ```
+
+3. **Open Your Browser**:
+   - Frontend: http://localhost:5173
+   - Aspire Dashboard: http://localhost:15888
+
+📖 **See [QUICKSTART.md](QUICKSTART.md) for detailed quick start guide**
+
+---
+
+### Detailed Setup
+
+#### Option 1: Automated Setup (Recommended)
+
+Run the setup script from the project root:
+
+```powershell
+.\setup-aspire.ps1
+```
+
+This will:
+- ✅ Install .NET Aspire workload
+- ✅ Verify Docker Desktop is running
+- ✅ Build the Aspire AppHost
+- ✅ Install Node.js dependencies
+
+Then start development:
+
+```powershell
+dotnet run --project aspire/BlueFinWiki.AppHost
+```
+
+#### Option 2: Manual Setup
+
+##### 1. Clone and Install
 
 ```bash
 git clone https://github.com/your-org/bluefinwiki.git
 cd bluefinwiki
-npm install
 ```
 
-#### 2. Install .NET and Aspire
+##### 2. Install .NET and Aspire
 
 ```bash
 # Install .NET 8.0 SDK from https://dotnet.microsoft.com/download
@@ -70,14 +111,23 @@ npm install
 dotnet workload install aspire
 ```
 
-#### 3. Start Docker Desktop
+##### 3. Start Docker Desktop
 
 Ensure Docker Desktop is running (required for LocalStack and MailHog).
 
-#### 4. Run with Aspire
+##### 4. Install Node.js Dependencies
 
 ```bash
-# From project root
+# Frontend
+cd frontend
+npm install
+
+# Backend
+cd ../backend
+npm install
+```
+
+##### 5. Run with Aspire
 dotnet run --project aspire/BlueFinWiki.AppHost
 ```
 
