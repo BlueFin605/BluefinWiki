@@ -78,20 +78,20 @@
   - [x] Set up local secrets management
 
 #### 1.3 AWS Cloud Infrastructure as Code
-- [ ] Choose IaC tool (AWS CDK with C# recommended)
-- [ ] Initialize CDK project with C# (`cdk init app --language csharp`)
-- [ ] Configure C# project structure (Program.cs, Stack classes)
-- [ ] Define three environments: dev, staging, production
-- [ ] Create CloudFormation stacks:
-  - [ ] Network stack (VPC, subnets - if needed)
-  - [ ] Storage stack (S3 buckets: pages, attachments, exports)
-  - [ ] Database stack (DynamoDB tables)
-  - [ ] Compute stack (Lambda functions, API Gateway)
-  - [ ] CDN stack (CloudFront distribution)
-- [ ] Configure environment variables per stack
-- [ ] Set up AWS Secrets Manager for sensitive data
+- [X] Choose IaC tool (AWS CDK with C# recommended)
+- [X] Initialize CDK project with C# (`cdk init app --language csharp`)
+- [X] Configure C# project structure (Program.cs, Stack classes)
+- [X] Define three environments: dev, staging, production
+- [X] Create CloudFormation stacks:
+  - [X] Network stack (VPC, subnets - if needed)
+  - [X] Storage stack (S3 buckets: pages, attachments, exports)
+  - [X] Database stack (DynamoDB tables)
+  - [X] Compute stack (Lambda functions, API Gateway)
+  - [X] CDN stack (CloudFront distribution)
+- [X] Configure environment variables per stack
+- [X] Set up AWS Secrets Manager for sensitive data
 - [ ] Deploy dev environment infrastructure
-- [ ] Document differences between Aspire local setup and AWS cloud deployment
+- [X] Document differences between Aspire local setup and AWS cloud deployment
 
 #### 1.4 Database Schema Design
 - [ ] Create DynamoDB table: `users`
