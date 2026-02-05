@@ -13,14 +13,16 @@
 
 ## 🏗️ Architecture
 
-BlueFinWiki is a monorepo containing three main packages:
+BlueFinWiki is a monorepo containing four main packages:
 
 - **frontend** - React 18 + TypeScript + Vite + Tailwind CSS
 - **backend** - AWS Lambda functions (Node.js 20)
 - **infrastructure** - AWS CDK (C#)
+- **aspire** - Microsoft Aspire for local development orchestration
 
 ### Tech Stack
 
+#### Production
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, React Query
 - **Backend**: AWS Lambda, Node.js 20, TypeScript
 - **Database**: AWS DynamoDB
@@ -29,23 +31,70 @@ BlueFinWiki is a monorepo containing three main packages:
 - **CDN**: AWS CloudFront
 - **IaC**: AWS CDK (C#)
 
+#### Local Development
+- **Orchestration**: Microsoft Aspire (.NET 8)
+- **AWS Emulation**: LocalStack (S3, DynamoDB, SES)
+- **Email Testing**: MailHog
+- **Observability**: Aspire Dashboard (OpenTelemetry)
+
 ## 📋 Prerequisites
 
+### For Local Development
+- **.NET 8.0 SDK** or later
 - **Node.js** >= 20.0.0
 - **npm** >= 10.0.0
-- **AWS Account** with CLI configured
+- **Docker Desktop** (for LocalStack)
 - **Git** for version control
+
+### For Cloud Deployment
+- **AWS Account** with CLI configured
+- **AWS CDK** installed globally
 
 ## 🚀 Getting Started
 
-### 1. Clone the Repository
+### Option 1: Local Development with Aspire (Recommended)
+
+#### 1. Clone and Install
 
 ```bash
 git clone https://github.com/your-org/bluefinwiki.git
 cd bluefinwiki
+npm install
 ```
 
-### 2. Install Dependencies
+#### 2. Install .NET and Aspire
+
+```bash
+# Install .NET 8.0 SDK from https://dotnet.microsoft.com/download
+# Then install Aspire workload
+dotnet workload install aspire
+```
+
+#### 3. Start Docker Desktop
+
+Ensure Docker Desktop is running (required for LocalStack and MailHog).
+
+#### 4. Run with Aspire
+
+```bash
+# From project root
+dotnet run --project aspire/BlueFinWiki.AppHost
+```
+
+This single command starts:
+- Frontend (http://localhost:5173)
+- Backend (http://localhost:3000)
+- LocalStack (AWS services emulation)
+- MailHog (email testing at http://localhost:8025)
+- Aspire Dashboard (http://localhost:15888)
+
+See [ASPIRE-SETUP.md](ASPIRE-SETUP.md) for detailed configuration.
+
+### Option 2: Manual Development Setup
+
+If you prefer not to use Aspire:
+
+#### 1. Install Dependencies
 
 ```bash
 # Install root dependencies and all workspace dependencies
@@ -57,14 +106,38 @@ npm install --workspace=backend
 npm install --workspace=infrastructure
 ```
 
-### 3. Set Up Git Hooks
+#### 2. Set Up Git Hooks
 
 ```bash
 # Initialize Husky for pre-commit hooks
 npm run prepare
 ```
 
-### 4. Configure AWS Credentials
+#### 3. Start LocalStack (Optional)
+
+```bash
+docker run -d \
+  -p 4566:4566 \
+  -p 4571:4571 \
+  -e SERVICES=s3,dynamodb,ses \
+  localstack/localstack
+```
+
+#### 4. Run Services Manually
+
+```bash
+# Terminal 1: Backend
+cd backend
+npm run dev
+
+# Terminal 2: Frontend
+cd frontend
+npm run dev
+```
+
+### Option 3: Deploy to AWS
+
+#### 1. Configure AWS Credentials
 
 ```bash
 # Configure AWS CLI
@@ -76,14 +149,14 @@ export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_DEFAULT_REGION=us-east-1
 ```
 
-### 5. Deploy Infrastructure (Dev Environment)
+#### 2. Deploy Infrastructure (Dev Environment)
 
 ```bash
 cd infrastructure
 npm run deploy:dev
 ```
 
-### 6. Run Frontend Locally
+#### 3. Run Frontend Locally
 
 ```bash
 cd frontend
