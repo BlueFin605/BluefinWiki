@@ -100,11 +100,18 @@ Based on typical wiki sites and your constitution, here are some areas you might
 - Includes: AWS service outages, concurrent editing conflicts, network failures
 - Priority: P1 for critical error handling
 
-#### **14. Accessibility (WCAG 2.1 AA)** ✅ PARTIALLY COVERED
+#### **14. Accessibility (WCAG 2.1 AA)** ✅ SIGNIFICANTLY IMPROVED
 - Constitution requires this
-- Comprehensive accessibility section in [18-onboarding-help.md](18-onboarding-help.md)
-- Other specs mention accessibility but could be more consistent
-- **Recommendation**: Add dedicated accessibility checklist across all features
+- Comprehensive accessibility section in [18-onboarding-help.md](18-onboarding-help.md) ✅
+- **NEW**: Accessibility sections added to 6 additional specs:
+  - [4-page-editor.md](4-page-editor.md) - Editor accessibility
+  - [7-wiki-search.md](7-wiki-search.md) - Search accessibility  
+  - [14-export-functionality.md](14-export-functionality.md) - Export and PDF accessibility
+  - [15-page-comments.md](15-page-comments.md) - Comments accessibility
+  - [16-page-metadata.md](16-page-metadata.md) - Metadata UI accessibility
+  - [17-admin-configuration.md](17-admin-configuration.md) - Admin interface accessibility
+- Accessibility template created: [.specify/templates/accessibility-template.md](.specify/templates/accessibility-template.md)
+- **Status**: Majority of user-facing features now have explicit accessibility requirements
 
 #### **15. Performance & Caching**
 - Page caching strategy

@@ -69,6 +69,40 @@ function canViewDraft(page, currentUser) {
 
 ---
 
+## Accessibility Requirements Added (Feb 6, 2026)
+
+**Issue Identified**: Gaps.md noted that accessibility (WCAG 2.1 AA) was only comprehensively covered in [18-onboarding-help.md](18-onboarding-help.md), while other specs mentioned accessibility inconsistently.
+
+**Resolution**:
+- Created accessibility template: [.specify/templates/accessibility-template.md](.specify/templates/accessibility-template.md)
+- Added **Accessibility Requirements (WCAG 2.1 AA)** sections to:
+  - [4-page-editor.md](4-page-editor.md) - Editor keyboard shortcuts, screen reader support
+  - [7-wiki-search.md](7-wiki-search.md) - Search dialog accessibility
+  - [14-export-functionality.md](14-export-functionality.md) - Export UI and generated PDF/HTML accessibility
+  - [15-page-comments.md](15-page-comments.md) - Comment threading and form accessibility
+  - [16-page-metadata.md](16-page-metadata.md) - Tag input, status badges, category navigation
+  - [17-admin-configuration.md](17-admin-configuration.md) - Admin controls, system health dashboard
+
+**Accessibility Standards Applied**:
+- **Keyboard Navigation**: All features operable via keyboard
+- **Screen Reader Support**: Proper ARIA labels, roles, and announcements
+- **Visual Design**: 4.5:1 contrast ratio, color-independent information
+- **Content Structure**: Semantic HTML, proper heading hierarchy
+- **Mobile Accessibility**: 44x44px touch targets, responsive layouts
+
+**Benefits**:
+1. Consistent accessibility across all features
+2. Clear requirements for implementation
+3. Testable accessibility criteria
+4. Constitutional compliance (WCAG 2.1 AA requirement)
+
+**Remaining Work**:
+- Specs 1-3, 5-6, 8-13 can reference the template as needed
+- Spec 18 already has comprehensive accessibility section
+- Spec 19 (error handling) should ensure error messages meet accessibility standards
+
+---
+
 ## Future Clarifications
 
 When additional design decisions are made, document them here with:

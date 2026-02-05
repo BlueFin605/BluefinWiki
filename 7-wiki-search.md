@@ -196,7 +196,38 @@ The system uses a default cost-effective search implementation (DynamoDB scan or
 
 ---
 
-### Edge Cases
+### Accessibility Requirements (WCAG 2.1 AA)
+
+### Keyboard Navigation
+- Search dialog opens with Ctrl+K (Cmd+K on Mac)
+- Escape key closes search dialog and returns focus
+- Arrow keys navigate search results
+- Enter key selects highlighted result
+- Tab moves between search input and results
+- Focus trapped within search dialog when open
+
+### Screen Reader Support
+- Search button has `aria-label="Search wiki (Ctrl+K)"`
+- Search dialog has `role="dialog"` and `aria-modal="true"`
+- Result count announced: "Found 5 results for 'vacation'"
+- Loading state announced: `aria-live="polite"` for "Searching..."
+- Each result has semantic structure with heading and snippet
+
+### Visual Design
+- Search icon visible and recognizable
+- Highlighted search terms have 4.5:1 contrast ratio
+- Focus indicator on search input and results
+- Result snippets maintain readability with highlights
+
+### Mobile Accessibility
+- Search icon touch target minimum 44x44px
+- Search dialog fullscreen on mobile
+- Virtual keyboard doesn't obscure results
+- Swipe to dismiss search dialog
+
+---
+
+## Edge Cases
 
 - What happens when search query is empty or only whitespace? No results are shown, or prompt appears: "Enter search query".
 - What happens when no pages match search query? Message displays: "No results found for 'query'. Try different keywords."
