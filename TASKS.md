@@ -9,13 +9,14 @@
 
 ## 📋 Quick Reference
 
-- **Total Tasks**: 147 actionable tasks across 7 phases
+- **Total Tasks**: 160 actionable tasks across 7 phases
 - **Critical Path**: Phase 1 → Phase 2 → Phase 3 (Foundation & Core Features)
 - **MVP Completion**: End of Phase 5 (Week 12)
 - **Full Feature Set**: End of Phase 7 (Week 16)
+- **Local Development**: Microsoft Aspire for orchestration and observability
 
 ### Phase Overview
-- **Phase 1**: Foundation (Weeks 1-3) - 22 tasks
+- **Phase 1**: Foundation (Weeks 1-3) - 35 tasks
 - **Phase 2**: Core Features (Weeks 4-7) - 35 tasks
 - **Phase 3**: Search & Users (Weeks 8-9) - 18 tasks
 - **Phase 4**: History & Navigation (Weeks 10-11) - 19 tasks
@@ -32,18 +33,51 @@
 **Goal**: Establish development environment and AWS infrastructure
 
 #### 1.1 Repository & CI/CD Setup
-- [x] Initialize monorepo structure (frontend, backend, infrastructure)
+- [x] Initialize monorepo structure (frontend, backend, infrastructure, aspire)
 - [ ] Create GitHub repository with branch protection rules
 - [x] Configure Git hooks (pre-commit: lint, type-check)
+- [ ] Set up Microsoft Aspire AppHost project for local development
+  - [ ] Create Aspire AppHost project (`dotnet new aspire-apphost`)
+  - [ ] Configure service references for frontend and backend
+  - [ ] Set up service discovery and orchestration
+  - [ ] Configure Aspire Dashboard for local observability
 - [x] Set up GitHub Actions workflows:
   - [x] Frontend build and test
   - [x] Backend build and test
   - [x] Infrastructure validation (CDK synth with C#)
   - [x] Deploy to dev environment on main branch
+  - [ ] Aspire validation (build and test AppHost)
 - [x] Create README.md with setup instructions
+  - [ ] Add Aspire local development setup instructions
+  - [ ] Document how to run with `dotnet run --project aspire/BlueFinWiki.AppHost`
 - [x] Document contributing guidelines and PR template
 
-#### 1.2 AWS Infrastructure as Code
+#### 1.2 Local Development with Aspire
+- [ ] Set up Aspire AppHost project structure
+  - [ ] Create `aspire/BlueFinWiki.AppHost` directory
+  - [ ] Initialize with `dotnet new aspire-apphost -n BlueFinWiki.AppHost`
+  - [ ] Create `aspire/BlueFinWiki.ServiceDefaults` for shared configuration
+  - [ ] Initialize with `dotnet new aspire-servicedefaults -n BlueFinWiki.ServiceDefaults`
+- [ ] Configure Aspire service orchestration
+  - [ ] Add Node.js project reference for backend (Lambda functions running locally)
+  - [ ] Add Node.js project reference for frontend (Vite dev server)
+  - [ ] Configure port mappings and environment variables
+  - [ ] Set up service-to-service communication
+- [ ] Configure local AWS service emulation
+  - [ ] Add LocalStack container resource to Aspire
+  - [ ] Configure S3, DynamoDB, and SES emulation
+  - [ ] Set up automatic container startup with Aspire
+- [ ] Set up Aspire Dashboard
+  - [ ] Configure telemetry collection (OpenTelemetry)
+  - [ ] Enable distributed tracing between services
+  - [ ] Configure structured logging
+  - [ ] Set up metrics collection
+- [ ] Create local environment configuration
+  - [ ] Define appsettings.Development.json for Aspire
+  - [ ] Configure connection strings and service endpoints
+  - [ ] Set up local secrets management
+
+#### 1.3 AWS Cloud Infrastructure as Code
 - [ ] Choose IaC tool (AWS CDK with C# recommended)
 - [ ] Initialize CDK project with C# (`cdk init app --language csharp`)
 - [ ] Configure C# project structure (Program.cs, Stack classes)
@@ -57,15 +91,20 @@
 - [ ] Configure environment variables per stack
 - [ ] Set up AWS Secrets Manager for sensitive data
 - [ ] Deploy dev environment infrastructure
+- [ ] Document differences between Aspire local setup and AWS cloud deployment
 
-#### 1.3 Database Schema Design
+#### 1.4 Database Schema Design
 - [ ] Create DynamoDB table: `users`
   - PK: `userId` (GUID)
   - Attributes: email, passwordHash, role, inviteCode, status, createdAt
   - GSI: `email-index` for login lookups
+- [ ] Configure LocalStack DynamoDB for local development via Aspire
+  - [ ] Add DynamoDB Local container resource in AppHost
+  - [ ] Configure table auto-creation on startup
+  - [ ] Seed development data for testing
 - [ ] Note: Folders and metadata are stored via storage plugin (S3/GitHub), not DynamoDB
-- [ ] Configure billing alarms for DynamoDB and S3
-- [ ] Document schema design decisions
+- [ ] Configure billing alarms for DynamoDB and S3 (cloud only)
+- [ ] Document schema design decisions and local vs. cloud differences
 
 ---
 
@@ -74,11 +113,12 @@
 **Goal**: Implement secure invite-only authentication
 
 #### 2.1 Backend Authentication Services
-- [ ] Create Lambda function: `auth-login`
-  - [ ] Validate email/password against DynamoDB
+- [ ] Create Lambda function: `auth-login` (runs as Node.js service in Aspire locally)
+  - [ ] Validate email/password against DynamoDB (LocalStack in Aspire)
   - [ ] Generate JWT token (30-day expiry)
   - [ ] Return access token and refresh token
   - [ ] Set httpOnly secure cookies
+  - [ ] Configure Aspire service discovery for local development
 - [ ] Create Lambda function: `auth-register`
   - [ ] Validate invitation code
   - [ ] Check email uniqueness
@@ -102,6 +142,9 @@
   - [ ] Verify sender email domain
   - [ ] Create email templates (HTML + text)
   - [ ] Set up sandbox exit request (for production)
+  - [ ] Configure SMTP container or mock email service in Aspire for local testing
+    - [ ] Add MailHog or similar SMTP container to AppHost
+    - [ ] Configure email viewing at http://localhost:8025
 - [ ] Create Lambda function: `auth-request-reset`
   - [ ] Generate secure reset token (32 bytes)
   - [ ] Store token in DynamoDB with 1-hour TTL
@@ -232,11 +275,13 @@
   - [ ] Test CRUD operations
   - [ ] Test error scenarios (network, permissions)
 - [ ] Write integration tests
-  - [ ] Use LocalStack or S3 test bucket
+  - [ ] Use LocalStack (via Aspire) or S3 test bucket
   - [ ] Test end-to-end page lifecycle
   - [ ] Verify versioning behavior
+  - [ ] Use Aspire Dashboard to monitor test execution and trace issues
 - [ ] Document S3 bucket structure and naming conventions
 - [ ] Create plugin developer guide for future extensions
+- [ ] Document Aspire local development workflow for testing
 
 ---
 
@@ -1311,10 +1356,16 @@
   - [ ] Upload to YouTube or embed in docs
 
 ### Deployment
+- [ ] Validate local development with Aspire
+  - [ ] Ensure all services run correctly in Aspire
+  - [ ] Test service-to-service communication
+  - [ ] Verify observability and telemetry
+  - [ ] Review Aspire Dashboard for performance insights
 - [ ] Set up production environment
-  - [ ] Deploy infrastructure via CDK/Terraform
+  - [ ] Deploy infrastructure via CDK
   - [ ] Configure custom domain and SSL
   - [ ] Set up monitoring and alarms
+  - [ ] Note: Aspire is for local dev only; production uses AWS native services
 - [ ] Perform blue-green deployment
   - [ ] Deploy to staging environment
   - [ ] Run smoke tests
