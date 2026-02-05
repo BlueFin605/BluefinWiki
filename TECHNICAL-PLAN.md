@@ -81,7 +81,7 @@ BlueFinWiki is a family-focused wiki platform designed for 3-20 users with plugg
 - CloudSearch: Managed search, lower cost than Elasticsearch for small datasets
 
 ### Infrastructure
-- **IaC**: AWS CDK (TypeScript) or Terraform
+- **IaC**: AWS CDK (C#) or Terraform
 - **Hosting**: AWS S3 + CloudFront (static SPA)
 - **CI/CD**: GitHub Actions
 - **Monitoring**: AWS CloudWatch + X-Ray
