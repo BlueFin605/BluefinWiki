@@ -88,15 +88,18 @@ An admin can revoke a user's access to the wiki, preventing them from logging in
 
 **Independent Test**: As admin, select an active user, click "Remove Access", confirm the action, verify the user's status changes to "Suspended", and verify that user cannot log in with their credentials.
 
+**Important Note**: Due to stateless JWT session management (see [1-user-authentication.md](1-user-authentication.md)), suspended users can continue accessing the wiki until their current access token expires (7-30 days). New login attempts and token refresh requests will fail immediately. This delay is a trade-off for serverless architecture and cost-effectiveness.
+
 **Acceptance Scenarios**:
 
 1. **Given** an admin views a user in the list, **When** they click the three-dot menu, **Then** they see a "Remove Access" option
-2. **Given** "Remove Access" is clicked, **When** selected, **Then** a confirmation dialog appears warning "This will prevent [User Email] from logging in. Their content will be preserved."
+2. **Given** "Remove Access" is clicked, **When** selected, **Then** a confirmation dialog appears warning "This will prevent [User Email] from logging in. Their active session will expire within 7-30 days."
 3. **Given** the confirmation dialog, **When** admin confirms, **Then** the user's status changes to "Suspended" and they appear in a separate "Suspended Users" section
-4. **Given** a suspended user, **When** they try to log in, **Then** they see an error message "Your access has been removed. Please contact an administrator."
-5. **Given** a suspended user, **When** admin views their details, **Then** admin can see all the user's historical activity and created content
-6. **Given** an admin tries to remove their own access, **When** attempted, **Then** they see an error "Cannot remove your own access"
-7. **Given** only one admin exists, **When** that admin tries to remove their own access, **Then** they see an error "Cannot remove the last admin account"
+4. **Given** a suspended user, **When** they try to log in with username/password, **Then** they see an error message "Your access has been removed. Please contact an administrator."
+5. **Given** a suspended user with an active token, **When** their token expires and attempts to refresh, **Then** refresh fails and they are logged out
+6. **Given** a suspended user, **When** admin views their details, **Then** admin can see all the user's historical activity and created content
+7. **Given** an admin tries to remove their own access, **When** attempted, **Then** they see an error "Cannot remove your own access"
+8. **Given** only one admin exists, **When** that admin tries to remove their own access, **Then** they see an error "Cannot remove the last admin account"
 
 ---
 
