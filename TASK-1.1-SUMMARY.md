@@ -27,7 +27,7 @@
 - Placeholder `src/index.ts` for Phase 1, Week 2
 
 #### 4. Infrastructure Setup
-- **IaC Tool**: AWS CDK (TypeScript)
+- **IaC Tool**: AWS CDK (C#)
 - **Structure**:
   - `bin/bluefinwiki.ts` - CDK app entry point
   - `lib/bluefinwiki-stack.ts` - Stack definition

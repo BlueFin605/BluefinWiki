@@ -17,7 +17,7 @@ BlueFinWiki is a monorepo containing three main packages:
 
 - **frontend** - React 18 + TypeScript + Vite + Tailwind CSS
 - **backend** - AWS Lambda functions (Node.js 20)
-- **infrastructure** - AWS CDK (TypeScript)
+- **infrastructure** - AWS CDK (C#)
 
 ### Tech Stack
 
@@ -27,7 +27,7 @@ BlueFinWiki is a monorepo containing three main packages:
 - **Storage**: AWS S3
 - **Search**: AWS CloudSearch / OpenSearch Serverless
 - **CDN**: AWS CloudFront
-- **IaC**: AWS CDK (TypeScript)
+- **IaC**: AWS CDK (C#)
 
 ## 📋 Prerequisites
 
