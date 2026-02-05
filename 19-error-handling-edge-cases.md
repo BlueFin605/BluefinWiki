@@ -3,6 +3,20 @@
 ## Overview
 This specification defines how BlueFinWiki handles errors, service failures, edge cases, and unexpected scenarios to ensure a resilient and user-friendly experience. It covers AWS service outages, concurrent editing conflicts, data validation, network failures, and graceful degradation strategies.
 
+## Cross-References
+
+**Covers Error Scenarios for:**
+- [2-s3-storage-plugin.md](2-s3-storage-plugin.md) - Story 1: AWS S3 service outages and graceful degradation
+- [9-page-history.md](9-page-history.md) - Story 2: Concurrent editing conflicts with optimistic locking (ETags)
+- [1-user-authentication.md](1-user-authentication.md) - Story 7: Authentication service failures and rate limiting
+- [6-page-attachments.md](6-page-attachments.md) - Story 5: File upload failures and validation
+- [7-wiki-search.md](7-wiki-search.md) - Story 6: Search service unavailability
+- [4-page-editor.md](4-page-editor.md) - Story 3: Network connectivity loss with localStorage drafts
+
+**Security & Validation:**
+- Story 4: Input validation and XSS prevention applies to all user input across specifications
+- Story 9: Data corruption detection for all page content
+
 ---
 
 ## Constitutional Alignment

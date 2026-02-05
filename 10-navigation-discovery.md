@@ -5,6 +5,17 @@
 **Status**: Draft  
 **Input**: User description: "Page Navigation & Discovery - Sitemap/table of contents generation, Recent changes/activity feed, Breadcrumb navigation"
 
+## Cross-References
+
+**Depends on:**
+- [3-folder-management.md](3-folder-management.md) - Breadcrumbs and sitemap built from folder hierarchy
+- [9-page-history.md](9-page-history.md) - Recent changes feed shows version history across all pages
+- [11-page-permissions.md](11-page-permissions.md) - Navigation respects permissions; restricted pages hidden from unauthorized users
+
+**Related:**
+- [16-page-metadata.md](16-page-metadata.md) - Tags provide alternative navigation/discovery paths
+- [13-home-dashboard.md](13-home-dashboard.md) - Recent changes also displayed on dashboard
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Breadcrumb Navigation (Priority: P1)

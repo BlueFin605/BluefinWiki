@@ -5,6 +5,20 @@
 **Status**: Draft  
 **Input**: User description: "admin users should be able to do user management, be able to see all the users, invite new ones, remove access, and assign additional privileges (standard vs admin)"
 
+## Cross-References
+
+**Depends on:**
+- [1-user-authentication.md](1-user-authentication.md) - Invitation system for adding new users
+
+**Provides user data for:**
+- [9-page-history.md](9-page-history.md) - Author attribution in version history
+- [15-page-comments.md](15-page-comments.md) - Comment author information and @mentions
+- [11-page-permissions.md](11-page-permissions.md) - User selection for specific page access
+- All specifications - User role enforcement (Admin vs Standard)
+
+**Configuration:**
+- [17-admin-configuration.md](17-admin-configuration.md) - US-12.4 user-related settings (default roles, session timeout)
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - View All Users (Priority: P1)

@@ -3,6 +3,18 @@
 ## Overview
 Users need the ability to export wiki content for offline viewing, archival, sharing, and printing purposes. This feature allows exporting individual pages to PDF or exporting entire wiki sections/wikis to static HTML or PDF formats.
 
+## Cross-References
+
+**Depends on:**
+- [9-page-history.md](9-page-history.md) - US-9.5 exports pages with version history
+- [6-page-attachments.md](6-page-attachments.md) - Exports include attached images and files
+- [3-folder-management.md](3-folder-management.md) - Section exports based on folder hierarchy
+- [11-page-permissions.md](11-page-permissions.md) - Exports respect user permissions; only exports accessible pages
+- [16-page-metadata.md](16-page-metadata.md) - PDF exports include page metadata (tags, status, author)
+
+**Related:**
+- [2-s3-storage-plugin.md](2-s3-storage-plugin.md) - Temporary export files stored in S3 with expiration
+
 ## User Stories
 
 ### US-9.1: Export Single Page to PDF (P2)
