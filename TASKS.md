@@ -197,40 +197,40 @@
   - [X] Mark invitation as used after Cognito user creation
 
 #### 2.4 Frontend Authentication UI (Cognito Integration)
-- [ ] Install AWS Amplify or amazon-cognito-identity-js SDK
-  - [ ] Configure Cognito User Pool ID and Client ID
-  - [ ] Set up Amplify Auth module or Cognito SDK
-  - [ ] Configure OAuth redirect URIs (for hosted UI if used)
-- [ ] Build login page component
-  - [ ] Email/password form with validation
-  - [ ] Use Cognito signIn API (Auth.signIn)
-  - [ ] "Remember me" option (device tracking)
-  - [ ] "Forgot password" link
-  - [ ] Handle Cognito errors (UserNotConfirmedException, NotAuthorizedException, etc.)
-  - [ ] Error handling and display
-- [ ] Build registration page component
-  - [ ] Invite code input (validated against backend API)
-  - [ ] Call backend `auth-register` Lambda (which creates Cognito user)
-  - [ ] Handle temporary password flow (user changes on first login)
-  - [ ] Or use Cognito signUp API if allowing self-registration
-  - [ ] Password strength indicator (Cognito enforces policy)
-  - [ ] Terms acceptance checkbox
-- [ ] Build password reset flow
-  - [ ] Request reset page: call Cognito forgotPassword API
-  - [ ] Reset confirmation page: submit verification code via forgotPasswordSubmit
-  - [ ] Success/error messaging
-  - [ ] Cognito handles token generation and email sending
-- [ ] Implement authentication context (React Context API)
-  - [ ] Store user state from Cognito (userId=sub, email, custom:role)
-  - [ ] Use Cognito currentAuthenticatedUser API to check session
-  - [ ] Provide login/logout methods (Auth.signIn, Auth.signOut)
-  - [ ] Handle automatic token refresh (Cognito SDK does this)
-  - [ ] Listen for Cognito Hub events (signIn, signOut, tokenRefresh)
-- [ ] Create protected route wrapper component
-  - [ ] Check Cognito session on route access
-  - [ ] Redirect to login if unauthenticated
-  - [ ] Show loading state during auth check
-  - [ ] Extract user claims from Cognito tokens
+- [X] Install AWS Amplify or amazon-cognito-identity-js SDK
+  - [X] Configure Cognito User Pool ID and Client ID
+  - [X] Set up Amplify Auth module or Cognito SDK
+  - [X] Configure OAuth redirect URIs (for hosted UI if used)
+- [X] Build login page component
+  - [X] Email/password form with validation
+  - [X] Use Cognito signIn API (Auth.signIn)
+  - [X] "Remember me" option (device tracking)
+  - [X] "Forgot password" link
+  - [X] Handle Cognito errors (UserNotConfirmedException, NotAuthorizedException, etc.)
+  - [X] Error handling and display
+- [X] Build registration page component
+  - [X] Invite code input (validated against backend API)
+  - [X] Call backend `auth-register` Lambda (which creates Cognito user)
+  - [X] Handle temporary password flow (user changes on first login)
+  - [X] Or use Cognito signUp API if allowing self-registration
+  - [X] Password strength indicator (Cognito enforces policy)
+  - [X] Terms acceptance checkbox
+- [X] Build password reset flow
+  - [X] Request reset page: call Cognito forgotPassword API
+  - [X] Reset confirmation page: submit verification code via forgotPasswordSubmit
+  - [X] Success/error messaging
+  - [X] Cognito handles token generation and email sending
+- [X] Implement authentication context (React Context API)
+  - [X] Store user state from Cognito (userId=sub, email, custom:role)
+  - [X] Use Cognito currentAuthenticatedUser API to check session
+  - [X] Provide login/logout methods (Auth.signIn, Auth.signOut)
+  - [X] Handle automatic token refresh (Cognito SDK does this)
+  - [X] Listen for Cognito Hub events (signIn, signOut, tokenRefresh)
+- [X] Create protected route wrapper component
+  - [X] Check Cognito session on route access
+  - [X] Redirect to login if unauthenticated
+  - [X] Show loading state during auth check
+  - [X] Extract user claims from Cognito tokens
 
 ---
 
