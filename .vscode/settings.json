@@ -18,7 +18,8 @@
             "matchCommandLine": true
         },
         "Test-Path": true,
-        "dotnet build": true
+        "dotnet build": true,
+        "wsl": true
     }
 }
 

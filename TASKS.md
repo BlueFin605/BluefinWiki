@@ -151,26 +151,26 @@
   - [X] Configure local OAuth endpoints
 
 #### 2.2 Password Reset Flow (Cognito Managed)
-- [ ] Configure Cognito email settings
-  - [ ] Use Cognito default email (development) or configure custom SES
-  - [ ] Customize password reset email template in Cognito console
-  - [ ] Set up email verification code expiry (1 hour default)
-  - [ ] Configure SMTP container or mock email service in Aspire for local testing
-    - [ ] Add MailHog or similar SMTP container to AppHost
-    - [ ] Configure Cognito to use local SMTP for development
-    - [ ] Configure email viewing at http://localhost:8025
-- [ ] Create Lambda function: `auth-forgot-password-trigger` (optional)
-  - [ ] Cognito pre-password-reset trigger for custom logic
-  - [ ] Log password reset requests for security monitoring
-  - [ ] Apply rate limiting (prevent abuse)
-- [ ] Create Lambda function: `auth-custom-message` (Cognito trigger, optional)
-  - [ ] Customize password reset email content
-  - [ ] Add branding and custom links
-  - [ ] Use SES templates for rich HTML emails
-- [ ] Frontend integration
-  - [ ] Use Cognito SDK to trigger forgotPassword flow
-  - [ ] No custom backend endpoints needed (Cognito handles it)
-  - [ ] Handle verification code submission via confirmPassword API
+- [X] Configure Cognito email settings
+  - [X] Use Cognito default email (development) or configure custom SES
+  - [X] Customize password reset email template in Cognito console
+  - [X] Set up email verification code expiry (1 hour default)
+  - [X] Configure SMTP container or mock email service in Aspire for local testing
+    - [X] Add MailHog or similar SMTP container to AppHost
+    - [X] Configure Cognito to use local SMTP for development
+    - [X] Configure email viewing at http://localhost:8025
+- [X] Create Lambda function: `auth-forgot-password-trigger` (optional)
+  - [X] Cognito pre-password-reset trigger for custom logic
+  - [X] Log password reset requests for security monitoring
+  - [X] Apply rate limiting (prevent abuse)
+- [X] Create Lambda function: `auth-custom-message` (Cognito trigger, optional)
+  - [X] Customize password reset email content
+  - [X] Add branding and custom links
+  - [X] Use SES templates for rich HTML emails
+- [X] Frontend integration
+  - [X] Use Cognito SDK to trigger forgotPassword flow
+  - [X] No custom backend endpoints needed (Cognito handles it)
+  - [X] Handle verification code submission via confirmPassword API
 
 #### 2.3 Invitation System (Cognito Compatible)
 - [ ] Create DynamoDB table: `invitations`
