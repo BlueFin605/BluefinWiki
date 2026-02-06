@@ -8,6 +8,9 @@
 export { StoragePlugin } from './StoragePlugin.js';
 export { BaseStoragePlugin } from './BaseStoragePlugin.js';
 
+// Concrete implementations
+export { S3StoragePlugin } from './S3StoragePlugin.js';
+
 // Registry and factory
 export {
   StoragePluginRegistry,
