@@ -9,7 +9,7 @@ namespace Infrastructure.Stacks
     /// </summary>
     public class DatabaseStack : Stack
     {
-        public Table UsersTable { get; private set; }
+        public Table UserProfilesTable { get; private set; }
         public Table InvitationsTable { get; private set; }
         public Table PageLinksTable { get; private set; }
         public Table AttachmentsTable { get; private set; }
@@ -21,11 +21,13 @@ namespace Infrastructure.Stacks
         internal DatabaseStack(Construct scope, string id, IStackProps props, EnvironmentConfig config) 
             : base(scope, id, props)
         {
-            // Users table - authentication and user profiles
-            UsersTable = new Table(this, "UsersTable", new TableProps
+            // User Profiles table - extended user data (Cognito stores core auth)
+            // PK: cognitoUserId (Cognito sub claim)
+            // Stores: email, displayName, role, inviteCode, status, createdAt, lastLogin
+            UserProfilesTable = new Table(this, "UserProfilesTable", new TableProps
             {
-                TableName = $"bluefinwiki-users-{config.Name}",
-                PartitionKey = new Attribute { Name = "userId", Type = AttributeType.STRING },
+                TableName = $"bluefinwiki-user-profiles-{config.Name}",
+                PartitionKey = new Attribute { Name = "cognitoUserId", Type = AttributeType.STRING },
                 BillingMode = config.DynamoDbBillingMode == "PAY_PER_REQUEST" 
                     ? BillingMode.PAY_PER_REQUEST 
                     : BillingMode.PROVISIONED,
@@ -38,8 +40,8 @@ namespace Infrastructure.Stacks
                 Stream = StreamViewType.NEW_AND_OLD_IMAGES // For audit logging
             });
             
-            // GSI for email lookups during login
-            UsersTable.AddGlobalSecondaryIndex(new GlobalSecondaryIndexProps
+            // GSI for email lookups (for user search/display)
+            UserProfilesTable.AddGlobalSecondaryIndex(new GlobalSecondaryIndexProps
             {
                 IndexName = "email-index",
                 PartitionKey = new Attribute { Name = "email", Type = AttributeType.STRING },
@@ -47,13 +49,17 @@ namespace Infrastructure.Stacks
             });
             
             // Invitations table - invite codes for user registration
+            // PK: inviteCode (8-char alphanumeric)
+            // Attributes: email (optional), role, createdBy, createdAt, expiresAt, status, usedBy, usedAt
+            // TTL on expiresAt for auto-cleanup after 30 days
             InvitationsTable = new Table(this, "InvitationsTable", new TableProps
             {
                 TableName = $"bluefinwiki-invitations-{config.Name}",
                 PartitionKey = new Attribute { Name = "inviteCode", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
                 RemovalPolicy = RemovalPolicy.DESTROY,
-                TimeToLiveAttribute = "expiresAt" // Auto-delete expired invitations
+                Encryption = TableEncryption.AWS_MANAGED,
+                TimeToLiveAttribute = "expiresAt" // Auto-delete expired invitations (Unix timestamp)
             });
             
             // Page Links table - for backlinks tracking
@@ -111,6 +117,8 @@ namespace Infrastructure.Stacks
             });
             
             // Activity Log table - audit trail
+            // PK: userId (Cognito sub), SK: timestamp
+            // Note: userId references Cognito sub (UUID from Cognito tokens)
             ActivityLogTable = new Table(this, "ActivityLogTable", new TableProps
             {
                 TableName = $"bluefinwiki-activity-log-{config.Name}",
@@ -118,7 +126,7 @@ namespace Infrastructure.Stacks
                 SortKey = new Attribute { Name = "timestamp", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
                 RemovalPolicy = RemovalPolicy.DESTROY,
-                TimeToLiveAttribute = "expiresAt" // Auto-delete old logs (90 days)
+                TimeToLiveAttribute = "expiresAt" // Auto-delete old logs (90 days, Unix timestamp)
             });
             
             // User Preferences table - dashboard customization, favorites
@@ -141,11 +149,18 @@ namespace Infrastructure.Stacks
             });
             
             // Stack outputs
-            new CfnOutput(this, "UsersTableName", new CfnOutputProps
+            new CfnOutput(this, "UserProfilesTableName", new CfnOutputProps
             {
-                Value = UsersTable.TableName,
-                Description = "DynamoDB table for users",
-                ExportName = $"{config.Name}-users-table"
+                Value = UserProfilesTable.TableName,
+                Description = "DynamoDB table for user profiles (extended Cognito data)",
+                ExportName = $"{config.Name}-user-profiles-table"
+            });
+            
+            new CfnOutput(this, "InvitationsTableName", new CfnOutputProps
+            {
+                Value = InvitationsTable.TableName,
+                Description = "DynamoDB table for invitation codes",
+                ExportName = $"{config.Name}-invitations-table"
             });
             
             new CfnOutput(this, "PageLinksTableName", new CfnOutputProps

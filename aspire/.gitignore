@@ -1,5 +1,6 @@
 # Local development data
 localstack-data/
+cognito-local-data/
 
 # Secrets (never commit)
 appsettings.Secrets.json

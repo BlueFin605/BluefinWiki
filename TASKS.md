@@ -95,27 +95,27 @@
 - [X] Document differences between Aspire local setup and AWS cloud deployment
 
 #### 1.4 Database Schema Design
-- [ ] Create AWS Cognito User Pool
-  - [ ] Configure user attributes: email (required, unique), name, custom:role (Standard/Admin)
-  - [ ] Set up password policy (min 8 chars, uppercase, lowercase, numbers, symbols)
-  - [ ] Enable email verification and MFA (optional for MVP)
-  - [ ] Configure password recovery flow
-- [ ] Create Cognito User Pool Client
-  - [ ] Configure OAuth flows (authorization code + implicit)
-  - [ ] Set token expiration (access: 1 hour, refresh: 30 days)
-  - [ ] Enable SRP (Secure Remote Password) authentication
-- [ ] Create DynamoDB table: `user_profiles`
+- [X] Create AWS Cognito User Pool
+  - [X] Configure user attributes: email (required, unique), name, custom:role (Standard/Admin)
+  - [X] Set up password policy (min 8 chars, uppercase, lowercase, numbers, symbols)
+  - [X] Enable email verification and MFA (optional for MVP)
+  - [X] Configure password recovery flow
+- [X] Create Cognito User Pool Client
+  - [X] Configure OAuth flows (authorization code + implicit)
+  - [X] Set token expiration (access: 1 hour, refresh: 30 days)
+  - [X] Enable SRP (Secure Remote Password) authentication
+- [X] Create DynamoDB table: `user_profiles`
   - PK: `cognitoUserId` (Cognito sub claim)
   - Attributes: email, displayName, role, inviteCode (for tracking), status, createdAt, lastLogin
   - GSI: `email-index` for profile lookups
   - Note: Core auth data in Cognito, extended profile data in DynamoDB
-- [ ] Configure Cognito for local development
-  - [ ] Add Cognito Local container resource in AppHost (use cognito-local or mock)
-  - [ ] Configure test user pool and seed development users
-  - [ ] Set up local environment variables for Cognito endpoints
+- [X] Configure Cognito for local development
+  - [X] Add Cognito Local container resource in AppHost (use cognito-local or mock)
+  - [X] Configure test user pool and seed development users
+  - [X] Set up local environment variables for Cognito endpoints
 - [X] Note: Folders and metadata are stored via storage plugin (S3/GitHub), not DynamoDB
 - [ ] Configure billing alarms for Cognito, DynamoDB and S3 (cloud only)
-- [ ] Document Cognito integration and local vs. cloud authentication differences
+- [X] Document Cognito integration and local vs. cloud authentication differences
 
 ---
 

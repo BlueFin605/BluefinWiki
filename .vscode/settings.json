@@ -17,7 +17,8 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "Test-Path": true
+        "Test-Path": true,
+        "dotnet build": true
     }
 }
 
