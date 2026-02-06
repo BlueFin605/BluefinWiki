@@ -67,12 +67,12 @@ BlueFinWiki is a family-focused wiki platform designed for 3-20 users with plugg
 ### Backend
 - **API**: AWS API Gateway (REST)
 - **Compute**: AWS Lambda (Node.js 20.x)
-- **Authentication**: Custom JWT implementation (no session tracking)
+- **Authentication**: AWS Cognito User Pools (OAuth2/OIDC, JWT tokens)
 - **Storage**: 
   - AWS S3 (pages, folders, attachments)
-  - AWS DynamoDB (metadata, user data, comments)
+  - AWS DynamoDB (user profiles, metadata, comments)
 - **Search**: AWS CloudSearch or OpenSearch Serverless
-- **Email**: AWS SES (invitations, password resets)
+- **Email**: AWS SES (invitations, password resets) + Cognito email
 
 **Rationale**:
 - Lambda: True serverless, pay-per-use, auto-scaling
@@ -171,25 +171,29 @@ BlueFinWiki is a family-focused wiki platform designed for 3-20 users with plugg
 - AWS infrastructure deployed to dev environment
 - Environment variables and secrets management
 
-#### Week 2: Authentication System (Spec #1)
-- [ ] Implement JWT token generation/validation
-- [ ] Create DynamoDB schema for users table
+#### Week 2: Authentication System (Spec #1) - AWS Cognito
+- [ ] Create AWS Cognito User Pool and configure:
+  - [ ] User attributes (email, name, custom:role)
+  - [ ] Password policy (min 8 chars, complexity requirements)
+  - [ ] Email verification and MFA settings
+  - [ ] OAuth flows and token expiration
+- [ ] Create Cognito User Pool Client
+- [ ] Create DynamoDB schema for user_profiles table (extended profile data)
 - [ ] Build Lambda functions:
-  - `/auth/login` (email/password validation)
-  - `/auth/register` (invite code validation)
-  - `/auth/refresh` (token refresh)
-  - `/auth/logout` (cookie clearing)
-- [ ] Configure AWS SES for email sending
-- [ ] Implement password reset flow with secure tokens
-- [ ] Create invitation code generation system
-- [ ] Build frontend login/registration UI
-- [ ] Implement secure cookie handling (httpOnly, SameSite)
+  - `auth-register` (validate invite + create Cognito user via AdminCreateUser)
+  - `auth-post-confirmation` (Cognito trigger: create user profile in DynamoDB)
+  - `auth-pre-token-generation` (Cognito trigger: add custom claims to JWT)
+- [ ] Configure API Gateway Cognito authorizer
+- [ ] Configure AWS SES or Cognito email for notifications
+- [ ] Create invitation code generation system (DynamoDB)
+- [ ] Build frontend login/registration UI with Amplify/Cognito SDK
+- [ ] Configure password reset flow (Cognito managed)
 
 **Deliverables**:
-- Working authentication system with invite codes
-- Email templates (invitation, password reset)
-- Protected API routes with JWT middleware
-- Login/register forms with validation
+- Working Cognito authentication with invite codes
+- Email templates (invitation via SES, password reset via Cognito)
+- Protected API routes with Cognito JWT authorizer
+- Login/register forms using Cognito SDK
 
 #### Week 3: Storage Plugin Interface (Spec #2)
 - [ ] Design storage plugin interface (TypeScript)

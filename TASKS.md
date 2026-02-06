@@ -86,6 +86,7 @@
   - [X] Network stack (VPC, subnets - if needed)
   - [X] Storage stack (S3 buckets: pages, attachments, exports)
   - [X] Database stack (DynamoDB tables)
+  - [ ] Auth stack (Cognito User Pool, User Pool Client, Identity Pool if needed)
   - [X] Compute stack (Lambda functions, API Gateway)
   - [X] CDN stack (CloudFront distribution)
 - [X] Configure environment variables per stack
@@ -94,17 +95,27 @@
 - [X] Document differences between Aspire local setup and AWS cloud deployment
 
 #### 1.4 Database Schema Design
-- [X] Create DynamoDB table: `users`
-  - PK: `userId` (GUID)
-  - Attributes: email, passwordHash, role, inviteCode, status, createdAt
-  - GSI: `email-index` for login lookups
-- [X] Configure LocalStack DynamoDB for local development via Aspire
-  - [X] Add DynamoDB Local container resource in AppHost
-  - [X] Configure table auto-creation on startup
-  - [X] Seed development data for testing
+- [ ] Create AWS Cognito User Pool
+  - [ ] Configure user attributes: email (required, unique), name, custom:role (Standard/Admin)
+  - [ ] Set up password policy (min 8 chars, uppercase, lowercase, numbers, symbols)
+  - [ ] Enable email verification and MFA (optional for MVP)
+  - [ ] Configure password recovery flow
+- [ ] Create Cognito User Pool Client
+  - [ ] Configure OAuth flows (authorization code + implicit)
+  - [ ] Set token expiration (access: 1 hour, refresh: 30 days)
+  - [ ] Enable SRP (Secure Remote Password) authentication
+- [ ] Create DynamoDB table: `user_profiles`
+  - PK: `cognitoUserId` (Cognito sub claim)
+  - Attributes: email, displayName, role, inviteCode (for tracking), status, createdAt, lastLogin
+  - GSI: `email-index` for profile lookups
+  - Note: Core auth data in Cognito, extended profile data in DynamoDB
+- [ ] Configure Cognito for local development
+  - [ ] Add Cognito Local container resource in AppHost (use cognito-local or mock)
+  - [ ] Configure test user pool and seed development users
+  - [ ] Set up local environment variables for Cognito endpoints
 - [X] Note: Folders and metadata are stored via storage plugin (S3/GitHub), not DynamoDB
-- [ ] Configure billing alarms for DynamoDB and S3 (cloud only)
-- [X] Document schema design decisions and local vs. cloud differences
+- [ ] Configure billing alarms for Cognito, DynamoDB and S3 (cloud only)
+- [ ] Document Cognito integration and local vs. cloud authentication differences
 
 ---
 
@@ -112,85 +123,114 @@
 
 **Goal**: Implement secure invite-only authentication
 
-#### 2.1 Backend Authentication Services
-- [ ] Create Lambda function: `auth-login` (runs as Node.js service in Aspire locally)
-  - [ ] Validate email/password against DynamoDB (LocalStack in Aspire)
-  - [ ] Generate JWT token (30-day expiry)
-  - [ ] Return access token and refresh token
-  - [ ] Set httpOnly secure cookies
-  - [ ] Configure Aspire service discovery for local development
+#### 2.1 Backend Authentication Services (Cognito Integration)
 - [ ] Create Lambda function: `auth-register`
-  - [ ] Validate invitation code
-  - [ ] Check email uniqueness
-  - [ ] Hash password with bcrypt (10 rounds)
-  - [ ] Create user record in DynamoDB
+  - [ ] Validate invitation code against `invitations` table
+  - [ ] Call Cognito AdminCreateUser API to create user
+  - [ ] Set initial password (temporary, user must change on first login)
+  - [ ] Set user attributes: email, name, custom:role
+  - [ ] Create user profile in DynamoDB `user_profiles` table
   - [ ] Mark invitation code as used
-- [ ] Create Lambda function: `auth-refresh`
-  - [ ] Validate refresh token
-  - [ ] Issue new access token
-  - [ ] Rotate refresh token
-- [ ] Create Lambda function: `auth-logout`
-  - [ ] Clear authentication cookies
-  - [ ] Blacklist refresh token (optional)
-- [ ] Implement JWT validation middleware
-  - [ ] Verify token signature
-  - [ ] Check expiration
-  - [ ] Extract user claims (userId, role)
+  - [ ] Send welcome email via Cognito or SES
+- [ ] Create Lambda function: `auth-post-confirmation` (Cognito trigger)
+  - [ ] Triggered after user confirms email or changes initial password
+  - [ ] Update user profile in DynamoDB (status: active)
+  - [ ] Log first login timestamp
+- [ ] Create Lambda function: `auth-pre-token-generation` (Cognito trigger)
+  - [ ] Add custom claims to JWT token (role, preferences)
+  - [ ] Load user profile from DynamoDB
+  - [ ] Inject custom:role into access token claims
+- [ ] Implement JWT validation middleware for API Gateway
+  - [ ] Configure Cognito User Pool as authorizer
+  - [ ] Verify JWT signature using Cognito public keys (JWKS)
+  - [ ] Extract user claims from token (sub, email, custom:role)
+  - [ ] Attach user context to Lambda event
+- [ ] Configure Aspire for local Cognito development
+  - [ ] Use cognito-local Docker container or mock service
+  - [ ] Set up local user pool with test users
+  - [ ] Configure local OAuth endpoints
 
-#### 2.2 Password Reset Flow
-- [ ] Configure AWS SES for email sending
-  - [ ] Verify sender email domain
-  - [ ] Create email templates (HTML + text)
-  - [ ] Set up sandbox exit request (for production)
+#### 2.2 Password Reset Flow (Cognito Managed)
+- [ ] Configure Cognito email settings
+  - [ ] Use Cognito default email (development) or configure custom SES
+  - [ ] Customize password reset email template in Cognito console
+  - [ ] Set up email verification code expiry (1 hour default)
   - [ ] Configure SMTP container or mock email service in Aspire for local testing
     - [ ] Add MailHog or similar SMTP container to AppHost
+    - [ ] Configure Cognito to use local SMTP for development
     - [ ] Configure email viewing at http://localhost:8025
-- [ ] Create Lambda function: `auth-request-reset`
-  - [ ] Generate secure reset token (32 bytes)
-  - [ ] Store token in DynamoDB with 1-hour TTL
-  - [ ] Send password reset email via SES
-- [ ] Create Lambda function: `auth-reset-password`
-  - [ ] Validate reset token
-  - [ ] Hash new password
-  - [ ] Update user record
-  - [ ] Invalidate reset token
-  - [ ] Send confirmation email
+- [ ] Create Lambda function: `auth-forgot-password-trigger` (optional)
+  - [ ] Cognito pre-password-reset trigger for custom logic
+  - [ ] Log password reset requests for security monitoring
+  - [ ] Apply rate limiting (prevent abuse)
+- [ ] Create Lambda function: `auth-custom-message` (Cognito trigger, optional)
+  - [ ] Customize password reset email content
+  - [ ] Add branding and custom links
+  - [ ] Use SES templates for rich HTML emails
+- [ ] Frontend integration
+  - [ ] Use Cognito SDK to trigger forgotPassword flow
+  - [ ] No custom backend endpoints needed (Cognito handles it)
+  - [ ] Handle verification code submission via confirmPassword API
 
-#### 2.3 Invitation System
+#### 2.3 Invitation System (Cognito Compatible)
+- [ ] Create DynamoDB table: `invitations`
+  - PK: `inviteCode` (8-char alphanumeric)
+  - Attributes: email (optional), role, createdBy, createdAt, expiresAt, status (pending/used/revoked), usedBy, usedAt
+  - TTL: expiresAt (auto-delete after 30 days)
 - [ ] Create Lambda function: `admin-create-invitation`
   - [ ] Generate unique invite code (8-character alphanumeric)
-  - [ ] Store in DynamoDB: `invitations` table
+  - [ ] Store in DynamoDB `invitations` table
   - [ ] Set expiry (7 days default)
-  - [ ] Send invitation email with registration link
+  - [ ] Optional: pre-assign email (for targeted invites)
+  - [ ] Send invitation email with registration link (includes invite code)
+  - [ ] Link format: https://wiki.example.com/register?invite={code}
 - [ ] Create Lambda function: `admin-list-invitations`
-  - [ ] Return all pending invitations
+  - [ ] Query all invitations from DynamoDB
+  - [ ] Return pending, used, expired, and revoked invitations
   - [ ] Include usage status and expiry
 - [ ] Create Lambda function: `admin-revoke-invitation`
-  - [ ] Mark invitation as revoked
-  - [ ] Prevent future use
+  - [ ] Mark invitation as revoked in DynamoDB
+  - [ ] Prevent future use in registration flow
+- [ ] Update `auth-register` Lambda to validate invitation
+  - [ ] Check invite code exists and is valid (not used/revoked/expired)
+  - [ ] Verify email matches (if pre-assigned)
+  - [ ] Mark invitation as used after Cognito user creation
 
-#### 2.4 Frontend Authentication UI
+#### 2.4 Frontend Authentication UI (Cognito Integration)
+- [ ] Install AWS Amplify or amazon-cognito-identity-js SDK
+  - [ ] Configure Cognito User Pool ID and Client ID
+  - [ ] Set up Amplify Auth module or Cognito SDK
+  - [ ] Configure OAuth redirect URIs (for hosted UI if used)
 - [ ] Build login page component
   - [ ] Email/password form with validation
-  - [ ] "Remember me" checkbox (extends token expiry)
+  - [ ] Use Cognito signIn API (Auth.signIn)
+  - [ ] "Remember me" option (device tracking)
   - [ ] "Forgot password" link
+  - [ ] Handle Cognito errors (UserNotConfirmedException, NotAuthorizedException, etc.)
   - [ ] Error handling and display
 - [ ] Build registration page component
-  - [ ] Invite code input
-  - [ ] Email, password, confirm password fields
-  - [ ] Password strength indicator
+  - [ ] Invite code input (validated against backend API)
+  - [ ] Call backend `auth-register` Lambda (which creates Cognito user)
+  - [ ] Handle temporary password flow (user changes on first login)
+  - [ ] Or use Cognito signUp API if allowing self-registration
+  - [ ] Password strength indicator (Cognito enforces policy)
   - [ ] Terms acceptance checkbox
 - [ ] Build password reset flow
-  - [ ] Request reset page (email input)
-  - [ ] Reset confirmation page (new password form)
+  - [ ] Request reset page: call Cognito forgotPassword API
+  - [ ] Reset confirmation page: submit verification code via forgotPasswordSubmit
   - [ ] Success/error messaging
+  - [ ] Cognito handles token generation and email sending
 - [ ] Implement authentication context (React Context API)
-  - [ ] Store user state (userId, email, role)
-  - [ ] Provide login/logout/refresh methods
-  - [ ] Handle token expiration and refresh
+  - [ ] Store user state from Cognito (userId=sub, email, custom:role)
+  - [ ] Use Cognito currentAuthenticatedUser API to check session
+  - [ ] Provide login/logout methods (Auth.signIn, Auth.signOut)
+  - [ ] Handle automatic token refresh (Cognito SDK does this)
+  - [ ] Listen for Cognito Hub events (signIn, signOut, tokenRefresh)
 - [ ] Create protected route wrapper component
+  - [ ] Check Cognito session on route access
   - [ ] Redirect to login if unauthenticated
   - [ ] Show loading state during auth check
+  - [ ] Extract user claims from Cognito tokens
 
 ---
 
@@ -666,30 +706,37 @@
 
 **Goal**: Build admin tools for user management
 
-#### 9.1 User Management API
+#### 9.1 User Management API (Cognito Integration)
 - [ ] Implement Lambda: `admin-users-list` (GET /admin/users)
-  - [ ] Scan users table (or GSI if large dataset)
-  - [ ] Support pagination (lastKey cursor)
-  - [ ] Filter by role, status (active/suspended)
-  - [ ] Return user profiles (exclude passwordHash)
+  - [ ] Call Cognito ListUsers API to get all users
+  - [ ] Query user_profiles table for extended profile data
+  - [ ] Merge Cognito data (email, status) with DynamoDB data (role, preferences)
+  - [ ] Support pagination using Cognito PaginationToken
+  - [ ] Filter by role, status (enabled/disabled)
+  - [ ] Return combined user profiles
 - [ ] Implement Lambda: `admin-users-get` (GET /admin/users/{userId})
-  - [ ] Fetch user details
-  - [ ] Include activity summary (page edits, comments)
-  - [ ] Return last login timestamp
+  - [ ] Call Cognito AdminGetUser API for auth data
+  - [ ] Fetch user profile from DynamoDB user_profiles table
+  - [ ] Include activity summary (page edits, comments) from activity_log
+  - [ ] Return last login from Cognito user attributes
 - [ ] Implement Lambda: `admin-users-update` (PUT /admin/users/{userId})
-  - [ ] Allow role change (Standard ↔ Admin)
-  - [ ] Update email (with verification)
-  - [ ] Reset password (send reset email)
-  - [ ] Cannot modify own admin role (safety)
+  - [ ] Allow role change in DynamoDB user_profiles (update custom:role attribute)
+  - [ ] Update Cognito user attributes via AdminUpdateUserAttributes
+  - [ ] Update email in Cognito (requires verification)
+  - [ ] Reset password via AdminSetUserPassword (send temp password)
+  - [ ] Cannot modify own admin role (safety check)
 - [ ] Implement Lambda: `admin-users-suspend` (POST /admin/users/{userId}/suspend)
-  - [ ] Set user status to 'suspended'
-  - [ ] Invalidate active sessions (optional)
-  - [ ] Send suspension notification email
+  - [ ] Call Cognito AdminDisableUser API
+  - [ ] Update user profile status in DynamoDB to 'suspended'
+  - [ ] Invalidate active sessions (Cognito handles this)
+  - [ ] Send suspension notification email via SES
 - [ ] Implement Lambda: `admin-users-activate` (POST /admin/users/{userId}/activate)
-  - [ ] Reactivate suspended user
+  - [ ] Call Cognito AdminEnableUser API
+  - [ ] Update user profile status in DynamoDB to 'active'
   - [ ] Send reactivation email
 - [ ] Implement Lambda: `admin-users-delete` (DELETE /admin/users/{userId})
-  - [ ] Soft delete: mark as deleted, anonymize data
+  - [ ] Soft delete in DynamoDB: mark profile as deleted, anonymize data
+  - [ ] Call Cognito AdminDeleteUser API (hard delete from Cognito)
   - [ ] Reassign owned pages to admin or archive
   - [ ] Preserve activity logs for audit
 
@@ -748,15 +795,18 @@
 
 #### 9.5 Activity Logging
 - [ ] Create DynamoDB table: `activity_log`
-  - [ ] PK: `userId`, SK: `timestamp` (sortable)
+  - [ ] PK: `userId` (Cognito sub), SK: `timestamp` (sortable)
   - [ ] Attributes: action, resourceType, resourceGuid, details
+  - [ ] Note: userId references Cognito sub (UUID from Cognito tokens)
 - [ ] Implement activity tracking
   - [ ] Log page creates/edits/deletes
-  - [ ] Log user logins/logouts
+  - [ ] Log user logins/logouts (from Cognito triggers or frontend events)
   - [ ] Log admin actions (role changes, suspensions)
+  - [ ] Extract userId from JWT token (Cognito sub claim)
   - [ ] Retention: 90 days (DynamoDB TTL)
 - [ ] Build activity viewer (admin only)
-  - [ ] Filter by user, action type, date range
+  - [ ] Filter by user (Cognito sub), action type, date range
+  - [ ] Join with user_profiles for display names
   - [ ] Export to CSV
 
 ---

@@ -22,30 +22,75 @@ BlueFinWiki uses **Amazon DynamoDB** for storing user data, metadata, and relati
 
 ## Table Definitions
 
-### 1. Users Table
+### 1. Authentication (AWS Cognito User Pool)
 
-**Purpose**: Store user authentication and profile information
+**Purpose**: Manage user authentication, passwords, and core identity
+
+**Service**: AWS Cognito User Pool
+
+**Configuration**:
+- **User Pool Name**: `bluefinwiki-users-{environment}`
+- **Username Attributes**: Email (required, unique)
+- **Password Policy**: 
+  - Minimum length: 8 characters
+  - Require uppercase, lowercase, numbers, symbols
+- **MFA**: Optional (can be enabled per-user)
+- **Email Verification**: Required
+- **User Attributes**:
+  - `email` (required, unique)
+  - `name` (display name)
+  - `custom:role` (Standard | Admin)
+
+**User Pool Client**:
+- **OAuth Flows**: Authorization code + Implicit (for hosted UI if needed)
+- **Token Expiration**: 
+  - Access Token: 1 hour
+  - Refresh Token: 30 days
+- **Authentication Flow**: USER_SRP_AUTH (Secure Remote Password)
+
+**Cognito Triggers** (Lambda):
+- **Pre-token generation**: Add custom:role to JWT claims
+- **Post-confirmation**: Create user profile in DynamoDB
+- **Pre-signup** (optional): Validate invitation code before allowing registration
+
+**Access Patterns**:
+- User login: Cognito SDK `initiateAuth` API
+- User registration: Custom Lambda with Cognito `adminCreateUser` API
+- Password reset: Cognito `forgotPassword` / `confirmForgotPassword` APIs
+- List users: Cognito `listUsers` API (admin only)
+- Get user details: Cognito `adminGetUser` API
+
+**Local Development**: cognito-local Docker container or mock service
+
+---
+
+### 2. User Profiles Table
+
+**Purpose**: Store extended user profile data and application-specific attributes
 
 **Table Name**: 
-- Production: `bluefinwiki-users-{environment}`
-- Local: `bluefinwiki-users-local`
+- Production: `bluefinwiki-user-profiles-{environment}`
+- Local: `bluefinwiki-user-profiles-local`
 
 **Primary Key**:
-- **Partition Key (PK)**: `userId` (String, GUID)
+- **Partition Key (PK)**: `cognitoUserId` (String, Cognito sub claim)
 
 **Attributes**:
 ```typescript
-interface UserRecord {
-  userId: string;           // GUID (v4)
-  email: string;            // Unique email address
-  passwordHash: string;     // bcrypt hash (10 rounds)
+interface UserProfileRecord {
+  cognitoUserId: string;    // Cognito sub (UUID from JWT)
+  email: string;            // Synced from Cognito
+  displayName: string;      // User's display name
   role: 'Admin' | 'Standard';
   status: 'active' | 'suspended' | 'deleted';
-  displayName: string;      // User's display name
   createdAt: string;        // ISO 8601 timestamp
   updatedAt: string;        // ISO 8601 timestamp
   lastLoginAt?: string;     // ISO 8601 timestamp
   inviteCode?: string;      // Original invite code used
+  preferences?: {           // User preferences (JSON)
+    theme?: 'light' | 'dark';
+    emailNotifications?: boolean;
+  };
 }
 ```
 
@@ -54,25 +99,27 @@ interface UserRecord {
 1. **email-index**
    - **Partition Key**: `email` (String)
    - **Projection**: ALL
-   - **Purpose**: Enable login by email lookup
+   - **Purpose**: Enable profile lookups by email
 
 **Access Patterns**:
-- Get user by ID: `Query(PK=userId)`
-- Get user by email: `Query(GSI=email-index, PK=email)`
-- List all users: `Scan` (admin only, with pagination)
+- Get profile by Cognito sub: `Query(PK=cognitoUserId)`
+- Get profile by email: `Query(GSI=email-index, PK=email)`
+- List all profiles: `Scan` (admin only, with pagination)
 
-**Billing**: PROVISIONED (production) / PAY_PER_REQUEST (dev)
+**Billing**: PAY_PER_REQUEST
 
 **Features**:
 - DynamoDB Streams enabled (NEW_AND_OLD_IMAGES) for audit logging
 - Point-in-time recovery enabled (production)
 - Encryption at rest (AWS managed keys)
 
+**Note**: Core authentication data (email, password, login history) is managed by Cognito. This table stores only application-specific profile data.
+
 ---
 
-### 2. Invitations Table
+### 3. Invitations Table
 
-**Purpose**: Store invitation codes for user registration
+**Purpose**: Store invitation codes for user registration (works with Cognito)
 
 **Table Name**: 
 - Production: `bluefinwiki-invitations-{environment}`
@@ -87,12 +134,12 @@ interface InvitationRecord {
   inviteCode: string;       // 8-character alphanumeric code
   email?: string;           // Optional: pre-assigned email
   role: 'Admin' | 'Standard';
-  createdBy: string;        // userId of admin who created
+  createdBy: string;        // Cognito sub of admin who created
   createdAt: string;        // ISO 8601 timestamp
   expiresAt: number;        // Unix timestamp (for TTL)
   status: 'pending' | 'used' | 'revoked';
   usedAt?: string;          // ISO 8601 timestamp
-  usedBy?: string;          // userId who used the code
+  usedBy?: string;          // Cognito sub who used the code
 }
 ```
 
@@ -107,7 +154,7 @@ interface InvitationRecord {
 
 ---
 
-### 3. Page Links Table
+### 4. Page Links Table
 
 **Purpose**: Track wiki links between pages (for backlinks feature)
 
@@ -144,7 +191,7 @@ interface PageLinkRecord {
 
 ---
 
-### 4. Attachments Table
+### 5. Attachments Table
 
 **Purpose**: Store metadata for uploaded files (actual files in S3)
 
@@ -164,7 +211,7 @@ interface AttachmentRecord {
   size: number;             // File size in bytes
   mimeType: string;         // MIME type (e.g., 'image/png')
   s3Key: string;            // S3 object key
-  uploadedBy: string;       // userId
+  uploadedBy: string;       // Cognito sub (userId)
   uploadedAt: string;       // ISO 8601 timestamp
   status: 'active' | 'deleted';
 }
@@ -186,7 +233,7 @@ interface AttachmentRecord {
 
 ---
 
-### 5. Comments Table
+### 6. Comments Table
 
 **Purpose**: Store page comments and threaded discussions
 
@@ -202,7 +249,7 @@ interface AttachmentRecord {
 interface CommentRecord {
   guid: string;             // Comment GUID
   pageGuid: string;         // Parent page GUID
-  userId: string;           // Author userId
+  userId: string;           // Author Cognito sub (userId)
   content: string;          // Markdown content (1-5000 chars)
   parentGuid?: string;      // Parent comment GUID (for replies)
   depth: number;            // Thread depth (0=root, max 3)
@@ -229,7 +276,7 @@ interface CommentRecord {
 
 ---
 
-### 6. Activity Log Table
+### 7. Activity Log Table
 
 **Purpose**: Audit trail for user actions and system events
 
@@ -244,7 +291,7 @@ interface CommentRecord {
 **Attributes**:
 ```typescript
 interface ActivityLogRecord {
-  userId: string;           // Actor userId
+  userId: string;           // Actor Cognito sub (userId)
   timestamp: string;        // ISO 8601 timestamp (sort key)
   action: string;           // Action type (e.g., 'page.create', 'user.login')
   resourceType: string;     // Resource type ('page', 'user', 'comment')
