@@ -85,3 +85,36 @@ export interface FolderData {
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }
+
+/**
+ * Storage Plugin Types
+ * These types define the contract for storage plugins (S3, GitHub, etc.)
+ */
+
+export interface Version {
+  versionId: string;
+  timestamp: string; // ISO 8601
+  modifiedBy: string; // Cognito sub
+  size: number; // in bytes
+}
+
+export interface PageSummary {
+  guid: string;
+  title: string;
+  parentGuid: string | null;
+  status: 'draft' | 'published' | 'archived';
+  modifiedAt: string; // ISO 8601
+  modifiedBy: string; // Cognito sub
+  hasChildren: boolean;
+}
+
+export interface StoragePluginConfig {
+  type: 's3' | 'github' | 'local';
+  [key: string]: any; // Plugin-specific config
+}
+
+export interface StoragePluginError extends Error {
+  code: string;
+  statusCode?: number;
+  details?: any;
+}
