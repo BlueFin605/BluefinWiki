@@ -256,38 +256,38 @@
 - [X] Create plugin registry/loader mechanism
 
 #### 3.2 S3 Storage Plugin Implementation
-- [ ] Implement `S3StoragePlugin` class
-  - [ ] Initialize S3 client with AWS SDK v3
-  - [ ] Configure bucket names from environment
-  - [ ] Implement error handling wrapper
-- [ ] Implement `savePage` method
-  - [ ] Generate GUID if not provided (uuid v4)
-  - [ ] Determine S3 path based on parent: root pages at `{guid}.md`, children at `{parent-guid}/{guid}.md`
-  - [ ] Build markdown file with YAML frontmatter containing metadata (title, tags, status, createdBy, modifiedBy, timestamps, parentGuid)
-  - [ ] PageContent body is markdown content
-  - [ ] Upload to S3 at calculated path
-  - [ ] Enable versioning on S3 bucket
-- [ ] Implement `loadPage` method
-  - [ ] Build S3 path from GUID (need to search if parent unknown, or track in index)
-  - [ ] Fetch markdown file from S3
-  - [ ] Parse YAML frontmatter for metadata
-  - [ ] Extract markdown content body
-  - [ ] Handle 404 errors gracefully
-  - [ ] Return page content with metadata
-- [ ] Implement `deletePage` method
-  - [ ] If recursive=true: delete page and all children (recursively delete S3 directory)
-  - [ ] If recursive=false: only delete if page has no children
-  - [ ] Remove S3 object(s)
-  - [ ] Or soft delete: add `deleted=true` to frontmatter
-- [ ] Implement `listVersions` method
-  - [ ] Query S3 object versions API for the page's .md file
-  - [ ] Return sorted list (newest first)
-  - [ ] Include version metadata
-- [ ] Implement `listChildren` method
-  - [ ] If parentGuid is null: list root-level .md files (exclude directories)
-  - [ ] If parentGuid provided: list .md files within `{parent-guid}/` directory
-  - [ ] Parse frontmatter of each child to get display name and metadata
-  - [ ] Return array of PageSummary objects
+- [X] Implement `S3StoragePlugin` class
+  - [X] Initialize S3 client with AWS SDK v3
+  - [X] Configure bucket names from environment
+  - [X] Implement error handling wrapper
+- [X] Implement `savePage` method
+  - [X] Generate GUID if not provided (uuid v4)
+  - [X] Determine S3 path based on parent: root pages at `{guid}.md`, children at `{parent-guid}/{guid}.md`
+  - [X] Build markdown file with YAML frontmatter containing metadata (title, tags, status, createdBy, modifiedBy, timestamps, parentGuid)
+  - [X] PageContent body is markdown content
+  - [X] Upload to S3 at calculated path
+  - [X] Enable versioning on S3 bucket
+- [X] Implement `loadPage` method
+  - [X] Build S3 path from GUID (need to search if parent unknown, or track in index)
+  - [X] Fetch markdown file from S3
+  - [X] Parse YAML frontmatter for metadata
+  - [X] Extract markdown content body
+  - [X] Handle 404 errors gracefully
+  - [X] Return page content with metadata
+- [X] Implement `deletePage` method
+  - [X] If recursive=true: delete page and all children (recursively delete S3 directory)
+  - [X] If recursive=false: only delete if page has no children
+  - [X] Remove S3 object(s)
+  - [X] Or soft delete: add `deleted=true` to frontmatter
+- [X] Implement `listVersions` method
+  - [X] Query S3 object versions API for the page's .md file
+  - [X] Return sorted list (newest first)
+  - [X] Include version metadata
+- [X] Implement `listChildren` method
+  - [X] If parentGuid is null: list root-level .md files (exclude directories)
+  - [X] If parentGuid provided: list .md files within `{parent-guid}/` directory
+  - [X] Parse frontmatter of each child to get display name and metadata
+  - [X] Return array of PageSummary objects
 - [ ] Implement `movePage` method
   - [ ] Move page file from old path to new path
   - [ ] If page has children (directory exists), move entire directory

@@ -1,0 +1,747 @@
+/**
+ * S3 Storage Plugin
+ * 
+ * Implements storage plugin interface using AWS S3 for page persistence.
+ * 
+ * Architecture:
+ * - Root pages: stored at {bucket}/{guid}.md
+ * - Child pages: stored at {bucket}/{parent-guid}/{guid}.md
+ * - Multi-level nesting: {bucket}/{grandparent-guid}/{parent-guid}/{guid}.md
+ * - Page metadata stored in YAML frontmatter
+ * - S3 versioning enabled for history tracking
+ * 
+ * File Format:
+ * ```
+ * ---
+ * title: "Page Title"
+ * guid: "abc-123"
+ * parentGuid: "parent-guid" (optional)
+ * status: "published"
+ * tags: ["tag1", "tag2"]
+ * createdBy: "user-id"
+ * modifiedBy: "user-id"
+ * createdAt: "2026-02-06T12:00:00Z"
+ * modifiedAt: "2026-02-06T12:00:00Z"
+ * folderId: "parent-guid"
+ * ---
+ * 
+ * # Markdown content starts here
+ * ```
+ */
+
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectVersionsCommand,
+  ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
+  HeadObjectCommand,
+  CopyObjectCommand,
+  HeadBucketCommand,
+} from '@aws-sdk/client-s3';
+import { BaseStoragePlugin } from './BaseStoragePlugin.js';
+import { PageContent, Version, PageSummary } from '../types/index.js';
+
+interface S3StorageConfig {
+  bucketName: string;
+  region?: string;
+  endpoint?: string; // For LocalStack
+}
+
+export class S3StoragePlugin extends BaseStoragePlugin {
+  private s3Client: S3Client;
+  private bucketName: string;
+
+  constructor(config: S3StorageConfig) {
+    super('s3');
+    
+    this.bucketName = config.bucketName;
+    
+    // Initialize S3 client
+    this.s3Client = new S3Client({
+      region: config.region || process.env.AWS_REGION || 'us-east-1',
+      ...(config.endpoint && { 
+        endpoint: config.endpoint,
+        forcePathStyle: true // Required for LocalStack
+      }),
+    });
+  }
+
+  /**
+   * Build S3 key path for a page
+   * Root pages: {guid}.md
+   * Child pages: {parent-guid}/{guid}.md
+   * 
+   * Note: For deeply nested pages, we need to build the full path
+   * by traversing up the parent chain. For now, we'll use a simpler approach
+   * where parentGuid is the immediate parent, and we store the full path.
+   */
+  private buildPageKey(guid: string, parentGuid: string | null): string {
+    if (parentGuid === null || parentGuid === '') {
+      return `${guid}.md`;
+    }
+    return `${parentGuid}/${guid}.md`;
+  }
+
+  /**
+   * Parse YAML frontmatter from markdown content
+   */
+  private parseFrontmatter(content: string): { metadata: any; body: string } {
+    const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
+    const match = content.match(frontmatterRegex);
+
+    if (!match) {
+      throw this.createError(
+        'Invalid page format: missing YAML frontmatter',
+        'INVALID_FORMAT',
+        400
+      );
+    }
+
+    const yamlContent = match[1];
+    const body = match[2];
+
+    // Simple YAML parser (supports basic key: value format)
+    const metadata: any = {};
+    const lines = yamlContent.split('\n');
+
+    for (const line of lines) {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex === -1) continue;
+
+      const key = line.substring(0, colonIndex).trim();
+      let value = line.substring(colonIndex + 1).trim();
+
+      // Remove quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.substring(1, value.length - 1);
+      }
+
+      // Parse arrays (simple format: ["item1", "item2"])
+      if (value.startsWith('[') && value.endsWith(']')) {
+        const arrayContent = value.substring(1, value.length - 1);
+        metadata[key] = arrayContent
+          .split(',')
+          .map(item => item.trim().replace(/^["']|["']$/g, ''))
+          .filter(item => item.length > 0);
+      } else {
+        metadata[key] = value;
+      }
+    }
+
+    return { metadata, body };
+  }
+
+  /**
+   * Serialize page content to markdown with YAML frontmatter
+   */
+  private serializeToMarkdown(content: PageContent): string {
+    const frontmatter = [
+      '---',
+      `title: "${content.title}"`,
+      `guid: "${content.guid}"`,
+      content.folderId ? `parentGuid: "${content.folderId}"` : '',
+      content.folderId ? `folderId: "${content.folderId}"` : '',
+      `status: "${content.status}"`,
+      content.tags.length > 0 
+        ? `tags: [${content.tags.map(t => `"${t}"`).join(', ')}]`
+        : 'tags: []',
+      `createdBy: "${content.createdBy}"`,
+      `modifiedBy: "${content.modifiedBy}"`,
+      `createdAt: "${content.createdAt}"`,
+      `modifiedAt: "${content.modifiedAt}"`,
+      '---',
+      '',
+    ].filter(line => line !== '').join('\n');
+
+    return frontmatter + content.content;
+  }
+
+  /**
+   * Save a page to S3
+   */
+  async savePage(
+    guid: string,
+    parentGuid: string | null,
+    content: PageContent
+  ): Promise<void> {
+    try {
+      // Validate content
+      this.validatePageContent(content);
+
+      // Ensure timestamps are set
+      if (!content.createdAt) {
+        content.createdAt = this.formatDate();
+      }
+      content.modifiedAt = this.formatDate();
+
+      // Ensure folderId matches parentGuid
+      content.folderId = parentGuid || '';
+
+      // Build S3 key
+      const key = this.buildPageKey(guid, parentGuid);
+
+      // Serialize to markdown with frontmatter
+      const markdown = this.serializeToMarkdown(content);
+
+      // Upload to S3
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: markdown,
+        ContentType: 'text/markdown',
+        Metadata: {
+          guid: guid,
+          title: content.title,
+          status: content.status,
+        },
+      });
+
+      await this.s3Client.send(command);
+    } catch (error: any) {
+      if (error.code && error.code.startsWith('INVALID_')) {
+        throw error; // Re-throw validation errors
+      }
+      throw this.createError(
+        `Failed to save page: ${error.message}`,
+        'SAVE_FAILED',
+        500,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Load a page from S3
+   * 
+   * Note: This requires knowing the full path. For now, we'll search
+   * for the page by GUID across all possible locations.
+   */
+  async loadPage(guid: string): Promise<PageContent> {
+    try {
+      // Validate GUID
+      if (!this.validateGuid(guid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Try to find the page by searching
+      const key = await this.findPageKey(guid);
+
+      if (!key) {
+        throw this.createError(
+          `Page not found: ${guid}`,
+          'PAGE_NOT_FOUND',
+          404
+        );
+      }
+
+      // Fetch from S3
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      const response = await this.s3Client.send(command);
+      
+      if (!response.Body) {
+        throw this.createError(
+          'Empty response from S3',
+          'EMPTY_RESPONSE',
+          500
+        );
+      }
+
+      // Read stream to string
+      const markdown = await response.Body.transformToString();
+
+      // Parse frontmatter
+      const { metadata, body } = this.parseFrontmatter(markdown);
+
+      // Build PageContent object
+      const pageContent: PageContent = {
+        guid: metadata.guid || guid,
+        title: metadata.title || 'Untitled',
+        content: body,
+        folderId: metadata.folderId || metadata.parentGuid || '',
+        tags: metadata.tags || [],
+        status: metadata.status || 'draft',
+        createdBy: metadata.createdBy || '',
+        modifiedBy: metadata.modifiedBy || '',
+        createdAt: metadata.createdAt || this.formatDate(),
+        modifiedAt: metadata.modifiedAt || this.formatDate(),
+      };
+
+      return pageContent;
+    } catch (error: any) {
+      if (error.code && (error.code === 'PAGE_NOT_FOUND' || error.code === 'INVALID_GUID')) {
+        throw error;
+      }
+      
+      if (error.name === 'NoSuchKey') {
+        throw this.createError(
+          `Page not found: ${guid}`,
+          'PAGE_NOT_FOUND',
+          404
+        );
+      }
+
+      throw this.createError(
+        `Failed to load page: ${error.message}`,
+        'LOAD_FAILED',
+        500,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Find a page's S3 key by searching for its GUID
+   * This is needed because we don't store the full path separately
+   */
+  private async findPageKey(guid: string): Promise<string | null> {
+    try {
+      // First, try as a root page
+      const rootKey = `${guid}.md`;
+      try {
+        await this.s3Client.send(new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: rootKey,
+        }));
+        return rootKey;
+      } catch (err: any) {
+        if (err.name !== 'NotFound') {
+          throw err;
+        }
+      }
+
+      // Search for the page in all folders
+      let continuationToken: string | undefined = undefined;
+      
+      do {
+        const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
+          Bucket: this.bucketName,
+          ContinuationToken: continuationToken,
+        });
+
+        const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
+        
+        if (response.Contents) {
+          for (const obj of response.Contents) {
+            if (obj.Key && obj.Key.endsWith(`/${guid}.md`)) {
+              return obj.Key;
+            }
+          }
+        }
+
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+
+      return null;
+    } catch (error: any) {
+      throw this.createError(
+        `Failed to find page: ${error.message}`,
+        'SEARCH_FAILED',
+        500,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Delete a page from S3
+   */
+  async deletePage(guid: string, recursive: boolean = false): Promise<void> {
+    try {
+      // Validate GUID
+      if (!this.validateGuid(guid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Find the page key
+      const key = await this.findPageKey(guid);
+      
+      if (!key) {
+        throw this.createError(
+          `Page not found: ${guid}`,
+          'PAGE_NOT_FOUND',
+          404
+        );
+      }
+
+      // Check for children
+      const hasChildPages = await this.hasChildren(guid);
+
+      if (hasChildPages && !recursive) {
+        throw this.createError(
+          'Cannot delete page with children. Use recursive=true to delete all children.',
+          'HAS_CHILDREN',
+          400
+        );
+      }
+
+      if (recursive && hasChildPages) {
+        // Delete all children recursively
+        await this.deletePageAndChildren(guid, key);
+      } else {
+        // Delete single page
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        });
+        await this.s3Client.send(deleteCommand);
+      }
+    } catch (error: any) {
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'HAS_CHILDREN'].includes(error.code)) {
+        throw error;
+      }
+      throw this.createError(
+        `Failed to delete page: ${error.message}`,
+        'DELETE_FAILED',
+        500,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Delete a page and all its children recursively
+   */
+  private async deletePageAndChildren(guid: string, pageKey: string): Promise<void> {
+    const objectsToDelete: { Key: string }[] = [];
+
+    // Add the page itself
+    objectsToDelete.push({ Key: pageKey });
+
+    // Find all children (files in the guid/ folder)
+    const prefix = `${guid}/`;
+    let continuationToken: string | undefined = undefined;
+
+    do {
+      const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      });
+
+      const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
+
+      if (response.Contents) {
+        for (const obj of response.Contents) {
+          if (obj.Key) {
+            objectsToDelete.push({ Key: obj.Key });
+          }
+        }
+      }
+
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    // Delete all objects in batches (S3 limit is 1000 per request)
+    const batchSize = 1000;
+    for (let i = 0; i < objectsToDelete.length; i += batchSize) {
+      const batch = objectsToDelete.slice(i, i + batchSize);
+      
+      const deleteCommand = new DeleteObjectsCommand({
+        Bucket: this.bucketName,
+        Delete: {
+          Objects: batch,
+          Quiet: true,
+        },
+      });
+
+      await this.s3Client.send(deleteCommand);
+    }
+  }
+
+  /**
+   * List all versions of a page
+   */
+  async listVersions(guid: string): Promise<Version[]> {
+    try {
+      // Validate GUID
+      if (!this.validateGuid(guid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Find the page key
+      const key = await this.findPageKey(guid);
+      
+      if (!key) {
+        throw this.createError(
+          `Page not found: ${guid}`,
+          'PAGE_NOT_FOUND',
+          404
+        );
+      }
+
+      // List object versions
+      const command = new ListObjectVersionsCommand({
+        Bucket: this.bucketName,
+        Prefix: key,
+      });
+
+      const response = await this.s3Client.send(command);
+
+      if (!response.Versions || response.Versions.length === 0) {
+        return [];
+      }
+
+      // Convert to Version objects
+      const versions: Version[] = response.Versions
+        .filter(v => v.Key === key) // Only exact matches
+        .map(v => ({
+          versionId: v.VersionId || '',
+          timestamp: v.LastModified ? v.LastModified.toISOString() : this.formatDate(),
+          modifiedBy: '', // Would need to fetch from metadata or object tags
+          size: v.Size || 0,
+        }))
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      return versions;
+    } catch (error: any) {
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
+        throw error;
+      }
+      throw this.createError(
+        `Failed to list versions: ${error.message}`,
+        'LIST_VERSIONS_FAILED',
+        500,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * List all child pages of a parent (or root-level pages)
+   */
+  async listChildren(parentGuid: string | null): Promise<PageSummary[]> {
+    try {
+      const children: PageSummary[] = [];
+
+      if (parentGuid === null) {
+        // List root-level pages (files at bucket root)
+        let continuationToken: string | undefined = undefined;
+
+        do {
+          const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
+            Bucket: this.bucketName,
+            Delimiter: '/',
+            ContinuationToken: continuationToken,
+          });
+
+          const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
+
+          if (response.Contents) {
+            for (const obj of response.Contents) {
+              if (obj.Key && obj.Key.endsWith('.md') && !obj.Key.includes('/')) {
+                // This is a root-level page
+                const guid = obj.Key.replace('.md', '');
+                try {
+                  const page = await this.loadPage(guid);
+                  children.push({
+                    guid: page.guid,
+                    title: page.title,
+                    parentGuid: null,
+                    status: page.status,
+                    modifiedAt: page.modifiedAt,
+                    modifiedBy: page.modifiedBy,
+                    hasChildren: await this.hasChildren(guid),
+                  });
+                } catch (err) {
+                  // Skip pages that can't be loaded
+                  console.warn(`Failed to load page ${guid}:`, err);
+                }
+              }
+            }
+          }
+
+          continuationToken = response.NextContinuationToken;
+        } while (continuationToken);
+      } else {
+        // List children in the parent's folder
+        const prefix = `${parentGuid}/`;
+        let continuationToken: string | undefined = undefined;
+
+        do {
+          const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
+            Bucket: this.bucketName,
+            Prefix: prefix,
+            Delimiter: '/',
+            ContinuationToken: continuationToken,
+          });
+
+          const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
+
+          if (response.Contents) {
+            for (const obj of response.Contents) {
+              if (obj.Key && obj.Key.endsWith('.md')) {
+                // Extract GUID from key
+                const keyParts = obj.Key.split('/');
+                const filename = keyParts[keyParts.length - 1];
+                const guid = filename.replace('.md', '');
+
+                // Only include direct children (not nested)
+                if (keyParts.length === 2) {
+                  try {
+                    const page = await this.loadPage(guid);
+                    children.push({
+                      guid: page.guid,
+                      title: page.title,
+                      parentGuid: parentGuid,
+                      status: page.status,
+                      modifiedAt: page.modifiedAt,
+                      modifiedBy: page.modifiedBy,
+                      hasChildren: await this.hasChildren(guid),
+                    });
+                  } catch (err) {
+                    console.warn(`Failed to load page ${guid}:`, err);
+                  }
+                }
+              }
+            }
+          }
+
+          continuationToken = response.NextContinuationToken;
+        } while (continuationToken);
+      }
+
+      // Sort by title
+      children.sort((a, b) => a.title.localeCompare(b.title));
+
+      return children;
+    } catch (error: any) {
+      throw this.createError(
+        `Failed to list children: ${error.message}`,
+        'LIST_CHILDREN_FAILED',
+        500,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Move a page to a new parent
+   */
+  async movePage(guid: string, newParentGuid: string | null): Promise<void> {
+    try {
+      // Validate GUIDs
+      if (!this.validateGuid(guid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      if (newParentGuid && !this.validateGuid(newParentGuid)) {
+        throw this.createError('Invalid parent GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Check for circular reference
+      await this.validateNoCircularReference(guid, newParentGuid);
+
+      // Load current page
+      const page = await this.loadPage(guid);
+      const oldKey = await this.findPageKey(guid);
+
+      if (!oldKey) {
+        throw this.createError(
+          `Page not found: ${guid}`,
+          'PAGE_NOT_FOUND',
+          404
+        );
+      }
+
+      // Build new key
+      const newKey = this.buildPageKey(guid, newParentGuid);
+
+      // If keys are the same, nothing to do
+      if (oldKey === newKey) {
+        return;
+      }
+
+      // Update page metadata
+      page.folderId = newParentGuid || '';
+      page.modifiedAt = this.formatDate();
+
+      // Copy to new location
+      const copyCommand = new CopyObjectCommand({
+        Bucket: this.bucketName,
+        CopySource: `${this.bucketName}/${oldKey}`,
+        Key: newKey,
+        ContentType: 'text/markdown',
+        Metadata: {
+          guid: guid,
+          title: page.title,
+          status: page.status,
+        },
+        MetadataDirective: 'REPLACE',
+      });
+
+      await this.s3Client.send(copyCommand);
+
+      // Update content with new parent
+      await this.savePage(guid, newParentGuid, page);
+
+      // Delete old location
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: oldKey,
+      });
+      await this.s3Client.send(deleteCommand);
+
+      // Move children if any
+      const children = await this.listChildren(guid);
+      for (const child of children) {
+        const childOldKey = await this.findPageKey(child.guid);
+        if (childOldKey) {
+          // Copy child to new location
+          const childNewKey = this.buildPageKey(child.guid, guid);
+          
+          const childCopyCommand = new CopyObjectCommand({
+            Bucket: this.bucketName,
+            CopySource: `${this.bucketName}/${childOldKey}`,
+            Key: childNewKey,
+            ContentType: 'text/markdown',
+            MetadataDirective: 'COPY',
+          });
+
+          await this.s3Client.send(childCopyCommand);
+
+          // Delete old child location
+          const childDeleteCommand = new DeleteObjectCommand({
+            Bucket: this.bucketName,
+            Key: childOldKey,
+          });
+          await this.s3Client.send(childDeleteCommand);
+        }
+      }
+    } catch (error: any) {
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'CIRCULAR_REFERENCE'].includes(error.code)) {
+        throw error;
+      }
+      throw this.createError(
+        `Failed to move page: ${error.message}`,
+        'MOVE_FAILED',
+        500,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Check if S3 is accessible
+   */
+  async healthCheck(): Promise<boolean> {
+    try {
+      const command = new HeadBucketCommand({
+        Bucket: this.bucketName,
+      });
+      await this.s3Client.send(command);
+      return true;
+    } catch (error) {
+      console.error('S3 health check failed:', error);
+      return false;
+    }
+  }
+}
