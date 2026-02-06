@@ -2,8 +2,11 @@
 
 **Feature Branch**: `1-user-auth`  
 **Created**: 2026-01-12  
+**Updated**: 2026-02-06 (Migrated to AWS Cognito)  
 **Status**: Draft  
 **Input**: User description: "Add user authentication with email and password. I tneeds to be by invite only (outside of the first user) so that it is only liited to family users. iu.e. not just anyone can access the wiki"
+
+**Architecture Note**: This feature uses **AWS Cognito User Pools** for authentication instead of custom JWT implementation. Cognito provides built-in password policies, MFA support, password reset flows, and industry-standard OAuth2/OIDC compliance.
 
 ## User Scenarios & Testing *(mandatory)*
 
