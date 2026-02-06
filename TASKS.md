@@ -296,37 +296,37 @@
 
 #### 3.3 Lambda API Endpoints
 - [ ] Create API Gateway REST API resource: `/pages`
-- [ ] Implement Lambda: `pages-create` (POST /pages)
-  - [ ] Validate request body (title, content, parentGuid - optional)
-  - [ ] Build PageContent object with metadata (title, tags, status, author, timestamps, parentGuid)
-  - [ ] Call storage plugin `savePage(guid, parentGuid, content)`
-  - [ ] Return page GUID and creation timestamp
-- [ ] Implement Lambda: `pages-get` (GET /pages/{guid})
-  - [ ] Extract GUID from path parameters
-  - [ ] Call storage plugin `loadPage`
-  - [ ] Return complete page data with metadata (including parentGuid for breadcrumbs)
-- [ ] Implement Lambda: `pages-update` (PUT /pages/{guid})
-  - [ ] Validate request body
-  - [ ] Load existing page from storage
-  - [ ] Update content and metadata (modifiedBy, modifiedAt)
-  - [ ] Preserve parentGuid unless explicitly moving page
-  - [ ] Call storage plugin `savePage` (creates new version)
-  - [ ] Return success response
-- [ ] Implement Lambda: `pages-delete` (DELETE /pages/{guid})
-  - [ ] Verify user permissions
-  - [ ] Query parameter: `recursive=true|false` (default: false)
-  - [ ] Call storage plugin `deletePage(guid, recursive)`
-  - [ ] Return confirmation with count of deleted items
-- [ ] Implement Lambda: `pages-list-children` (GET /pages/{guid}/children)
-  - [ ] Extract parent GUID from path (or null for root pages)
-  - [ ] Call storage plugin `listChildren(parentGuid)`
-  - [ ] Return array of child page summaries
-- [ ] Implement Lambda: `pages-move` (PUT /pages/{guid}/move)
-  - [ ] Request body: `{ newParentGuid: string | null }`
-  - [ ] Validate target parent exists (if not null)
-  - [ ] Prevent circular references (page cannot be moved under its own descendant)
-  - [ ] Call storage plugin `movePage(guid, newParentGuid)`
-  - [ ] Return success response
+- [X] Implement Lambda: `pages-create` (POST /pages)
+  - [X] Validate request body (title, content, parentGuid - optional)
+  - [X] Build PageContent object with metadata (title, tags, status, author, timestamps, parentGuid)
+  - [X] Call storage plugin `savePage(guid, parentGuid, content)`
+  - [X] Return page GUID and creation timestamp
+- [X] Implement Lambda: `pages-get` (GET /pages/{guid})
+  - [X] Extract GUID from path parameters
+  - [X] Call storage plugin `loadPage`
+  - [X] Return complete page data with metadata (including parentGuid for breadcrumbs)
+- [X] Implement Lambda: `pages-update` (PUT /pages/{guid})
+  - [X] Validate request body
+  - [X] Load existing page from storage
+  - [X] Update content and metadata (modifiedBy, modifiedAt)
+  - [X] Preserve parentGuid unless explicitly moving page
+  - [X] Call storage plugin `savePage` (creates new version)
+  - [X] Return success response
+- [X] Implement Lambda: `pages-delete` (DELETE /pages/{guid})
+  - [X] Verify user permissions
+  - [X] Query parameter: `recursive=true|false` (default: false)
+  - [X] Call storage plugin `deletePage(guid, recursive)`
+  - [X] Return confirmation with count of deleted items
+- [X] Implement Lambda: `pages-list-children` (GET /pages/{guid}/children)
+  - [X] Extract parent GUID from path (or null for root pages)
+  - [X] Call storage plugin `listChildren(parentGuid)`
+  - [X] Return array of child page summaries
+- [X] Implement Lambda: `pages-move` (PUT /pages/{guid}/move)
+  - [X] Request body: `{ newParentGuid: string | null }`
+  - [X] Validate target parent exists (if not null)
+  - [X] Prevent circular references (page cannot be moved under its own descendant)
+  - [X] Call storage plugin `movePage(guid, newParentGuid)`
+  - [X] Return success response
 
 #### 3.4 Testing & Documentation
 - [ ] Write unit tests for storage plugin interface
