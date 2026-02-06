@@ -19,7 +19,8 @@
     "@tanstack/react-query": "^5.22.0",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
-    "axios": "^1.6.7"
+    "axios": "^1.6.7",
+    "amazon-cognito-identity-js": "^6.3.12"
   },
   "devDependencies": {
     "@types/react": "^18.2.55",

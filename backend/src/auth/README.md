@@ -73,6 +73,64 @@ The authentication system uses **AWS Cognito User Pools** for identity managemen
 - Suspended users don't receive custom claims
 - Non-blocking: returns minimal claims on error
 
+#### 4. `auth-forgot-password-trigger.ts` (Task 2.2)
+**Purpose**: Pre-forgot password trigger for logging and rate limiting
+
+**Trigger**: Cognito User Pool (CustomMessage_ForgotPassword)
+
+**Actions**:
+- Logs password reset requests to activity log (security monitoring)
+- Implements rate limiting: Max 3 attempts per hour
+- Captures IP address and user agent for audit trail
+- Prevents abuse of password reset flow
+
+**Rate Limiting**:
+- Max 3 password reset requests per hour per user
+- Returns error if limit exceeded
+- Sliding 1-hour window
+
+**Notes**:
+- Cognito doesn't have dedicated pre-forgot-password trigger
+- Uses CustomMessage trigger as workaround
+- Non-blocking: errors won't prevent password reset flow
+
+#### 5. `auth-custom-message.ts` (Task 2.2)
+**Purpose**: Customize Cognito email templates
+
+**Trigger**: Cognito User Pool (CustomMessage)
+
+**Email Types**:
+1. **Password Reset** (`CustomMessage_ForgotPassword`)
+   - Branded HTML email with verification code
+   - Reset link with embedded code
+   - Security warnings and expiry notice (1 hour)
+   
+2. **Email Verification** (`CustomMessage_SignUp`, `CustomMessage_ResendCode`)
+   - Welcome message with verification code
+   - Verify email link
+   - 24-hour expiry notice
+
+3. **Admin Create User** (`CustomMessage_AdminCreateUser`)
+   - Welcome email with temporary password
+   - Force password change on first login
+
+4. **Update User Attribute** (`CustomMessage_UpdateUserAttribute`)
+   - Email verification for email changes
+
+**Features**:
+- Rich HTML templates with branding
+- Responsive design for mobile
+- Security warnings and best practices
+- Plain text fallback for email clients
+- Customizable via environment variables:
+  - `WIKI_NAME`: Application name
+  - `WIKI_URL`: Frontend URL for links
+  - `SUPPORT_EMAIL`: Support contact
+
+**Notes**:
+- For local dev, emails captured by MailHog (http://localhost:8025)
+- For production, use Cognito default or configure SES
+
 ### Middleware
 
 #### `auth.ts`
@@ -290,10 +348,12 @@ Configure Cognito User Pool as authorizer:
 
 ## Next Steps
 
-Task 2.2: Password Reset Flow (Cognito Managed)
-- Configure Cognito email settings
-- Set up password reset templates
-- Implement frontend password reset UI
+~~Task 2.2: Password Reset Flow (Cognito Managed)~~ ✓ COMPLETED
+- ✓ Configure Cognito email settings
+- ✓ Set up password reset templates (auth-custom-message.ts)
+- ✓ Implement frontend password reset UI (ForgotPassword.tsx, ResetPassword.tsx)
+- ✓ Add rate limiting and security monitoring (auth-forgot-password-trigger.ts)
+- ✓ MailHog already configured for local email testing
 
 Task 2.3: Invitation System
 - Create Lambda for generating invitations
