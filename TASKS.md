@@ -288,11 +288,11 @@
   - [X] If parentGuid provided: list .md files within `{parent-guid}/` directory
   - [X] Parse frontmatter of each child to get display name and metadata
   - [X] Return array of PageSummary objects
-- [ ] Implement `movePage` method
-  - [ ] Move page file from old path to new path
-  - [ ] If page has children (directory exists), move entire directory
-  - [ ] Update parentGuid in page frontmatter
-  - [ ] Handle S3 copy and delete operations
+- [X] Implement `movePage` method
+  - [X] Move page file from old path to new path
+  - [X] If page has children (directory exists), move entire directory
+  - [X] Update parentGuid in page frontmatter
+  - [X] Handle S3 copy and delete operations
 
 #### 3.3 Lambda API Endpoints
 - [ ] Create API Gateway REST API resource: `/pages`
