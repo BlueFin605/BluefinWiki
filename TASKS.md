@@ -173,28 +173,28 @@
   - [X] Handle verification code submission via confirmPassword API
 
 #### 2.3 Invitation System (Cognito Compatible)
-- [ ] Create DynamoDB table: `invitations`
+- [X] Create DynamoDB table: `invitations`
   - PK: `inviteCode` (8-char alphanumeric)
   - Attributes: email (optional), role, createdBy, createdAt, expiresAt, status (pending/used/revoked), usedBy, usedAt
   - TTL: expiresAt (auto-delete after 30 days)
-- [ ] Create Lambda function: `admin-create-invitation`
-  - [ ] Generate unique invite code (8-character alphanumeric)
-  - [ ] Store in DynamoDB `invitations` table
-  - [ ] Set expiry (7 days default)
-  - [ ] Optional: pre-assign email (for targeted invites)
-  - [ ] Send invitation email with registration link (includes invite code)
-  - [ ] Link format: https://wiki.example.com/register?invite={code}
-- [ ] Create Lambda function: `admin-list-invitations`
-  - [ ] Query all invitations from DynamoDB
-  - [ ] Return pending, used, expired, and revoked invitations
-  - [ ] Include usage status and expiry
-- [ ] Create Lambda function: `admin-revoke-invitation`
-  - [ ] Mark invitation as revoked in DynamoDB
-  - [ ] Prevent future use in registration flow
-- [ ] Update `auth-register` Lambda to validate invitation
-  - [ ] Check invite code exists and is valid (not used/revoked/expired)
-  - [ ] Verify email matches (if pre-assigned)
-  - [ ] Mark invitation as used after Cognito user creation
+- [X] Create Lambda function: `admin-create-invitation`
+  - [X] Generate unique invite code (8-character alphanumeric)
+  - [X] Store in DynamoDB `invitations` table
+  - [X] Set expiry (7 days default)
+  - [X] Optional: pre-assign email (for targeted invites)
+  - [X] Send invitation email with registration link (includes invite code)
+  - [X] Link format: https://wiki.example.com/register?invite={code}
+- [X] Create Lambda function: `admin-list-invitations`
+  - [X] Query all invitations from DynamoDB
+  - [X] Return pending, used, expired, and revoked invitations
+  - [X] Include usage status and expiry
+- [X] Create Lambda function: `admin-revoke-invitation`
+  - [X] Mark invitation as revoked in DynamoDB
+  - [X] Prevent future use in registration flow
+- [X] Update `auth-register` Lambda to validate invitation
+  - [X] Check invite code exists and is valid (not used/revoked/expired)
+  - [X] Verify email matches (if pre-assigned)
+  - [X] Mark invitation as used after Cognito user creation
 
 #### 2.4 Frontend Authentication UI (Cognito Integration)
 - [ ] Install AWS Amplify or amazon-cognito-identity-js SDK
