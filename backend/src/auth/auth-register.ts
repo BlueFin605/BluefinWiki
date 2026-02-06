@@ -163,15 +163,25 @@ async function validateInvitationCode(inviteCode: string, email: string): Promis
 
   const invitation = result.Item as InvitationRecord;
 
-  // Check if invitation is still valid
-  if (invitation.status !== 'pending') {
-    throw new Error(`Invitation code has been ${invitation.status}`);
+  // Check if invitation has been revoked
+  if (invitation.status === 'revoked') {
+    throw new Error('Invitation code has been revoked');
   }
 
-  // Check expiration
-  const now = new Date();
-  const expiresAt = new Date(invitation.expiresAt);
-  if (now > expiresAt) {
+  // Check if invitation has already been used
+  if (invitation.status === 'used') {
+    throw new Error('Invitation code has already been used');
+  }
+
+  // Check if invitation is still valid
+  if (invitation.status !== 'pending') {
+    throw new Error(`Invitation code is not valid (status: ${invitation.status})`);
+  }
+
+  // Check expiration (expiresAt is Unix timestamp in seconds)
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAtTimestamp = parseInt(invitation.expiresAt, 10);
+  if (now > expiresAtTimestamp) {
     throw new Error('Invitation code has expired');
   }
 
