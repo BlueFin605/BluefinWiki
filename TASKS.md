@@ -124,31 +124,31 @@
 **Goal**: Implement secure invite-only authentication
 
 #### 2.1 Backend Authentication Services (Cognito Integration)
-- [ ] Create Lambda function: `auth-register`
-  - [ ] Validate invitation code against `invitations` table
-  - [ ] Call Cognito AdminCreateUser API to create user
-  - [ ] Set initial password (temporary, user must change on first login)
-  - [ ] Set user attributes: email, name, custom:role
-  - [ ] Create user profile in DynamoDB `user_profiles` table
-  - [ ] Mark invitation code as used
-  - [ ] Send welcome email via Cognito or SES
-- [ ] Create Lambda function: `auth-post-confirmation` (Cognito trigger)
-  - [ ] Triggered after user confirms email or changes initial password
-  - [ ] Update user profile in DynamoDB (status: active)
-  - [ ] Log first login timestamp
-- [ ] Create Lambda function: `auth-pre-token-generation` (Cognito trigger)
-  - [ ] Add custom claims to JWT token (role, preferences)
-  - [ ] Load user profile from DynamoDB
-  - [ ] Inject custom:role into access token claims
-- [ ] Implement JWT validation middleware for API Gateway
-  - [ ] Configure Cognito User Pool as authorizer
-  - [ ] Verify JWT signature using Cognito public keys (JWKS)
-  - [ ] Extract user claims from token (sub, email, custom:role)
-  - [ ] Attach user context to Lambda event
-- [ ] Configure Aspire for local Cognito development
-  - [ ] Use cognito-local Docker container or mock service
-  - [ ] Set up local user pool with test users
-  - [ ] Configure local OAuth endpoints
+- [X] Create Lambda function: `auth-register`
+  - [X] Validate invitation code against `invitations` table
+  - [X] Call Cognito AdminCreateUser API to create user
+  - [X] Set initial password (temporary, user must change on first login)
+  - [X] Set user attributes: email, name, custom:role
+  - [X] Create user profile in DynamoDB `user_profiles` table
+  - [X] Mark invitation code as used
+  - [X] Send welcome email via Cognito or SES
+- [X] Create Lambda function: `auth-post-confirmation` (Cognito trigger)
+  - [X] Triggered after user confirms email or changes initial password
+  - [X] Update user profile in DynamoDB (status: active)
+  - [X] Log first login timestamp
+- [X] Create Lambda function: `auth-pre-token-generation` (Cognito trigger)
+  - [X] Add custom claims to JWT token (role, preferences)
+  - [X] Load user profile from DynamoDB
+  - [X] Inject custom:role into access token claims
+- [X] Implement JWT validation middleware for API Gateway
+  - [X] Configure Cognito User Pool as authorizer
+  - [X] Verify JWT signature using Cognito public keys (JWKS)
+  - [X] Extract user claims from token (sub, email, custom:role)
+  - [X] Attach user context to Lambda event
+- [X] Configure Aspire for local Cognito development
+  - [X] Use cognito-local Docker container or mock service
+  - [X] Set up local user pool with test users
+  - [X] Configure local OAuth endpoints
 
 #### 2.2 Password Reset Flow (Cognito Managed)
 - [ ] Configure Cognito email settings
