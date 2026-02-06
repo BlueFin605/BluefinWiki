@@ -26,6 +26,18 @@ namespace Infrastructure
             // Create stacks for the specified environment
             var stackPrefix = $"BlueFinWiki-{envConfig.Name}";
             
+            // Auth Stack (Cognito User Pool and Identity Pool)
+            var authStack = new AuthStack(app, $"{stackPrefix}-Auth", new StackProps
+            {
+                Env = env,
+                Description = $"BlueFinWiki Authentication resources for {envConfig.Name} environment",
+                Tags = new Dictionary<string, string>
+                {
+                    { "Project", "BlueFinWiki" },
+                    { "Environment", envConfig.Name }
+                }
+            }, envConfig);
+            
             // Storage Stack (S3 buckets)
             var storageStack = new StorageStack(app, $"{stackPrefix}-Storage", new StackProps
             {
@@ -60,7 +72,7 @@ namespace Infrastructure
                     { "Project", "BlueFinWiki" },
                     { "Environment", envConfig.Name }
                 }
-            }, envConfig, storageStack, databaseStack);
+            }, envConfig, storageStack, databaseStack, authStack);
             
             // CDN Stack (CloudFront distribution) - includes FrontendBucket to avoid circular dependency
             var cdnStack = new CdnStack(app, $"{stackPrefix}-CDN", new StackProps

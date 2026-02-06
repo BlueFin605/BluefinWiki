@@ -18,7 +18,7 @@ namespace Infrastructure.Stacks
         public ISecret JwtSecret { get; private set; }
         
         internal ComputeStack(Construct scope, string id, IStackProps props, EnvironmentConfig config, 
-            StorageStack storageStack, DatabaseStack databaseStack) 
+            StorageStack storageStack, DatabaseStack databaseStack, AuthStack authStack) 
             : base(scope, id, props)
         {
             // Create JWT secret in Secrets Manager
@@ -75,7 +75,7 @@ namespace Infrastructure.Stacks
             storageStack.ExportsBucket.GrantReadWrite(lambdaRole);
             
             // Grant Lambda access to DynamoDB tables
-            databaseStack.UsersTable.GrantReadWriteData(lambdaRole);
+            databaseStack.UserProfilesTable.GrantReadWriteData(lambdaRole);
             databaseStack.InvitationsTable.GrantReadWriteData(lambdaRole);
             databaseStack.PageLinksTable.GrantReadWriteData(lambdaRole);
             databaseStack.AttachmentsTable.GrantReadWriteData(lambdaRole);
@@ -93,7 +93,7 @@ namespace Infrastructure.Stacks
                 { "PAGES_BUCKET", storageStack.PagesBucket.BucketName },
                 { "ATTACHMENTS_BUCKET", storageStack.AttachmentsBucket.BucketName },
                 { "EXPORTS_BUCKET", storageStack.ExportsBucket.BucketName },
-                { "USERS_TABLE", databaseStack.UsersTable.TableName },
+                { "USER_PROFILES_TABLE", databaseStack.UserProfilesTable.TableName },
                 { "INVITATIONS_TABLE", databaseStack.InvitationsTable.TableName },
                 { "PAGE_LINKS_TABLE", databaseStack.PageLinksTable.TableName },
                 { "ATTACHMENTS_TABLE", databaseStack.AttachmentsTable.TableName },
