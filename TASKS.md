@@ -242,14 +242,15 @@
 - [ ] Define storage plugin TypeScript interface (for backend Lambda functions):
   ```typescript
   interface StoragePlugin {
-    savePage(guid: string, content: PageContent): Promise<void>;
+    savePage(guid: string, parentGuid: string | null, content: PageContent): Promise<void>;
     loadPage(guid: string): Promise<PageContent>;
-    deletePage(guid: string): Promise<void>;
+    deletePage(guid: string, recursive?: boolean): Promise<void>;
     listVersions(guid: string): Promise<Version[]>;
-    saveFolder(guid: string, data: FolderData): Promise<void>;
-    loadFolder(guid: string): Promise<FolderData>;
+    listChildren(parentGuid: string | null): Promise<PageSummary[]>;
+    movePage(guid: string, newParentGuid: string | null): Promise<void>;
   }
   ```
+  Note: Pages ARE folders. A page is a .md file, and if it has children, they are stored in a directory named `{page-guid}/`
 - [ ] Create abstract base class for storage plugins
 - [ ] Document plugin interface and extension points
 - [ ] Create plugin registry/loader mechanism
@@ -261,53 +262,71 @@
   - [ ] Implement error handling wrapper
 - [ ] Implement `savePage` method
   - [ ] Generate GUID if not provided (uuid v4)
-  - [ ] Serialize page content and metadata to JSON
-  - [ ] PageContent includes: guid, title, content, tags, status, createdBy, modifiedBy, timestamps
-  - [ ] Upload to S3: `pages/{guid}.json`
+  - [ ] Determine S3 path based on parent: root pages at `{guid}.md`, children at `{parent-guid}/{guid}.md`
+  - [ ] Build markdown file with YAML frontmatter containing metadata (title, tags, status, createdBy, modifiedBy, timestamps, parentGuid)
+  - [ ] PageContent body is markdown content
+  - [ ] Upload to S3 at calculated path
   - [ ] Enable versioning on S3 bucket
 - [ ] Implement `loadPage` method
-  - [ ] Fetch object from S3 by GUID
-  - [ ] Deserialize JSON content
+  - [ ] Build S3 path from GUID (need to search if parent unknown, or track in index)
+  - [ ] Fetch markdown file from S3
+  - [ ] Parse YAML frontmatter for metadata
+  - [ ] Extract markdown content body
   - [ ] Handle 404 errors gracefully
   - [ ] Return page content with metadata
 - [ ] Implement `deletePage` method
-  - [ ] Soft delete: add `deleted=true` flag in page data
-  - [ ] Or hard delete: remove S3 object
-  - [ ] Update page data via save
+  - [ ] If recursive=true: delete page and all children (recursively delete S3 directory)
+  - [ ] If recursive=false: only delete if page has no children
+  - [ ] Remove S3 object(s)
+  - [ ] Or soft delete: add `deleted=true` to frontmatter
 - [ ] Implement `listVersions` method
-  - [ ] Query S3 object versions API
+  - [ ] Query S3 object versions API for the page's .md file
   - [ ] Return sorted list (newest first)
   - [ ] Include version metadata
-- [ ] Implement `saveFolder` method
-  - [ ] Serialize folder data to JSON
-  - [ ] Upload to S3: `folders/{guid}.json`
-  - [ ] Update folder index/cache
-- [ ] Implement `loadFolder` method
-  - [ ] Fetch folder object from S3 by GUID
-  - [ ] Deserialize JSON
-  - [ ] Return folder data
+- [ ] Implement `listChildren` method
+  - [ ] If parentGuid is null: list root-level .md files (exclude directories)
+  - [ ] If parentGuid provided: list .md files within `{parent-guid}/` directory
+  - [ ] Parse frontmatter of each child to get display name and metadata
+  - [ ] Return array of PageSummary objects
+- [ ] Implement `movePage` method
+  - [ ] Move page file from old path to new path
+  - [ ] If page has children (directory exists), move entire directory
+  - [ ] Update parentGuid in page frontmatter
+  - [ ] Handle S3 copy and delete operations
 
 #### 3.3 Lambda API Endpoints
 - [ ] Create API Gateway REST API resource: `/pages`
 - [ ] Implement Lambda: `pages-create` (POST /pages)
-  - [ ] Validate request body (title, content, folderId)
-  - [ ] Build PageContent object with metadata (title, tags, status, author, timestamps)
-  - [ ] Call storage plugin `savePage`
+  - [ ] Validate request body (title, content, parentGuid - optional)
+  - [ ] Build PageContent object with metadata (title, tags, status, author, timestamps, parentGuid)
+  - [ ] Call storage plugin `savePage(guid, parentGuid, content)`
   - [ ] Return page GUID and creation timestamp
 - [ ] Implement Lambda: `pages-get` (GET /pages/{guid})
   - [ ] Extract GUID from path parameters
   - [ ] Call storage plugin `loadPage`
-  - [ ] Return complete page data with metadata
+  - [ ] Return complete page data with metadata (including parentGuid for breadcrumbs)
 - [ ] Implement Lambda: `pages-update` (PUT /pages/{guid})
   - [ ] Validate request body
   - [ ] Load existing page from storage
   - [ ] Update content and metadata (modifiedBy, modifiedAt)
+  - [ ] Preserve parentGuid unless explicitly moving page
   - [ ] Call storage plugin `savePage` (creates new version)
   - [ ] Return success response
 - [ ] Implement Lambda: `pages-delete` (DELETE /pages/{guid})
   - [ ] Verify user permissions
-  - [ ] Call storage plugin `deletePage`
-  - [ ] Return confirmation
+  - [ ] Query parameter: `recursive=true|false` (default: false)
+  - [ ] Call storage plugin `deletePage(guid, recursive)`
+  - [ ] Return confirmation with count of deleted items
+- [ ] Implement Lambda: `pages-list-children` (GET /pages/{guid}/children)
+  - [ ] Extract parent GUID from path (or null for root pages)
+  - [ ] Call storage plugin `listChildren(parentGuid)`
+  - [ ] Return array of child page summaries
+- [ ] Implement Lambda: `pages-move` (PUT /pages/{guid}/move)
+  - [ ] Request body: `{ newParentGuid: string | null }`
+  - [ ] Validate target parent exists (if not null)
+  - [ ] Prevent circular references (page cannot be moved under its own descendant)
+  - [ ] Call storage plugin `movePage(guid, newParentGuid)`
+  - [ ] Return success response
 
 #### 3.4 Testing & Documentation
 - [ ] Write unit tests for storage plugin interface
@@ -318,8 +337,13 @@
   - [ ] Use LocalStack (via Aspire) or S3 test bucket
   - [ ] Test end-to-end page lifecycle
   - [ ] Verify versioning behavior
+  - [ ] Test page hierarchy (parent-child relationships)
+  - [ ] Test page movement between parents
   - [ ] Use Aspire Dashboard to monitor test execution and trace issues
 - [ ] Document S3 bucket structure and naming conventions
+  - [ ] Explain page-as-folder architecture: `{guid}.md` for root, `{parent-guid}/{child-guid}.md` for children
+  - [ ] Document frontmatter metadata format
+  - [ ] Explain how hierarchy is derived from S3 path structure
 - [ ] Create plugin developer guide for future extensions
 - [ ] Document Aspire local development workflow for testing
 
@@ -327,74 +351,101 @@
 
 ## Phase 2: Core Features (Weeks 4-7)
 
-### Week 4: Folder Management (Spec #3)
+### Week 4: Page Hierarchy & Navigation (Spec #3)
 
-**Goal**: Implement hierarchical folder organization
+**Goal**: Implement hierarchical page organization (pages ARE folders)
 
-#### 4.1 Folder Data Model
-- [ ] Define folder data structure in storage plugin
-  - [ ] FolderData: guid, name, parentGuid, description, color, createdBy, createdAt, updatedAt
-  - [ ] Store as JSON in S3: `folders/{guid}.json`
-  - [ ] Store parent-child relationships within folder data
-- [ ] Implement folder hierarchy traversal in storage plugin
-  - [ ] Cache folder tree in memory for performance
-  - [ ] Build index of all folders on startup
-- [ ] Create root folder during wiki initialization
+**Architecture Note**: There is no separate "folder" entity. A page IS a folder if it has children. The S3 structure is:
+- Root page: `{guid}.md`
+- Child page: `{parent-guid}/{child-guid}.md`
+- Grandchild: `{parent-guid}/{child-guid}/{grandchild-guid}.md`
 
-#### 4.2 Folder API Endpoints
-- [ ] Implement Lambda: `folders-create` (POST /folders)
-  - [ ] Generate folder GUID
-  - [ ] Validate parent folder exists via storage plugin
-  - [ ] Prevent duplicate names in same parent
-  - [ ] Call storage plugin `saveFolder` method
-- [ ] Implement Lambda: `folders-get` (GET /folders/{guid})
-  - [ ] Call storage plugin `loadFolder` method
-  - [ ] Fetch immediate children (subfolders + pages) from storage
-  - [ ] Return folder tree node
-- [ ] Implement Lambda: `folders-update` (PUT /folders/{guid})
-  - [ ] Load folder via storage plugin
-  - [ ] Allow rename and description update
-  - [ ] Prevent name conflicts
-  - [ ] Update modification timestamp
-  - [ ] Save via storage plugin `saveFolder` method
-- [ ] Implement Lambda: `folders-delete` (DELETE /folders/{guid})
-  - [ ] Check if folder is empty via storage plugin
-  - [ ] Implement recursive delete (with confirmation flag)
-  - [ ] Move pages to archive folder (soft delete option)
-  - [ ] Delete via storage plugin
-  - [ ] Return count of affected items
-- [ ] Implement Lambda: `folders-move` (PUT /folders/{guid}/move)
-  - [ ] Load folder via storage plugin
-  - [ ] Validate target parent folder exists
-  - [ ] Prevent circular references
-  - [ ] Update parentGuid in folder data
-  - [ ] Save via storage plugin `saveFolder` method
+Display names are stored in YAML frontmatter within each `.md` file. This enables renaming without breaking references.
 
-#### 4.3 Frontend Folder Components
-- [ ] Build recursive folder tree component
-  - [ ] Display folders with expand/collapse icons
-  - [ ] Show page count per folder
-  - [ ] Highlight active folder/page
+#### 4.1 Page Hierarchy Support
+- [ ] Update page data model in storage plugin
+  - [ ] Add `parentGuid` field to page frontmatter (null for root pages)
+  - [ ] Add `hasChildren` computed field (true if S3 directory exists)
+  - [ ] Metadata in frontmatter: title, parentGuid, tags, status, createdBy, modifiedBy, timestamps, description
+- [ ] Implement hierarchy traversal utilities
+  - [ ] Build page tree from S3 structure (recursive listing)
+  - [ ] Cache page index in memory for performance (map: guid → S3 path)
+  - [ ] Function to get ancestors of a page (for breadcrumbs)
+  - [ ] Function to check if page is descendant of another (circular reference check)
+- [ ] Handle root-level pages
+  - [ ] Root pages have parentGuid = null
+  - [ ] Stored directly in bucket root: `{guid}.md`
+
+#### 4.2 Page Hierarchy API Endpoints (No separate /folders endpoints needed)
+- [ ] Enhance existing `pages-create` Lambda
+  - [ ] Accept optional `parentGuid` in request body
+  - [ ] Validate parent page exists if parentGuid provided
+  - [ ] Prevent duplicate titles under same parent (optional business rule)
+  - [ ] Store page at correct S3 path based on parent
+- [ ] Implement `pages-list-children` Lambda (already in 3.3)
+  - [ ] List all pages under a given parent (or root if null)
+  - [ ] Return page summaries: guid, title, hasChildren, createdAt, modifiedAt
+  - [ ] Sort by title (alphabetically)
+- [ ] Implement `pages-move` Lambda (already in 3.3)
+  - [ ] Move page (and its children) to new parent
+  - [ ] Update parentGuid in page frontmatter
+  - [ ] Move S3 objects from old path to new path
+  - [ ] Validate circular reference prevention
+- [ ] Enhance `pages-delete` Lambda
+  - [ ] Support `recursive=true` query parameter
+  - [ ] If recursive=false and page has children, return error "Page has children"
+  - [ ] If recursive=true, delete page and all descendants
+  - [ ] Return count of deleted pages
+- [ ] Enhance `pages-update` Lambda
+  - [ ] Allow updating title (display name in frontmatter) without changing GUID
+  - [ ] Allow updating description and other metadata
+  - [ ] Moving page is separate operation (use `pages-move`)
+
+#### 4.3 Frontend Page Tree Components
+- [ ] Build recursive page tree component
+  - [ ] Display pages in hierarchical tree structure
+  - [ ] Show expand/collapse icons for pages with children
+  - [ ] Use page icon for leaf pages, folder icon for pages with children
+  - [ ] Highlight active page
   - [ ] Support keyboard navigation (arrows, enter)
-- [ ] Implement folder context menu
-  - [ ] Right-click menu: Rename, Delete, Move, New Page
+- [ ] Implement page context menu
+  - [ ] Right-click menu: Rename, Delete, Move, New Child Page
+  - [ ] "New Child Page" creates page with current page as parent
   - [ ] Keyboard shortcut support
   - [ ] Confirmation dialog for destructive actions
 - [ ] Build drag-and-drop functionality
-  - [ ] Drag pages between folders
-  - [ ] Drag folders to reorder or reparent
-  - [ ] Visual drop indicators
+  - [ ] Drag pages to reparent (move under different parent)
+  - [ ] Visual drop indicators (show valid drop targets)
+  - [ ] Prevent dropping page under its own descendants
   - [ ] Optimistic UI updates
-- [ ] Create "New Folder" modal
-  - [ ] Name input with validation
-  - [ ] Parent folder selection dropdown
+- [ ] Create "New Page" modal
+  - [ ] Title input with validation
+  - [ ] Parent page selection (tree dropdown)
   - [ ] Optional description field
+  - [ ] "Create as root page" checkbox (sets parentGuid = null)
+- [ ] Implement "Rename Page" inline editing
+  - [ ] Click page title to edit
+  - [ ] Save updates title in frontmatter, not GUID
+  - [ ] Update happens via `pages-update` API
 
-#### 4.4 Folder Operations Testing
-- [ ] Unit tests for folder hierarchy logic
-- [ ] Integration tests for folder CRUD operations
-- [ ] Test circular reference prevention
-- [ ] Test concurrent folder moves (race conditions)
+#### 4.4 Page Hierarchy Testing
+- [ ] Unit tests for hierarchy traversal logic
+  - [ ] Test ancestor path calculation
+  - [ ] Test circular reference detection
+  - [ ] Test tree building from flat list
+- [ ] Integration tests for page operations
+  - [ ] Create child pages at various depths
+  - [ ] Move pages between parents
+  - [ ] Delete pages with children (recursive)
+  - [ ] Rename pages and verify children remain linked
+- [ ] Test S3 storage structure
+  - [ ] Verify correct paths for nested pages
+  - [ ] Test moving page with children (directory rename in S3)
+  - [ ] Verify frontmatter parsing and metadata extraction
+- [ ] Test edge cases
+  - [ ] Prevent circular references
+  - [ ] Handle concurrent moves (race conditions)
+  - [ ] Deep nesting (10+ levels)
 
 ---
 
@@ -501,7 +552,7 @@
   - [ ] Trigger on `[[` input in editor
   - [ ] Show dropdown with matching pages
   - [ ] Fuzzy search by title
-  - [ ] Display folder path for context
+  - [ ] Display page hierarchy path for context (e.g., "Parent > Child")
   - [ ] Insert full wiki link on selection
 - [ ] Optimize suggestion queries
   - [ ] Debounce input (200ms)
@@ -654,7 +705,7 @@
 
 #### 8.3 Search API
 - [ ] Implement Lambda: `search-query` (GET /search)
-  - [ ] Query parameters: `q` (query), `folder` (GUID), `tags`, `author`, `dateFrom`, `dateTo`
+  - [ ] Query parameters: `q` (query), `parent` (GUID - search within page and descendants), `tags`, `author`, `dateFrom`, `dateTo`
   - [ ] Build CloudSearch query syntax
   - [ ] Apply permissions filter (exclude drafts for non-authors)
   - [ ] Execute search request
@@ -664,7 +715,7 @@
   - [ ] Phrase search: `"exact phrase"`
   - [ ] Exclusion: `-word`
   - [ ] Field search: `title:keyword`
-  - [ ] Folder-scoped search (filter by folder hierarchy)
+  - [ ] Parent-scoped search (filter by page hierarchy - search within page and all descendants)
 - [ ] Add pagination support
   - [ ] Default: 10 results per page
   - [ ] Max: 50 results per page
@@ -678,10 +729,10 @@
 - [ ] Build search results page
   - [ ] Display results with title + snippet
   - [ ] Highlight matching keywords
-  - [ ] Show page metadata (folder, author, date)
+  - [ ] Show page metadata (parent page path, author, date)
   - [ ] Click to open page
 - [ ] Implement search filters
-  - [ ] Folder selector (tree dropdown)
+  - [ ] Parent page selector (tree dropdown - search within page and descendants)
   - [ ] Tag multi-select
   - [ ] Author dropdown
   - [ ] Date range picker
@@ -901,14 +952,14 @@
 
 #### 11.1 Breadcrumb Navigation
 - [ ] Build breadcrumb component
-  - [ ] Display: Home > Folder > Subfolder > Page
-  - [ ] Each segment is clickable link
-  - [ ] Truncate long folder names (ellipsis + tooltip)
+  - [ ] Display: Home > Parent Page > Child Page > Current Page
+  - [ ] Each segment is clickable link (navigates to that page)
+  - [ ] Truncate long page names (ellipsis + tooltip)
   - [ ] Collapse middle segments on mobile (Home > ... > Current)
 - [ ] Implement breadcrumb data fetching
-  - [ ] Traverse folder hierarchy from current page
+  - [ ] Traverse page hierarchy from current page using parentGuid
   - [ ] Build path array: [root, parent, ..., current]
-  - [ ] Cache folder hierarchy (React Query)
+  - [ ] Cache page hierarchy (React Query)
 - [ ] Integrate breadcrumbs into page layout
   - [ ] Position: top of content area, below header
   - [ ] Sticky on scroll (optional)
@@ -936,15 +987,15 @@
 
 #### 11.3 Sitemap View
 - [ ] Implement Lambda: `sitemap-get` (GET /sitemap)
-  - [ ] Fetch all folders and pages
-  - [ ] Build tree structure (recursive)
-  - [ ] Respect permissions (exclude drafts)
+  - [ ] Fetch all pages via storage plugin
+  - [ ] Build tree structure from parentGuid relationships (recursive)
+  - [ ] Respect permissions (exclude drafts not owned by user)
   - [ ] Return hierarchical JSON
 - [ ] Build sitemap tree component
-  - [ ] Recursive tree rendering
+  - [ ] Recursive tree rendering (pages can have child pages)
   - [ ] Expandable/collapsible nodes
   - [ ] Click to navigate to page
-  - [ ] Visual indicators (folder icons, page icons)
+  - [ ] Visual indicators: folder icon for pages with children, page icon for leaf pages
 - [ ] Add sitemap search
   - [ ] Filter tree by keyword
   - [ ] Expand matching nodes
@@ -987,7 +1038,7 @@
   - [ ] Draft visibility: author + admins only
 - [ ] Filter search results by permissions
   - [ ] Exclude drafts authored by others
-  - [ ] Hide pages in restricted folders (future feature)
+  - [ ] Future: Hide pages in restricted hierarchies (page-level permissions)
 - [ ] Update UI based on role
   - [ ] Show/hide admin menu items
   - [ ] Display "Admin" badge for admin users
@@ -1006,7 +1057,7 @@
   - [ ] Hamburger menu icon
   - [ ] Collapsible navigation drawer
   - [ ] Search icon (opens search overlay)
-- [ ] Adapt folder tree for mobile
+- [ ] Adapt page tree for mobile
   - [ ] Collapsible drawer (swipe from left)
   - [ ] Overlay when open (dim background)
   - [ ] Close on navigation
@@ -1119,10 +1170,10 @@
   - [ ] Timeout: 30 seconds (Lambda limit)
 
 #### 14.2 HTML Export
-- [ ] Implement Lambda: `export-html` (GET /folders/{guid}/export/html)
-  - [ ] Fetch all pages in folder (recursive)
+- [ ] Implement Lambda: `export-html` (GET /pages/{guid}/export/html)
+  - [ ] Fetch page and all descendant pages recursively via storage plugin
   - [ ] Render each page as static HTML
-  - [ ] Generate navigation links (TOC)
+  - [ ] Generate navigation links (TOC based on page hierarchy)
   - [ ] Bundle CSS and assets
   - [ ] Create ZIP archive
   - [ ] Upload to S3 exports bucket
@@ -1137,13 +1188,13 @@
 
 #### 14.3 Export UI
 - [ ] Add "Export" button to page actions
-  - [ ] Dropdown: "Export as PDF", "Export as HTML"
+  - [ ] Dropdown: "Export as PDF", "Export as HTML (with children)"
   - [ ] Show progress indicator during export
   - [ ] Download automatically on completion
-- [ ] Add folder export option
-  - [ ] Right-click folder: "Export as HTML"
+- [ ] For HTML export with children
   - [ ] Show export progress (X of Y pages)
   - [ ] Notify on completion
+  - [ ] Option to export single page or include all descendants
 
 ---
 
@@ -1268,7 +1319,8 @@
   - [ ] Link to category page (list of pages)
 - [ ] Add filtering by metadata
   - [ ] Search page: filter by tags, category, status
-  - [ ] Folder view: filter pages by metadata
+  - [ ] Page tree view: filter pages by metadata
+  - [ ] Hierarchy view: show/hide based on metadata filters
 
 #### 14.4 Custom Metadata Fields (P3 - Optional)
 - [ ] Define custom field types
