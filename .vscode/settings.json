@@ -19,7 +19,8 @@
         },
         "Test-Path": true,
         "dotnet build": true,
-        "wsl": true
+        "wsl": true,
+        "npx tsx": true
     }
 }
 
