@@ -295,7 +295,7 @@
   - [X] Handle S3 copy and delete operations
 
 #### 3.3 Lambda API Endpoints
-- [ ] Create API Gateway REST API resource: `/pages`
+- [X] Create API Gateway REST API resource: `/pages`
 - [X] Implement Lambda: `pages-create` (POST /pages)
   - [X] Validate request body (title, content, parentGuid - optional)
   - [X] Build PageContent object with metadata (title, tags, status, author, timestamps, parentGuid)

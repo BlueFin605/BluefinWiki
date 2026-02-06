@@ -105,12 +105,11 @@ namespace Infrastructure.Stacks
                 { "ENVIRONMENT", config.Name }
             };
             
-            // Lambda function configuration (placeholder - actual functions will be added during implementation)
+            // Lambda function base configuration
             var lambdaProps = new FunctionProps
             {
                 Runtime = Runtime.NODEJS_20_X,
-                Handler = "index.handler",
-                Code = Code.FromInline("exports.handler = async () => ({ statusCode: 200, body: 'Placeholder' });"),
+                Code = Code.FromAsset("../backend/dist"), // Build output directory
                 Role = lambdaRole,
                 Environment = commonEnvVars,
                 Timeout = Duration.Seconds(30),
@@ -119,12 +118,156 @@ namespace Infrastructure.Stacks
                 LogRetention = (RetentionDays)config.LogRetentionDays
             };
             
-            // Placeholder Lambda function (will be replaced with actual implementations)
-            var placeholderFunction = new Function(this, "PlaceholderFunction", lambdaProps);
+            // =============================================================================
+            // Pages Lambda Functions (Task 3.3)
+            // =============================================================================
             
-            // API Gateway integration (placeholder)
-            var integration = new LambdaIntegration(placeholderFunction);
-            Api.Root.AddMethod("GET", integration);
+            var pagesCreateFunction = new Function(this, "PagesCreateFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-create.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Create new page"
+            });
+            
+            var pagesGetFunction = new Function(this, "PagesGetFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-get.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Get page by GUID"
+            });
+            
+            var pagesUpdateFunction = new Function(this, "PagesUpdateFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-update.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Update page content and metadata"
+            });
+            
+            var pagesDeleteFunction = new Function(this, "PagesDeleteFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-delete.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Delete page (with optional recursive deletion)"
+            });
+            
+            var pagesListChildrenFunction = new Function(this, "PagesListChildrenFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-list-children.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List child pages of a parent"
+            });
+            
+            var pagesMoveFunction = new Function(this, "PagesMoveFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-move.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Move page to new parent location"
+            });
+            
+            // =============================================================================
+            // API Gateway Routes - /pages
+            // =============================================================================
+            
+            // Create /pages resource
+            var pagesResource = Api.Root.AddResource("pages");
+            
+            // POST /pages - Create new page
+            pagesResource.AddMethod("POST", new LambdaIntegration(pagesCreateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = new CognitoUserPoolsAuthorizer(this, "PagesCreateAuthorizer", new CognitoUserPoolsAuthorizerProps
+                {
+                    CognitoUserPools = new[] { authStack.UserPool }
+                })
+            });
+            
+            // /pages/{guid} resource
+            var pageGuidResource = pagesResource.AddResource("{guid}");
+            
+            // Cognito authorizer for authenticated endpoints
+            var cognitoAuthorizer = new CognitoUserPoolsAuthorizer(this, "PagesAuthorizer", new CognitoUserPoolsAuthorizerProps
+            {
+                CognitoUserPools = new[] { authStack.UserPool }
+            });
+            
+            // GET /pages/{guid} - Get page by GUID
+            pageGuidResource.AddMethod("GET", new LambdaIntegration(pagesGetFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+            
+            // PUT /pages/{guid} - Update page
+            pageGuidResource.AddMethod("PUT", new LambdaIntegration(pagesUpdateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+            
+            // DELETE /pages/{guid} - Delete page
+            pageGuidResource.AddMethod("DELETE", new LambdaIntegration(pagesDeleteFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+            
+            // GET /pages/{guid}/children - List child pages
+            var childrenResource = pageGuidResource.AddResource("children");
+            childrenResource.AddMethod("GET", new LambdaIntegration(pagesListChildrenFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+            
+            // PUT /pages/{guid}/move - Move page to new parent
+            var moveResource = pageGuidResource.AddResource("move");
+            moveResource.AddMethod("PUT", new LambdaIntegration(pagesMoveFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
             
             // Stack outputs
             new CfnOutput(this, "ApiUrl", new CfnOutputProps
