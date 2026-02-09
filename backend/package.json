@@ -7,8 +7,10 @@
     "build": "tsc",
     "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:watch": "vitest --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run **/*.integration.test.ts",
+    "test:all": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.984.0",
@@ -31,6 +33,7 @@
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^7.0.1",
     "@typescript-eslint/parser": "^7.0.1",
+    "aws-sdk-client-mock": "^4.0.0",
     "eslint": "^8.56.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.2"
