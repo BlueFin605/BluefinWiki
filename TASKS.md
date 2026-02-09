@@ -329,23 +329,23 @@
   - [X] Return success response
 
 #### 3.4 Testing & Documentation
-- [ ] Write unit tests for storage plugin interface
-  - [ ] Mock S3 client
-  - [ ] Test CRUD operations
-  - [ ] Test error scenarios (network, permissions)
-- [ ] Write integration tests
-  - [ ] Use LocalStack (via Aspire) or S3 test bucket
-  - [ ] Test end-to-end page lifecycle
-  - [ ] Verify versioning behavior
-  - [ ] Test page hierarchy (parent-child relationships)
-  - [ ] Test page movement between parents
-  - [ ] Use Aspire Dashboard to monitor test execution and trace issues
-- [ ] Document S3 bucket structure and naming conventions
-  - [ ] Explain page-as-folder architecture: `{guid}.md` for root, `{parent-guid}/{child-guid}.md` for children
-  - [ ] Document frontmatter metadata format
-  - [ ] Explain how hierarchy is derived from S3 path structure
-- [ ] Create plugin developer guide for future extensions
-- [ ] Document Aspire local development workflow for testing
+- [X] Write unit tests for storage plugin interface
+  - [X] Mock S3 client
+  - [X] Test CRUD operations
+  - [X] Test error scenarios (network, permissions)
+- [X] Write integration tests
+  - [X] Use LocalStack (via Aspire) or S3 test bucket
+  - [X] Test end-to-end page lifecycle
+  - [X] Verify versioning behavior
+  - [X] Test page hierarchy (parent-child relationships)
+  - [X] Test page movement between parents
+  - [X] Use Aspire Dashboard to monitor test execution and trace issues
+- [X] Document S3 bucket structure and naming conventions
+  - [X] Explain page-as-folder architecture: `{guid}.md` for root, `{parent-guid}/{child-guid}.md` for children
+  - [X] Document frontmatter metadata format
+  - [X] Explain how hierarchy is derived from S3 path structure
+- [X] Create plugin developer guide for future extensions
+- [X] Document Aspire local development workflow for testing
 
 ---
 
