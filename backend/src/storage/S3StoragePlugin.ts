@@ -104,11 +104,29 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     const yamlContent = match[1];
     const body = match[2];
 
-    // Simple YAML parser (supports basic key: value format)
+    // Simple YAML parser (supports basic key: value format and arrays)
     const metadata: any = {};
     const lines = yamlContent.split('\n');
+    let currentKey: string | null = null;
+    let currentArray: string[] = [];
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Check if this is an array item (starts with -)
+      if (line.trim().startsWith('-') && currentKey) {
+        const item = line.trim().substring(1).trim();
+        currentArray.push(item);
+        continue;
+      }
+      
+      // If we were building an array, save it now
+      if (currentKey && currentArray.length > 0) {
+        metadata[currentKey] = currentArray;
+        currentKey = null;
+        currentArray = [];
+      }
+
       const colonIndex = line.indexOf(':');
       if (colonIndex === -1) continue;
 
@@ -121,16 +139,25 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         value = value.substring(1, value.length - 1);
       }
 
-      // Parse arrays (simple format: ["item1", "item2"])
+      // Parse arrays (inline format: ["item1", "item2"] or empty value for multi-line)
       if (value.startsWith('[') && value.endsWith(']')) {
         const arrayContent = value.substring(1, value.length - 1);
         metadata[key] = arrayContent
           .split(',')
           .map(item => item.trim().replace(/^["']|["']$/g, ''))
           .filter(item => item.length > 0);
+      } else if (value === '' || value === '[]') {
+        // Empty value might indicate multi-line array starting on next line
+        currentKey = key;
+        currentArray = [];
       } else {
         metadata[key] = value;
       }
+    }
+    
+    // Save any remaining array
+    if (currentKey && currentArray.length > 0) {
+      metadata[currentKey] = currentArray;
     }
 
     return { metadata, body };
@@ -140,24 +167,35 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    * Serialize page content to markdown with YAML frontmatter
    */
   private serializeToMarkdown(content: PageContent): string {
-    const frontmatter = [
+    const lines = [
       '---',
       `title: "${content.title}"`,
       `guid: "${content.guid}"`,
       content.folderId ? `parentGuid: "${content.folderId}"` : '',
       content.folderId ? `folderId: "${content.folderId}"` : '',
       `status: "${content.status}"`,
-      content.tags.length > 0 
-        ? `tags: [${content.tags.map(t => `"${t}"`).join(', ')}]`
-        : 'tags: []',
+    ];
+    
+    // Add tags in YAML list format
+    if (content.tags.length > 0) {
+      lines.push('tags:');
+      content.tags.forEach(tag => {
+        lines.push(`  - ${tag}`);
+      });
+    } else {
+      lines.push('tags: []');
+    }
+    
+    lines.push(
       `createdBy: "${content.createdBy}"`,
       `modifiedBy: "${content.modifiedBy}"`,
       `createdAt: "${content.createdAt}"`,
       `modifiedAt: "${content.modifiedAt}"`,
       '---',
-      '',
-    ].filter(line => line !== '').join('\n');
-
+      ''
+    );
+    
+    const frontmatter = lines.filter(line => line !== '').join('\n');
     return frontmatter + content.content;
   }
 

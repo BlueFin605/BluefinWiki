@@ -10,7 +10,6 @@ import {
   CognitoUser,
   CognitoUserSession,
   AuthenticationDetails,
-  CognitoUserAttribute,
 } from 'amazon-cognito-identity-js';
 import userPool from '../config/cognitoConfig';
 import { User, AuthState, LoginCredentials } from '../types/auth';
