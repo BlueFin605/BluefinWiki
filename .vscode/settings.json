@@ -22,7 +22,12 @@
         "wsl": true,
         "npx tsx": true,
         "npm install": true,
-        "Set-Content": true
+        "Set-Content": true,
+        "docker info": true,
+        "dotnet workload": true,
+        "dotnet restore": true,
+        "npm list": true,
+        "dotnet run": true
     }
 }
 

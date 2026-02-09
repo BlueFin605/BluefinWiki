@@ -10,10 +10,20 @@
 using System;
 using System.Reflection;
 
+[assembly: System.Reflection.AssemblyMetadata("dcpclipath", ("C:\\Users\\mitch\\.nuget\\packages\\aspire.hosting.orchestration.win-x64\\8.2.2\\tools\\d" +
+    "cp.exe"))]
+[assembly: System.Reflection.AssemblyMetadata("dcpextensionpaths", ("C:\\Users\\mitch\\.nuget\\packages\\aspire.hosting.orchestration.win-x64\\8.2.2\\tools\\e" +
+    "xt\\"))]
+[assembly: System.Reflection.AssemblyMetadata("dcpbinpath", ("C:\\Users\\mitch\\.nuget\\packages\\aspire.hosting.orchestration.win-x64\\8.2.2\\tools\\e" +
+    "xt\\bin\\"))]
+[assembly: System.Reflection.AssemblyMetadata("apphostprojectpath", ("C:\\Users\\mitch\\Development\\Projects\\SpecKit\\projects\\BlueFinWiki\\aspire\\BlueFinWi" +
+    "ki.AppHost"))]
+[assembly: System.Reflection.AssemblyMetadata("aspiredashboardpath", ("C:\\Users\\mitch\\.nuget\\packages\\aspire.dashboard.sdk.win-x64\\8.2.2\\tools\\Aspire.Da" +
+    "shboard.exe"))]
 [assembly: System.Reflection.AssemblyCompanyAttribute("BlueFinWiki.AppHost")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6a7b4a15f6bc2f48b571a4147784deb593f9a463")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4981d39c5753951e4bc485c7b991063d55c8bc86")]
 [assembly: System.Reflection.AssemblyProductAttribute("BlueFinWiki.AppHost")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BlueFinWiki.AppHost")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
