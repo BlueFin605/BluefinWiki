@@ -27,7 +27,11 @@
         "dotnet workload": true,
         "dotnet restore": true,
         "npm list": true,
-        "dotnet run": true
+        "dotnet run": true,
+        "docker ps": true,
+        "docker logs": true,
+        "docker rm": true,
+        "Get-Process": true
     }
 }
 
