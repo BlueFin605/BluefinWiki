@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { S3StoragePlugin } from '../S3StoragePlugin.js';
 import { PageContent } from '../../types/index.js';
+import { v4 as uuidv4 } from 'uuid';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   S3Client,
@@ -22,9 +23,21 @@ import {
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import { sdkStreamMixin } from '@smithy/util-stream';
 
 // Create a mock S3 client
 const s3Mock = mockClient(S3Client);
+
+// Helper function to create a mock SDK stream
+// Creates a fresh stream each time to avoid "already transformed" errors
+function createMockStream(content: string) {
+  return () => {
+    const stream = new Readable();
+    stream.push(content);
+    stream.push(null);
+    return sdkStreamMixin(stream);
+  };
+}
 
 describe('S3StoragePlugin', () => {
   let plugin: S3StoragePlugin;
@@ -46,7 +59,7 @@ describe('S3StoragePlugin', () => {
 
   describe('savePage', () => {
     it('should save a root-level page to S3', async () => {
-      const guid = 'test-guid-123';
+      const guid = uuidv4();
       const content: PageContent = {
         guid,
         title: 'Test Page',
@@ -75,13 +88,13 @@ describe('S3StoragePlugin', () => {
       const body = call.args[0].input.Body as string;
       expect(body).toContain('---');
       expect(body).toContain('title: "Test Page"');
-      expect(body).toContain('guid: "test-guid-123"');
+      expect(body).toContain(`guid: "${guid}"`);
       expect(body).toContain('# Hello World');
     });
 
     it('should save a child page under a parent', async () => {
-      const guid = 'child-guid-456';
-      const parentGuid = 'parent-guid-789';
+      const guid = uuidv4();
+      const parentGuid = uuidv4();
       const content: PageContent = {
         guid,
         title: 'Child Page',
@@ -104,7 +117,7 @@ describe('S3StoragePlugin', () => {
     });
 
     it('should include metadata in frontmatter', async () => {
-      const guid = 'test-guid';
+      const guid = uuidv4();
       const content: PageContent = {
         guid,
         title: 'Test with Tags',
@@ -136,10 +149,10 @@ describe('S3StoragePlugin', () => {
 
   describe('loadPage', () => {
     it('should load a page from S3 and parse frontmatter', async () => {
-      const guid = 'test-guid-123';
+      const guid = uuidv4();
       const markdownContent = `---
 title: "Test Page"
-guid: "test-guid-123"
+guid: "${guid}"
 folderId: ""
 tags:
   - test
@@ -154,8 +167,7 @@ modifiedAt: "2026-02-10T12:00:00Z"
 
 This is a test.`;
 
-      const stream = Readable.from([markdownContent]);
-      s3Mock.on(GetObjectCommand).resolves({ Body: stream as any });
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(markdownContent)() as any });
       
       // Mock HeadObject to find the page
       s3Mock.on(HeadObjectCommand).resolves({
@@ -179,10 +191,10 @@ This is a test.`;
     });
 
     it('should handle pages without tags', async () => {
-      const guid = 'test-guid-456';
+      const guid = uuidv4();
       const markdownContent = `---
 title: "Simple Page"
-guid: "test-guid-456"
+guid: "${guid}"
 folderId: ""
 status: "published"
 createdBy: "user-123"
@@ -193,8 +205,7 @@ modifiedAt: "2026-02-10T12:00:00Z"
 
 Content here`;
 
-      const stream = Readable.from([markdownContent]);
-      s3Mock.on(GetObjectCommand).resolves({ Body: stream as any });
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(markdownContent)() as any });
       s3Mock.on(HeadObjectCommand).resolves({
         ContentLength: 100,
         LastModified: new Date(),
@@ -208,7 +219,7 @@ Content here`;
 
   describe('deletePage', () => {
     it('should delete a page without children', async () => {
-      const guid = 'test-guid-123';
+      const guid = uuidv4();
 
       // Mock no children found
       s3Mock.on(ListObjectsV2Command).resolves({
@@ -223,13 +234,15 @@ Content here`;
     });
 
     it('should throw error if page has children and recursive=false', async () => {
-      const guid = 'parent-guid';
+      const guid = uuidv4();
+      const child1Guid = uuidv4();
+      const child2Guid = uuidv4();
 
       // Mock that children exist
       s3Mock.on(ListObjectsV2Command).resolves({
         Contents: [
-          { Key: `${guid}/child1.md` },
-          { Key: `${guid}/child2.md` },
+          { Key: `${guid}/${child1Guid}.md` },
+          { Key: `${guid}/${child2Guid}.md` },
         ],
       });
 
@@ -237,21 +250,23 @@ Content here`;
     });
 
     it('should recursively delete page and all children', async () => {
-      const guid = 'parent-guid';
+      const guid = uuidv4();
+      const child1Guid = uuidv4();
+      const child2Guid = uuidv4();
 
       // First call: check for children
       // Second call: list all objects to delete
       s3Mock.on(ListObjectsV2Command)
         .resolvesOnce({
           Contents: [
-            { Key: `${guid}/child1.md` },
+            { Key: `${guid}/${child1Guid}.md` },
           ],
         })
         .resolvesOnce({
           Contents: [
             { Key: `${guid}.md` },
-            { Key: `${guid}/child1.md` },
-            { Key: `${guid}/child2.md` },
+            { Key: `${guid}/${child1Guid}.md` },
+            { Key: `${guid}/${child2Guid}.md` },
           ],
         });
 
@@ -265,7 +280,7 @@ Content here`;
 
   describe('listVersions', () => {
     it('should list all versions of a page', async () => {
-      const guid = 'test-guid';
+      const guid = uuidv4();
 
       s3Mock.on(HeadObjectCommand).resolves({
         ContentLength: 100,
@@ -296,7 +311,7 @@ Content here`;
     });
 
     it('should return empty array if no versions found', async () => {
-      const guid = 'test-guid';
+      const guid = uuidv4();
 
       s3Mock.on(HeadObjectCommand).resolves({
         ContentLength: 100,
@@ -315,9 +330,11 @@ Content here`;
 
   describe('listChildren', () => {
     it('should list root-level pages when parentGuid is null', async () => {
+      const guid1 = uuidv4();
+      const guid2 = uuidv4();
       const markdownContent1 = `---
 title: "Page 1"
-guid: "guid-1"
+guid: "${guid1}"
 folderId: ""
 status: "published"
 createdBy: "user-123"
@@ -330,7 +347,7 @@ Content`;
 
       const markdownContent2 = `---
 title: "Page 2"
-guid: "guid-2"
+guid: "${guid2}"
 folderId: ""
 status: "draft"
 createdBy: "user-456"
@@ -343,14 +360,14 @@ Content`;
 
       s3Mock.on(ListObjectsV2Command).resolves({
         Contents: [
-          { Key: 'guid-1.md' },
-          { Key: 'guid-2.md' },
+          { Key: `${guid1}.md` },
+          { Key: `${guid2}.md` },
         ],
       });
 
       s3Mock.on(GetObjectCommand)
-        .resolvesOnce({ Body: Readable.from([markdownContent1]) as any })
-        .resolvesOnce({ Body: Readable.from([markdownContent2]) as any });
+        .resolvesOnce({ Body: createMockStream(markdownContent1)() as any })
+        .resolvesOnce({ Body: createMockStream(markdownContent2)() as any });
 
       // Mock for hasChildren checks
       s3Mock.on(ListObjectsV2Command).resolves({
@@ -365,10 +382,11 @@ Content`;
     });
 
     it('should list children of a specific parent', async () => {
-      const parentGuid = 'parent-guid';
+      const parentGuid = uuidv4();
+      const childGuid = uuidv4();
       const childContent = `---
 title: "Child Page"
-guid: "child-guid"
+guid: "${childGuid}"
 folderId: "${parentGuid}"
 status: "published"
 createdBy: "user-123"
@@ -381,12 +399,12 @@ Content`;
 
       s3Mock.on(ListObjectsV2Command).resolves({
         Contents: [
-          { Key: `${parentGuid}/child-guid.md` },
+          { Key: `${parentGuid}/${childGuid}.md` },
         ],
       });
 
       s3Mock.on(GetObjectCommand).resolves({
-        Body: Readable.from([childContent]) as any,
+        Body: createMockStream(childContent)() as any,
       });
 
       const children = await plugin.listChildren(parentGuid);
@@ -409,8 +427,8 @@ Content`;
 
   describe('movePage', () => {
     it('should move a page from root to under a parent', async () => {
-      const guid = 'page-guid';
-      const newParentGuid = 'parent-guid';
+      const guid = uuidv4();
+      const newParentGuid = uuidv4();
 
       const pageContent = `---
 title: "Test Page"
@@ -432,7 +450,7 @@ Content`;
       });
 
       s3Mock.on(GetObjectCommand).resolves({
-        Body: Readable.from([pageContent]) as any,
+        Body: createMockStream(pageContent)() as any,
       });
 
       // Mock no children
@@ -452,8 +470,8 @@ Content`;
     });
 
     it('should move a page from parent to root', async () => {
-      const guid = 'page-guid';
-      const oldParentGuid = 'old-parent-guid';
+      const guid = uuidv4();
+      const oldParentGuid = uuidv4();
 
       const pageContent = `---
 title: "Test Page"
@@ -473,7 +491,7 @@ Content`;
         .rejectsOnce({ name: 'NotFound' });
 
       s3Mock.on(GetObjectCommand).resolves({
-        Body: Readable.from([pageContent]) as any,
+        Body: createMockStream(pageContent)() as any,
       });
 
       s3Mock.on(ListObjectsV2Command).resolves({
@@ -490,8 +508,7 @@ Content`;
     });
 
     it('should throw error on circular reference', async () => {
-      const guid = 'parent-guid';
-      const newParentGuid = 'child-guid';
+      const guid = uuidv4();
 
       // Mock the page being its own descendant
       await expect(plugin.movePage(guid, guid)).rejects.toThrow();
