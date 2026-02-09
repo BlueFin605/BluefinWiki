@@ -251,18 +251,17 @@ modifiedAt: "2026-02-10T12:00:00Z"
 
 Content`;
 
-      const childContent2 = `---
-title: "Child 2"
-guid: "${child2Guid}"
-folderId: "${guid}"
-status: "published"
-createdBy: "user-123"
-modifiedBy: "user-123"
-createdAt: "2026-02-10T12:00:00Z"
-modifiedAt: "2026-02-10T12:00:00Z"
----
+      // childContent2 not needed for this test
 
-Content`;
+      // Mock HeadObject for findPageKey - must find parent page first
+      s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+        const key = input.Key as string;
+        if (key === `${guid}.md` || key === `${child1Guid}.md` || key === `${child2Guid}.md` ||
+            key === `${guid}/${child1Guid}.md` || key === `${guid}/${child2Guid}.md`) {
+          return { ContentLength: 100, LastModified: new Date() };
+        }
+        throw { name: 'NotFound' };
+      });
 
       // Mock that children exist
       s3Mock.on(ListObjectsV2Command).resolves({
@@ -275,15 +274,6 @@ Content`;
       // Mock GetObject to return streams for children
       s3Mock.on(GetObjectCommand).callsFake(() => {
         return { Body: createMockStream(childContent1)() } as any;
-      });
-
-      // Mock HeadObject for findPageKey
-      s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${child1Guid}.md` || input.Key === `${child2Guid}.md` ||
-            input.Key === `${guid}/${child1Guid}.md` || input.Key === `${guid}/${child2Guid}.md`) {
-          return { ContentLength: 100, LastModified: new Date() };
-        }
-        throw { name: 'NotFound' };
       });
 
       await expect(plugin.deletePage(guid, false)).rejects.toThrow(/has children/);
@@ -307,30 +297,24 @@ modifiedAt: "2026-02-10T12:00:00Z"
 
 Content`;
 
-      // First ListObjects call: check for children of the page being deleted
-      // Second ListObjects call: list all objects to delete recursively
-      s3Mock.on(ListObjectsV2Command)
-        .resolvesOnce({
-          Contents: [
-            { Key: `${guid}/${child1Guid}.md` },
-          ],
-        })
-        .resolvesOnce({
-          Contents: [
-            { Key: `${guid}.md` },
-            { Key: `${guid}/${child1Guid}.md` },
-            { Key: `${guid}/${child2Guid}.md` },
-          ],
-        });
+      // Mock HeadObject for finding pages
+      s3Mock.on(HeadObjectCommand).callsFake((_input: any) => {
+        return { ContentLength: 100, LastModified: new Date() };
+      });
+
+      // Multiple ListObjects calls: hasChildren checks and deletion listing
+      // Return children for hasChildren, then all objects for deletion
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [
+          { Key: `${guid}.md` },
+          { Key: `${guid}/${child1Guid}.md` },
+          { Key: `${guid}/${child2Guid}.md` },
+        ],
+      });
 
       // Mock GetObject for child pages
       s3Mock.on(GetObjectCommand).callsFake(() => {
         return { Body: createMockStream(childContent)() } as any;
-      });
-
-      // Mock HeadObject for finding pages
-      s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        return { ContentLength: 100, LastModified: new Date() };
       });
 
       s3Mock.on(DeleteObjectsCommand).resolves({});
@@ -356,11 +340,13 @@ Content`;
       s3Mock.on(ListObjectVersionsCommand).resolves({
         Versions: [
           {
+            Key: `${guid}.md`,
             VersionId: 'v2',
             LastModified: new Date('2026-02-10T14:00:00Z'),
             Size: 200,
           },
           {
+            Key: `${guid}.md`,
             VersionId: 'v1',
             LastModified: new Date('2026-02-10T12:00:00Z'),
             Size: 150,
@@ -426,7 +412,7 @@ Content`;
 
       // Mock ListObjects: first call for root pages, subsequent calls for hasChildren checks
       let listCallCount = 0;
-      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+      s3Mock.on(ListObjectsV2Command).callsFake((_input: any) => {
         listCallCount++;
         if (listCallCount === 1) {
           // First call: list root pages
@@ -484,7 +470,7 @@ Content`;
 
       // Mock ListObjects for parent's children and hasChildren check
       let listCallCount = 0;
-      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+      s3Mock.on(ListObjectsV2Command).callsFake((_input: any) => {
         listCallCount++;
         if (listCallCount === 1) {
           // First call: list children of parent
@@ -592,21 +578,22 @@ modifiedAt: "2026-02-10T12:00:00Z"
 
 Content`;
 
-      // Mock finding the page under parent
+      // Mock HeadObject: root check will fail (NotFound), then findPageKey uses ListObjects
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${oldParentGuid}/${guid}.md`) {
-          return { ContentLength: 100, LastModified: new Date() };
-        }
+        // Reject root-level check
         throw { name: 'NotFound' };
+      });
+
+      // Mock ListObjectsV2 to find page under parent
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [
+          { Key: `${oldParentGuid}/${guid}.md` },
+        ],
       });
 
       // Mock GetObject with fresh stream
       s3Mock.on(GetObjectCommand).callsFake(() => {
         return { Body: createMockStream(pageContent)() } as any;
-      });
-
-      s3Mock.on(ListObjectsV2Command).resolves({
-        Contents: [],
       });
 
       s3Mock.on(CopyObjectCommand).resolves({});
