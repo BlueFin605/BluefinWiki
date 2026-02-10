@@ -432,23 +432,23 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Update happens via `pages-update` API
 
 #### 4.4 Page Hierarchy Testing
-- [ ] Unit tests for hierarchy traversal logic
-  - [ ] Test ancestor path calculation
-  - [ ] Test circular reference detection
-  - [ ] Test tree building from flat list
-- [ ] Integration tests for page operations
-  - [ ] Create child pages at various depths
-  - [ ] Move pages between parents
-  - [ ] Delete pages with children (recursive)
-  - [ ] Rename pages and verify children remain linked
-- [ ] Test S3 storage structure
-  - [ ] Verify correct paths for nested pages
-  - [ ] Test moving page with children (directory rename in S3)
-  - [ ] Verify frontmatter parsing and metadata extraction
-- [ ] Test edge cases
-  - [ ] Prevent circular references
-  - [ ] Handle concurrent moves (race conditions)
-  - [ ] Deep nesting (10+ levels)
+- [X] Unit tests for hierarchy traversal logic
+  - [X] Test ancestor path calculation
+  - [X] Test circular reference detection
+  - [X] Test tree building from flat list
+- [X] Integration tests for page operations
+  - [X] Create child pages at various depths
+  - [X] Move pages between parents
+  - [X] Delete pages with children (recursive)
+  - [X] Rename pages and verify children remain linked
+- [X] Test S3 storage structure
+  - [X] Verify correct paths for nested pages
+  - [X] Test moving page with children (directory rename in S3)
+  - [X] Verify frontmatter parsing and metadata extraction
+- [X] Test edge cases
+  - [X] Prevent circular references
+  - [X] Handle concurrent moves (race conditions)
+  - [X] Deep nesting (10+ levels)
 
 ---
 
