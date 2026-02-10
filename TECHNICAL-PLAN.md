@@ -1456,7 +1456,7 @@ jobs:
 name: Deploy
 on:
   push:
-    branches: [main, staging]
+    branches: [master, staging]
 
 jobs:
   deploy:
