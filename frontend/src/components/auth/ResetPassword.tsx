@@ -103,22 +103,23 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({ email: initialEmail, onRe
           onResetComplete();
         }
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error resetting password:', err);
+      const error = err as { code?: string; message?: string };
       
       // Handle specific error types
-      if (err.code === 'CodeMismatchException') {
+      if (error.code === 'CodeMismatchException') {
         setError('Invalid verification code. Please check and try again.');
-      } else if (err.code === 'ExpiredCodeException') {
+      } else if (error.code === 'ExpiredCodeException') {
         setError('Verification code has expired. Please request a new one.');
-      } else if (err.code === 'InvalidPasswordException') {
+      } else if (error.code === 'InvalidPasswordException') {
         setError('Password does not meet the requirements.');
-      } else if (err.code === 'LimitExceededException') {
+      } else if (error.code === 'LimitExceededException') {
         setError('Too many attempts. Please try again later.');
-      } else if (err.code === 'UserNotFoundException') {
+      } else if (error.code === 'UserNotFoundException') {
         setError('User not found. Please check your email address.');
       } else {
-        setError(err.message || 'Failed to reset password. Please try again.');
+        setError(error.message || 'Failed to reset password. Please try again.');
       }
     } finally {
       setLoading(false);

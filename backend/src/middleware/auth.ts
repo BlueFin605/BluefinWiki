@@ -23,7 +23,7 @@ export interface AuthenticatedEvent extends APIGatewayProxyEvent {
         'custom:displayName': string;
         'custom:status'?: string;
         'custom:preferences'?: string;
-        [key: string]: any;
+        [key: string]: string | undefined;
       };
     };
   };
@@ -84,7 +84,7 @@ export function withAuth(
       // Attach user context to event
       const authenticatedEvent = event as AuthenticatedEvent;
       authenticatedEvent.requestContext.authorizer = {
-        claims: payload as any,
+        claims: payload as AuthenticatedEvent['requestContext']['authorizer']['claims'],
       };
 
       // Call the wrapped handler with authenticated event

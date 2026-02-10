@@ -6,6 +6,21 @@ Access LocalStack at http://localhost:4566
 View MailHog UI at http://localhost:8025
 Test Cognito Local at http://localhost:9229
 
+## Tests
+
+### run all tests
+npm run test
+
+### front end tests
+cd frontend
+npm test
+
+### back end tests
+cd backend
+npm test                    # Unit tests only
+npm run test:integration    # Integration tests only
+npm run test:all            # Both unit and integration tests
+
 ## Phase I Status - COMPLETE ✅ (February 10, 2026)
 
 ### ✅ All Issues Resolved

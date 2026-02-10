@@ -8,7 +8,7 @@
 import { StoragePlugin } from './StoragePlugin.js';
 import { StoragePluginConfig } from '../types/index.js';
 
-type StoragePluginConstructor = new (config: any) => StoragePlugin;
+type StoragePluginConstructor = new (config: StoragePluginConfig) => StoragePlugin;
 
 /**
  * Registry for storage plugin implementations
@@ -145,7 +145,7 @@ export class StoragePluginFactory {
 
     // Plugin-specific config will be read by the plugin constructor
     const config: StoragePluginConfig = {
-      type: type as any,
+      type: type as 's3' | 'github' | 'local',
     };
 
     return this.create(config);

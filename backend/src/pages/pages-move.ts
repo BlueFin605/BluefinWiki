@@ -1,7 +1,8 @@
-import { APIGatewayProxyResult, Context } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
+import type { StoragePlugin } from '../storage/StoragePlugin.js';
 
 // Request validation schema
 const MovePageRequestSchema = z.object({
@@ -31,8 +32,7 @@ const MovePageRequestSchema = z.object({
  * }
  */
 export const handler = withAuth(async (
-  event: AuthenticatedEvent,
-  _context: Context
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
     // Extract GUID from path parameters
@@ -90,7 +90,8 @@ export const handler = withAuth(async (
     // Verify page exists
     try {
       await storagePlugin.loadPage(guid);
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
       if (error.code === 'PAGE_NOT_FOUND') {
         return {
           statusCode: 404,
@@ -105,7 +106,8 @@ export const handler = withAuth(async (
     if (newParentGuid !== null) {
       try {
         await storagePlugin.loadPage(newParentGuid);
-      } catch (error: any) {
+      } catch (err: unknown) {
+        const error = err as { code?: string; message?: string };
         if (error.code === 'PAGE_NOT_FOUND') {
           return {
             statusCode: 404,
@@ -163,8 +165,9 @@ export const handler = withAuth(async (
         movedAt: now,
       }),
     };
-  } catch (error: any) {
-    console.error('Error moving page:', error);
+  } catch (err: unknown) {
+    console.error('Error moving page:', err);
+    const error = err as { code?: string; statusCode?: number; message?: string };
 
     // Handle storage plugin errors
     if (error.code) {
@@ -192,7 +195,7 @@ export const handler = withAuth(async (
  * This prevents circular references when moving pages
  */
 async function checkIfDescendant(
-  storagePlugin: any,
+  storagePlugin: StoragePlugin,
   ancestorGuid: string,
   targetGuid: string
 ): Promise<boolean> {
@@ -212,7 +215,8 @@ async function checkIfDescendant(
 
     // Recursively check if target's parent is a descendant of ancestor
     return await checkIfDescendant(storagePlugin, ancestorGuid, targetPage.folderId);
-  } catch (error: any) {
+  } catch (err: unknown) {
+    const error = err as { code?: string; message?: string };
     // If we can't find the page, assume it's not a descendant
     if (error.code === 'PAGE_NOT_FOUND') {
       return false;

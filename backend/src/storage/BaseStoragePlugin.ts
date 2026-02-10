@@ -38,7 +38,7 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
     message: string,
     code: string,
     statusCode?: number,
-    details?: any
+    details?: Record<string, string | number | boolean | null>
   ): StoragePluginError {
     const error = new Error(message) as StoragePluginError;
     error.code = code;

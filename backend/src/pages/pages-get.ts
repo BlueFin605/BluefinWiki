@@ -1,4 +1,4 @@
-import { APIGatewayProxyResult, Context } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 
@@ -26,8 +26,7 @@ import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
  * }
  */
 export const handler = withAuth(async (
-  event: AuthenticatedEvent,
-  _context: Context
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
     // Extract GUID from path parameters
@@ -74,8 +73,9 @@ export const handler = withAuth(async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(pageContent),
     };
-  } catch (error: any) {
-    console.error('Error retrieving page:', error);
+  } catch (err: unknown) {
+    console.error('Error retrieving page:', err);
+    const error = err as { code?: string; statusCode?: number; message?: string };
 
     // Handle storage plugin errors
     if (error.code) {

@@ -141,15 +141,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       TableName: INVITATIONS_TABLE,
       Key: { inviteCode },
       UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
+      ConditionExpression: '#status = :pendingStatus',
       ExpressionAttributeNames: {
         '#status': 'status',
       },
-      ExpressionAttributeValues: {
-        ':status': 'revoked',
-        ':updatedAt': new Date().toISOString(),
-      },
-      // Ensure the invitation hasn't been used since we checked
-      ConditionExpression: '#status = :pendingStatus',
       ExpressionAttributeValues: {
         ':status': 'revoked',
         ':updatedAt': new Date().toISOString(),
@@ -169,8 +164,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         revokedAt: new Date().toISOString(),
       }),
     };
-  } catch (error: any) {
-    console.error('Error revoking invitation:', error);
+  } catch (err: unknown) {
+    console.error('Error revoking invitation:', err);
+    const error = err as { name?: string; message?: string };
     
     // Handle conditional check failure (race condition: invitation was used)
     if (error.name === 'ConditionalCheckFailedException') {

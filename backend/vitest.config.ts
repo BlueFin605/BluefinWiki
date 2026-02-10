@@ -13,11 +13,12 @@ export default defineConfig({
     ],
     testTimeout: 10000,
     hookTimeout: 10000,
-    pool: 'forks', // Use forks instead of threads for better memory isolation
+    pool: 'forks', // Use forks for better isolation
     poolOptions: {
       forks: {
-        singleFork: true, // Run in single fork to avoid memory issues
-        execArgv: ['--max-old-space-size=4096'], // Increase memory limit for test worker
+        singleFork: true, // Run in single fork
+        isolate: false, // Don't isolate to save memory
+        execArgv: ['--max-old-space-size=8192'], // Increase memory limit
       },
     },
   },

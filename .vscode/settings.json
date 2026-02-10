@@ -31,7 +31,11 @@
         "docker ps": true,
         "docker logs": true,
         "docker rm": true,
-        "Get-Process": true
+        "Get-Process": true,
+        "npx vitest": true,
+        "dotnet test": true,
+        "npm run lint": true,
+        "npx eslint": true
     }
 }
 

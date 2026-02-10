@@ -159,8 +159,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isLoading: false,
         error: null,
       });
-    } catch (error: any) {
-      console.error('Sign in error:', error);
+    } catch (err: unknown) {
+      console.error('Sign in error:', err);
+      const error = err as { code?: string; message?: string };
       
       let errorMessage = 'Failed to sign in. Please try again.';
       

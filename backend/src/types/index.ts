@@ -21,7 +21,7 @@ export interface CognitoClaims {
   'custom:displayName': string;
   'custom:status'?: string;
   'custom:preferences'?: string;
-  [key: string]: any;
+  [key: string]: string | undefined;
 }
 
 export interface InvitationRecord {
@@ -58,7 +58,7 @@ export interface ActivityLogRecord {
   action: string;
   resourceType: string;
   resourceGuid: string;
-  details?: Record<string, any>;
+  details?: Record<string, string | number | boolean | null>;
   createdAt: string; // ISO 8601
 }
 
@@ -110,11 +110,11 @@ export interface PageSummary {
 
 export interface StoragePluginConfig {
   type: 's3' | 'github' | 'local';
-  [key: string]: any; // Plugin-specific config
+  [key: string]: string | number | boolean | undefined; // Plugin-specific config
 }
 
 export interface StoragePluginError extends Error {
   code: string;
   statusCode?: number;
-  details?: any;
+  details?: Record<string, string | number | boolean | null>;
 }

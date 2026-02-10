@@ -1,4 +1,4 @@
-import { APIGatewayProxyResult, Context } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
@@ -39,8 +39,7 @@ const UpdatePageRequestSchema = z.object({
  * }
  */
 export const handler = withAuth(async (
-  event: AuthenticatedEvent,
-  _context: Context
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
     // Extract GUID from path parameters
@@ -99,7 +98,8 @@ export const handler = withAuth(async (
     let existingPage: PageContent;
     try {
       existingPage = await storagePlugin.loadPage(guid);
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
       if (error.code === 'PAGE_NOT_FOUND') {
         return {
           statusCode: 404,
@@ -150,8 +150,9 @@ export const handler = withAuth(async (
         modifiedBy: user.userId,
       }),
     };
-  } catch (error: any) {
-    console.error('Error updating page:', error);
+  } catch (err: unknown) {
+    console.error('Error updating page:', err);
+    const error = err as { code?: string; statusCode?: number; message?: string };
 
     // Handle storage plugin errors
     if (error.code) {
