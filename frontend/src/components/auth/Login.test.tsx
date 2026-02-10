@@ -42,7 +42,7 @@ describe('Login Component', () => {
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/remember me/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByText(/forgot password/i)).toBeInTheDocument();
+    expect(screen.getByText(/forgot your password/i)).toBeInTheDocument();
   });
 
   it('validates email field is required', async () => {
