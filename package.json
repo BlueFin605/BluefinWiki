@@ -12,7 +12,7 @@
     "lint": "npm run lint --workspaces",
     "type-check": "npm run type-check --workspaces",
     "test": "npm run test --workspaces",
-    "prepare": "husky install"
+    "prepare": "husky install || true"
   },
   "devDependencies": {
     "husky": "^9.0.11",
