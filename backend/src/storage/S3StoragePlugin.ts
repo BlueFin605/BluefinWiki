@@ -68,6 +68,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         forcePathStyle: true // Required for LocalStack
       }),
     });
+
+    // Note: No in-memory caching implemented for Lambda architecture
+    // Rationale: Lambda containers are ephemeral and recycled after ~15-45min inactivity.
+    // For a low-traffic family wiki, most requests would hit cold starts, making cache ineffective.
+    // S3 provides sub-10ms latency which is sufficient for our use case (3-20 users).
+    // If caching is needed in the future, use DynamoDB or ElastiCache for shared persistent state.
   }
 
   /**
@@ -85,6 +91,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     }
     return `${parentGuid}/${guid}.md`;
   }
+
+
 
   /**
    * Parse YAML frontmatter from markdown content
@@ -175,6 +183,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       content.folderId ? `folderId: "${content.folderId}"` : '',
       `status: "${content.status}"`,
     ];
+    
+    // Add description if present
+    if (content.description) {
+      lines.push(`description: "${content.description}"`);
+    }
     
     // Add tags in YAML list format
     if (content.tags.length > 0) {
@@ -307,6 +320,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         folderId: Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId || (Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid) || '',
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived',
+        description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
         createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
         modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',
         createdAt: Array.isArray(metadata.createdAt) ? metadata.createdAt[0] : metadata.createdAt || this.formatDate(),

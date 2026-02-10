@@ -69,6 +69,7 @@ export interface PageContent {
   folderId: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived';
+  description?: string; // Optional page description
   createdBy: string; // Cognito sub
   modifiedBy: string; // Cognito sub
   createdAt: string; // ISO 8601

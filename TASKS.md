@@ -363,18 +363,21 @@
 Display names are stored in YAML frontmatter within each `.md` file. This enables renaming without breaking references.
 
 #### 4.1 Page Hierarchy Support
-- [ ] Update page data model in storage plugin
-  - [ ] Add `parentGuid` field to page frontmatter (null for root pages)
-  - [ ] Add `hasChildren` computed field (true if S3 directory exists)
-  - [ ] Metadata in frontmatter: title, parentGuid, tags, status, createdBy, modifiedBy, timestamps, description
-- [ ] Implement hierarchy traversal utilities
-  - [ ] Build page tree from S3 structure (recursive listing)
-  - [ ] Cache page index in memory for performance (map: guid → S3 path)
-  - [ ] Function to get ancestors of a page (for breadcrumbs)
-  - [ ] Function to check if page is descendant of another (circular reference check)
-- [ ] Handle root-level pages
-  - [ ] Root pages have parentGuid = null
-  - [ ] Stored directly in bucket root: `{guid}.md`
+- [X] Update page data model in storage plugin
+  - [X] Add `parentGuid` field to page frontmatter (null for root pages)
+  - [X] Add `hasChildren` computed field (true if S3 directory exists)
+  - [X] Add `description` field to page frontmatter (optional metadata)
+  - [X] Metadata in frontmatter: title, parentGuid, tags, status, createdBy, modifiedBy, timestamps, description
+- [X] Implement hierarchy traversal utilities
+  - [X] Build page tree from S3 structure (recursive listing)
+  - [X] Function to get ancestors of a page (for breadcrumbs)
+  - [X] Function to check if page is descendant of another (circular reference check)
+  - [X] Note: In-memory caching NOT implemented - Lambda containers are ephemeral with frequent cold starts
+  - [X] For low-traffic family wikis (3-20 users), S3's sub-10ms latency is sufficient
+  - [X] If caching needed in future, use DynamoDB or ElastiCache for shared persistent state
+- [X] Handle root-level pages
+  - [X] Root pages have parentGuid = null
+  - [X] Stored directly in bucket root: `{guid}.md`
 
 #### 4.2 Page Hierarchy API Endpoints (No separate /folders endpoints needed)
 - [ ] Enhance existing `pages-create` Lambda

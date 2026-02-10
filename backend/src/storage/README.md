@@ -285,9 +285,23 @@ Welcome to our family recipe collection!
 ## Performance Considerations
 
 ### Caching Strategy
-- Cache page metadata for `listChildren()` operations
-- Use ETag/If-None-Match for conditional requests
-- Invalidate cache on save/delete/move operations
+
+**No Backend In-Memory Caching for Lambda Architecture**:
+- Lambda containers are ephemeral, recycled after 15-45 minutes of inactivity
+- Cold starts reset any in-memory state, making instance-level caching unreliable
+- For low-traffic family wikis (3-20 users), most requests hit cold Lambda containers
+- S3 provides sub-10ms latency which is sufficient for this use case
+
+**If Caching Is Needed in the Future**:
+- Use **DynamoDB** for GUID → S3 key mapping (shared persistent state)
+- Use **ElastiCache/Redis** for hot data (page metadata, frequently accessed pages)
+- Use **CloudFront** for edge caching of static content and API responses
+- Use **React Query** on frontend for client-side caching
+
+**Current Implementation**:
+- No in-memory caching in storage plugins
+- Direct S3 API calls for all operations
+- CloudFront caching for static assets only
 
 ### Batch Operations
 - For large folder operations, implement pagination
@@ -296,8 +310,8 @@ Welcome to our family recipe collection!
 
 ### Circular Reference Detection
 - The `validateNoCircularReference()` method may require multiple API calls
-- Consider maintaining a parent-child index for O(1) lookups
-- Cache parent chains to reduce repeated lookups
+- Consider maintaining a parent-child index for O(1) lookups if performance becomes an issue
+- Currently implemented as recursive traversal (acceptable for typical family wiki depth of 3-5 levels)
 
 ## Testing
 
