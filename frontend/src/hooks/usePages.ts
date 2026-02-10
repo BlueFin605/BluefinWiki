@@ -10,7 +10,6 @@ import {
   CreatePageRequest,
   UpdatePageRequest,
   MovePageRequest,
-  DeletePageRequest,
 } from '../types/page';
 
 // Query keys
