@@ -12,7 +12,7 @@
     "lint": "npm run lint --workspaces",
     "type-check": "npm run type-check --workspaces",
     "test": "npm run test --workspaces",
-    "prepare": "node -e \"if (process.env.CI !== 'true') { require('child_process').execSync('husky install', {stdio: 'inherit'}) }\""
+    "postinstall": "test \"$CI\" != true && husky install || true"
   },
   "devDependencies": {
     "husky": "^9.0.11",
