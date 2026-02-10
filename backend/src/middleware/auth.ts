@@ -84,7 +84,7 @@ export function withAuth(
       // Attach user context to event
       const authenticatedEvent = event as AuthenticatedEvent;
       authenticatedEvent.requestContext.authorizer = {
-        claims: payload as AuthenticatedEvent['requestContext']['authorizer']['claims'],
+        claims: payload as unknown as NonNullable<AuthenticatedEvent['requestContext']['authorizer']>['claims'],
       };
 
       // Call the wrapped handler with authenticated event

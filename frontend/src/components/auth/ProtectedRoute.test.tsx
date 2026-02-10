@@ -23,8 +23,9 @@ describe('ProtectedRoute Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: vi.fn(),
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: null,
-      loading: true,
       isLoading: true,
       error: null,
       isAuthenticated: false,
@@ -53,8 +54,9 @@ describe('ProtectedRoute Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: vi.fn(),
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: null,
-      loading: false,
       isLoading: false,
       error: null,
       isAuthenticated: false,
@@ -84,8 +86,9 @@ describe('ProtectedRoute Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: vi.fn(),
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: mockAuthenticatedUser,
-      loading: false,
       isLoading: false,
       error: null,
       isAuthenticated: true,
@@ -115,8 +118,9 @@ describe('ProtectedRoute Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: vi.fn(),
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: mockAuthenticatedUser, // Standard user, not admin
-      loading: false,
       isLoading: false,
       error: null,
       isAuthenticated: true,
@@ -146,8 +150,9 @@ describe('ProtectedRoute Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: vi.fn(),
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: mockAdminUser,
-      loading: false,
       isLoading: false,
       error: null,
       isAuthenticated: true,
@@ -176,8 +181,9 @@ describe('ProtectedRoute Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: vi.fn(),
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: mockAdminUser,
-      loading: false,
       isLoading: false,
       error: null,
       isAuthenticated: true,
@@ -207,8 +213,9 @@ describe('ProtectedRoute Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: vi.fn(),
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: null,
-      loading: false,
       isLoading: false,
       error: null,
       isAuthenticated: false,
