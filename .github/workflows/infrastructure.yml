@@ -11,6 +11,7 @@ on:
     paths:
       - 'infrastructure/**'
       - '.github/workflows/infrastructure.yml'
+  workflow_dispatch:
 
 jobs:
   validate:
