@@ -363,7 +363,11 @@ All children move with the parent, maintaining their relative structure.
 3. **Update frontmatter**: When moving or modifying pages
 4. **Handle errors gracefully**: S3 operations can fail
 5. **Use transactions**: When moving pages with children (copy all, then delete all)
-6. **Cache judiciously**: Build in-memory index for performance, but refresh periodically
+6. **No in-memory caching**: Lambda architecture makes instance-level caching ineffective
+   - Lambda containers are ephemeral and recycled after ~15-45 minutes of inactivity
+   - Cold starts reset any cached state, making it unreliable for low-traffic applications
+   - S3 provides sub-10ms latency which is sufficient for family wiki use case (3-20 users)
+   - If caching is needed in the future, use DynamoDB or ElastiCache for shared persistent state
 
 ### For Operations
 

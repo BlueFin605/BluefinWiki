@@ -649,4 +649,248 @@ Content`;
       expect(plugin.getType()).toBe('s3');
     });
   });
+
+  describe('getAncestors', () => {
+    it('should return empty array for root page', async () => {
+      const guid = uuidv4();
+      const pageContent = `---
+title: "Root Page"
+guid: "${guid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [{ Key: `${guid}.md` }],
+      });
+
+      s3Mock.on(GetObjectCommand).callsFake(() => {
+        return { Body: createMockStream(pageContent)() } as any;
+      });
+
+      const ancestors = await plugin.getAncestors(guid);
+      expect(ancestors).toEqual([]);
+    });
+
+    it('should return parent for child page', async () => {
+      const childGuid = uuidv4();
+      const parentGuid = uuidv4();
+      
+      const childContent = `---
+title: "Child Page"
+guid: "${childGuid}"
+parentGuid: "${parentGuid}"
+folderId: "${parentGuid}"
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      const parentContent = `---
+title: "Parent Page"
+guid: "${parentGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [
+          { Key: `${parentGuid}/${childGuid}.md` },
+          { Key: `${parentGuid}.md` },
+        ],
+      });
+
+      s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+        const key = input.Key;
+        if (key === `${childGuid}.md`) {
+          throw { name: 'NotFound' };
+        } else if (key === `${parentGuid}.md`) {
+          return {};
+        }
+        return {};
+      });
+
+      s3Mock.on(GetObjectCommand).callsFake((input: any) => {
+        if (input.Key === `${parentGuid}/${childGuid}.md`) {
+          return { Body: createMockStream(childContent)() } as any;
+        } else if (input.Key === `${parentGuid}.md`) {
+          return { Body: createMockStream(parentContent)() } as any;
+        }
+        throw new Error('Key not found');
+      });
+
+      const ancestors = await plugin.getAncestors(childGuid);
+      expect(ancestors).toHaveLength(1);
+      expect(ancestors[0].guid).toBe(parentGuid);
+      expect(ancestors[0].title).toBe('Parent Page');
+    });
+
+    it('should return full ancestor chain for nested page', async () => {
+      const grandchildGuid = uuidv4();
+      const childGuid = uuidv4();
+      const parentGuid = uuidv4();
+
+      const grandchildContent = `---
+title: "Grandchild Page"
+guid: "${grandchildGuid}"
+parentGuid: "${childGuid}"
+folderId: "${childGuid}"
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      const childContent = `---
+title: "Child Page"
+guid: "${childGuid}"
+parentGuid: "${parentGuid}"
+folderId: "${parentGuid}"
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      const parentContent = `---
+title: "Parent Page"
+guid: "${parentGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [
+          { Key: `${parentGuid}/${childGuid}/${grandchildGuid}.md` },
+          { Key: `${parentGuid}/${childGuid}.md` },
+          { Key: `${parentGuid}.md` },
+        ],
+      });
+
+      s3Mock.on(GetObjectCommand).callsFake((input: any) => {
+        if (input.Key.includes(grandchildGuid)) {
+          return { Body: createMockStream(grandchildContent)() } as any;
+        } else if (input.Key.includes(childGuid) && !input.Key.includes(grandchildGuid)) {
+          return { Body: createMockStream(childContent)() } as any;
+        } else if (input.Key === `${parentGuid}.md`) {
+          return { Body: createMockStream(parentContent)() } as any;
+        }
+        throw new Error('Key not found');
+      });
+
+      const ancestors = await plugin.getAncestors(grandchildGuid);
+      expect(ancestors).toHaveLength(2);
+      expect(ancestors[0].guid).toBe(parentGuid);
+      expect(ancestors[0].title).toBe('Parent Page');
+      expect(ancestors[1].guid).toBe(childGuid);
+      expect(ancestors[1].title).toBe('Child Page');
+    });
+  });
+
+  describe('isDescendantOf', () => {
+    it('should return true if page is itself', async () => {
+      const guid = uuidv4();
+      const result = await plugin.isDescendantOf(guid, guid);
+      expect(result).toBe(true);
+    });
+
+    it('should return true if page is child of ancestor', async () => {
+      const childGuid = uuidv4();
+      const parentGuid = uuidv4();
+      
+      const childContent = `---
+title: "Child Page"
+guid: "${childGuid}"
+parentGuid: "${parentGuid}"
+folderId: "${parentGuid}"
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [{ Key: `${parentGuid}/${childGuid}.md` }],
+      });
+
+      s3Mock.on(GetObjectCommand).callsFake(() => {
+        return { Body: createMockStream(childContent)() } as any;
+      });
+
+      const result = await plugin.isDescendantOf(childGuid, parentGuid);
+      expect(result).toBe(true);
+    });
+
+    it('should return false if pages are unrelated', async () => {
+      const guid1 = uuidv4();
+      const guid2 = uuidv4();
+      
+      const content1 = `---
+title: "Page 1"
+guid: "${guid1}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [{ Key: `${guid1}.md` }],
+      });
+
+      s3Mock.on(GetObjectCommand).callsFake(() => {
+        return { Body: createMockStream(content1)() } as any;
+      });
+
+      const result = await plugin.isDescendantOf(guid1, guid2);
+      expect(result).toBe(false);
+    });
+  });
 });
