@@ -1,17 +1,18 @@
 name: Infrastructure CI
 
-on:
-  push:
-    branches: [master, develop]
-    paths:
-      - 'infrastructure/**'
-      - '.github/workflows/infrastructure.yml'
-  pull_request:
-    branches: [master, develop]
-    paths:
-      - 'infrastructure/**'
-      - '.github/workflows/infrastructure.yml'
-  workflow_dispatch:
+# Disabled - uncomment when needed
+# on:
+#   push:
+#     branches: [master, develop]
+#     paths:
+#       - 'infrastructure/**'
+#       - '.github/workflows/infrastructure.yml'
+#   pull_request:
+#     branches: [master, develop]
+#     paths:
+#       - 'infrastructure/**'
+#       - '.github/workflows/infrastructure.yml'
+#   workflow_dispatch:
 
 jobs:
   validate:
