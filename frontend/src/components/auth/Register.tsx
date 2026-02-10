@@ -200,20 +200,21 @@ const Register: React.FC = () => {
 
       // Navigate to login with success message
       navigate('/login?registered=true');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Registration error:', err);
+      const error = err as { response?: { data?: { message?: string }; status?: number }; code?: string; message?: string };
 
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
-      } else if (err.response?.status === 400) {
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error.response?.status === 400) {
         setError('Invalid invitation code or registration data');
-      } else if (err.response?.status === 409) {
+      } else if (error.response?.status === 409) {
         setError('An account with this email already exists');
-      } else if (err.code === 'UsernameExistsException') {
+      } else if (error.code === 'UsernameExistsException') {
         setError('An account with this email already exists');
-      } else if (err.code === 'InvalidPasswordException') {
+      } else if (error.code === 'InvalidPasswordException') {
         setError('Password does not meet requirements');
-      } else if (err.code === 'InvalidParameterException') {
+      } else if (error.code === 'InvalidParameterException') {
         setError('Invalid registration parameters');
       } else {
         setError('Failed to create account. Please try again.');

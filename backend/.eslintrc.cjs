@@ -9,4 +9,13 @@ module.exports = {
   parser: '@typescript-eslint/parser',
   plugins: [],
   rules: {},
+  overrides: [
+    {
+      files: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/test-*.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+      },
+    },
+  ],
 };

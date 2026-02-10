@@ -89,7 +89,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Parse YAML frontmatter from markdown content
    */
-  private parseFrontmatter(content: string): { metadata: any; body: string } {
+  private parseFrontmatter(content: string): { metadata: Record<string, string | string[] | undefined>; body: string } {
     const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
     const match = content.match(frontmatterRegex);
 
@@ -105,7 +105,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     const body = match[2];
 
     // Simple YAML parser (supports basic key: value format and arrays)
-    const metadata: any = {};
+    const metadata: Record<string, string | string[] | undefined> = {};
     const lines = yamlContent.split('\n');
     let currentKey: string | null = null;
     let currentArray: string[] = [];
@@ -240,15 +240,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       });
 
       await this.s3Client.send(command);
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
       if (error.code && error.code.startsWith('INVALID_')) {
-        throw error; // Re-throw validation errors
+        throw err; // Re-throw validation errors
       }
       throw this.createError(
         `Failed to save page: ${error.message}`,
         'SAVE_FAILED',
-        500,
-        { originalError: error }
+        500
       );
     }
   }
@@ -314,9 +314,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       };
 
       return pageContent;
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; name?: string; message?: string };
       if (error.code && (error.code === 'PAGE_NOT_FOUND' || error.code === 'INVALID_GUID')) {
-        throw error;
+        throw err;
       }
       
       if (error.name === 'NoSuchKey') {
@@ -350,8 +351,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           Key: rootKey,
         }));
         return rootKey;
-      } catch (err: any) {
-        if (err.name !== 'NotFound') {
+      } catch (err: unknown) {
+        const error = err as { name?: string; message?: string };
+        if (error.name !== 'NotFound') {
           throw err;
         }
       }
@@ -379,12 +381,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       } while (continuationToken);
 
       return null;
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string };
       throw this.createError(
         `Failed to find page: ${error.message}`,
         'SEARCH_FAILED',
-        500,
-        { originalError: error }
+        500
       );
     }
   }
@@ -432,15 +434,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         });
         await this.s3Client.send(deleteCommand);
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
       if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'HAS_CHILDREN'].includes(error.code)) {
-        throw error;
+        throw err;
       }
       throw this.createError(
         `Failed to delete page: ${error.message}`,
         'DELETE_FAILED',
-        500,
-        { originalError: error }
+        500
       );
     }
   }
@@ -540,16 +542,36 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       return versions;
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
       if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
-        throw error;
+        throw err;
       }
       throw this.createError(
         `Failed to list versions: ${error.message}`,
         'LIST_VERSIONS_FAILED',
-        500,
-        { originalError: error }
+        500
       );
+    }
+  }
+
+  /**
+   * Check if a page has children (non-recursive S3 check)
+   */
+  private async hasChildrenDirect(guid: string): Promise<boolean> {
+    try {
+      const prefix = `${guid}/`;
+      const listCommand = new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: prefix,
+        MaxKeys: 1, // Only need to know if at least one exists
+      });
+
+      const response = await this.s3Client.send(listCommand);
+      return (response.Contents && response.Contents.length > 0) || false;
+    } catch (error) {
+      // If listing fails, assume no children
+      return false;
     }
   }
 
@@ -587,7 +609,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                     status: page.status,
                     modifiedAt: page.modifiedAt,
                     modifiedBy: page.modifiedBy,
-                    hasChildren: await this.hasChildren(guid),
+                    hasChildren: await this.hasChildrenDirect(guid),
                   });
                 } catch (err) {
                   // Skip pages that can't be loaded
@@ -633,7 +655,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                       status: page.status,
                       modifiedAt: page.modifiedAt,
                       modifiedBy: page.modifiedBy,
-                      hasChildren: await this.hasChildren(guid),
+                      hasChildren: await this.hasChildrenDirect(guid),
                     });
                   } catch (err) {
                     console.warn(`Failed to load page ${guid}:`, err);
@@ -651,12 +673,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       children.sort((a, b) => a.title.localeCompare(b.title));
 
       return children;
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string };
       throw this.createError(
         `Failed to list children: ${error.message}`,
         'LIST_CHILDREN_FAILED',
-        500,
-        { originalError: error }
+        500
       );
     }
   }
@@ -754,15 +776,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           await this.s3Client.send(childDeleteCommand);
         }
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
       if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'CIRCULAR_REFERENCE'].includes(error.code)) {
-        throw error;
+        throw err;
       }
       throw this.createError(
         `Failed to move page: ${error.message}`,
         'MOVE_FAILED',
-        500,
-        { originalError: error }
+        500
       );
     }
   }

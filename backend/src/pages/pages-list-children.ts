@@ -1,4 +1,4 @@
-import { APIGatewayProxyResult, Context } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 
@@ -28,8 +28,7 @@ import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
  * }
  */
 export const handler = withAuth(async (
-  event: AuthenticatedEvent,
-  _context: Context
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
     // Extract parent GUID from path parameters
@@ -62,7 +61,8 @@ export const handler = withAuth(async (
     if (parentGuid !== null) {
       try {
         await storagePlugin.loadPage(parentGuid);
-      } catch (error: any) {
+      } catch (err: unknown) {
+        const error = err as { code?: string; message?: string };
         if (error.code === 'PAGE_NOT_FOUND') {
           return {
             statusCode: 404,
@@ -95,8 +95,9 @@ export const handler = withAuth(async (
         count: children.length,
       }),
     };
-  } catch (error: any) {
-    console.error('Error listing children:', error);
+  } catch (err: unknown) {
+    console.error('Error listing children:', err);
+    const error = err as { code?: string; statusCode?: number; message?: string };
 
     // Handle storage plugin errors
     if (error.code) {

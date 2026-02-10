@@ -56,20 +56,21 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onResetRequested, onCan
       if (onResetRequested) {
         onResetRequested(email);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error requesting password reset:', err);
+      const error = err as { code?: string; message?: string };
       
       // Handle specific error types
-      if (err.code === 'UserNotFoundException') {
+      if (error.code === 'UserNotFoundException') {
         setError('No account found with this email address.');
-      } else if (err.code === 'LimitExceededException') {
+      } else if (error.code === 'LimitExceededException') {
         setError('Too many password reset attempts. Please try again later.');
-      } else if (err.code === 'InvalidParameterException') {
+      } else if (error.code === 'InvalidParameterException') {
         setError('Invalid email address format.');
-      } else if (err.code === 'NotAuthorizedException') {
+      } else if (error.code === 'NotAuthorizedException') {
         setError('This account is not eligible for password reset.');
       } else {
-        setError(err.message || 'Failed to send password reset email. Please try again.');
+        setError(error.message || 'Failed to send password reset email. Please try again.');
       }
     } finally {
       setLoading(false);

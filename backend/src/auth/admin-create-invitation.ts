@@ -291,8 +291,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         registrationLink: `${FRONTEND_URL}/register?invite=${inviteCode}`,
       }),
     };
-  } catch (error: any) {
-    console.error('Error creating invitation:', error);
+  } catch (err: unknown) {
+    console.error('Error creating invitation:', err);
+    const error = err as { name?: string; errors?: unknown[]; message?: string };
     
     // Handle validation errors
     if (error.name === 'ZodError') {

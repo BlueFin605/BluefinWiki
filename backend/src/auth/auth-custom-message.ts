@@ -315,20 +315,22 @@ export const handler: CustomMessageTriggerHandler = async (event) => {
 
     // Determine the message type
     switch (event.triggerSource) {
-      case 'CustomMessage_ForgotPassword':
+      case 'CustomMessage_ForgotPassword': {
         const resetEmail = generatePasswordResetEmail(userName, email, code);
         event.response.emailSubject = resetEmail.subject;
         event.response.emailMessage = resetEmail.htmlBody;
         event.response.smsMessage = `Your ${WIKI_NAME} password reset code is: ${code}`;
         break;
+      }
 
       case 'CustomMessage_SignUp':
-      case 'CustomMessage_ResendCode':
+      case 'CustomMessage_ResendCode': {
         const verifyEmail = generateVerificationEmail(userName, email, code);
         event.response.emailSubject = verifyEmail.subject;
         event.response.emailMessage = verifyEmail.htmlBody;
         event.response.smsMessage = `Your ${WIKI_NAME} verification code is: ${code}`;
         break;
+      }
 
       case 'CustomMessage_AdminCreateUser':
         event.response.emailSubject = `Welcome to ${WIKI_NAME}`;

@@ -219,8 +219,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         filter: queryParams.status,
       }),
     };
-  } catch (error: any) {
-    console.error('Error listing invitations:', error);
+  } catch (err: unknown) {
+    console.error('Error listing invitations:', err);
+    const error = err as { name?: string; errors?: unknown[]; message?: string };
     
     // Handle validation errors
     if (error.name === 'ZodError') {

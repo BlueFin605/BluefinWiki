@@ -80,13 +80,14 @@ const Login: React.FC = () => {
 
       // Navigate to dashboard on successful login
       navigate('/dashboard');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err);
+      const error = err as { code?: string; message?: string };
       
       // Error is already set in the auth context, but we can override it here
-      if (err.code === 'NewPasswordRequired') {
+      if (error.code === 'NewPasswordRequired') {
         setError('You must change your temporary password. Please check your email.');
-      } else if (err.code === 'MFARequired') {
+      } else if (error.code === 'MFARequired') {
         setError('MFA verification is required. This feature is coming soon.');
       } else {
         setError(contextError || 'Failed to sign in. Please try again.');

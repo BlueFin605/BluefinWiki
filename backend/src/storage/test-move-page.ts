@@ -35,7 +35,7 @@ async function runTest() {
     const rootPage: PageContent = {
       guid: 'root-page-001',
       title: 'Root Test Page',
-      body: '# Root Page\n\nThis is a root level page.',
+      content: '# Root Page\n\nThis is a root level page.',
       folderId: '',
       status: 'published',
       tags: ['test'],
@@ -48,7 +48,7 @@ async function runTest() {
     const childPage: PageContent = {
       guid: 'child-page-001',
       title: 'Child Test Page',
-      body: '# Child Page\n\nThis is a child page.',
+      content: '# Child Page\n\nThis is a child page.',
       folderId: 'root-page-001',
       status: 'published',
       tags: ['test', 'child'],
@@ -61,7 +61,7 @@ async function runTest() {
     const targetPage: PageContent = {
       guid: 'target-page-001',
       title: 'Target Parent Page',
-      body: '# Target Page\n\nThis will be the new parent.',
+      content: '# Target Page\n\nThis will be the new parent.',
       folderId: '',
       status: 'published',
       tags: ['test', 'target'],
@@ -128,7 +128,7 @@ async function runTest() {
     const grandchildPage: PageContent = {
       guid: 'grandchild-page-001',
       title: 'Grandchild Test Page',
-      body: '# Grandchild Page\n\nThis is a grandchild page.',
+      content: '# Grandchild Page\n\nThis is a grandchild page.',
       folderId: childPage.guid,
       status: 'published',
       tags: ['test', 'grandchild'],

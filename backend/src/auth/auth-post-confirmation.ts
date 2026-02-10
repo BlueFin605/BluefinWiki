@@ -1,6 +1,7 @@
 import { PostConfirmationTriggerHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, UpdateCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { UserProfileRecord } from '../types/index.js';
 
 // Environment variables
 const USER_PROFILES_TABLE = process.env.USER_PROFILES_TABLE || 'bluefinwiki-user-profiles-local';
@@ -68,14 +69,14 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
 /**
  * Get user profile from DynamoDB
  */
-async function getUserProfile(cognitoUserId: string): Promise<any | null> {
+async function getUserProfile(cognitoUserId: string): Promise<UserProfileRecord | null> {
   const getCommand = new GetCommand({
     TableName: USER_PROFILES_TABLE,
     Key: { cognitoUserId },
   });
 
   const result = await dynamoClient.send(getCommand);
-  return result.Item || null;
+  return (result.Item as UserProfileRecord | undefined) || null;
 }
 
 /**
@@ -126,7 +127,7 @@ async function logFirstLogin(cognitoUserId: string, email: string): Promise<void
       },
     };
 
-    await dynamoClient.send(new (require('@aws-sdk/lib-dynamodb').PutCommand)(putCommand));
+    await dynamoClient.send(new PutCommand(putCommand));
     console.log('First login activity logged:', { cognitoUserId, timestamp });
   } catch (error) {
     // Log but don't fail if activity logging fails

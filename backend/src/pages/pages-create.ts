@@ -1,4 +1,4 @@
-import { APIGatewayProxyResult, Context } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
@@ -37,8 +37,7 @@ const CreatePageRequestSchema = z.object({
  * }
  */
 export const handler = withAuth(async (
-  event: AuthenticatedEvent,
-  _context: Context
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
     // Parse and validate request body
@@ -113,8 +112,9 @@ export const handler = withAuth(async (
         createdAt: now,
       }),
     };
-  } catch (error: any) {
-    console.error('Error creating page:', error);
+  } catch (err: unknown) {
+    console.error('Error creating page:', err);
+    const error = err as { code?: string; name?: string; message?: string; statusCode?: number };
 
     // Handle storage plugin errors
     if (error.code) {
