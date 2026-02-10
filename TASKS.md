@@ -380,29 +380,29 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Stored directly in bucket root: `{guid}.md`
 
 #### 4.2 Page Hierarchy API Endpoints (No separate /folders endpoints needed)
-- [ ] Enhance existing `pages-create` Lambda
-  - [ ] Accept optional `parentGuid` in request body
-  - [ ] Validate parent page exists if parentGuid provided
+- [X] Enhance existing `pages-create` Lambda
+  - [X] Accept optional `parentGuid` in request body
+  - [X] Validate parent page exists if parentGuid provided
   - [ ] Prevent duplicate titles under same parent (optional business rule)
-  - [ ] Store page at correct S3 path based on parent
-- [ ] Implement `pages-list-children` Lambda (already in 3.3)
-  - [ ] List all pages under a given parent (or root if null)
-  - [ ] Return page summaries: guid, title, hasChildren, createdAt, modifiedAt
-  - [ ] Sort by title (alphabetically)
-- [ ] Implement `pages-move` Lambda (already in 3.3)
-  - [ ] Move page (and its children) to new parent
-  - [ ] Update parentGuid in page frontmatter
-  - [ ] Move S3 objects from old path to new path
-  - [ ] Validate circular reference prevention
-- [ ] Enhance `pages-delete` Lambda
-  - [ ] Support `recursive=true` query parameter
-  - [ ] If recursive=false and page has children, return error "Page has children"
-  - [ ] If recursive=true, delete page and all descendants
-  - [ ] Return count of deleted pages
-- [ ] Enhance `pages-update` Lambda
-  - [ ] Allow updating title (display name in frontmatter) without changing GUID
-  - [ ] Allow updating description and other metadata
-  - [ ] Moving page is separate operation (use `pages-move`)
+  - [X] Store page at correct S3 path based on parent
+- [X] Implement `pages-list-children` Lambda (already in 3.3)
+  - [X] List all pages under a given parent (or root if null)
+  - [X] Return page summaries: guid, title, hasChildren, createdAt, modifiedAt
+  - [X] Sort by title (alphabetically)
+- [X] Implement `pages-move` Lambda (already in 3.3)
+  - [X] Move page (and its children) to new parent
+  - [X] Update parentGuid in page frontmatter
+  - [X] Move S3 objects from old path to new path
+  - [X] Validate circular reference prevention
+- [X] Enhance `pages-delete` Lambda
+  - [X] Support `recursive=true` query parameter
+  - [X] If recursive=false and page has children, return error "Page has children"
+  - [X] If recursive=true, delete page and all descendants
+  - [X] Return count of deleted pages
+- [X] Enhance `pages-update` Lambda
+  - [X] Allow updating title (display name in frontmatter) without changing GUID
+  - [X] Allow updating description and other metadata
+  - [X] Moving page is separate operation (use `pages-move`)
 
 #### 4.3 Frontend Page Tree Components
 - [ ] Build recursive page tree component
