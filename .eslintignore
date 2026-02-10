@@ -1,0 +1,22 @@
+# Build outputs
+dist/
+build/
+out/
+.next/
+cdk.out/
+
+# Dependencies
+node_modules/
+
+# CDK generated
+*.js
+*.d.ts
+!jest.config.js
+!.eslintrc.cjs
+!*.config.js
+
+# Coverage
+coverage/
+
+# Aspire
+aspire/

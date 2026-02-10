@@ -7,10 +7,10 @@
     "build": "tsc",
     "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
-    "test": "vitest run --exclude '**/*.integration.test.ts'",
-    "test:watch": "vitest --exclude '**/*.integration.test.ts'",
-    "test:integration": "vitest run **/*.integration.test.ts",
-    "test:all": "vitest run"
+    "test": "vitest run --no-isolate",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "vitest run && vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.984.0",
