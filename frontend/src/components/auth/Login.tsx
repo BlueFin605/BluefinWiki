@@ -117,7 +117,7 @@ const Login: React.FC = () => {
         </div>
 
         {/* Login Form */}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} noValidate>
           {/* Error Display */}
           {error && (
             <div className="rounded-md bg-red-50 border border-red-200 p-4">
