@@ -1,0 +1,227 @@
+/**
+ * PagesView Component
+ * 
+ * Main page view that integrates all page tree functionality:
+ * - Page tree navigation
+ * - Context menu
+ * - New page modal
+ * - Delete confirmation
+ * - Inline rename
+ */
+
+import React, { useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PageTree } from './PageTree';
+import { PageContextMenu } from './PageContextMenu';
+import { NewPageModal } from './NewPageModal';
+import { PageRenameInline } from './PageRenameInline';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { PageTreeNode } from '../../types/page';
+import { useDeletePage } from '../../hooks/usePages';
+
+// Create a query client for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
+    },
+  },
+});
+
+export const PagesView: React.FC = () => {
+  const [activePageGuid, setActivePageGuid] = useState<string | undefined>();
+  const [contextMenu, setContextMenu] = useState<{
+    page: PageTreeNode;
+    position: { x: number; y: number };
+  } | null>(null);
+  const [newPageModal, setNewPageModal] = useState<{
+    isOpen: boolean;
+    parentGuid: string | null;
+  }>({ isOpen: false, parentGuid: null });
+  const [renamingPage, setRenamingPage] = useState<PageTreeNode | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    page: PageTreeNode | null;
+  }>({ isOpen: false, page: null });
+
+  const deletePage = useDeletePage();
+
+  const handlePageSelect = (guid: string) => {
+    setActivePageGuid(guid);
+    // TODO: Load and display page content
+  };
+
+  const handleContextMenu = (event: React.MouseEvent, page: PageTreeNode) => {
+    event.preventDefault();
+    setContextMenu({
+      page,
+      position: { x: event.clientX, y: event.clientY },
+    });
+  };
+
+  const handleRename = (page: PageTreeNode) => {
+    setRenamingPage(page);
+  };
+
+  const handleDelete = (page: PageTreeNode) => {
+    setDeleteConfirm({ isOpen: true, page });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm.page) return;
+
+    try {
+      await deletePage.mutateAsync({
+        guid: deleteConfirm.page.guid,
+        recursive: deleteConfirm.page.hasChildren,
+      });
+      setDeleteConfirm({ isOpen: false, page: null });
+      setActivePageGuid(undefined);
+    } catch (error) {
+      console.error('Failed to delete page:', error);
+      alert('Failed to delete page. Please try again.');
+    }
+  };
+
+  const handleMove = (page: PageTreeNode) => {
+    // TODO: Implement move dialog
+    console.log('Move page:', page);
+    alert('Move functionality coming soon! For now, use drag-and-drop.');
+  };
+
+  const handleNewChild = (page: PageTreeNode) => {
+    setNewPageModal({ isOpen: true, parentGuid: page.guid });
+  };
+
+  const handleNewRootPage = () => {
+    setNewPageModal({ isOpen: true, parentGuid: null });
+  };
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <div className="flex h-screen bg-gray-50">
+        {/* Sidebar with page tree */}
+        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold text-gray-900">Pages</h2>
+              <button
+                onClick={handleNewRootPage}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                aria-label="New page"
+                title="Create new root page"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Page Tree */}
+          <div className="flex-1 overflow-y-auto p-2">
+            <PageTree
+              activePageGuid={activePageGuid}
+              onPageSelect={handlePageSelect}
+              onContextMenu={handleContextMenu}
+            />
+          </div>
+        </div>
+
+        {/* Main content area */}
+        <div className="flex-1 overflow-y-auto p-8">
+          {activePageGuid ? (
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                Page Content
+              </h1>
+              <p className="text-gray-600">
+                Selected page GUID: <code className="bg-gray-100 px-2 py-1 rounded">{activePageGuid}</code>
+              </p>
+              <p className="text-gray-500 mt-4">
+                Page content viewer will be implemented in a future task.
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-500">
+                <svg
+                  className="w-16 h-16 mx-auto mb-4 text-gray-300"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <p className="text-lg mb-2">No page selected</p>
+                <p className="text-sm">Select a page from the tree or create a new one</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Context Menu */}
+        {contextMenu && (
+          <PageContextMenu
+            page={contextMenu.page}
+            position={contextMenu.position}
+            onClose={() => setContextMenu(null)}
+            onRename={handleRename}
+            onDelete={handleDelete}
+            onMove={handleMove}
+            onNewChild={handleNewChild}
+          />
+        )}
+
+        {/* New Page Modal */}
+        <NewPageModal
+          isOpen={newPageModal.isOpen}
+          onClose={() => setNewPageModal({ isOpen: false, parentGuid: null })}
+          defaultParentGuid={newPageModal.parentGuid}
+        />
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={deleteConfirm.isOpen}
+          title="Delete Page"
+          message={
+            deleteConfirm.page?.hasChildren
+              ? `Are you sure you want to delete "${deleteConfirm.page?.title}" and all its child pages? This action cannot be undone.`
+              : `Are you sure you want to delete "${deleteConfirm.page?.title}"? This action cannot be undone.`
+          }
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteConfirm({ isOpen: false, page: null })}
+          isDangerous
+        />
+
+        {/* Rename Inline Editor (rendered in modal or overlay) */}
+        {renamingPage && (
+          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-96">
+              <h3 className="text-lg font-semibold mb-4">Rename Page</h3>
+              <PageRenameInline
+                page={renamingPage}
+                onComplete={() => setRenamingPage(null)}
+                onCancel={() => setRenamingPage(null)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </QueryClientProvider>
+  );
+};

@@ -405,31 +405,31 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Moving page is separate operation (use `pages-move`)
 
 #### 4.3 Frontend Page Tree Components
-- [ ] Build recursive page tree component
-  - [ ] Display pages in hierarchical tree structure
-  - [ ] Show expand/collapse icons for pages with children
-  - [ ] Use page icon for leaf pages, folder icon for pages with children
-  - [ ] Highlight active page
-  - [ ] Support keyboard navigation (arrows, enter)
-- [ ] Implement page context menu
-  - [ ] Right-click menu: Rename, Delete, Move, New Child Page
-  - [ ] "New Child Page" creates page with current page as parent
-  - [ ] Keyboard shortcut support
-  - [ ] Confirmation dialog for destructive actions
-- [ ] Build drag-and-drop functionality
-  - [ ] Drag pages to reparent (move under different parent)
-  - [ ] Visual drop indicators (show valid drop targets)
-  - [ ] Prevent dropping page under its own descendants
-  - [ ] Optimistic UI updates
-- [ ] Create "New Page" modal
-  - [ ] Title input with validation
-  - [ ] Parent page selection (tree dropdown)
-  - [ ] Optional description field
-  - [ ] "Create as root page" checkbox (sets parentGuid = null)
-- [ ] Implement "Rename Page" inline editing
-  - [ ] Click page title to edit
-  - [ ] Save updates title in frontmatter, not GUID
-  - [ ] Update happens via `pages-update` API
+- [X] Build recursive page tree component
+  - [X] Display pages in hierarchical tree structure
+  - [X] Show expand/collapse icons for pages with children
+  - [X] Use page icon for leaf pages, folder icon for pages with children
+  - [X] Highlight active page
+  - [X] Support keyboard navigation (arrows, enter)
+- [X] Implement page context menu
+  - [X] Right-click menu: Rename, Delete, Move, New Child Page
+  - [X] "New Child Page" creates page with current page as parent
+  - [X] Keyboard shortcut support
+  - [X] Confirmation dialog for destructive actions
+- [X] Build drag-and-drop functionality
+  - [X] Drag pages to reparent (move under different parent)
+  - [X] Visual drop indicators (show valid drop targets)
+  - [X] Prevent dropping page under its own descendants
+  - [X] Optimistic UI updates
+- [X] Create "New Page" modal
+  - [X] Title input with validation
+  - [X] Parent page selection (tree dropdown)
+  - [X] Optional description field
+  - [X] "Create as root page" checkbox (sets parentGuid = null)
+- [X] Implement "Rename Page" inline editing
+  - [X] Click page title to edit
+  - [X] Save updates title in frontmatter, not GUID
+  - [X] Update happens via `pages-update` API
 
 #### 4.4 Page Hierarchy Testing
 - [ ] Unit tests for hierarchy traversal logic
