@@ -11,7 +11,7 @@ import axios from 'axios';
 
 // Mock axios
 vi.mock('axios');
-const mockAxios = axios as any;
+const mockAxios = axios as unknown as { post: ReturnType<typeof vi.fn> };
 
 // Mock useNavigate
 const mockNavigate = vi.fn();

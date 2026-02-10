@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 import { ReactNode } from 'react';
-import { mockCognitoUser, createCognitoError } from '../test/test-utils';
+import { createCognitoError } from '../test/test-utils';
 
 // Mock the Cognito user pool
 const mockGetCurrentUser = vi.fn();
@@ -26,10 +26,10 @@ vi.mock('amazon-cognito-identity-js', () => ({
   CognitoUserPool: vi.fn(),
   CognitoUser: vi.fn((config) => ({
     getUsername: () => config.Username,
-    authenticateUser: (authDetails: any, callbacks: any) => mockAuthenticateUser(authDetails, callbacks),
+    authenticateUser: (authDetails: unknown, callbacks: { onSuccess?: (session: unknown) => void; onFailure?: (err: Error) => void }) => mockAuthenticateUser(authDetails, callbacks),
     signOut: () => mockSignOut(),
-    getSession: (callback: any) => mockGetSession(callback),
-    setDeviceStatusRemembered: (callbacks: any) => mockSetDeviceStatusRemembered(callbacks),
+    getSession: (callback: (err: Error | null, session?: unknown) => void) => mockGetSession(callback),
+    setDeviceStatusRemembered: (callbacks: { onSuccess?: () => void; onFailure?: (err: Error) => void }) => mockSetDeviceStatusRemembered(callbacks),
   })),
   AuthenticationDetails: vi.fn(),
   CognitoUserSession: vi.fn(),
@@ -110,7 +110,7 @@ describe('AuthContext', () => {
     it('restores session if valid session exists', async () => {
       const mockUser = {
         getUsername: () => 'test@example.com',
-        getSession: (callback: any) => {
+        getSession: (callback: (err: Error | null, session?: unknown) => void) => {
           callback(null, {
             isValid: () => true,
             getIdToken: () => ({
@@ -147,7 +147,7 @@ describe('AuthContext', () => {
 
   describe('signIn', () => {
     it('successfully signs in with valid credentials', async () => {
-      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+      mockAuthenticateUser.mockImplementation((_authDetails, callbacks) => {
         callbacks.onSuccess({
           isValid: () => true,
           getIdToken: () => ({
@@ -188,7 +188,7 @@ describe('AuthContext', () => {
     });
 
     it('handles sign in failure', async () => {
-      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+      mockAuthenticateUser.mockImplementation((_authDetails, callbacks) => {
         callbacks.onFailure(createCognitoError('NotAuthorizedException', 'Incorrect username or password'));
       });
 
@@ -211,7 +211,7 @@ describe('AuthContext', () => {
     });
 
     it('handles UserNotFoundException', async () => {
-      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+      mockAuthenticateUser.mockImplementation((_authDetails, callbacks) => {
         callbacks.onFailure(createCognitoError('UserNotFoundException', 'User does not exist'));
       });
 
@@ -231,7 +231,7 @@ describe('AuthContext', () => {
     });
 
     it('handles NewPasswordRequired', async () => {
-      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+      mockAuthenticateUser.mockImplementation((_authDetails, callbacks) => {
         callbacks.newPasswordRequired({});
       });
 
@@ -251,7 +251,7 @@ describe('AuthContext', () => {
     });
 
     it('handles remember me option', async () => {
-      mockAuthenticateUser.mockImplementation((authDetails, callbacks) => {
+      mockAuthenticateUser.mockImplementation((_authDetails, callbacks) => {
         callbacks.onSuccess({
           isValid: () => true,
           getIdToken: () => ({
@@ -293,7 +293,7 @@ describe('AuthContext', () => {
       const mockUser = {
         getUsername: () => 'test@example.com',
         signOut: mockSignOut,
-        getSession: (callback: any) => {
+        getSession: (callback: (err: Error | null, session?: unknown) => void) => {
           callback(null, {
             isValid: () => true,
             getIdToken: () => ({
@@ -348,7 +348,7 @@ describe('AuthContext', () => {
     it('refreshes user data from session', async () => {
       const mockUser = {
         getUsername: () => 'test@example.com',
-        getSession: (callback: any) => {
+        getSession: (callback: (err: Error | null, session?: unknown) => void) => {
           callback(null, {
             isValid: () => true,
             getIdToken: () => ({
@@ -413,7 +413,7 @@ describe('AuthContext', () => {
 
       const mockUser = {
         getUsername: () => 'test@example.com',
-        getSession: (callback: any) => {
+        getSession: (callback: (err: Error | null, session?: unknown) => void) => {
           callback(null, mockSession);
         },
       };

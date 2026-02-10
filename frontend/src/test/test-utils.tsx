@@ -80,7 +80,7 @@ export const mockAdminUser = {
  * Create a mock error response from Cognito
  */
 export function createCognitoError(code: string, message: string) {
-  const error: any = new Error(message);
+  const error = new Error(message) as Error & { code: string; name: string };
   error.code = code;
   error.name = code;
   return error;

@@ -301,16 +301,16 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       // Build PageContent object
       const pageContent: PageContent = {
-        guid: metadata.guid || guid,
-        title: metadata.title || 'Untitled',
+        guid: Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid,
+        title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
         content: body,
-        folderId: metadata.folderId || metadata.parentGuid || '',
-        tags: metadata.tags || [],
-        status: metadata.status || 'draft',
-        createdBy: metadata.createdBy || '',
-        modifiedBy: metadata.modifiedBy || '',
-        createdAt: metadata.createdAt || this.formatDate(),
-        modifiedAt: metadata.modifiedAt || this.formatDate(),
+        folderId: Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId || (Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid) || '',
+        tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
+        status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived',
+        createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
+        modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',
+        createdAt: Array.isArray(metadata.createdAt) ? metadata.createdAt[0] : metadata.createdAt || this.formatDate(),
+        modifiedAt: Array.isArray(metadata.modifiedAt) ? metadata.modifiedAt[0] : metadata.modifiedAt || this.formatDate(),
       };
 
       return pageContent;
@@ -332,7 +332,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         `Failed to load page: ${error.message}`,
         'LOAD_FAILED',
         500,
-        { originalError: error }
+        { errorCode: error.code || '', errorName: error.name || '', errorMessage: error.message || '' }
       );
     }
   }

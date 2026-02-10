@@ -28,8 +28,10 @@ describe('Login Component', () => {
     vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
       signIn: mockSignIn,
       signOut: vi.fn(),
+      refreshUser: vi.fn(),
+      getCurrentSession: vi.fn(),
       user: null,
-      loading: false,
+      isLoading: false,
       error: null,
       isAuthenticated: false,
     });
