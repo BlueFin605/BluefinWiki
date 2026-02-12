@@ -403,6 +403,24 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Allow updating title (display name in frontmatter) without changing GUID
   - [X] Allow updating description and other metadata
   - [X] Moving page is separate operation (use `pages-move`)
+- [X] Fix Integration Test Mocks (Task 4.2 completion)
+  - [X] Debug GetObjectCommand mock setup - use callsFake for multiple calls
+  - [X] Fix isDescendantOf implementation test expectations - mock HeadObjectCommand and ListObjectsV2Command
+  - [X] Implement proper delete protection - mock child page loading in listChildren
+- [X] Consider Real Integration Tests (Priority: LOW)
+  - [X] Tests against LocalStack for true S3 behavior validation
+  - [X] Performance tests with large datasets
+  - [X] Enable S3StoragePlugin.integration.test.ts for LocalStack testing
+  - [X] Add 8 comprehensive performance test scenarios:
+    - [X] Bulk operations (100+ pages creation and listing)
+    - [X] Large content handling (5MB page files)
+    - [X] Deep hierarchy stress test (10 nested levels)
+    - [X] Wide hierarchy test (100 children under one parent)
+    - [X] Bulk deletion performance (50 pages recursive)
+    - [X] Concurrent operations (50 simultaneous read/write)
+    - [X] Versioning stress (20+ rapid updates)
+  - [X] Document integration test setup and execution in storage README
+  - [X] Add performance benchmarks and monitoring guidelines
 
 #### 4.3 Frontend Page Tree Components
 - [X] Build recursive page tree component
