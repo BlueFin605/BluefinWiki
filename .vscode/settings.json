@@ -35,7 +35,11 @@
         "npx vitest": true,
         "dotnet test": true,
         "npm run lint": true,
-        "npx eslint": true
+        "npx eslint": true,
+        "ConvertTo-Json": true,
+        ".\\start-aspire.ps1": true,
+        "Start-Process": true,
+        "npm run test:integration": true
     }
 }
 
