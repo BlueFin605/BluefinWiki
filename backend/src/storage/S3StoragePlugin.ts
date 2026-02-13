@@ -179,10 +179,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       '---',
       `title: "${content.title}"`,
       `guid: "${content.guid}"`,
-      content.folderId ? `parentGuid: "${content.folderId}"` : '',
-      content.folderId ? `folderId: "${content.folderId}"` : '',
-      `status: "${content.status}"`,
     ];
+    
+    // Add parentGuid and folderId if present
+    if (content.folderId) {
+      lines.push(`parentGuid: "${content.folderId}"`);
+      lines.push(`folderId: "${content.folderId}"`);
+    }
+    
+    lines.push(`status: "${content.status}"`);
     
     // Add description if present
     if (content.description) {
@@ -205,11 +210,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       `createdAt: "${content.createdAt}"`,
       `modifiedAt: "${content.modifiedAt}"`,
       '---',
-      ''
+      '' // Empty line after frontmatter
     );
     
-    const frontmatter = lines.filter(line => line !== '').join('\n');
-    return frontmatter + content.content;
+    return lines.join('\n') + content.content;
   }
 
   /**
