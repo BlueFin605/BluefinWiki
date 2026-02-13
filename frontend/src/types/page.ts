@@ -43,6 +43,7 @@ export interface UpdatePageRequest {
   description?: string;
   content?: string;
   status?: 'draft' | 'published' | 'archived';
+  tags?: string[];
 }
 
 export interface MovePageRequest {

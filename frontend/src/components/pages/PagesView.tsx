@@ -16,6 +16,8 @@ import { PageContextMenu } from './PageContextMenu';
 import { NewPageModal } from './NewPageModal';
 import { PageRenameInline } from './PageRenameInline';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { EditorErrorBoundary } from '../common/EditorErrorBoundary';
+import { PageEditor } from './PageEditor';
 import { PageTreeNode } from '../../types/page';
 import { useDeletePage } from '../../hooks/usePages';
 
@@ -136,19 +138,22 @@ export const PagesView: React.FC = () => {
         </div>
 
         {/* Main content area */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-hidden">
           {activePageGuid ? (
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                Page Content
-              </h1>
-              <p className="text-gray-600">
-                Selected page GUID: <code className="bg-gray-100 px-2 py-1 rounded">{activePageGuid}</code>
-              </p>
-              <p className="text-gray-500 mt-4">
-                Page content viewer will be implemented in a future task.
-              </p>
-            </div>
+            <EditorErrorBoundary
+              onReset={() => {
+                // Reset to no page selected on error
+                setActivePageGuid(undefined);
+              }}
+            >
+              <PageEditor
+                pageGuid={activePageGuid}
+                onPageDeleted={() => {
+                  // Clear selection when page is deleted
+                  setActivePageGuid(undefined);
+                }}
+              />
+            </EditorErrorBoundary>
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-gray-500">

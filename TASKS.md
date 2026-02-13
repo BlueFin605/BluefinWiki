@@ -475,69 +475,69 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 **Goal**: Build Markdown editor with live preview
 
 #### 5.1 Editor Component Setup
-- [ ] Install CodeMirror 6 dependencies
-  - [ ] @codemirror/state, @codemirror/view
-  - [ ] @codemirror/lang-markdown
-  - [ ] @codemirror/commands (undo/redo, search)
-- [ ] Configure Markdown language mode
-  - [ ] Syntax highlighting
-  - [ ] Auto-indentation
-  - [ ] Bracket matching
-- [ ] Set up split-pane layout (edit | preview)
-  - [ ] Resizable divider
-  - [ ] Synchronized scrolling (optional)
-  - [ ] Toggle preview pane button
+- [X] Install CodeMirror 6 dependencies
+  - [X] @codemirror/state, @codemirror/view
+  - [X] @codemirror/lang-markdown
+  - [X] @codemirror/commands (undo/redo, search)
+- [X] Configure Markdown language mode
+  - [X] Syntax highlighting
+  - [X] Auto-indentation
+  - [X] Bracket matching
+- [X] Set up split-pane layout (edit | preview)
+  - [X] Resizable divider
+  - [X] Synchronized scrolling (optional)
+  - [X] Toggle preview pane button
 
 #### 5.2 Markdown Preview
-- [ ] Install react-markdown and remark plugins
-  - [ ] remark-gfm (GitHub Flavored Markdown)
-  - [ ] remark-breaks (line breaks)
-  - [ ] rehype-highlight (code syntax highlighting)
-- [ ] Build preview component
-  - [ ] Render Markdown in real-time
-  - [ ] Apply CSS styling for readability
-  - [ ] Support tables, task lists, footnotes
-- [ ] Implement preview theming (light/dark)
+- [X] Install react-markdown and remark plugins
+  - [X] remark-gfm (GitHub Flavored Markdown)
+  - [X] remark-breaks (line breaks)
+  - [X] rehype-highlight (code syntax highlighting)
+- [X] Build preview component
+  - [X] Render Markdown in real-time
+  - [X] Apply CSS styling for readability
+  - [X] Support tables, task lists, footnotes
+- [X] Implement preview theming (light/dark)
 
 #### 5.3 Editor Features
-- [ ] Build Markdown toolbar
-  - [ ] Buttons: Bold, Italic, Strikethrough
-  - [ ] Headers (H1-H6 dropdown)
-  - [ ] Lists (unordered, ordered, task)
-  - [ ] Links, images, code blocks
-  - [ ] Keyboard shortcuts (Ctrl+B, Ctrl+I, etc.)
-- [ ] Implement autosave mechanism
-  - [ ] Debounce save (5 seconds after last edit)
-  - [ ] Show "Saving..." indicator
-  - [ ] Display last saved timestamp
-  - [ ] Handle save errors gracefully
-- [ ] Add unsaved changes warning
-  - [ ] Detect dirty state
-  - [ ] Show prompt on navigation/close
-  - [ ] Offer save or discard options
+- [X] Build Markdown toolbar
+  - [X] Buttons: Bold, Italic, Strikethrough
+  - [X] Headers (H1-H6 dropdown)
+  - [X] Lists (unordered, ordered, task)
+  - [X] Links, images, code blocks
+  - [X] Keyboard shortcuts (Ctrl+B, Ctrl+I, etc.)
+- [X] Implement autosave mechanism
+  - [X] Debounce save (5 seconds after last edit)
+  - [X] Show "Saving..." indicator
+  - [X] Display last saved timestamp
+  - [X] Handle save errors gracefully
+- [X] Add unsaved changes warning
+  - [X] Detect dirty state
+  - [X] Show prompt on navigation/close
+  - [X] Offer save or discard options
 
 #### 5.4 Page Metadata Editing
-- [ ] Create page properties panel
-  - [ ] Inline title editing (H1 header sync)
-  - [ ] Tag input (multi-select dropdown)
-  - [ ] Status dropdown (Draft, Published, Archived)
-  - [ ] Author display (read-only)
-  - [ ] Created/modified timestamps
-- [ ] Implement metadata save
-  - [ ] Update metadata fields in page data
-  - [ ] Save entire page (content + metadata) via storage plugin
-  - [ ] Metadata is part of PageContent JSON in storage
+- [X] Create page properties panel
+  - [X] Inline title editing (H1 header sync)
+  - [X] Tag input (multi-select dropdown)
+  - [X] Status dropdown (Draft, Published, Archived)
+  - [X] Author display (read-only)
+  - [X] Created/modified timestamps
+- [X] Implement metadata save
+  - [X] Update metadata fields in page data
+  - [X] Save entire page (content + metadata) via storage plugin
+  - [X] Metadata is part of PageContent JSON in storage
 
 #### 5.5 Page API Integration
-- [ ] Connect editor to backend APIs
-  - [ ] Load page content on mount
-  - [ ] Save content on autosave trigger
-  - [ ] Handle 409 conflicts (concurrent edits)
-  - [ ] Implement optimistic updates
-- [ ] Add loading states and error handling
-  - [ ] Skeleton loader while fetching
-  - [ ] Error boundaries for component crashes
-  - [ ] Retry mechanism for failed saves
+- [X] Connect editor to backend APIs
+  - [X] Load page content on mount
+  - [X] Save content on autosave trigger
+  - [X] Handle 409 conflicts (concurrent edits)
+  - [X] Implement optimistic updates
+- [X] Add loading states and error handling
+  - [X] Skeleton loader while fetching
+  - [X] Error boundaries for component crashes
+  - [X] Retry mechanism for failed saves
 
 ---
 
