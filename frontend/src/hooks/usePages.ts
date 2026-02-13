@@ -19,6 +19,7 @@ export const pageKeys = {
   detail: (guid: string) => [...pageKeys.all, 'detail', guid] as const,
   ancestors: (guid: string) => [...pageKeys.all, 'ancestors', guid] as const,
   search: (query: string) => [...pageKeys.all, 'search', query] as const,
+  backlinks: (guid: string) => [...pageKeys.all, 'backlinks', guid] as const,
 };
 
 /**
@@ -29,6 +30,25 @@ export interface PageSearchResult {
   title: string;
   path: string;
   folderId: string | null;
+}
+
+/**
+ * Backlink information for a page
+ */
+export interface Backlink {
+  guid: string;
+  title: string;
+  linkText?: string;
+  createdAt: string;
+}
+
+/**
+ * Backlinks response
+ */
+export interface BacklinksResponse {
+  guid: string;
+  backlinks: Backlink[];
+  count: number;
 }
 
 /**
@@ -186,5 +206,20 @@ export const usePageSearch = (query: string, options?: { enabled?: boolean; limi
     },
     enabled: options?.enabled !== false && !!query && query.trim() !== '',
     staleTime: 30000, // Cache for 30 seconds
+  });
+};
+
+/**
+ * Fetch backlinks for a page (pages that link to this page)
+ */
+export const useBacklinks = (guid: string) => {
+  return useQuery({
+    queryKey: pageKeys.backlinks(guid),
+    queryFn: async (): Promise<BacklinksResponse> => {
+      const response = await apiClient.get(`/pages/${guid}/backlinks`);
+      return response.data;
+    },
+    enabled: !!guid,
+    staleTime: 60000, // Cache for 1 minute
   });
 };

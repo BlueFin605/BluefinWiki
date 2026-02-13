@@ -113,7 +113,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       
       // Find and replace the broken link with a valid link
       const wikiLinkRegex = new RegExp(`\\[\\[${target}(?:\\|([^\\]]+))?\\]\\]`, 'g');
-      const updatedContent = content.replace(wikiLinkRegex, (match, displayText) => {
+      const updatedContent = content.replace(wikiLinkRegex, (_match, displayText) => {
         const text = displayText || newPageTitle;
         return `[[${newPageGuid}|${text}]]`;
       });
