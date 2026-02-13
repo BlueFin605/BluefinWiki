@@ -9,6 +9,7 @@ import './markdown-preview.css';
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
+  onBrokenLinkClick?: (linkText: string, linkTarget: string) => void;
 }
 
 /**
@@ -20,10 +21,12 @@ interface MarkdownPreviewProps {
  * - Wiki-style links ([[Page Title]] and [[guid|Display Text]])
  * - Custom styling for readability
  * - Light/dark theme support
+ * - Broken link detection and creation workflow
  */
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
   className = '',
+  onBrokenLinkClick,
 }) => {
   // Memoize the markdown rendering to avoid unnecessary re-renders
   const renderedContent = useMemo(() => {
@@ -37,12 +40,13 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             // Check if this is a wiki link by looking at data attributes
             const isWikiLink = (props as any)['data-wiki-link'] === 'true';
             const isBroken = (props as any)['data-broken'] === 'true';
+            const wikiTarget = (props as any)['data-wiki-target'];
             
             if (isWikiLink) {
               // Wiki link styling
               const baseClasses = 'underline cursor-pointer';
               const colorClasses = isBroken
-                ? 'text-red-600 dark:text-red-400'
+                ? 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300'
                 : 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300';
               
               return (
@@ -51,11 +55,21 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                   href={href}
                   onClick={(e) => {
                     e.preventDefault();
-                    // In preview mode, wiki links are disabled
-                    console.log('Wiki link clicked (disabled in preview):', href);
+                    if (isBroken && onBrokenLinkClick) {
+                      // Extract link text from children
+                      const linkText = typeof children === 'string' 
+                        ? children 
+                        : Array.isArray(children) 
+                          ? children.join('') 
+                          : wikiTarget || 'Untitled';
+                      onBrokenLinkClick(linkText, wikiTarget || linkText);
+                    } else {
+                      // In preview mode, wiki links are disabled
+                      console.log('Wiki link clicked (disabled in preview):', href);
+                    }
                   }}
                   className={`${baseClasses} ${colorClasses}`}
-                  title={isBroken ? `Page not found: ${(props as any)['data-wiki-target']}` : undefined}
+                  title={isBroken ? `Page not found: ${wikiTarget}. Click to create.` : undefined}
                 >
                   {children}
                   {isBroken && <span className="ml-1 text-xs">?</span>}
