@@ -39,22 +39,39 @@ function createMockPageContent(
   guid: string,
   title: string,
   folderId: string | null,
-  content: string = 'Test content'
+  content: string = 'Test content',
+  tags: string[] = []
 ): string {
-  return `---
-guid: "${guid}"
-title: "${title}"
-folderId: ${folderId ? `"${folderId}"` : 'null'}
-status: "published"
-tags: []
-createdBy: "user-123"
-modifiedBy: "user-123"
-createdAt: "2026-02-10T12:00:00Z"
-modifiedAt: "2026-02-10T12:00:00Z"
----
-
-${content}
-`;
+  const lines = [
+    '---',
+    `title: "${title}"`,
+    `guid: "${guid}"`,
+    folderId ? `parentGuid: "${folderId}"` : '',
+    folderId ? `folderId: "${folderId}"` : '',
+    `status: "published"`,
+  ];
+  
+  // Add tags in YAML list format
+  if (tags.length > 0) {
+    lines.push('tags:');
+    tags.forEach(tag => {
+      lines.push(`  - ${tag}`);
+    });
+  } else {
+    lines.push('tags: []');
+  }
+  
+  lines.push(
+    `createdBy: "user-123"`,
+    `modifiedBy: "user-123"`,
+    `createdAt: "2026-02-10T12:00:00Z"`,
+    `modifiedAt: "2026-02-10T12:00:00Z"`,
+    '---',
+    ''
+  );
+  
+  const frontmatter = lines.filter(line => line !== '').join('\n');
+  return frontmatter + content + '\n';
 }
 
 describe('Page Operations - Create Child Pages at Various Depths', () => {
