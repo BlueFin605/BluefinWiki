@@ -556,17 +556,17 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Mark broken links with red color
 
 #### 6.2 Link Resolution Service
-- [ ] Build link resolver Lambda: `links-resolve`
-  - [ ] Input: page title or GUID
-  - [ ] Search through storage plugin (list all pages, filter by title)
-  - [ ] Implement fuzzy matching on page titles
-  - [ ] Return best match with confidence score
-  - [ ] Handle ambiguous titles (multiple matches)
-  - [ ] Consider caching page index for performance
-- [ ] Implement broken link detection
-  - [ ] Query storage plugin for page existence
-  - [ ] Mark links with `?` icon
-  - [ ] Provide "Create Page" quick action
+- [X] Build link resolver Lambda: `links-resolve`
+  - [X] Input: page title or GUID
+  - [X] Search through storage plugin (list all pages, filter by title)
+  - [X] Implement fuzzy matching on page titles
+  - [X] Return best match with confidence score
+  - [X] Handle ambiguous titles (multiple matches)
+  - [X] Consider caching page index for performance
+- [X] Implement broken link detection
+  - [X] Query storage plugin for page existence
+  - [X] Mark links with `?` icon
+  - [X] Provide "Create Page" quick action
 
 #### 6.3 Link Autocomplete
 - [ ] Build link suggestion component

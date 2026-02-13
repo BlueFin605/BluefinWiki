@@ -173,6 +173,61 @@ Moves a page to a new parent location (or to root level).
 
 ---
 
+### `links-resolve.ts`
+**POST /pages/links/resolve**
+
+Resolves wiki links by page title or GUID with fuzzy matching and confidence scoring.
+
+**Request Body:**
+```json
+{
+  "query": "Page Title or GUID",
+  "maxResults": 10
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "query": "Page Title",
+  "matches": [
+    {
+      "guid": "page-guid",
+      "title": "Page Title",
+      "parentGuid": "parent-guid-or-null",
+      "status": "published",
+      "confidence": 1.0,
+      "path": "Parent > Page Title"
+    }
+  ],
+  "exactMatch": true,
+  "ambiguous": false,
+  "exists": true
+}
+```
+
+**Features:**
+- **GUID Resolution**: If query is a valid GUID, returns exact match
+- **Exact Title Match**: Case-insensitive exact title matching (confidence: 1.0)
+- **Partial Match**: Substring matching (confidence: 0.7-0.95)
+- **Fuzzy Match**: Levenshtein distance for typo tolerance (confidence: 0.5-0.7)
+- **Ambiguous Detection**: Flags when multiple high-confidence matches exist
+- **Hierarchical Path**: Shows full parent path for context
+
+**Confidence Scoring:**
+- `1.0`: Exact match (case-insensitive)
+- `0.7-0.95`: Partial substring match
+- `0.5-0.7`: Fuzzy match with typos
+- `< 0.5`: Not returned (below threshold)
+
+**Use Cases:**
+- Wiki link autocomplete in editor
+- Broken link detection
+- Link validation before page creation
+- Backlink resolution
+
+---
+
 ## Authentication
 
 All endpoints require authentication via Cognito JWT tokens. The `withAuth` middleware:
@@ -283,6 +338,7 @@ These functions should be integrated with API Gateway with the following routes:
 - `DELETE /pages/{guid}` → `pages-delete`
 - `GET /pages/{guid}/children` → `pages-list-children`
 - `PUT /pages/{guid}/move` → `pages-move`
+- `POST /pages/links/resolve` → `links-resolve`
 
 Configure API Gateway authorizer to use Cognito User Pool.
 
