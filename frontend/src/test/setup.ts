@@ -107,9 +107,10 @@ if (typeof document !== 'undefined') {
       selectAllChildren: vi.fn(),
       setBaseAndExtent: vi.fn(),
       setPosition: vi.fn(),
-    })) as any;
+    })) as unknown;
   }
 }
 
 // Export expect for convenience
 export { expect };
+

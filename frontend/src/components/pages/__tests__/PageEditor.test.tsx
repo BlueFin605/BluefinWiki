@@ -13,7 +13,7 @@ vi.mock('../../../hooks/usePages');
 
 // Mock the EditorPane component
 vi.mock('../../editor/EditorPane', () => ({
-  EditorPane: ({ onContentChange, onSave, metadata }: any) => (
+  EditorPane: ({ onContentChange, onSave, metadata }: unknown) => (
     <div data-testid="editor-pane">
       <button onClick={() => onContentChange('new content')}>Change Content</button>
       <button onClick={onSave}>Save</button>
@@ -49,11 +49,11 @@ describe('PageEditor', () => {
       isLoading: true,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: vi.fn(),
-    } as any);
+    } as unknown);
 
     renderPageEditor('test-guid');
 
@@ -67,11 +67,11 @@ describe('PageEditor', () => {
       isLoading: false,
       error: { response: { data: { message: 'Page not found' } } },
       refetch: mockRefetch,
-    } as any);
+    } as unknown);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: vi.fn(),
-    } as any);
+    } as unknown);
 
     renderPageEditor('test-guid');
 
@@ -101,11 +101,11 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: vi.fn(),
-    } as any);
+    } as unknown);
 
     renderPageEditor('test-guid');
 
@@ -134,11 +134,11 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as unknown);
 
     renderPageEditor('test-guid');
 
@@ -181,11 +181,11 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as unknown);
 
     renderPageEditor('test-guid');
 
@@ -224,11 +224,11 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as unknown);
 
     renderPageEditor('test-guid');
 
@@ -268,11 +268,11 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as unknown);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as unknown);
 
     renderPageEditor('test-guid');
 
@@ -295,3 +295,5 @@ describe('PageEditor', () => {
     }, { timeout: 3000 });
   });
 });
+
+

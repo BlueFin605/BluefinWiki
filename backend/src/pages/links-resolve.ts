@@ -172,6 +172,25 @@ function isValidGuid(query: string): boolean {
   return uuidRegex.test(query);
 }
 
+/**
+ * Recursively collect all pages from storage
+ */
+async function collectPages(
+  parentGuid: string | null,
+  storagePlugin: StoragePlugin,
+  allPages: PageSummary[],
+  pageMap: Map<string, PageSummary>
+): Promise<void> {
+  const children = await storagePlugin.listChildren(parentGuid);
+  for (const child of children) {
+    allPages.push(child);
+    pageMap.set(child.guid, child);
+    if (child.hasChildren) {
+      await collectPages(child.guid, storagePlugin, allPages, pageMap);
+    }
+  }
+}
+
 export const handler = withAuth(async (
   event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -262,19 +281,8 @@ export const handler = withAuth(async (
     const allPages: PageSummary[] = [];
     const pageMap = new Map<string, PageSummary>();
 
-    async function collectPages(parentGuid: string | null) {
-      const children = await storagePlugin.listChildren(parentGuid);
-      for (const child of children) {
-        allPages.push(child);
-        pageMap.set(child.guid, child);
-        if (child.hasChildren) {
-          await collectPages(child.guid);
-        }
-      }
-    }
-
     // Start from root level
-    await collectPages(null);
+    await collectPages(null, storagePlugin, allPages, pageMap);
 
     // Calculate confidence scores for all pages
     const matches: LinkMatch[] = [];
