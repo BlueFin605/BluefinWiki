@@ -4,6 +4,7 @@ import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLi
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import LinkAutocomplete, { LinkAutocompleteSuggestion } from './LinkAutocomplete';
 import type { ToolbarAction } from './MarkdownToolbar';
 
 interface MarkdownEditorProps {
@@ -27,6 +28,7 @@ export interface MarkdownEditorRef {
  * - Undo/redo history
  * - Keyboard shortcuts
  * - Toolbar action support
+ * - Link autocomplete on [[ trigger
  */
 export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(({
   initialValue = '',
@@ -37,6 +39,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [isReady, setIsReady] = useState(false);
+  
+  // Link autocomplete state
+  const [autocompleteVisible, setAutocompleteVisible] = useState(false);
+  const [autocompleteQuery, setAutocompleteQuery] = useState('');
+  const [autocompletePosition, setAutocompletePosition] = useState({ top: 0, left: 0 });
+  const [autocompleteTriggerPos, setAutocompleteTriggerPos] = useState(0);
+
 
   /**
    * Apply a toolbar action to the editor
@@ -187,6 +196,94 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     getView: () => viewRef.current,
   }));
 
+  /**
+   * Handle link autocomplete selection
+   */
+  const handleLinkSelect = (suggestion: LinkAutocompleteSuggestion) => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const { state } = view;
+    const currentPos = state.selection.main.head;
+    
+    // Find the [[ trigger position
+    const triggerPos = autocompleteTriggerPos;
+    
+    // Replace from [[ to current cursor position with wiki link
+    const wikiLink = `[[${suggestion.title}]]`;
+    
+    view.dispatch({
+      changes: {
+        from: triggerPos,
+        to: currentPos,
+        insert: wikiLink,
+      },
+      selection: { anchor: triggerPos + wikiLink.length },
+    });
+    
+    setAutocompleteVisible(false);
+    setAutocompleteQuery('');
+    view.focus();
+  };
+
+  /**
+   * Close autocomplete
+   */
+  const handleAutocompleteClose = () => {
+    setAutocompleteVisible(false);
+    setAutocompleteQuery('');
+  };
+
+  /**
+   * Check if user typed [[ and extract search query
+   */
+  const checkForLinkTrigger = (view: EditorView) => {
+    const { state } = view;
+    const cursorPos = state.selection.main.head;
+    const line = state.doc.lineAt(cursorPos);
+    const textBeforeCursor = line.text.slice(0, cursorPos - line.from);
+    
+    // Find the last [[ in the current line
+    const triggerIndex = textBeforeCursor.lastIndexOf('[[');
+    
+    if (triggerIndex === -1) {
+      // No [[ found, close autocomplete
+      if (autocompleteVisible) {
+        setAutocompleteVisible(false);
+        setAutocompleteQuery('');
+      }
+      return;
+    }
+    
+    // Check if there's a closing ]] between trigger and cursor
+    const textAfterTrigger = textBeforeCursor.slice(triggerIndex + 2);
+    if (textAfterTrigger.includes(']]')) {
+      // Link is already closed, don't show autocomplete
+      if (autocompleteVisible) {
+        setAutocompleteVisible(false);
+        setAutocompleteQuery('');
+      }
+      return;
+    }
+    
+    // Extract query (text after [[)
+    const query = textAfterTrigger;
+    
+    // Calculate position for autocomplete dropdown
+    const coords = view.coordsAtPos(cursorPos);
+    if (coords) {
+      const editorRect = view.dom.getBoundingClientRect();
+      setAutocompletePosition({
+        top: coords.bottom - editorRect.top + view.dom.scrollTop,
+        left: coords.left - editorRect.left + view.dom.scrollLeft,
+      });
+    }
+    
+    // Show autocomplete with query
+    setAutocompleteVisible(true);
+    setAutocompleteQuery(query);
+    setAutocompleteTriggerPos(line.from + triggerIndex);
+  };
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -265,6 +362,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
           const content = update.state.doc.toString();
           onChange(content);
         }
+        
+        // Check for [[ trigger on any change
+        if (update.docChanged || update.selectionSet) {
+          checkForLinkTrigger(update.view);
+        }
       }),
       EditorView.editable.of(editable),
       EditorView.theme({
@@ -337,11 +439,21 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   }, [editable, isReady]);
 
   return (
-    <div 
-      ref={editorRef} 
-      className="h-full overflow-auto border border-gray-300 rounded-md bg-white dark:bg-gray-900 dark:border-gray-700"
-      data-testid="markdown-editor"
-    />
+    <div className="relative h-full">
+      <div 
+        ref={editorRef} 
+        className="h-full overflow-auto border border-gray-300 rounded-md bg-white dark:bg-gray-900 dark:border-gray-700"
+        data-testid="markdown-editor"
+      />
+      
+      <LinkAutocomplete
+        query={autocompleteQuery}
+        position={autocompletePosition}
+        onSelect={handleLinkSelect}
+        onClose={handleAutocompleteClose}
+        visible={autocompleteVisible}
+      />
+    </div>
   );
 });
 

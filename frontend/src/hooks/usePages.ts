@@ -18,7 +18,18 @@ export const pageKeys = {
   children: (parentGuid: string | null) => [...pageKeys.all, 'children', parentGuid] as const,
   detail: (guid: string) => [...pageKeys.all, 'detail', guid] as const,
   ancestors: (guid: string) => [...pageKeys.all, 'ancestors', guid] as const,
+  search: (query: string) => [...pageKeys.all, 'search', query] as const,
 };
+
+/**
+ * Search result for link autocomplete
+ */
+export interface PageSearchResult {
+  guid: string;
+  title: string;
+  path: string;
+  folderId: string | null;
+}
 
 /**
  * Fetch children of a parent page (or root pages if parentGuid is null)
@@ -151,5 +162,29 @@ export const useDeletePage = () => {
         queryKey: pageKeys.all,
       });
     },
+  });
+};
+
+/**
+ * Search pages by title (for link autocomplete)
+ */
+export const usePageSearch = (query: string, options?: { enabled?: boolean; limit?: number }) => {
+  return useQuery({
+    queryKey: pageKeys.search(query),
+    queryFn: async (): Promise<PageSearchResult[]> => {
+      if (!query || query.trim() === '') {
+        return [];
+      }
+      
+      const params = new URLSearchParams({ q: query });
+      if (options?.limit) {
+        params.append('limit', options.limit.toString());
+      }
+      
+      const response = await apiClient.get(`/pages/search?${params.toString()}`);
+      return response.data.results || [];
+    },
+    enabled: options?.enabled !== false && !!query && query.trim() !== '',
+    staleTime: 30000, // Cache for 30 seconds
   });
 };
