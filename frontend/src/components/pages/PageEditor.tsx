@@ -13,12 +13,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { EditorPane } from '../editor/EditorPane';
 import { PageMetadata } from '../editor/PagePropertiesPanel';
-import { usePageDetail, useUpdatePage } from '../../hooks/usePages';
+import { usePageDetail, useUpdatePage, useBacklinks } from '../../hooks/usePages';
 import { UpdatePageRequest } from '../../types/page';
+import { LinkedPagesPanel } from './LinkedPagesPanel';
 
 interface PageEditorProps {
   pageGuid: string;
   onPageDeleted?: () => void;
+  onNavigateToPage?: (guid: string) => void;
 }
 
 interface ConflictDialogProps {
@@ -73,6 +75,7 @@ const ConflictDialog: React.FC<ConflictDialogProps> = ({
 export const PageEditor: React.FC<PageEditorProps> = ({
   pageGuid,
   onPageDeleted: _onPageDeleted,
+  onNavigateToPage,
 }) => {
   const [content, setContent] = useState('');
   const [metadata, setMetadata] = useState<PageMetadata | undefined>();
@@ -84,6 +87,11 @@ export const PageEditor: React.FC<PageEditorProps> = ({
 
   // Fetch page details
   const { data: pageData, isLoading, error, refetch } = usePageDetail(pageGuid);
+
+  // Fetch backlinks
+  const backlinksQuery = useBacklinks(pageGuid);
+  const backlinksData = backlinksQuery?.data;
+  const backlinksLoading = backlinksQuery?.isLoading ?? false;
 
   // Update page mutation
   const updatePage = useUpdatePage(pageGuid);
@@ -253,44 +261,61 @@ export const PageEditor: React.FC<PageEditorProps> = ({
 
   // Render editor
   return (
-    <div className="h-full flex flex-col">
-      {/* Error banner */}
-      {saveError && (
-        <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <span className="text-sm font-medium text-red-800 dark:text-red-200">{saveError}</span>
+    <div className="h-full flex">
+      {/* Main editor area */}
+      <div className="flex-1 flex flex-col">
+        {/* Error banner */}
+        {saveError && (
+          <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-red-800 dark:text-red-200">{saveError}</span>
+              </div>
+              <button
+                onClick={() => setSaveError(null)}
+                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+                aria-label="Dismiss"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
-            <button
-              onClick={() => setSaveError(null)}
-              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
-              aria-label="Dismiss"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Editor pane */}
-      <div className="flex-1 overflow-hidden">
-        <EditorPane
-          initialContent={content}
-          onContentChange={handleContentChange}
-          onSave={handleSave}
-          editable={true}
-          showPreview={true}
-          enableAutosave={true}
-          autosaveDelay={5000}
-          metadata={metadata}
-          onMetadataChange={handleMetadataChange}
-          showPropertiesPanel={true}
+        {/* Editor pane */}
+        <div className="flex-1 overflow-hidden">
+          <EditorPane
+            initialContent={content}
+            onContentChange={handleContentChange}
+            onSave={handleSave}
+            editable={true}
+            showPreview={true}
+            enableAutosave={true}
+            autosaveDelay={5000}
+            metadata={metadata}
+            onMetadataChange={handleMetadataChange}
+            showPropertiesPanel={true}
+            pageGuid={pageGuid}
+          />
+        </div>
+      </div>
+
+      {/* Linked Pages Sidebar */}
+      <div className="w-80 flex-shrink-0">
+        <LinkedPagesPanel
           pageGuid={pageGuid}
+          backlinks={backlinksData?.backlinks || []}
+          isLoading={backlinksLoading}
+          onPageClick={(guid) => {
+            if (onNavigateToPage) {
+              onNavigateToPage(guid);
+            }
+          }}
         />
       </div>
 

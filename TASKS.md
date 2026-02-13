@@ -592,10 +592,10 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 - [X] Implement Lambda: `pages-backlinks` (GET /pages/{guid}/backlinks)
   - [X] Query GSI by targetGuid
   - [X] Return list of pages linking to this page
-- [ ] Build "Linked Pages" sidebar widget
-  - [ ] Show backlinks count
-  - [ ] Display list of linking pages
-  - [ ] Open page on click
+- [X] Build "Linked Pages" sidebar widget
+  - [X] Show backlinks count
+  - [X] Display list of linking pages
+  - [X] Open page on click
 
 #### 6.5 Create Page from Link
 - [X] Detect broken link click
