@@ -80,6 +80,14 @@ BlueFinWiki is a family-focused wiki platform designed for 3-20 users with plugg
 - DynamoDB: Single-digit ms latency, serverless, predictable pricing
 - CloudSearch: Managed search, lower cost than Elasticsearch for small datasets
 
+**Caching Strategy**:
+- **No backend in-memory caching**: Lambda containers are ephemeral (recycled after 15-45min inactivity)
+- For low-traffic family wikis, cold starts would reset cache making it ineffective
+- S3 provides sub-10ms latency which is sufficient for 3-20 concurrent users
+- **Frontend caching**: React Query handles client-side API response caching
+- **CDN caching**: CloudFront caches static assets and optionally API responses
+- **Future optimization**: If needed, use DynamoDB or ElastiCache for shared persistent state across Lambda invocations
+
 ### Infrastructure
 - **IaC**: AWS CDK (C#) or Terraform
 - **Hosting**: AWS S3 + CloudFront (static SPA)

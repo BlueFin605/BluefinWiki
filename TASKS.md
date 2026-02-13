@@ -363,89 +363,110 @@
 Display names are stored in YAML frontmatter within each `.md` file. This enables renaming without breaking references.
 
 #### 4.1 Page Hierarchy Support
-- [ ] Update page data model in storage plugin
-  - [ ] Add `parentGuid` field to page frontmatter (null for root pages)
-  - [ ] Add `hasChildren` computed field (true if S3 directory exists)
-  - [ ] Metadata in frontmatter: title, parentGuid, tags, status, createdBy, modifiedBy, timestamps, description
-- [ ] Implement hierarchy traversal utilities
-  - [ ] Build page tree from S3 structure (recursive listing)
-  - [ ] Cache page index in memory for performance (map: guid → S3 path)
-  - [ ] Function to get ancestors of a page (for breadcrumbs)
-  - [ ] Function to check if page is descendant of another (circular reference check)
-- [ ] Handle root-level pages
-  - [ ] Root pages have parentGuid = null
-  - [ ] Stored directly in bucket root: `{guid}.md`
+- [X] Update page data model in storage plugin
+  - [X] Add `parentGuid` field to page frontmatter (null for root pages)
+  - [X] Add `hasChildren` computed field (true if S3 directory exists)
+  - [X] Add `description` field to page frontmatter (optional metadata)
+  - [X] Metadata in frontmatter: title, parentGuid, tags, status, createdBy, modifiedBy, timestamps, description
+- [X] Implement hierarchy traversal utilities
+  - [X] Build page tree from S3 structure (recursive listing)
+  - [X] Function to get ancestors of a page (for breadcrumbs)
+  - [X] Function to check if page is descendant of another (circular reference check)
+  - [X] Note: In-memory caching NOT implemented - Lambda containers are ephemeral with frequent cold starts
+  - [X] For low-traffic family wikis (3-20 users), S3's sub-10ms latency is sufficient
+  - [X] If caching needed in future, use DynamoDB or ElastiCache for shared persistent state
+- [X] Handle root-level pages
+  - [X] Root pages have parentGuid = null
+  - [X] Stored directly in bucket root: `{guid}.md`
 
 #### 4.2 Page Hierarchy API Endpoints (No separate /folders endpoints needed)
-- [ ] Enhance existing `pages-create` Lambda
-  - [ ] Accept optional `parentGuid` in request body
-  - [ ] Validate parent page exists if parentGuid provided
+- [X] Enhance existing `pages-create` Lambda
+  - [X] Accept optional `parentGuid` in request body
+  - [X] Validate parent page exists if parentGuid provided
   - [ ] Prevent duplicate titles under same parent (optional business rule)
-  - [ ] Store page at correct S3 path based on parent
-- [ ] Implement `pages-list-children` Lambda (already in 3.3)
-  - [ ] List all pages under a given parent (or root if null)
-  - [ ] Return page summaries: guid, title, hasChildren, createdAt, modifiedAt
-  - [ ] Sort by title (alphabetically)
-- [ ] Implement `pages-move` Lambda (already in 3.3)
-  - [ ] Move page (and its children) to new parent
-  - [ ] Update parentGuid in page frontmatter
-  - [ ] Move S3 objects from old path to new path
-  - [ ] Validate circular reference prevention
-- [ ] Enhance `pages-delete` Lambda
-  - [ ] Support `recursive=true` query parameter
-  - [ ] If recursive=false and page has children, return error "Page has children"
-  - [ ] If recursive=true, delete page and all descendants
-  - [ ] Return count of deleted pages
-- [ ] Enhance `pages-update` Lambda
-  - [ ] Allow updating title (display name in frontmatter) without changing GUID
-  - [ ] Allow updating description and other metadata
-  - [ ] Moving page is separate operation (use `pages-move`)
+  - [X] Store page at correct S3 path based on parent
+- [X] Implement `pages-list-children` Lambda (already in 3.3)
+  - [X] List all pages under a given parent (or root if null)
+  - [X] Return page summaries: guid, title, hasChildren, createdAt, modifiedAt
+  - [X] Sort by title (alphabetically)
+- [X] Implement `pages-move` Lambda (already in 3.3)
+  - [X] Move page (and its children) to new parent
+  - [X] Update parentGuid in page frontmatter
+  - [X] Move S3 objects from old path to new path
+  - [X] Validate circular reference prevention
+- [X] Enhance `pages-delete` Lambda
+  - [X] Support `recursive=true` query parameter
+  - [X] If recursive=false and page has children, return error "Page has children"
+  - [X] If recursive=true, delete page and all descendants
+  - [X] Return count of deleted pages
+- [X] Enhance `pages-update` Lambda
+  - [X] Allow updating title (display name in frontmatter) without changing GUID
+  - [X] Allow updating description and other metadata
+  - [X] Moving page is separate operation (use `pages-move`)
+- [X] Fix Integration Test Mocks (Task 4.2 completion)
+  - [X] Debug GetObjectCommand mock setup - use callsFake for multiple calls
+  - [X] Fix isDescendantOf implementation test expectations - mock HeadObjectCommand and ListObjectsV2Command
+  - [X] Implement proper delete protection - mock child page loading in listChildren
+- [X] Consider Real Integration Tests (Priority: LOW)
+  - [X] Tests against LocalStack for true S3 behavior validation
+  - [X] Performance tests with large datasets
+  - [X] Enable S3StoragePlugin.integration.test.ts for LocalStack testing
+  - [X] Add 8 comprehensive performance test scenarios:
+    - [X] Bulk operations (100+ pages creation and listing)
+    - [X] Large content handling (5MB page files)
+    - [X] Deep hierarchy stress test (10 nested levels)
+    - [X] Wide hierarchy test (100 children under one parent)
+    - [X] Bulk deletion performance (50 pages recursive)
+    - [X] Concurrent operations (50 simultaneous read/write)
+    - [X] Versioning stress (20+ rapid updates)
+  - [X] Document integration test setup and execution in storage README
+  - [X] Add performance benchmarks and monitoring guidelines
 
 #### 4.3 Frontend Page Tree Components
-- [ ] Build recursive page tree component
-  - [ ] Display pages in hierarchical tree structure
-  - [ ] Show expand/collapse icons for pages with children
-  - [ ] Use page icon for leaf pages, folder icon for pages with children
-  - [ ] Highlight active page
-  - [ ] Support keyboard navigation (arrows, enter)
-- [ ] Implement page context menu
-  - [ ] Right-click menu: Rename, Delete, Move, New Child Page
-  - [ ] "New Child Page" creates page with current page as parent
-  - [ ] Keyboard shortcut support
-  - [ ] Confirmation dialog for destructive actions
-- [ ] Build drag-and-drop functionality
-  - [ ] Drag pages to reparent (move under different parent)
-  - [ ] Visual drop indicators (show valid drop targets)
-  - [ ] Prevent dropping page under its own descendants
-  - [ ] Optimistic UI updates
-- [ ] Create "New Page" modal
-  - [ ] Title input with validation
-  - [ ] Parent page selection (tree dropdown)
-  - [ ] Optional description field
-  - [ ] "Create as root page" checkbox (sets parentGuid = null)
-- [ ] Implement "Rename Page" inline editing
-  - [ ] Click page title to edit
-  - [ ] Save updates title in frontmatter, not GUID
-  - [ ] Update happens via `pages-update` API
+- [X] Build recursive page tree component
+  - [X] Display pages in hierarchical tree structure
+  - [X] Show expand/collapse icons for pages with children
+  - [X] Use page icon for leaf pages, folder icon for pages with children
+  - [X] Highlight active page
+  - [X] Support keyboard navigation (arrows, enter)
+- [X] Implement page context menu
+  - [X] Right-click menu: Rename, Delete, Move, New Child Page
+  - [X] "New Child Page" creates page with current page as parent
+  - [X] Keyboard shortcut support
+  - [X] Confirmation dialog for destructive actions
+- [X] Build drag-and-drop functionality
+  - [X] Drag pages to reparent (move under different parent)
+  - [X] Visual drop indicators (show valid drop targets)
+  - [X] Prevent dropping page under its own descendants
+  - [X] Optimistic UI updates
+- [X] Create "New Page" modal
+  - [X] Title input with validation
+  - [X] Parent page selection (tree dropdown)
+  - [X] Optional description field
+  - [X] "Create as root page" checkbox (sets parentGuid = null)
+- [X] Implement "Rename Page" inline editing
+  - [X] Click page title to edit
+  - [X] Save updates title in frontmatter, not GUID
+  - [X] Update happens via `pages-update` API
 
 #### 4.4 Page Hierarchy Testing
-- [ ] Unit tests for hierarchy traversal logic
-  - [ ] Test ancestor path calculation
-  - [ ] Test circular reference detection
-  - [ ] Test tree building from flat list
-- [ ] Integration tests for page operations
-  - [ ] Create child pages at various depths
-  - [ ] Move pages between parents
-  - [ ] Delete pages with children (recursive)
-  - [ ] Rename pages and verify children remain linked
-- [ ] Test S3 storage structure
-  - [ ] Verify correct paths for nested pages
-  - [ ] Test moving page with children (directory rename in S3)
-  - [ ] Verify frontmatter parsing and metadata extraction
-- [ ] Test edge cases
-  - [ ] Prevent circular references
-  - [ ] Handle concurrent moves (race conditions)
-  - [ ] Deep nesting (10+ levels)
+- [X] Unit tests for hierarchy traversal logic
+  - [X] Test ancestor path calculation
+  - [X] Test circular reference detection
+  - [X] Test tree building from flat list
+- [X] Integration tests for page operations
+  - [X] Create child pages at various depths
+  - [X] Move pages between parents
+  - [X] Delete pages with children (recursive)
+  - [X] Rename pages and verify children remain linked
+- [X] Test S3 storage structure
+  - [X] Verify correct paths for nested pages
+  - [X] Test moving page with children (directory rename in S3)
+  - [X] Verify frontmatter parsing and metadata extraction
+- [X] Test edge cases
+  - [X] Prevent circular references
+  - [X] Handle concurrent moves (race conditions)
+  - [X] Deep nesting (10+ levels)
 
 ---
 

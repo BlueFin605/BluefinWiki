@@ -68,7 +68,8 @@ export interface PageContent {
   content: string; // Markdown content
   folderId: string;
   tags: string[];
-  status: 'draft' | 'published' | 'archived';
+  status: 'draft' | 'published' | 'archived' | 'deleted';
+  description?: string; // Optional page description
   createdBy: string; // Cognito sub
   modifiedBy: string; // Cognito sub
   createdAt: string; // ISO 8601

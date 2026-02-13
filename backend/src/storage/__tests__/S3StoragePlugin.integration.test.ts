@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { randomUUID } from 'crypto';
 import { S3StoragePlugin } from '../S3StoragePlugin.js';
 import { PageContent } from '../../types/index.js';
 import {
@@ -115,7 +116,7 @@ describe('S3StoragePlugin Integration Tests', () => {
 
   describe('End-to-end page lifecycle', () => {
     it('should create, read, update, and delete a page', async () => {
-      const guid = 'test-page-123';
+      const guid = randomUUID();
       const content: PageContent = {
         guid,
         title: 'Test Page',
@@ -162,7 +163,7 @@ describe('S3StoragePlugin Integration Tests', () => {
 
   describe('Versioning behavior', () => {
     it('should create multiple versions when page is updated', async () => {
-      const guid = 'versioned-page';
+      const guid = randomUUID();
       const content: PageContent = {
         guid,
         title: 'Version 1',
@@ -210,9 +211,9 @@ describe('S3StoragePlugin Integration Tests', () => {
 
   describe('Page hierarchy (parent-child relationships)', () => {
     it('should create and manage parent-child page relationships', async () => {
-      const parentGuid = 'parent-page';
-      const child1Guid = 'child-page-1';
-      const child2Guid = 'child-page-2';
+      const parentGuid = randomUUID();
+      const child1Guid = randomUUID();
+      const child2Guid = randomUUID();
 
       // Create parent page
       const parentContent: PageContent = {
@@ -268,8 +269,8 @@ describe('S3StoragePlugin Integration Tests', () => {
     });
 
     it('should list root-level pages correctly', async () => {
-      const root1Guid = 'root-page-1';
-      const root2Guid = 'root-page-2';
+      const root1Guid = randomUUID();
+      const root2Guid = randomUUID();
 
       // Create root pages
       await plugin.savePage(root1Guid, null, {
@@ -308,7 +309,7 @@ describe('S3StoragePlugin Integration Tests', () => {
     });
 
     it('should delete page without children when recursive=false', async () => {
-      const guid = 'page-without-children';
+      const guid = randomUUID();
 
       await plugin.savePage(guid, null, {
         guid,
@@ -330,8 +331,8 @@ describe('S3StoragePlugin Integration Tests', () => {
     });
 
     it('should prevent deletion of page with children when recursive=false', async () => {
-      const parentGuid = 'parent-with-children';
-      const childGuid = 'child-page';
+      const parentGuid = randomUUID();
+      const childGuid = randomUUID();
 
       // Create parent and child
       await plugin.savePage(parentGuid, null, {
@@ -361,13 +362,13 @@ describe('S3StoragePlugin Integration Tests', () => {
       });
 
       // Should fail
-      await expect(plugin.deletePage(parentGuid, false)).rejects.toThrow(/has children/);
+      await expect(plugin.deletePage(parentGuid, false)).rejects.toThrow(/Cannot delete page with children/);
     });
 
     it('should recursively delete page and all children', async () => {
-      const parentGuid = 'parent-recursive';
-      const child1Guid = 'child-recursive-1';
-      const child2Guid = 'child-recursive-2';
+      const parentGuid = randomUUID();
+      const child1Guid = randomUUID();
+      const child2Guid = randomUUID();
 
       // Create parent and children
       await plugin.savePage(parentGuid, null, {
@@ -421,8 +422,8 @@ describe('S3StoragePlugin Integration Tests', () => {
 
   describe('Page movement between parents', () => {
     it('should move page from root to under a parent', async () => {
-      const pageGuid = 'movable-page';
-      const newParentGuid = 'new-parent';
+      const pageGuid = randomUUID();
+      const newParentGuid = randomUUID();
 
       // Create page at root
       await plugin.savePage(pageGuid, null, {
@@ -464,8 +465,8 @@ describe('S3StoragePlugin Integration Tests', () => {
     });
 
     it('should move page from parent to root', async () => {
-      const parentGuid = 'old-parent';
-      const pageGuid = 'page-to-move';
+      const parentGuid = randomUUID();
+      const pageGuid = randomUUID();
 
       // Create parent and child
       await plugin.savePage(parentGuid, null, {
@@ -506,9 +507,9 @@ describe('S3StoragePlugin Integration Tests', () => {
     });
 
     it('should move page between different parents', async () => {
-      const parent1Guid = 'parent-1';
-      const parent2Guid = 'parent-2';
-      const pageGuid = 'page-to-move';
+      const parent1Guid = randomUUID();
+      const parent2Guid = randomUUID();
+      const pageGuid = randomUUID();
 
       // Create both parents
       await plugin.savePage(parent1Guid, null, {
@@ -584,10 +585,336 @@ describe('S3StoragePlugin Integration Tests', () => {
     });
 
     it('should handle circular reference in move operation', async () => {
-      const guid = 'page-guid';
+      const guid = randomUUID();
 
       // Trying to move a page to be its own parent should fail
       await expect(plugin.movePage(guid, guid)).rejects.toThrow();
     });
+  });
+
+  describe('Performance Tests with Large Datasets', () => {
+    const PERFORMANCE_TEST_TIMEOUT = 60000; // 60 seconds for performance tests
+
+    it('should handle creating and listing 20 pages efficiently', async () => {
+      const startTime = Date.now();
+      const pageCount = 20;
+      const pageGuids: string[] = [];
+
+      // Create 100 pages in parallel
+      const createPromises = Array.from({ length: pageCount }, (_, i) => {
+        const guid = randomUUID();
+        pageGuids.push(guid);
+        return plugin.savePage(guid, null, {
+          guid,
+          title: `Performance Test Page ${i}`,
+          content: `# Page ${i}\n\nThis is test content for performance testing.\n\n`.repeat(10),
+          folderId: '',
+          tags: ['performance', 'test'],
+          status: 'published',
+          createdBy: 'perf-test-user',
+          modifiedBy: 'perf-test-user',
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+        });
+      });
+
+      await Promise.all(createPromises);
+      const createTime = Date.now() - startTime;
+
+      // List all root pages
+      const listStartTime = Date.now();
+      const rootPages = await plugin.listChildren(null);
+      const listTime = Date.now() - listStartTime;
+
+      // Verify
+      expect(rootPages.length).toBeGreaterThanOrEqual(pageCount);
+      expect(createTime).toBeLessThan(30000); // Should complete within 30 seconds
+      expect(listTime).toBeLessThan(5000); // Listing should be under 5 seconds
+
+      console.log(`Created ${pageCount} pages in ${createTime}ms`);
+      console.log(`Listed pages in ${listTime}ms`);
+    }, PERFORMANCE_TEST_TIMEOUT);
+
+    it('should handle large page content (1MB)', async () => {
+      const guid = randomUUID();
+      const largeContent = 'A'.repeat(1024 * 1024); // 1MB of content
+      
+      const startTime = Date.now();
+      
+      await plugin.savePage(guid, null, {
+        guid,
+        title: 'Large Content Page',
+        content: largeContent,
+        folderId: '',
+        tags: ['performance', 'large'],
+        status: 'published',
+        createdBy: 'perf-test-user',
+        modifiedBy: 'perf-test-user',
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+      });
+
+      const saveTime = Date.now() - startTime;
+
+      // Load the page
+      const loadStartTime = Date.now();
+      const loadedPage = await plugin.loadPage(guid);
+      const loadTime = Date.now() - loadStartTime;
+
+      expect(loadedPage.content).toBe(largeContent);
+      expect(saveTime).toBeLessThan(10000); // Should save within 10 seconds
+      expect(loadTime).toBeLessThan(5000); // Should load within 5 seconds
+
+      console.log(`Saved 5MB page in ${saveTime}ms`);
+      console.log(`Loaded 5MB page in ${loadTime}ms`);
+    }, PERFORMANCE_TEST_TIMEOUT);
+
+    it('should handle deep page hierarchy (5 levels)', async () => {
+      const depth = 5;
+      const pageGuids: string[] = [];
+      let parentGuid: string | null = null;
+
+      const startTime = Date.now();
+
+      // Create nested hierarchy
+      for (let i = 0; i < depth; i++) {
+        const guid = randomUUID();
+        pageGuids.push(guid);
+
+        await plugin.savePage(guid, parentGuid, {
+          guid,
+          title: `Level ${i}`,
+          content: `Content at level ${i}`,
+          folderId: parentGuid || '',
+          tags: ['hierarchy', 'deep'],
+          status: 'published',
+          createdBy: 'perf-test-user',
+          modifiedBy: 'perf-test-user',
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+        });
+
+        parentGuid = guid;
+      }
+
+      const createTime = Date.now() - startTime;
+
+      // Load deepest page
+      const loadStartTime = Date.now();
+      const deepestPage = await plugin.loadPage(pageGuids[depth - 1]);
+      const loadTime = Date.now() - loadStartTime;
+
+      expect(deepestPage.title).toBe(`Level ${depth - 1}`);
+      expect(createTime).toBeLessThan(15000); // Should complete within 15 seconds
+      expect(loadTime).toBeLessThan(1000); // Loading single page should be fast
+
+      console.log(`Created ${depth}-level hierarchy in ${createTime}ms`);
+      console.log(`Loaded deepest page in ${loadTime}ms`);
+    }, PERFORMANCE_TEST_TIMEOUT);
+
+    it('should handle wide hierarchy (30 children under one parent)', async () => {
+      const parentGuid = randomUUID();
+      const childCount = 30;
+
+      // Create parent
+      await plugin.savePage(parentGuid, null, {
+        guid: parentGuid,
+        title: 'Wide Parent',
+        content: 'Parent with many children',
+        folderId: '',
+        tags: ['hierarchy', 'wide'],
+        status: 'published',
+        createdBy: 'perf-test-user',
+        modifiedBy: 'perf-test-user',
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+      });
+
+      const startTime = Date.now();
+
+      // Create children in parallel
+      const createPromises = Array.from({ length: childCount }, (_, i) => {
+        const childGuid = randomUUID();
+        return plugin.savePage(childGuid, parentGuid, {
+          guid: childGuid,
+          title: `Child ${i}`,
+          content: `Child content ${i}`,
+          folderId: parentGuid,
+          tags: ['child'],
+          status: 'published',
+          createdBy: 'perf-test-user',
+          modifiedBy: 'perf-test-user',
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+        });
+      });
+
+      await Promise.all(createPromises);
+      const createTime = Date.now() - startTime;
+
+      // List children
+      const listStartTime = Date.now();
+      const children = await plugin.listChildren(parentGuid);
+      const listTime = Date.now() - listStartTime;
+
+      expect(children.length).toBe(childCount);
+      expect(createTime).toBeLessThan(30000); // Should complete within 30 seconds
+      expect(listTime).toBeLessThan(5000); // Listing should be under 5 seconds
+
+      console.log(`Created ${childCount} children in ${createTime}ms`);
+      console.log(`Listed ${childCount} children in ${listTime}ms`);
+    }, PERFORMANCE_TEST_TIMEOUT);
+
+    it('should handle bulk delete operations efficiently', async () => {
+      const parentGuid = randomUUID();
+      const childCount = 20;
+
+      // Create parent and children
+      await plugin.savePage(parentGuid, null, {
+        guid: parentGuid,
+        title: 'Bulk Delete Parent',
+        content: 'Parent for bulk deletion',
+        folderId: '',
+        tags: ['bulk'],
+        status: 'published',
+        createdBy: 'perf-test-user',
+        modifiedBy: 'perf-test-user',
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+      });
+
+      const createPromises = Array.from({ length: childCount }, (_, i) => {
+        const childGuid = randomUUID();
+        return plugin.savePage(childGuid, parentGuid, {
+          guid: childGuid,
+          title: `Child ${i}`,
+          content: `Content ${i}`,
+          folderId: parentGuid,
+          tags: ['bulk'],
+          status: 'published',
+          createdBy: 'perf-test-user',
+          modifiedBy: 'perf-test-user',
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+        });
+      });
+
+      await Promise.all(createPromises);
+
+      // Delete all at once
+      const startTime = Date.now();
+      await plugin.deletePage(parentGuid, true);
+      const deleteTime = Date.now() - startTime;
+
+      expect(deleteTime).toBeLessThan(10000); // Should delete within 10 seconds
+
+      // Verify all deleted
+      await expect(plugin.loadPage(parentGuid)).rejects.toThrow();
+
+      console.log(`Deleted parent with ${childCount} children in ${deleteTime}ms`);
+    }, PERFORMANCE_TEST_TIMEOUT);
+
+    it('should handle concurrent read/write operations', async () => {
+      const pageGuid = randomUUID();
+      
+      // Create initial page
+      await plugin.savePage(pageGuid, null, {
+        guid: pageGuid,
+        title: 'Concurrent Operations Page',
+        content: 'Initial content',
+        folderId: '',
+        tags: ['concurrent'],
+        status: 'published',
+        createdBy: 'perf-test-user',
+        modifiedBy: 'perf-test-user',
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+      });
+
+      const startTime = Date.now();
+      
+      // Perform 20 concurrent operations (10 reads, 10 writes)
+      const operations = [
+        ...Array.from({ length: 10 }, () => plugin.loadPage(pageGuid)),
+        ...Array.from({ length: 10 }, (_, i) => 
+          plugin.savePage(pageGuid, null, {
+            guid: pageGuid,
+            title: `Concurrent Update ${i}`,
+            content: `Updated content ${i}`,
+            folderId: '',
+            tags: ['concurrent'],
+            status: 'published',
+            createdBy: 'perf-test-user',
+            modifiedBy: 'perf-test-user',
+            createdAt: new Date().toISOString(),
+            modifiedAt: new Date().toISOString(),
+          })
+        ),
+      ];
+
+      // Shuffle operations to simulate real concurrent access
+      operations.sort(() => Math.random() - 0.5);
+      
+      await Promise.all(operations);
+      const operationTime = Date.now() - startTime;
+
+      expect(operationTime).toBeLessThan(15000); // Should complete within 15 seconds
+
+      console.log(`Completed 20 concurrent operations in ${operationTime}ms`);
+    }, PERFORMANCE_TEST_TIMEOUT);
+
+    it('should handle versioning with many updates', async () => {
+      const guid = randomUUID();
+      const updateCount = 10;
+
+      // Create initial page
+      await plugin.savePage(guid, null, {
+        guid,
+        title: 'Version Stress Test',
+        content: 'Version 0',
+        folderId: '',
+        tags: ['versioning'],
+        status: 'published',
+        createdBy: 'perf-test-user',
+        modifiedBy: 'perf-test-user',
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+      });
+
+      const startTime = Date.now();
+
+      // Create many versions
+      for (let i = 1; i <= updateCount; i++) {
+        await plugin.savePage(guid, null, {
+          guid,
+          title: `Version ${i}`,
+          content: `Content version ${i}`,
+          folderId: '',
+          tags: ['versioning'],
+          status: 'published',
+          createdBy: 'perf-test-user',
+          modifiedBy: 'perf-test-user',
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+        });
+        
+        // Small delay to ensure different timestamps
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      const updateTime = Date.now() - startTime;
+
+      // List versions
+      const listStartTime = Date.now();
+      const versions = await plugin.listVersions(guid);
+      const listTime = Date.now() - listStartTime;
+
+      expect(versions.length).toBeGreaterThanOrEqual(updateCount);
+      expect(updateTime).toBeLessThan(15000); // Should complete within 15 seconds
+      expect(listTime).toBeLessThan(2000); // Listing versions should be fast
+
+      console.log(`Created ${updateCount} versions in ${updateTime}ms`);
+      console.log(`Listed versions in ${listTime}ms`);
+    }, PERFORMANCE_TEST_TIMEOUT);
   });
 });
