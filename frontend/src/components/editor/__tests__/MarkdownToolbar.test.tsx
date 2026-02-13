@@ -18,20 +18,20 @@ describe('MarkdownToolbar', () => {
       expect(screen.getByLabelText('Strikethrough')).toBeInTheDocument();
       
       // Header dropdown trigger
-      expect(screen.getByLabelText('Headers')).toBeInTheDocument();
+      expect(screen.getByLabelText('Heading dropdown')).toBeInTheDocument();
       
       // List buttons
-      expect(screen.getByLabelText('Unordered List')).toBeInTheDocument();
-      expect(screen.getByLabelText('Ordered List')).toBeInTheDocument();
-      expect(screen.getByLabelText('Task List')).toBeInTheDocument();
+      expect(screen.getByLabelText('Unordered list')).toBeInTheDocument();
+      expect(screen.getByLabelText('Ordered list')).toBeInTheDocument();
+      expect(screen.getByLabelText('Task list')).toBeInTheDocument();
       
       // Link and image buttons
-      expect(screen.getByLabelText('Link')).toBeInTheDocument();
-      expect(screen.getByLabelText('Image')).toBeInTheDocument();
+      expect(screen.getByLabelText('Insert link')).toBeInTheDocument();
+      expect(screen.getByLabelText('Insert image')).toBeInTheDocument();
       
       // Code buttons
-      expect(screen.getByLabelText('Inline Code')).toBeInTheDocument();
-      expect(screen.getByLabelText('Code Block')).toBeInTheDocument();
+      expect(screen.getByLabelText('Inline code')).toBeInTheDocument();
+      expect(screen.getByLabelText('Code block')).toBeInTheDocument();
     });
 
     it('should render disabled when disabled prop is true', () => {
@@ -85,7 +85,7 @@ describe('MarkdownToolbar', () => {
       const user = userEvent.setup();
       render(<MarkdownToolbar onAction={vi.fn()} />);
       
-      const headerButton = screen.getByLabelText('Headers');
+      const headerButton = screen.getByLabelText('Heading dropdown');
       await user.click(headerButton);
       
       // Check for header options
@@ -102,7 +102,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const headerButton = screen.getByLabelText('Headers');
+      const headerButton = screen.getByLabelText('Heading dropdown');
       await user.click(headerButton);
       
       const h1Option = screen.getByText('Heading 1');
@@ -116,7 +116,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const headerButton = screen.getByLabelText('Headers');
+      const headerButton = screen.getByLabelText('Heading dropdown');
       await user.click(headerButton);
       
       const h2Option = screen.getByText('Heading 2');
@@ -130,7 +130,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const headerButton = screen.getByLabelText('Headers');
+      const headerButton = screen.getByLabelText('Heading dropdown');
       await user.click(headerButton);
       
       expect(screen.getByText('Heading 1')).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe('MarkdownToolbar', () => {
       const user = userEvent.setup();
       render(<MarkdownToolbar onAction={vi.fn()} />);
       
-      const headerButton = screen.getByLabelText('Headers');
+      const headerButton = screen.getByLabelText('Heading dropdown');
       await user.click(headerButton);
       
       expect(screen.getByText('Heading 1')).toBeInTheDocument();
@@ -165,7 +165,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const ulButton = screen.getByLabelText('Unordered List');
+      const ulButton = screen.getByLabelText('Unordered list');
       await user.click(ulButton);
       
       expect(onAction).toHaveBeenCalledWith('ul');
@@ -176,7 +176,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const olButton = screen.getByLabelText('Ordered List');
+      const olButton = screen.getByLabelText('Ordered list');
       await user.click(olButton);
       
       expect(onAction).toHaveBeenCalledWith('ol');
@@ -187,7 +187,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const taskButton = screen.getByLabelText('Task List');
+      const taskButton = screen.getByLabelText('Task list');
       await user.click(taskButton);
       
       expect(onAction).toHaveBeenCalledWith('task');
@@ -200,7 +200,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const linkButton = screen.getByLabelText('Link');
+      const linkButton = screen.getByLabelText('Insert link');
       await user.click(linkButton);
       
       expect(onAction).toHaveBeenCalledWith('link');
@@ -211,7 +211,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const imageButton = screen.getByLabelText('Image');
+      const imageButton = screen.getByLabelText('Insert image');
       await user.click(imageButton);
       
       expect(onAction).toHaveBeenCalledWith('image');
@@ -224,7 +224,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const codeButton = screen.getByLabelText('Inline Code');
+      const codeButton = screen.getByLabelText('Inline code');
       await user.click(codeButton);
       
       expect(onAction).toHaveBeenCalledWith('code');
@@ -235,7 +235,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const codeblockButton = screen.getByLabelText('Code Block');
+      const codeblockButton = screen.getByLabelText('Code block');
       await user.click(codeblockButton);
       
       expect(onAction).toHaveBeenCalledWith('codeblock');
@@ -276,14 +276,14 @@ describe('MarkdownToolbar', () => {
       expect(screen.getByLabelText('Bold')).toBeDisabled();
       expect(screen.getByLabelText('Italic')).toBeDisabled();
       expect(screen.getByLabelText('Strikethrough')).toBeDisabled();
-      expect(screen.getByLabelText('Headers')).toBeDisabled();
-      expect(screen.getByLabelText('Unordered List')).toBeDisabled();
-      expect(screen.getByLabelText('Ordered List')).toBeDisabled();
-      expect(screen.getByLabelText('Task List')).toBeDisabled();
-      expect(screen.getByLabelText('Link')).toBeDisabled();
-      expect(screen.getByLabelText('Image')).toBeDisabled();
-      expect(screen.getByLabelText('Inline Code')).toBeDisabled();
-      expect(screen.getByLabelText('Code Block')).toBeDisabled();
+      expect(screen.getByLabelText('Heading dropdown')).toBeDisabled();
+      expect(screen.getByLabelText('Unordered list')).toBeDisabled();
+      expect(screen.getByLabelText('Ordered list')).toBeDisabled();
+      expect(screen.getByLabelText('Task list')).toBeDisabled();
+      expect(screen.getByLabelText('Insert link')).toBeDisabled();
+      expect(screen.getByLabelText('Insert image')).toBeDisabled();
+      expect(screen.getByLabelText('Inline code')).toBeDisabled();
+      expect(screen.getByLabelText('Code block')).toBeDisabled();
     });
   });
 
@@ -306,7 +306,7 @@ describe('MarkdownToolbar', () => {
       const onAction = vi.fn();
       render(<MarkdownToolbar onAction={onAction} />);
       
-      const headerButton = screen.getByLabelText('Headers');
+      const headerButton = screen.getByLabelText('Heading dropdown');
       await user.click(headerButton);
       
       const headerLevels = [
@@ -342,7 +342,7 @@ describe('MarkdownToolbar', () => {
         
         const { unmount } = render(<MarkdownToolbar onAction={onAction} />);
         
-        const headerButton = screen.getByLabelText('Headers');
+        const headerButton = screen.getByLabelText('Heading dropdown');
         await user.click(headerButton);
         
         const headerOption = screen.getByText(headerLabels[i]);

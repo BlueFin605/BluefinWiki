@@ -41,7 +41,10 @@ describe('MarkdownEditor', () => {
       await waitFor(() => {
         const editorElement = container.querySelector('.cm-editor');
         expect(editorElement).toBeInTheDocument();
-        expect(editorElement).toHaveClass('cm-focused', { exact: false });
+        
+        // Check for readonly attribute on content element
+        const contentElement = container.querySelector('.cm-content');
+        expect(contentElement).toHaveAttribute('contenteditable', 'false');
       });
     });
   });
