@@ -287,7 +287,7 @@ modifiedAt: "2026-02-12T10:00:00Z"
     });
 
     const children = await plugin.listChildren(parentGuid);
-    const activeChildren = children.filter(c => c.status !== 'deleted');
+    const activeChildren = children.filter(c => c.status !== 'archived');
     expect(activeChildren).toHaveLength(1);
     expect(activeChildren[0].guid).toBe(activeGuid);
   });

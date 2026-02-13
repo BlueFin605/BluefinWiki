@@ -83,7 +83,6 @@ describe('Page Operations - Create Child Pages at Various Depths', () => {
   });
 
   it('should create deeply nested page (3 levels)', async () => {
-    const rootGuid = uuidv4();
     const level1Guid = uuidv4();
     const level2Guid = uuidv4();
 

@@ -93,7 +93,6 @@ describe('S3 Storage Structure - Correct Paths for Nested Pages', () => {
   });
 
   it('should use deep nested path for grandchildren', async () => {
-    const rootGuid = uuidv4();
     const parentGuid = uuidv4();
     const childGuid = uuidv4();
 
@@ -258,7 +257,6 @@ This is the content.
 
   it('should handle frontmatter with special characters in title', async () => {
     const guid = uuidv4();
-    const title = 'Test: Page with "Quotes" & Special [Chars]';
     const mockContent = `---
 guid: "${guid}"
 title: "Test: Page with \\"Quotes\\" & Special [Chars]"
