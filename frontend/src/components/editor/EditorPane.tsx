@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 import MarkdownPreview from './MarkdownPreview';
 import MarkdownToolbar, { ToolbarAction } from './MarkdownToolbar';
+import PagePropertiesPanel, { PageMetadata } from './PagePropertiesPanel';
 import { useAutosave } from '../../hooks/useAutosave';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
@@ -15,6 +16,12 @@ interface EditorPaneProps {
   enableAutosave?: boolean;
   /** Autosave delay in milliseconds (default: 5000) */
   autosaveDelay?: number;
+  /** Page metadata for properties panel */
+  metadata?: PageMetadata;
+  /** Callback when metadata changes */
+  onMetadataChange?: (metadata: Partial<PageMetadata>) => void;
+  /** Show properties panel (default: false) */
+  showPropertiesPanel?: boolean;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -37,10 +44,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   showPreview = true,
   enableAutosave = true,
   autosaveDelay = 5000,
+  metadata,
+  onMetadataChange,
+  showPropertiesPanel = false,
 }) => {
   const [content, setContent] = useState(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
   const [dividerPosition, setDividerPosition] = useState(50); // percentage
+  const [showProperties, setShowProperties] = useState(showPropertiesPanel);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const editorRef = useRef<MarkdownEditorRef>(null);
@@ -195,59 +206,97 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Top toolbar with view mode toggle and save status */}
-      <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        {renderSaveStatus()}
-        {renderViewModeButtons()}
-      </div>
-
-      {/* Markdown formatting toolbar */}
-      {editable && (viewMode === 'edit' || viewMode === 'split') && (
-        <MarkdownToolbar onAction={handleToolbarAction} disabled={!editable} />
+    <div className="flex h-full">
+      {/* Properties Panel Sidebar (optional) */}
+      {showProperties && metadata && (
+        <div className="w-80 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
+          <PagePropertiesPanel
+            metadata={metadata}
+            onMetadataChange={onMetadataChange || (() => {})}
+            editable={editable}
+            onTitleChange={(newTitle) => {
+              // Update H1 in content if present
+              const lines = content.split('\n');
+              if (lines[0]?.startsWith('# ')) {
+                const updatedContent = [`# ${newTitle}`, ...lines.slice(1)].join('\n');
+                setContent(updatedContent);
+                if (onContentChange) {
+                  onContentChange(updatedContent);
+                }
+              }
+              onMetadataChange?.({ title: newTitle });
+            }}
+          />
+        </div>
       )}
 
-      {/* Editor and/or preview panes */}
-      <div ref={containerRef} className="flex-1 flex overflow-hidden">
-        {/* Editor pane */}
-        {(viewMode === 'edit' || viewMode === 'split') && (
-          <div
-            className="overflow-hidden"
-            style={{
-              width: viewMode === 'split' ? `${dividerPosition}%` : '100%',
-            }}
-          >
-            <MarkdownEditor
-              ref={editorRef}
-              initialValue={content}
-              onChange={handleContentChange}
-              onSave={handleManualSave}
-              editable={editable}
+      {/* Main Editor Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Top toolbar with view mode toggle and save status */}
+        <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            {renderSaveStatus()}
+            {metadata && (
+              <button
+                onClick={() => setShowProperties(!showProperties)}
+                className="px-3 py-1 text-sm rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                title={showProperties ? 'Hide properties' : 'Show properties'}
+                aria-label={showProperties ? 'Hide properties panel' : 'Show properties panel'}
+              >
+                {showProperties ? '◀ Hide' : '▶ Properties'}
+              </button>
+            )}
+          </div>
+          {renderViewModeButtons()}
+        </div>
+
+        {/* Markdown formatting toolbar */}
+        {editable && (viewMode === 'edit' || viewMode === 'split') && (
+          <MarkdownToolbar onAction={handleToolbarAction} disabled={!editable} />
+        )}
+
+        {/* Editor and/or preview panes */}
+        <div ref={containerRef} className="flex-1 flex overflow-hidden">
+          {/* Editor pane */}
+          {(viewMode === 'edit' || viewMode === 'split') && (
+            <div
+              className="overflow-hidden"
+              style={{
+                width: viewMode === 'split' ? `${dividerPosition}%` : '100%',
+              }}
+            >
+              <MarkdownEditor
+                ref={editorRef}
+                initialValue={content}
+                onChange={handleContentChange}
+                onSave={handleManualSave}
+                editable={editable}
+              />
+            </div>
+          )}
+
+          {/* Resizable divider */}
+          {viewMode === 'split' && (
+            <div
+              className="w-1 bg-gray-300 dark:bg-gray-600 cursor-col-resize hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors"
+              onMouseDown={handleMouseDown}
+              role="separator"
+              aria-label="Resize editor and preview"
             />
-          </div>
-        )}
+          )}
 
-        {/* Resizable divider */}
-        {viewMode === 'split' && (
-          <div
-            className="w-1 bg-gray-300 dark:bg-gray-600 cursor-col-resize hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors"
-            onMouseDown={handleMouseDown}
-            role="separator"
-            aria-label="Resize editor and preview"
-          />
-        )}
-
-        {/* Preview pane */}
-        {(viewMode === 'preview' || viewMode === 'split') && (
-          <div
-            className="overflow-hidden"
-            style={{
-              width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%',
-            }}
-          >
-            <MarkdownPreview content={content} />
-          </div>
-        )}
+          {/* Preview pane */}
+          {(viewMode === 'preview' || viewMode === 'split') && (
+            <div
+              className="overflow-hidden"
+              style={{
+                width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%',
+              }}
+            >
+              <MarkdownPreview content={content} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
