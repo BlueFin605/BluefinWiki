@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+6.1 Link Syntax Parsing#!/usr/bin/env bash
 
 # Consolidated prerequisite checking script
 #
