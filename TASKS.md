@@ -546,14 +546,14 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 **Goal**: Enable wiki-style internal linking
 
 #### 6.1 Link Syntax Parsing
-- [ ] Implement wiki link parser
-  - [ ] Regex for `[[Page Title]]` syntax
-  - [ ] Support `[[guid|Display Text]]` format
-  - [ ] Parse external links with icon indicator
-- [ ] Create remark plugin for link rendering
-  - [ ] Convert wiki links to React components
-  - [ ] Apply styling (color, underline)
-  - [ ] Mark broken links with red color
+- [X] Implement wiki link parser
+  - [X] Regex for `[[Page Title]]` syntax
+  - [X] Support `[[guid|Display Text]]` format
+  - [X] Parse external links with icon indicator
+- [X] Create remark plugin for link rendering
+  - [X] Convert wiki links to React components
+  - [X] Apply styling (color, underline)
+  - [X] Mark broken links with red color
 
 #### 6.2 Link Resolution Service
 - [ ] Build link resolver Lambda: `links-resolve`
