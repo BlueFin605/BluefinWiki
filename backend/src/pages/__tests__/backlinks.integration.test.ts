@@ -5,6 +5,10 @@
  * Tests link extraction, storage, and backlinks retrieval
  */
 
+// Set LocalStack endpoint BEFORE importing any modules that create AWS clients
+process.env.AWS_ENDPOINT = process.env.AWS_ENDPOINT || 'http://localhost:4566';
+process.env.AWS_REGION = 'us-east-1';
+
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { extractWikiLinks, saveLinkRelationship, getBacklinks, updatePageLinks, removePageLinks } from '../link-extraction.js';
 import { DynamoDBClient, DeleteTableCommand, CreateTableCommand } from '@aws-sdk/client-dynamodb';

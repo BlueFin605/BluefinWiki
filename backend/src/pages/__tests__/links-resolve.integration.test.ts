@@ -6,9 +6,18 @@
  * Run with: npm run test:integration -- links-resolve
  */
 
+// Set LocalStack endpoint BEFORE importing any modules that create AWS clients
+process.env.AWS_ENDPOINT = process.env.AWS_ENDPOINT || 'http://localhost:4566';
+process.env.LOCALSTACK_ENDPOINT = process.env.LOCALSTACK_ENDPOINT || 'http://localhost:4566';
+process.env.AWS_REGION = 'us-east-1';
+// Mock Cognito environment variables to avoid JWT verification errors
+process.env.AWS_COGNITO_USER_POOL_ID = 'us-east-1_TESTPOOL';
+process.env.AWS_COGNITO_CLIENT_ID = 'test-client-id';
+
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { randomUUID } from 'crypto';
 import { S3StoragePlugin } from '../../storage/S3StoragePlugin.js';
-import { StoragePluginRegistry } from '../../storage/StoragePluginRegistry.js';
+import { StoragePluginRegistry, initializeStoragePlugin, resetStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { PageContent } from '../../types/index.js';
 import {
   S3Client,
@@ -23,9 +32,6 @@ const LOCALSTACK_ENDPOINT = process.env.LOCALSTACK_ENDPOINT || 'http://localhost
 const TEST_BUCKET = 'bluefinwiki-test-links';
 const TEST_REGION = 'us-east-1';
 
-// Mock Cognito environment variables to avoid JWT verification errors
-vi.stubEnv('AWS_COGNITO_USER_POOL_ID', 'us-east-1_TESTPOOL');
-vi.stubEnv('AWS_COGNITO_CLIENT_ID', 'test-client-id');
 
 describe('links-resolve Lambda Integration Tests', () => {
   const testUserId = 'test-user-001';
@@ -39,6 +45,9 @@ describe('links-resolve Lambda Integration Tests', () => {
   let ambiguousPage2Guid: string;
 
   beforeAll(async () => {
+    // Register S3 plugin with the registry
+    StoragePluginRegistry.register('s3', S3StoragePlugin);
+    
     // Initialize S3 client for LocalStack
     s3Client = new S3Client({
       region: TEST_REGION,
@@ -65,60 +74,77 @@ describe('links-resolve Lambda Integration Tests', () => {
       }
     }
 
-    // Initialize storage plugin
-    plugin = new S3StoragePlugin({
+    // Register S3 plugin with the registry and initialize it globally
+    plugin = initializeStoragePlugin({
+      type: 's3',
       bucketName: TEST_BUCKET,
       region: TEST_REGION,
       endpoint: LOCALSTACK_ENDPOINT,
-    });
-
-    // Register plugin globally for the handler to use
-    StoragePluginRegistry.registerPlugin(plugin);
+    }) as S3StoragePlugin;
 
     // Create test pages
-    const rootPage = await plugin.createPage(
-      'Getting Started Guide',
-      'This is a guide for getting started.',
-      null,
-      [],
-      testUserId,
-      'published'
-    );
-    rootPageGuid = rootPage.guid;
+    rootPageGuid = randomUUID();
+    await plugin.savePage(rootPageGuid, null, {
+      guid: rootPageGuid,
+      title: 'Getting Started Guide',
+      content: 'This is a guide for getting started.',
+      folderId: '',
+      tags: [],
+      status: 'published',
+      createdBy: testUserId,
+      modifiedBy: testUserId,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+    });
 
-    const childPage = await plugin.createPage(
-      'Installation Instructions',
-      'How to install the application.',
-      rootPageGuid,
-      [],
-      testUserId,
-      'published'
-    );
-    childPageGuid = childPage.guid;
+    childPageGuid = randomUUID();
+    await plugin.savePage(childPageGuid, rootPageGuid, {
+      guid: childPageGuid,
+      title: 'Installation Instructions',
+      content: 'How to install the application.',
+      folderId: rootPageGuid,
+      tags: [],
+      status: 'published',
+      createdBy: testUserId,
+      modifiedBy: testUserId,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+    });
 
     // Create ambiguous pages with similar titles
-    const ambiguous1 = await plugin.createPage(
-      'Project Setup',
-      'Initial project setup instructions.',
-      null,
-      [],
-      testUserId,
-      'published'
-    );
-    ambiguousPage1Guid = ambiguous1.guid;
+    ambiguousPage1Guid = randomUUID();
+    await plugin.savePage(ambiguousPage1Guid, null, {
+      guid: ambiguousPage1Guid,
+      title: 'Project Setup',
+      content: 'Initial project setup instructions.',
+      folderId: '',
+      tags: [],
+      status: 'published',
+      createdBy: testUserId,
+      modifiedBy: testUserId,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+    });
 
-    const ambiguous2 = await plugin.createPage(
-      'Project Setup Guide',
-      'Complete project setup guide.',
-      null,
-      [],
-      testUserId,
-      'published'
-    );
-    ambiguousPage2Guid = ambiguous2.guid;
+    ambiguousPage2Guid = randomUUID();
+    await plugin.savePage(ambiguousPage2Guid, null, {
+      guid: ambiguousPage2Guid,
+      title: 'Project Setup Guide',
+      content: 'Complete project setup guide.',
+      folderId: '',
+      tags: [],
+      status: 'published',
+      createdBy: testUserId,
+      modifiedBy: testUserId,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+    });
   });
 
   afterAll(async () => {
+    // Reset storage plugin
+    resetStoragePlugin();
+    
     // Clean up test pages
     try {
       const listResponse = await s3Client.send(
