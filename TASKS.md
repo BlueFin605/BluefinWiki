@@ -489,15 +489,15 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Toggle preview pane button
 
 #### 5.2 Markdown Preview
-- [ ] Install react-markdown and remark plugins
-  - [ ] remark-gfm (GitHub Flavored Markdown)
-  - [ ] remark-breaks (line breaks)
-  - [ ] rehype-highlight (code syntax highlighting)
-- [ ] Build preview component
-  - [ ] Render Markdown in real-time
-  - [ ] Apply CSS styling for readability
-  - [ ] Support tables, task lists, footnotes
-- [ ] Implement preview theming (light/dark)
+- [X] Install react-markdown and remark plugins
+  - [X] remark-gfm (GitHub Flavored Markdown)
+  - [X] remark-breaks (line breaks)
+  - [X] rehype-highlight (code syntax highlighting)
+- [X] Build preview component
+  - [X] Render Markdown in real-time
+  - [X] Apply CSS styling for readability
+  - [X] Support tables, task lists, footnotes
+- [X] Implement preview theming (light/dark)
 
 #### 5.3 Editor Features
 - [ ] Build Markdown toolbar

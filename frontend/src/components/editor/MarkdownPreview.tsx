@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import rehypeHighlight from 'rehype-highlight';
+import './markdown-preview.css';
 
 interface MarkdownPreviewProps {
   content: string;
@@ -10,9 +13,11 @@ interface MarkdownPreviewProps {
 /**
  * Markdown preview component using react-markdown
  * Features:
- * - GitHub Flavored Markdown (tables, strikethrough, task lists)
- * - Syntax highlighting
+ * - GitHub Flavored Markdown (tables, strikethrough, task lists, footnotes)
+ * - Line breaks support (remark-breaks)
+ * - Code syntax highlighting (rehype-highlight)
  * - Custom styling for readability
+ * - Light/dark theme support
  */
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
@@ -22,7 +27,8 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   const renderedContent = useMemo(() => {
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[rehypeHighlight]}
         components={{
           // Customize link rendering to show warning in preview mode
           a: ({ node, children, href, ...props }) => (
@@ -77,20 +83,39 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               {children}
             </p>
           ),
-          // Style lists
-          ul: ({ node, children, ...props }) => (
-            <ul {...props} className="list-disc list-inside mb-4 space-y-1 text-gray-800 dark:text-gray-200">
-              {children}
-            </ul>
-          ),
+          // Style lists (including task lists)
+          ul: ({ node, children, ...props }) => {
+            const isTaskList = (props as any).className?.includes('contains-task-list');
+            return (
+              <ul
+                {...props}
+                className={`mb-4 space-y-1 text-gray-800 dark:text-gray-200 ${
+                  isTaskList ? 'list-none' : 'list-disc list-inside'
+                }`}
+              >
+                {children}
+              </ul>
+            );
+          },
           ol: ({ node, children, ...props }) => (
             <ol {...props} className="list-decimal list-inside mb-4 space-y-1 text-gray-800 dark:text-gray-200">
               {children}
             </ol>
           ),
-          // Style code blocks
+          li: ({ node, children, ...props }) => {
+            const isTaskItem = (props as any).className?.includes('task-list-item');
+            return (
+              <li
+                {...props}
+                className={`${isTaskItem ? 'flex items-start gap-2' : ''}`}
+              >
+                {children}
+              </li>
+            );
+          },
+          // Style code blocks (syntax highlighting handled by rehype-highlight)
           code: ({ node, className, children, ...props }) => {
-            const inline = !(props as any)['data-language'];
+            const inline = !className;
             return inline ? (
               <code
                 {...props}
@@ -99,12 +124,14 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                 {children}
               </code>
             ) : (
-              <code
-                {...props}
-                className={`block p-4 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-md overflow-x-auto font-mono text-sm ${className || ''}`}
-              >
-                {children}
-              </code>
+              <pre className="my-4 rounded-md overflow-hidden">
+                <code
+                  {...props}
+                  className={`${className || ''} block p-4 overflow-x-auto font-mono text-sm`}
+                >
+                  {children}
+                </code>
+              </pre>
             );
           },
           // Style blockquotes
@@ -161,7 +188,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
   return (
     <div
-      className={`h-full overflow-auto p-6 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md prose dark:prose-invert max-w-none ${className}`}
+      className={`markdown-preview h-full overflow-auto p-6 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md prose dark:prose-invert max-w-none ${className}`}
       data-testid="markdown-preview"
     >
       {renderedContent}
