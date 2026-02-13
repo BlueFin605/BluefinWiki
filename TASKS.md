@@ -475,18 +475,18 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 **Goal**: Build Markdown editor with live preview
 
 #### 5.1 Editor Component Setup
-- [ ] Install CodeMirror 6 dependencies
-  - [ ] @codemirror/state, @codemirror/view
-  - [ ] @codemirror/lang-markdown
-  - [ ] @codemirror/commands (undo/redo, search)
-- [ ] Configure Markdown language mode
-  - [ ] Syntax highlighting
-  - [ ] Auto-indentation
-  - [ ] Bracket matching
-- [ ] Set up split-pane layout (edit | preview)
-  - [ ] Resizable divider
-  - [ ] Synchronized scrolling (optional)
-  - [ ] Toggle preview pane button
+- [X] Install CodeMirror 6 dependencies
+  - [X] @codemirror/state, @codemirror/view
+  - [X] @codemirror/lang-markdown
+  - [X] @codemirror/commands (undo/redo, search)
+- [X] Configure Markdown language mode
+  - [X] Syntax highlighting
+  - [X] Auto-indentation
+  - [X] Bracket matching
+- [X] Set up split-pane layout (edit | preview)
+  - [X] Resizable divider
+  - [X] Synchronized scrolling (optional)
+  - [X] Toggle preview pane button
 
 #### 5.2 Markdown Preview
 - [ ] Install react-markdown and remark plugins
