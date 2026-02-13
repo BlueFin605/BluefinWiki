@@ -598,15 +598,15 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [ ] Open page on click
 
 #### 6.5 Create Page from Link
-- [ ] Detect broken link click
-- [ ] Open "Create Page" modal
-  - [ ] Pre-fill title from link text
-  - [ ] Select folder (default to current folder)
-  - [ ] Option to create as draft
-- [ ] Create page and update link
-  - [ ] Generate new page GUID
-  - [ ] Replace broken link with valid link
-  - [ ] Save updated source page
+- [X] Detect broken link click
+- [X] Open "Create Page" modal
+  - [X] Pre-fill title from link text
+  - [X] Select folder (default to current folder)
+  - [X] Option to create as draft
+- [X] Create page and update link
+  - [X] Generate new page GUID
+  - [X] Replace broken link with valid link
+  - [X] Save updated source page
 
 ---
 

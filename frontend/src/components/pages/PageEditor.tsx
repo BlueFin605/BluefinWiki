@@ -290,6 +290,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
           metadata={metadata}
           onMetadataChange={handleMetadataChange}
           showPropertiesPanel={true}
+          pageGuid={pageGuid}
         />
       </div>
 
