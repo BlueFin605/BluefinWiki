@@ -500,21 +500,21 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 - [X] Implement preview theming (light/dark)
 
 #### 5.3 Editor Features
-- [ ] Build Markdown toolbar
-  - [ ] Buttons: Bold, Italic, Strikethrough
-  - [ ] Headers (H1-H6 dropdown)
-  - [ ] Lists (unordered, ordered, task)
-  - [ ] Links, images, code blocks
-  - [ ] Keyboard shortcuts (Ctrl+B, Ctrl+I, etc.)
-- [ ] Implement autosave mechanism
-  - [ ] Debounce save (5 seconds after last edit)
-  - [ ] Show "Saving..." indicator
-  - [ ] Display last saved timestamp
-  - [ ] Handle save errors gracefully
-- [ ] Add unsaved changes warning
-  - [ ] Detect dirty state
-  - [ ] Show prompt on navigation/close
-  - [ ] Offer save or discard options
+- [X] Build Markdown toolbar
+  - [X] Buttons: Bold, Italic, Strikethrough
+  - [X] Headers (H1-H6 dropdown)
+  - [X] Lists (unordered, ordered, task)
+  - [X] Links, images, code blocks
+  - [X] Keyboard shortcuts (Ctrl+B, Ctrl+I, etc.)
+- [X] Implement autosave mechanism
+  - [X] Debounce save (5 seconds after last edit)
+  - [X] Show "Saving..." indicator
+  - [X] Display last saved timestamp
+  - [X] Handle save errors gracefully
+- [X] Add unsaved changes warning
+  - [X] Detect dirty state
+  - [X] Show prompt on navigation/close
+  - [X] Offer save or discard options
 
 #### 5.4 Page Metadata Editing
 - [ ] Create page properties panel
