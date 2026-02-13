@@ -517,16 +517,16 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Offer save or discard options
 
 #### 5.4 Page Metadata Editing
-- [ ] Create page properties panel
-  - [ ] Inline title editing (H1 header sync)
-  - [ ] Tag input (multi-select dropdown)
-  - [ ] Status dropdown (Draft, Published, Archived)
-  - [ ] Author display (read-only)
-  - [ ] Created/modified timestamps
-- [ ] Implement metadata save
-  - [ ] Update metadata fields in page data
-  - [ ] Save entire page (content + metadata) via storage plugin
-  - [ ] Metadata is part of PageContent JSON in storage
+- [X] Create page properties panel
+  - [X] Inline title editing (H1 header sync)
+  - [X] Tag input (multi-select dropdown)
+  - [X] Status dropdown (Draft, Published, Archived)
+  - [X] Author display (read-only)
+  - [X] Created/modified timestamps
+- [X] Implement metadata save
+  - [X] Update metadata fields in page data
+  - [X] Save entire page (content + metadata) via storage plugin
+  - [X] Metadata is part of PageContent JSON in storage
 
 #### 5.5 Page API Integration
 - [ ] Connect editor to backend APIs
