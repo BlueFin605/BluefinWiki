@@ -5,16 +5,14 @@
  * Tests hierarchy traversal, circular reference detection, and tree building
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { S3StoragePlugin } from '../../storage/S3StoragePlugin.js';
-import { PageContent, PageSummary } from '../../types/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   S3Client,
   GetObjectCommand,
   ListObjectsV2Command,
-  PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { sdkStreamMixin } from '@smithy/util-stream';
