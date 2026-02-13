@@ -4,6 +4,21 @@
  * 
  * Tests page operations with hierarchy: create, move, delete, rename
  * These tests use LocalStack or mock services to test full operations
+ * 
+ * NOTE: This test file has 31 tests with heavy AWS SDK mock usage. Running all tests
+ * in a single file causes Node.js heap memory exhaustion even with --max-old-space-size=12288.
+ * The aws-sdk-client-mock library accumulates command history across all tests, leading to OOM errors.
+ * 
+ * Current workaround: This file is excluded from the default integration test run in vitest.integration.config.ts
+ * 
+ * TODO: Refactor this file into smaller test suites (6-8 tests each) to avoid memory issues:
+ * - page-create-operations.integration.test.ts (create tests)
+ * - page-move-operations.integration.test.ts (move tests)
+ * - page-delete-operations.integration.test.ts (delete tests)
+ * - page-rename-operations.integration.test.ts (rename tests)
+ * - page-metadata-operations.integration.test.ts (metadata & pagination tests)
+ * - page-validation-operations.integration.test.ts (validation & error tests)
+ * - page-softdelete-operations.integration.test.ts (soft delete tests)
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -83,6 +98,10 @@ describe('Page Operations - Create Child Pages at Various Depths', () => {
       bucketName: 'test-bucket',
       region: 'us-east-1',
     });
+  });
+
+  afterEach(() => {
+    s3Mock.reset();
   });
 
   it('should create root-level page', async () => {
@@ -173,6 +192,10 @@ describe('Page Operations - Move Pages Between Parents', () => {
       bucketName: 'test-bucket',
       region: 'us-east-1',
     });
+  });
+
+  afterEach(() => {
+    s3Mock.reset();
   });
 
   it('should move page from root to under parent', async () => {
@@ -405,6 +428,10 @@ describe('Page Operations - Delete Pages with Children', () => {
     });
   });
 
+  afterEach(() => {
+    s3Mock.reset();
+  });
+
   it('should delete page without children', async () => {
     const pageGuid = uuidv4();
 
@@ -589,6 +616,10 @@ describe('Page Operations - Rename Pages', () => {
     });
   });
 
+  afterEach(() => {
+    s3Mock.reset();
+  });
+
   it('should rename page while preserving GUID and location', async () => {
     const pageGuid = uuidv4();
     const oldTitle = 'Old Title';
@@ -707,6 +738,10 @@ describe('Page Operations - Folder Metadata Tests', () => {
       bucketName: 'test-bucket',
       region: 'us-east-1',
     });
+  });
+
+  afterEach(() => {
+    s3Mock.reset();
   });
 
   it('should store and retrieve page metadata correctly', async () => {
@@ -860,6 +895,10 @@ describe('Page Operations - Pagination Tests', () => {
       bucketName: 'test-bucket',
       region: 'us-east-1',
     });
+  });
+
+  afterEach(() => {
+    s3Mock.reset();
   });
 
   it('should list first page of children with pagination', async () => {
@@ -1023,6 +1062,10 @@ describe('Page Operations - Validation Error Message Tests', () => {
     });
   });
 
+  afterEach(() => {
+    s3Mock.reset();
+  });
+
   it('should throw error when page not found', async () => {
     const nonExistentGuid = uuidv4();
 
@@ -1125,6 +1168,10 @@ describe('Page Operations - Soft Delete and Trash Tests', () => {
       bucketName: 'test-bucket',
       region: 'us-east-1',
     });
+  });
+
+  afterEach(() => {
+    s3Mock.reset();
   });
 
   it('should mark page as deleted instead of removing immediately', async () => {
