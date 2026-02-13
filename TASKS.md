@@ -581,17 +581,17 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Cache recent searches
 
 #### 6.4 Backlinks Tracking
-- [ ] Create DynamoDB table: `page_links`
-  - [ ] PK: `sourceGuid`, SK: `targetGuid`
-  - [ ] GSI: `targetGuid-index` for backlinks query
-- [ ] Build link extraction service
-  - [ ] Parse page content on save
-  - [ ] Extract all `[[]]` links
-  - [ ] Update `page_links` table
-  - [ ] Remove stale links
-- [ ] Implement Lambda: `pages-backlinks` (GET /pages/{guid}/backlinks)
-  - [ ] Query GSI by targetGuid
-  - [ ] Return list of pages linking to this page
+- [X] Create DynamoDB table: `page_links`
+  - [X] PK: `sourceGuid`, SK: `targetGuid`
+  - [X] GSI: `targetGuid-index` for backlinks query
+- [X] Build link extraction service
+  - [X] Parse page content on save
+  - [X] Extract all `[[]]` links
+  - [X] Update `page_links` table
+  - [X] Remove stale links
+- [X] Implement Lambda: `pages-backlinks` (GET /pages/{guid}/backlinks)
+  - [X] Query GSI by targetGuid
+  - [X] Return list of pages linking to this page
 - [ ] Build "Linked Pages" sidebar widget
   - [ ] Show backlinks count
   - [ ] Display list of linking pages

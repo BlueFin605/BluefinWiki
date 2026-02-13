@@ -13,3 +13,5 @@ export { handler as pagesListChildren } from './pages-list-children.js';
 export { handler as pagesMove } from './pages-move.js';
 export { handler as pagesSearch } from './pages-search.js';
 export { handler as linksResolve } from './links-resolve.js';
+export { handler as pagesBacklinks } from './pages-backlinks.js';
+
