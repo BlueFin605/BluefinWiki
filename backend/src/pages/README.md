@@ -11,6 +11,32 @@ These Lambda functions implement the `/pages` API endpoints, providing complete 
 - Deleting pages (with optional recursive deletion)
 - Listing child pages
 - Moving pages to different parent locations
+- Resolving wiki links
+- Tracking and retrieving backlinks
+
+## Link Management
+
+### Link Extraction Service (`link-extraction.ts`)
+
+Utility service for parsing wiki-style links and managing the `page_links` table for backlinks tracking.
+
+**Supported Link Formats:**
+- `[[guid:abc-123]]` - Direct GUID reference
+- `[[Page Title]]` - Title-based link (requires resolution)
+
+**Key Functions:**
+- `extractWikiLinks(content)` - Extract all wiki links from markdown
+- `saveLinkRelationship(sourceGuid, targetGuid, linkText)` - Save single link
+- `updatePageLinks(sourceGuid, links)` - Update all links for a page
+- `removePageLinks(sourceGuid)` - Remove all links from a page
+- `getBacklinks(targetGuid)` - Get all pages linking to target
+- `getOutboundLinks(sourceGuid)` - Get all links from source page
+
+**Automatic Link Tracking:**
+- Links are automatically extracted on page creation (`pages-create`)
+- Links are updated when page content changes (`pages-update`)
+- Stale links are removed and replaced with new ones
+- Only links with valid GUIDs are stored in the database
 
 ## Functions
 
@@ -228,6 +254,45 @@ Resolves wiki links by page title or GUID with fuzzy matching and confidence sco
 
 ---
 
+### `pages-backlinks.ts`
+**GET /pages/{guid}/backlinks**
+
+Retrieves all pages that link to the specified page (backlinks). Returns page metadata for each linking page.
+
+**Path Parameters:**
+- `guid`: Target page GUID to find backlinks for
+
+**Response:** `200 OK`
+```json
+{
+  "guid": "target-page-guid",
+  "backlinks": [
+    {
+      "guid": "source-page-guid",
+      "title": "Source Page Title",
+      "linkText": "Link text used",
+      "createdAt": "2026-02-06T12:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+**Features:**
+- **Backlink Tracking**: Uses DynamoDB `page_links` table with GSI
+- **Link Extraction**: Automatically extracts wiki-style links `[[...]]` from page content
+- **Metadata Loading**: Fetches full page metadata for each linking page
+- **Deleted Page Handling**: Skips backlinks from deleted pages
+- **Empty Results**: Returns empty array if no backlinks exist
+
+**Use Cases:**
+- "What links here" sidebar widget
+- Page dependency analysis
+- Orphaned page detection
+- Link graph visualization
+
+---
+
 ## Authentication
 
 All endpoints require authentication via Cognito JWT tokens. The `withAuth` middleware:
@@ -339,6 +404,7 @@ These functions should be integrated with API Gateway with the following routes:
 - `GET /pages/{guid}/children` → `pages-list-children`
 - `PUT /pages/{guid}/move` → `pages-move`
 - `POST /pages/links/resolve` → `links-resolve`
+- `GET /pages/{guid}/backlinks` → `pages-backlinks`
 
 Configure API Gateway authorizer to use Cognito User Pool.
 
