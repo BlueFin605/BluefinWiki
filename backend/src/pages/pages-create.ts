@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
+import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
 
 // Request validation schema
 const CreatePageRequestSchema = z.object({
@@ -91,6 +92,16 @@ export const handler = withAuth(async (
 
     // Save page to storage
     await storagePlugin.savePage(guid, parentGuid, pageContent);
+
+    // Extract and save page links
+    if (content) {
+      const wikiLinks = extractWikiLinks(content);
+      await updatePageLinks(guid, wikiLinks);
+      console.log('Page links created:', {
+        guid,
+        linkCount: wikiLinks.length,
+      });
+    }
 
     // Log activity
     console.log('Page created:', {

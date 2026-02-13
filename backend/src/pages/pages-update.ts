@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
+import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
 
 // Request validation schema
 const UpdatePageRequestSchema = z.object({
@@ -129,6 +130,16 @@ export const handler = withAuth(async (
 
     // Save updated page (creates new version)
     await storagePlugin.savePage(guid, parentGuid, updatedPage);
+
+    // Extract and update page links if content was modified
+    if (updates.content !== undefined) {
+      const wikiLinks = extractWikiLinks(updatedPage.content);
+      await updatePageLinks(guid, wikiLinks);
+      console.log('Page links updated:', {
+        guid,
+        linkCount: wikiLinks.length,
+      });
+    }
 
     // Log activity
     console.log('Page updated:', {

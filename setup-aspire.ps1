@@ -9,7 +9,7 @@ Write-Host ""
 # Check .NET version
 Write-Host "Checking .NET SDK version..." -ForegroundColor Yellow
 $dotnetVersion = dotnet --version
-Write-Host "✓ .NET SDK version: $dotnetVersion" -ForegroundColor Green
+Write-Host "? .NET SDK version: $dotnetVersion" -ForegroundColor Green
 Write-Host ""
 
 # Install Aspire workload
@@ -19,9 +19,9 @@ dotnet workload update
 dotnet workload install aspire
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ Aspire workload installed successfully" -ForegroundColor Green
+    Write-Host "? Aspire workload installed successfully" -ForegroundColor Green
 } else {
-    Write-Host "✗ Failed to install Aspire workload" -ForegroundColor Red
+    Write-Host "? Failed to install Aspire workload" -ForegroundColor Red
     exit 1
 }
 Write-Host ""
@@ -30,9 +30,9 @@ Write-Host ""
 Write-Host "Checking Docker availability..." -ForegroundColor Yellow
 $dockerRunning = docker info 2>&1 | Out-Null
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ Docker is running" -ForegroundColor Green
+    Write-Host "? Docker is running" -ForegroundColor Green
 } else {
-    Write-Host "⚠ Docker is not running. Please start Docker Desktop." -ForegroundColor Yellow
+    Write-Host "? Docker is not running. Please start Docker Desktop." -ForegroundColor Yellow
     Write-Host "  LocalStack and MailHog containers require Docker." -ForegroundColor Gray
 }
 Write-Host ""
@@ -41,9 +41,9 @@ Write-Host ""
 Write-Host "Checking Node.js..." -ForegroundColor Yellow
 try {
     $nodeVersion = node --version
-    Write-Host "✓ Node.js version: $nodeVersion" -ForegroundColor Green
+    Write-Host "? Node.js version: $nodeVersion" -ForegroundColor Green
 } catch {
-    Write-Host "⚠ Node.js not found. Please install Node.js 18 or later." -ForegroundColor Yellow
+    Write-Host "? Node.js not found. Please install Node.js 18 or later." -ForegroundColor Yellow
 }
 Write-Host ""
 
@@ -55,9 +55,9 @@ $buildResult = $LASTEXITCODE
 Pop-Location
 
 if ($buildResult -eq 0) {
-    Write-Host "✓ AppHost built successfully" -ForegroundColor Green
+    Write-Host "? AppHost built successfully" -ForegroundColor Green
 } else {
-    Write-Host "✗ AppHost build failed" -ForegroundColor Red
+    Write-Host "? AppHost build failed" -ForegroundColor Red
     exit 1
 }
 Write-Host ""
@@ -68,7 +68,7 @@ if (Test-Path "frontend/package.json") {
     Push-Location frontend
     npm install
     Pop-Location
-    Write-Host "✓ Frontend dependencies installed" -ForegroundColor Green
+    Write-Host "? Frontend dependencies installed" -ForegroundColor Green
     Write-Host ""
 }
 
@@ -78,7 +78,7 @@ if (Test-Path "backend/package.json") {
     Push-Location backend
     npm install
     Pop-Location
-    Write-Host "✓ Backend dependencies installed" -ForegroundColor Green
+    Write-Host "? Backend dependencies installed" -ForegroundColor Green
     Write-Host ""
 }
 

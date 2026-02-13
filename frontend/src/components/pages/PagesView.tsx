@@ -152,6 +152,10 @@ export const PagesView: React.FC = () => {
                   // Clear selection when page is deleted
                   setActivePageGuid(undefined);
                 }}
+                onNavigateToPage={(guid) => {
+                  // Navigate to a different page
+                  setActivePageGuid(guid);
+                }}
               />
             </EditorErrorBoundary>
           ) : (

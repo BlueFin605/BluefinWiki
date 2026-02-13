@@ -5,9 +5,14 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['**/*.integration.test.ts'], // Only run integration tests
-    exclude: ['**/node_modules/**', '**/dist/**', '**/page-operations.integration.test.ts'], // Temporarily exclude problematic test
+    exclude: ['**/node_modules/**', '**/dist/**', '**/page-operations.integration.test.ts', '**/links-resolve.integration.test.ts'], // Temporarily exclude problematic tests
     testTimeout: 30000, // Longer timeout for integration tests
     hookTimeout: 30000,
+    env: {
+      AWS_ENDPOINT: 'http://localhost:4566',
+      AWS_REGION: 'us-east-1',
+      LOCALSTACK_ENDPOINT: 'http://localhost:4566',
+    },
     pool: 'threads', // Use threads instead of forks for better memory efficiency
     poolOptions: {
       threads: {

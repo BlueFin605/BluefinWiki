@@ -3,11 +3,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
+import remarkWikiLinks from '../../plugins/remarkWikiLinks';
 import './markdown-preview.css';
 
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
+  onBrokenLinkClick?: (linkText: string, linkTarget: string) => void;
 }
 
 /**
@@ -16,36 +18,82 @@ interface MarkdownPreviewProps {
  * - GitHub Flavored Markdown (tables, strikethrough, task lists, footnotes)
  * - Line breaks support (remark-breaks)
  * - Code syntax highlighting (rehype-highlight)
+ * - Wiki-style links ([[Page Title]] and [[guid|Display Text]])
  * - Custom styling for readability
  * - Light/dark theme support
+ * - Broken link detection and creation workflow
  */
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
   className = '',
+  onBrokenLinkClick,
 }) => {
   // Memoize the markdown rendering to avoid unnecessary re-renders
   const renderedContent = useMemo(() => {
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks]}
         rehypePlugins={[rehypeHighlight]}
         components={{
-          // Customize link rendering to show warning in preview mode
-          a: ({ node, children, href, ...props }) => (
-            <a
-              {...props}
-              href={href}
-              onClick={(e) => {
-                e.preventDefault();
-                // In preview mode, links are disabled
-                console.log('Links are disabled in preview mode');
-              }}
-              className="text-blue-600 dark:text-blue-400 underline cursor-not-allowed"
-              title="Links are disabled in preview mode"
-            >
-              {children}
-            </a>
-          ),
+          // Customize link rendering to handle both wiki links and external links
+          a: ({ node, children, href, ...props }) => {
+            // Check if this is a wiki link by looking at data attributes
+            const isWikiLink = (props as any)['data-wiki-link'] === 'true';
+            const isBroken = (props as any)['data-broken'] === 'true';
+            const wikiTarget = (props as any)['data-wiki-target'];
+            
+            if (isWikiLink) {
+              // Wiki link styling
+              const baseClasses = 'underline cursor-pointer';
+              const colorClasses = isBroken
+                ? 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300'
+                : 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300';
+              
+              return (
+                <a
+                  {...props}
+                  href={href}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (isBroken && onBrokenLinkClick) {
+                      // Extract link text from children
+                      const linkText = typeof children === 'string' 
+                        ? children 
+                        : Array.isArray(children) 
+                          ? children.join('') 
+                          : wikiTarget || 'Untitled';
+                      onBrokenLinkClick(linkText, wikiTarget || linkText);
+                    } else {
+                      // In preview mode, wiki links are disabled
+                      console.log('Wiki link clicked (disabled in preview):', href);
+                    }
+                  }}
+                  className={`${baseClasses} ${colorClasses}`}
+                  title={isBroken ? `Page not found: ${wikiTarget}. Click to create.` : undefined}
+                >
+                  {children}
+                  {isBroken && <span className="ml-1 text-xs">?</span>}
+                </a>
+              );
+            }
+            
+            // External link styling
+            return (
+              <a
+                {...props}
+                href={href}
+                onClick={(e) => {
+                  e.preventDefault();
+                  // In preview mode, links are disabled
+                  console.log('External link clicked (disabled in preview):', href);
+                }}
+                className="text-blue-600 dark:text-blue-400 underline cursor-not-allowed"
+                title="Links are disabled in preview mode"
+              >
+                {children}
+              </a>
+            );
+          },
           // Style headings
           h1: ({ node, children, ...props }) => (
             <h1 {...props} className="text-3xl font-bold mt-6 mb-4 text-gray-900 dark:text-gray-100">

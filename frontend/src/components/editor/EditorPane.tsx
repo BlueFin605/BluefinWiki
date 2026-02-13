@@ -5,6 +5,7 @@ import MarkdownToolbar, { ToolbarAction } from './MarkdownToolbar';
 import PagePropertiesPanel, { PageMetadata } from './PagePropertiesPanel';
 import { useAutosave } from '../../hooks/useAutosave';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { CreatePageFromLinkModal } from '../pages/CreatePageFromLinkModal';
 
 interface EditorPaneProps {
   initialContent?: string;
@@ -22,6 +23,8 @@ interface EditorPaneProps {
   onMetadataChange?: (metadata: Partial<PageMetadata>) => void;
   /** Show properties panel (default: false) */
   showPropertiesPanel?: boolean;
+  /** Current page GUID for context when creating pages from links */
+  pageGuid?: string;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -47,11 +50,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   metadata,
   onMetadataChange,
   showPropertiesPanel = false,
+  pageGuid,
 }) => {
   const [content, setContent] = useState(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
   const [dividerPosition, setDividerPosition] = useState(50); // percentage
   const [showProperties, setShowProperties] = useState(showPropertiesPanel);
+  const [showCreatePageModal, setShowCreatePageModal] = useState(false);
+  const [brokenLinkData, setBrokenLinkData] = useState<{ text: string; target: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const editorRef = useRef<MarkdownEditorRef>(null);
@@ -91,6 +97,34 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const handleManualSave = useCallback(() => {
     triggerSave();
   }, [triggerSave]);
+
+  // Handle broken link click - open modal to create page
+  const handleBrokenLinkClick = useCallback((linkText: string, linkTarget: string) => {
+    setBrokenLinkData({ text: linkText, target: linkTarget });
+    setShowCreatePageModal(true);
+  }, []);
+
+  // Handle page creation from broken link
+  const handlePageCreated = useCallback((newPageGuid: string, newPageTitle: string) => {
+    // Update the link in the content to point to the new page
+    // Replace [[linkTarget]] or [[linkTarget|text]] with [[newPageGuid|text]]
+    if (brokenLinkData) {
+      const { target } = brokenLinkData;
+      
+      // Find and replace the broken link with a valid link
+      const wikiLinkRegex = new RegExp(`\\[\\[${target}(?:\\|([^\\]]+))?\\]\\]`, 'g');
+      const updatedContent = content.replace(wikiLinkRegex, (_match, displayText) => {
+        const text = displayText || newPageTitle;
+        return `[[${newPageGuid}|${text}]]`;
+      });
+      
+      handleContentChange(updatedContent);
+      triggerSave();
+    }
+    
+    setShowCreatePageModal(false);
+    setBrokenLinkData(null);
+  }, [brokenLinkData, content, handleContentChange, triggerSave]);
 
   // Handle divider drag
   const handleMouseDown = useCallback(() => {
@@ -293,11 +327,26 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%',
               }}
             >
-              <MarkdownPreview content={content} />
+              <MarkdownPreview 
+                content={content} 
+                onBrokenLinkClick={handleBrokenLinkClick}
+              />
             </div>
           )}
         </div>
       </div>
+
+      {/* Create Page from Link Modal */}
+      <CreatePageFromLinkModal
+        isOpen={showCreatePageModal}
+        onClose={() => {
+          setShowCreatePageModal(false);
+          setBrokenLinkData(null);
+        }}
+        linkText={brokenLinkData?.text || ''}
+        currentPageGuid={pageGuid}
+        onPageCreated={handlePageCreated}
+      />
     </div>
   );
 };
