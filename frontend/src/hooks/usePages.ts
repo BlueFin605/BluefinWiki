@@ -18,7 +18,38 @@ export const pageKeys = {
   children: (parentGuid: string | null) => [...pageKeys.all, 'children', parentGuid] as const,
   detail: (guid: string) => [...pageKeys.all, 'detail', guid] as const,
   ancestors: (guid: string) => [...pageKeys.all, 'ancestors', guid] as const,
+  search: (query: string) => [...pageKeys.all, 'search', query] as const,
+  backlinks: (guid: string) => [...pageKeys.all, 'backlinks', guid] as const,
 };
+
+/**
+ * Search result for link autocomplete
+ */
+export interface PageSearchResult {
+  guid: string;
+  title: string;
+  path: string;
+  folderId: string | null;
+}
+
+/**
+ * Backlink information for a page
+ */
+export interface Backlink {
+  guid: string;
+  title: string;
+  linkText?: string;
+  createdAt: string;
+}
+
+/**
+ * Backlinks response
+ */
+export interface BacklinksResponse {
+  guid: string;
+  backlinks: Backlink[];
+  count: number;
+}
 
 /**
  * Fetch children of a parent page (or root pages if parentGuid is null)
@@ -151,5 +182,44 @@ export const useDeletePage = () => {
         queryKey: pageKeys.all,
       });
     },
+  });
+};
+
+/**
+ * Search pages by title (for link autocomplete)
+ */
+export const usePageSearch = (query: string, options?: { enabled?: boolean; limit?: number }) => {
+  return useQuery({
+    queryKey: pageKeys.search(query),
+    queryFn: async (): Promise<PageSearchResult[]> => {
+      if (!query || query.trim() === '') {
+        return [];
+      }
+      
+      const params = new URLSearchParams({ q: query });
+      if (options?.limit) {
+        params.append('limit', options.limit.toString());
+      }
+      
+      const response = await apiClient.get(`/pages/search?${params.toString()}`);
+      return response.data.results || [];
+    },
+    enabled: options?.enabled !== false && !!query && query.trim() !== '',
+    staleTime: 30000, // Cache for 30 seconds
+  });
+};
+
+/**
+ * Fetch backlinks for a page (pages that link to this page)
+ */
+export const useBacklinks = (guid: string) => {
+  return useQuery({
+    queryKey: pageKeys.backlinks(guid),
+    queryFn: async (): Promise<BacklinksResponse> => {
+      const response = await apiClient.get(`/pages/${guid}/backlinks`);
+      return response.data;
+    },
+    enabled: !!guid,
+    staleTime: 60000, // Cache for 1 minute
   });
 };

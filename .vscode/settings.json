@@ -40,7 +40,8 @@
         ".\\start-aspire.ps1": true,
         "Start-Process": true,
         "npm run test:integration": true,
-        "../node_modules/vitest/vitest.mjs": true
+        "../node_modules/vitest/vitest.mjs": true,
+        ".\\setup-aspire.ps1": true
     }
 }
 

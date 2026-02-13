@@ -546,67 +546,67 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 **Goal**: Enable wiki-style internal linking
 
 #### 6.1 Link Syntax Parsing
-- [ ] Implement wiki link parser
-  - [ ] Regex for `[[Page Title]]` syntax
-  - [ ] Support `[[guid|Display Text]]` format
-  - [ ] Parse external links with icon indicator
-- [ ] Create remark plugin for link rendering
-  - [ ] Convert wiki links to React components
-  - [ ] Apply styling (color, underline)
-  - [ ] Mark broken links with red color
+- [X] Implement wiki link parser
+  - [X] Regex for `[[Page Title]]` syntax
+  - [X] Support `[[guid|Display Text]]` format
+  - [X] Parse external links with icon indicator
+- [X] Create remark plugin for link rendering
+  - [X] Convert wiki links to React components
+  - [X] Apply styling (color, underline)
+  - [X] Mark broken links with red color
 
 #### 6.2 Link Resolution Service
-- [ ] Build link resolver Lambda: `links-resolve`
-  - [ ] Input: page title or GUID
-  - [ ] Search through storage plugin (list all pages, filter by title)
-  - [ ] Implement fuzzy matching on page titles
-  - [ ] Return best match with confidence score
-  - [ ] Handle ambiguous titles (multiple matches)
-  - [ ] Consider caching page index for performance
-- [ ] Implement broken link detection
-  - [ ] Query storage plugin for page existence
-  - [ ] Mark links with `?` icon
-  - [ ] Provide "Create Page" quick action
+- [X] Build link resolver Lambda: `links-resolve`
+  - [X] Input: page title or GUID
+  - [X] Search through storage plugin (list all pages, filter by title)
+  - [X] Implement fuzzy matching on page titles
+  - [X] Return best match with confidence score
+  - [X] Handle ambiguous titles (multiple matches)
+  - [X] Consider caching page index for performance
+- [X] Implement broken link detection
+  - [X] Query storage plugin for page existence
+  - [X] Mark links with `?` icon
+  - [X] Provide "Create Page" quick action
 
 #### 6.3 Link Autocomplete
-- [ ] Build link suggestion component
-  - [ ] Trigger on `[[` input in editor
-  - [ ] Show dropdown with matching pages
-  - [ ] Fuzzy search by title
-  - [ ] Display page hierarchy path for context (e.g., "Parent > Child")
-  - [ ] Insert full wiki link on selection
-- [ ] Optimize suggestion queries
-  - [ ] Debounce input (200ms)
-  - [ ] Limit results to 10 items
-  - [ ] Cache recent searches
+- [X] Build link suggestion component
+  - [X] Trigger on `[[` input in editor
+  - [X] Show dropdown with matching pages
+  - [X] Fuzzy search by title
+  - [X] Display page hierarchy path for context (e.g., "Parent > Child")
+  - [X] Insert full wiki link on selection
+- [X] Optimize suggestion queries
+  - [X] Debounce input (200ms)
+  - [X] Limit results to 10 items
+  - [X] Cache recent searches
 
 #### 6.4 Backlinks Tracking
-- [ ] Create DynamoDB table: `page_links`
-  - [ ] PK: `sourceGuid`, SK: `targetGuid`
-  - [ ] GSI: `targetGuid-index` for backlinks query
-- [ ] Build link extraction service
-  - [ ] Parse page content on save
-  - [ ] Extract all `[[]]` links
-  - [ ] Update `page_links` table
-  - [ ] Remove stale links
-- [ ] Implement Lambda: `pages-backlinks` (GET /pages/{guid}/backlinks)
-  - [ ] Query GSI by targetGuid
-  - [ ] Return list of pages linking to this page
-- [ ] Build "Linked Pages" sidebar widget
-  - [ ] Show backlinks count
-  - [ ] Display list of linking pages
-  - [ ] Open page on click
+- [X] Create DynamoDB table: `page_links`
+  - [X] PK: `sourceGuid`, SK: `targetGuid`
+  - [X] GSI: `targetGuid-index` for backlinks query
+- [X] Build link extraction service
+  - [X] Parse page content on save
+  - [X] Extract all `[[]]` links
+  - [X] Update `page_links` table
+  - [X] Remove stale links
+- [X] Implement Lambda: `pages-backlinks` (GET /pages/{guid}/backlinks)
+  - [X] Query GSI by targetGuid
+  - [X] Return list of pages linking to this page
+- [X] Build "Linked Pages" sidebar widget
+  - [X] Show backlinks count
+  - [X] Display list of linking pages
+  - [X] Open page on click
 
 #### 6.5 Create Page from Link
-- [ ] Detect broken link click
-- [ ] Open "Create Page" modal
-  - [ ] Pre-fill title from link text
-  - [ ] Select folder (default to current folder)
-  - [ ] Option to create as draft
-- [ ] Create page and update link
-  - [ ] Generate new page GUID
-  - [ ] Replace broken link with valid link
-  - [ ] Save updated source page
+- [X] Detect broken link click
+- [X] Open "Create Page" modal
+  - [X] Pre-fill title from link text
+  - [X] Select folder (default to current folder)
+  - [X] Option to create as draft
+- [X] Create page and update link
+  - [X] Generate new page GUID
+  - [X] Replace broken link with valid link
+  - [X] Save updated source page
 
 ---
 

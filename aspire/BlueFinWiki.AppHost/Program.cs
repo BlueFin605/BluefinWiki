@@ -1,5 +1,4 @@
 using Aspire.Hosting;
-using System.Threading.Tasks;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -21,7 +20,4 @@ var mailhog = builder.AddContainer("mailhog", "mailhog/mailhog", "latest")
     .WithEndpoint(port: 1025, targetPort: 1025, name: "mailhog-smtp");
 
 var app = builder.Build();
-await app.StartAsync();
-
-// Wait indefinitely  - keep app running
-await Task.Delay(-1);
+await app.RunAsync();

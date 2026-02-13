@@ -113,3 +113,51 @@
     padding: 0.5rem;
   }
 }
+
+/* Wiki link styling */
+.markdown-preview .wiki-link {
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.markdown-preview .wiki-link:hover {
+  color: #1e40af;
+}
+
+.dark .markdown-preview .wiki-link {
+  color: #60a5fa;
+}
+
+.dark .markdown-preview .wiki-link:hover {
+  color: #93c5fd;
+}
+
+/* Broken wiki link styling */
+.markdown-preview .wiki-link-broken {
+  color: #dc2626;
+  text-decoration: underline;
+  cursor: pointer;
+  position: relative;
+}
+
+.dark .markdown-preview .wiki-link-broken {
+  color: #f87171;
+}
+
+/* External link indicator */
+.markdown-preview a[href^="http"]::after,
+.markdown-preview a[href^="https://"]::after {
+  content: "↗";
+  display: inline-block;
+  margin-left: 0.2em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+
+/* Prevent external link indicator on wiki links */
+.markdown-preview .wiki-link::after,
+.markdown-preview .wiki-link-broken::after {
+  content: none;
+}
