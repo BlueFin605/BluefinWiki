@@ -68,6 +68,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         forcePathStyle: true // Required for LocalStack
       }),
     });
+
+    // Note: No in-memory caching implemented for Lambda architecture
+    // Rationale: Lambda containers are ephemeral and recycled after ~15-45min inactivity.
+    // For a low-traffic family wiki, most requests would hit cold starts, making cache ineffective.
+    // S3 provides sub-10ms latency which is sufficient for our use case (3-20 users).
+    // If caching is needed in the future, use DynamoDB or ElastiCache for shared persistent state.
   }
 
   /**
@@ -85,6 +91,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     }
     return `${parentGuid}/${guid}.md`;
   }
+
+
 
   /**
    * Parse YAML frontmatter from markdown content
@@ -171,10 +179,20 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       '---',
       `title: "${content.title}"`,
       `guid: "${content.guid}"`,
-      content.folderId ? `parentGuid: "${content.folderId}"` : '',
-      content.folderId ? `folderId: "${content.folderId}"` : '',
-      `status: "${content.status}"`,
     ];
+    
+    // Add parentGuid and folderId if present
+    if (content.folderId) {
+      lines.push(`parentGuid: "${content.folderId}"`);
+      lines.push(`folderId: "${content.folderId}"`);
+    }
+    
+    lines.push(`status: "${content.status}"`);
+    
+    // Add description if present
+    if (content.description) {
+      lines.push(`description: "${content.description}"`);
+    }
     
     // Add tags in YAML list format
     if (content.tags.length > 0) {
@@ -192,11 +210,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       `createdAt: "${content.createdAt}"`,
       `modifiedAt: "${content.modifiedAt}"`,
       '---',
-      ''
+      '' // Empty line after frontmatter
     );
     
-    const frontmatter = lines.filter(line => line !== '').join('\n');
-    return frontmatter + content.content;
+    return lines.join('\n') + content.content;
   }
 
   /**
@@ -300,13 +317,18 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const { metadata, body } = this.parseFrontmatter(markdown);
 
       // Build PageContent object
+      const folderId = Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId;
+      const parentGuid = Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid;
+      const effectiveFolderId = folderId || parentGuid || '';
+      
       const pageContent: PageContent = {
         guid: Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
         content: body,
-        folderId: Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId || (Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid) || '',
+        folderId: (effectiveFolderId === null || effectiveFolderId === 'null') ? '' : effectiveFolderId,
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
-        status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived',
+        status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
+        description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
         createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
         modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',
         createdAt: Array.isArray(metadata.createdAt) ? metadata.createdAt[0] : metadata.createdAt || this.formatDate(),

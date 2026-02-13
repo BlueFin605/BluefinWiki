@@ -285,9 +285,23 @@ Welcome to our family recipe collection!
 ## Performance Considerations
 
 ### Caching Strategy
-- Cache page metadata for `listChildren()` operations
-- Use ETag/If-None-Match for conditional requests
-- Invalidate cache on save/delete/move operations
+
+**No Backend In-Memory Caching for Lambda Architecture**:
+- Lambda containers are ephemeral, recycled after 15-45 minutes of inactivity
+- Cold starts reset any in-memory state, making instance-level caching unreliable
+- For low-traffic family wikis (3-20 users), most requests hit cold Lambda containers
+- S3 provides sub-10ms latency which is sufficient for this use case
+
+**If Caching Is Needed in the Future**:
+- Use **DynamoDB** for GUID → S3 key mapping (shared persistent state)
+- Use **ElastiCache/Redis** for hot data (page metadata, frequently accessed pages)
+- Use **CloudFront** for edge caching of static content and API responses
+- Use **React Query** on frontend for client-side caching
+
+**Current Implementation**:
+- No in-memory caching in storage plugins
+- Direct S3 API calls for all operations
+- CloudFront caching for static assets only
 
 ### Batch Operations
 - For large folder operations, implement pagination
@@ -296,8 +310,8 @@ Welcome to our family recipe collection!
 
 ### Circular Reference Detection
 - The `validateNoCircularReference()` method may require multiple API calls
-- Consider maintaining a parent-child index for O(1) lookups
-- Cache parent chains to reduce repeated lookups
+- Consider maintaining a parent-child index for O(1) lookups if performance becomes an issue
+- Currently implemented as recursive traversal (acceptable for typical family wiki depth of 3-5 levels)
 
 ## Testing
 
@@ -323,6 +337,155 @@ describe('S3StoragePlugin', () => {
   });
 });
 ```
+
+### Running Integration Tests
+
+Integration tests validate the storage plugin against real S3 behavior using LocalStack. These tests are essential for verifying:
+- Actual S3 API interactions
+- Versioning behavior
+- Concurrency handling
+- Error conditions
+- Performance characteristics
+
+#### Prerequisites
+
+1. **Start Aspire with LocalStack**:
+   ```powershell
+   # From repository root
+   dotnet run --project aspire/BlueFinWiki.AppHost
+   ```
+   
+   This starts:
+   - LocalStack (S3, DynamoDB, SES) on `http://localhost:4566`
+   - Aspire Dashboard on `http://localhost:15888`
+   - Other services (Cognito Local, MailHog)
+
+2. **Verify LocalStack is Running**:
+   ```powershell
+   # Check LocalStack health
+   curl http://localhost:4566/_localstack/health
+   ```
+   
+   Expected response:
+   ```json
+   {
+     "services": {
+       "s3": "running",
+       "dynamodb": "running",
+       "ses": "running"
+     }
+   }
+   ```
+
+#### Running the Tests
+
+```powershell
+# From backend directory
+cd backend
+
+# Run integration tests only
+npm run test:integration
+
+# Run all tests (unit + integration)
+npm run test:all
+
+# Run integration tests with verbose output
+npm run test:integration -- --reporter=verbose
+
+# Run specific integration test file
+npm run test:integration -- S3StoragePlugin.integration.test.ts
+```
+
+#### Integration Test Coverage
+
+The integration tests cover:
+
+**Core Operations**:
+- End-to-end page lifecycle (create, read, update, delete)
+- Page hierarchy management (parent-child relationships)
+- Page movement between parents
+- Recursive deletion
+
+**Advanced Features**:
+- S3 versioning behavior with multiple updates
+- Root-level and nested page listing
+- Deletion protection (prevent deleting parents with children)
+- Error handling (non-existent pages, circular references)
+
+**Performance Tests**:
+- **Bulk Operations**: Creating and listing 100+ pages
+- **Large Content**: Handling 5MB page content
+- **Deep Hierarchies**: Testing 10-level nested structures
+- **Wide Hierarchies**: Managing 100 children under one parent
+- **Concurrent Operations**: 50 simultaneous read/write operations
+- **Versioning Stress**: 20+ rapid updates to track version history
+- **Bulk Deletion**: Recursive deletion of parent with 50 children
+
+#### Performance Benchmarks
+
+Expected performance targets for LocalStack (actual AWS S3 will be faster):
+
+| Operation | Target Time | Test Scale |
+|-----------|-------------|------------|
+| Create 100 pages | < 30 seconds | Parallel creation |
+| List 100 pages | < 5 seconds | Single list operation |
+| Save 5MB page | < 10 seconds | Single large file |
+| Load 5MB page | < 5 seconds | Single large file |
+| Create 10-level hierarchy | < 15 seconds | Sequential nesting |
+| List 100 children | < 5 seconds | Wide hierarchy |
+| Bulk delete (50 pages) | < 10 seconds | Recursive deletion |
+| 50 concurrent ops | < 20 seconds | Mixed read/write |
+| 20 versions | < 15 seconds | Sequential updates |
+
+#### Monitoring Tests with Aspire Dashboard
+
+1. Open Aspire Dashboard: `http://localhost:15888`
+2. Navigate to "Traces" tab
+3. Run integration tests
+4. View distributed traces showing:
+   - S3 API calls (PutObject, GetObject, etc.)
+   - Request timings and latencies
+   - Error conditions and retries
+   - Performance bottlenecks
+
+#### Troubleshooting Integration Tests
+
+**LocalStack not responding**:
+```powershell
+# Restart Aspire
+dotnet run --project aspire/BlueFinWiki.AppHost
+
+# Or restart just LocalStack container
+docker restart <localstack-container-id>
+```
+
+**Test timeouts**:
+- Performance tests have 60-second timeout
+- Regular tests have 30-second timeout
+- Adjust in `vitest.integration.config.ts` if needed
+
+**S3 bucket conflicts**:
+- Tests clean up after themselves
+- Manually delete bucket if needed:
+  ```powershell
+  aws --endpoint-url=http://localhost:4566 s3 rb s3://bluefinwiki-test-pages --force
+  ```
+
+**Debug mode**:
+```powershell
+# Run tests with debug logging
+DEBUG=* npm run test:integration
+```
+
+#### CI/CD Integration
+
+In GitHub Actions, integration tests run automatically:
+1. Spin up LocalStack using Docker Compose
+2. Wait for LocalStack health check
+3. Run `npm run test:integration`
+4. Collect test results and coverage
+
+See `.github/workflows/backend.yml` for implementation.
 
 ## Migration Between Storage Backends
 

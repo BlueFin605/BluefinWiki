@@ -79,6 +79,33 @@ export interface StoragePlugin {
   movePage(guid: string, newParentGuid: string | null): Promise<void>;
 
   /**
+   * Get ancestors of a page (for breadcrumbs)
+   * Returns an array of page summaries from root to immediate parent
+   * 
+   * @param guid - Page GUID to get ancestors for
+   * @returns Promise with array of ancestors (root first, immediate parent last)
+   */
+  getAncestors(guid: string): Promise<PageSummary[]>;
+
+  /**
+   * Check if a page is a descendant of another page
+   * Used for circular reference prevention
+   * 
+   * @param pageGuid - The page to check
+   * @param ancestorGuid - The potential ancestor
+   * @returns Promise that resolves to true if pageGuid is a descendant of ancestorGuid
+   */
+  isDescendantOf(pageGuid: string, ancestorGuid: string): Promise<boolean>;
+
+  /**
+   * Build a complete page tree from storage
+   * Returns all pages organized in a hierarchical structure
+   * 
+   * @returns Promise with array of root page summaries, each with children populated
+   */
+  buildPageTree(): Promise<PageSummary[]>;
+
+  /**
    * Check if the storage plugin is properly configured and accessible
    * 
    * @returns Promise that resolves to true if healthy, false otherwise
