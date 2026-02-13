@@ -148,11 +148,15 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
 
       {/* Title Editing */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label 
+          htmlFor="page-title-input"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+        >
           Title
         </label>
         {isEditingTitle && editable ? (
           <input
+            id="page-title-input"
             type="text"
             value={titleValue}
             onChange={(e) => setTitleValue(e.target.value)}
