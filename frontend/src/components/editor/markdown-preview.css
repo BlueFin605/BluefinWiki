@@ -1,0 +1,115 @@
+/**
+ * Custom styles for Markdown Preview component
+ * Includes syntax highlighting themes for light and dark modes
+ */
+
+/* Light theme syntax highlighting (GitHub style) */
+:root,
+.light {
+  --highlight-bg: #f6f8fa;
+  --highlight-color: #24292e;
+  --highlight-comment: #6a737d;
+  --highlight-keyword: #d73a49;
+  --highlight-string: #032f62;
+  --highlight-function: #6f42c1;
+  --highlight-number: #005cc5;
+}
+
+/* Dark theme syntax highlighting (GitHub Dark style) */
+.dark {
+  --highlight-bg: #0d1117;
+  --highlight-color: #c9d1d9;
+  --highlight-comment: #8b949e;
+  --highlight-keyword: #ff7b72;
+  --highlight-string: #a5d6ff;
+  --highlight-function: #d2a8ff;
+  --highlight-number: #79c0ff;
+}
+
+/* Apply syntax highlighting colors */
+.markdown-preview pre code.hljs {
+  background: var(--highlight-bg);
+  color: var(--highlight-color);
+}
+
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+  color: var(--highlight-comment);
+  font-style: italic;
+}
+
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-type {
+  color: var(--highlight-keyword);
+}
+
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-subst,
+.markdown-preview .hljs-template-tag,
+.markdown-preview .hljs-template-variable {
+  color: var(--highlight-string);
+}
+
+.markdown-preview .hljs-function,
+.markdown-preview .hljs-title {
+  color: var(--highlight-function);
+}
+
+.markdown-preview .hljs-number,
+.markdown-preview .hljs-literal,
+.markdown-preview .hljs-built_in {
+  color: var(--highlight-number);
+}
+
+/* Task list checkbox styling */
+.markdown-preview input[type="checkbox"] {
+  margin-right: 0.5rem;
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Footnote styling */
+.markdown-preview .footnotes {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.dark .markdown-preview .footnotes {
+  border-top-color: #374151;
+}
+
+.markdown-preview .footnotes ol {
+  padding-left: 1.5rem;
+}
+
+.markdown-preview .footnotes li {
+  margin-bottom: 0.5rem;
+}
+
+/* Ensure code blocks have proper scrolling */
+.markdown-preview pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Table responsiveness */
+.markdown-preview table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .markdown-preview table {
+    font-size: 0.875rem;
+  }
+  
+  .markdown-preview th,
+  .markdown-preview td {
+    padding: 0.5rem;
+  }
+}
