@@ -529,15 +529,15 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Metadata is part of PageContent JSON in storage
 
 #### 5.5 Page API Integration
-- [ ] Connect editor to backend APIs
-  - [ ] Load page content on mount
-  - [ ] Save content on autosave trigger
-  - [ ] Handle 409 conflicts (concurrent edits)
-  - [ ] Implement optimistic updates
-- [ ] Add loading states and error handling
-  - [ ] Skeleton loader while fetching
-  - [ ] Error boundaries for component crashes
-  - [ ] Retry mechanism for failed saves
+- [X] Connect editor to backend APIs
+  - [X] Load page content on mount
+  - [X] Save content on autosave trigger
+  - [X] Handle 409 conflicts (concurrent edits)
+  - [X] Implement optimistic updates
+- [X] Add loading states and error handling
+  - [X] Skeleton loader while fetching
+  - [X] Error boundaries for component crashes
+  - [X] Retry mechanism for failed saves
 
 ---
 

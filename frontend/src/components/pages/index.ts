@@ -7,3 +7,5 @@ export { PageTreeItem } from './PageTreeItem';
 export { PageContextMenu } from './PageContextMenu';
 export { NewPageModal } from './NewPageModal';
 export { PageRenameInline } from './PageRenameInline';
+export { PageEditor } from './PageEditor';
+export { PagesView } from './PagesView';
