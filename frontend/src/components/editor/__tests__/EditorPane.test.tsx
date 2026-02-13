@@ -10,14 +10,14 @@ import { EditorPane } from '../EditorPane';
 
 // Mock child components
 vi.mock('../MarkdownEditor', () => ({
-  default: vi.fn(({ onChange, editable }: any) => (
+  default: vi.fn(({ onChange, editable }: unknown) => (
     <div data-testid="markdown-editor" data-editable={editable}>
       <button onClick={() => onChange && onChange('new content')}>
         Change Content
       </button>
     </div>
   )),
-  MarkdownEditor: vi.fn(({ onChange, editable }: any) => (
+  MarkdownEditor: vi.fn(({ onChange, editable }: unknown) => (
     <div data-testid="markdown-editor" data-editable={editable}>
       <button onClick={() => onChange && onChange('new content')}>
         Change Content
@@ -27,21 +27,21 @@ vi.mock('../MarkdownEditor', () => ({
 }));
 
 vi.mock('../MarkdownPreview', () => ({
-  default: ({ content }: any) => (
+  default: ({ content }: unknown) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
-  MarkdownPreview: ({ content }: any) => (
+  MarkdownPreview: ({ content }: unknown) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
 }));
 
 vi.mock('../MarkdownToolbar', () => ({
-  default: ({ onAction, disabled }: any) => (
+  default: ({ onAction, disabled }: unknown) => (
     <div data-testid="markdown-toolbar" data-disabled={disabled}>
       <button onClick={() => onAction('bold')}>Bold</button>
     </div>
   ),
-  MarkdownToolbar: ({ onAction, disabled }: any) => (
+  MarkdownToolbar: ({ onAction, disabled }: unknown) => (
     <div data-testid="markdown-toolbar" data-disabled={disabled}>
       <button onClick={() => onAction('bold')}>Bold</button>
     </div>
@@ -49,7 +49,7 @@ vi.mock('../MarkdownToolbar', () => ({
 }));
 
 vi.mock('../PagePropertiesPanel', () => ({
-  default: ({ metadata, onMetadataChange }: any) => (
+  default: ({ metadata, onMetadataChange }: unknown) => (
     <div data-testid="page-properties-panel">
       {metadata?.title}
       <button onClick={() => onMetadataChange({ title: 'Updated' })}>
@@ -57,7 +57,7 @@ vi.mock('../PagePropertiesPanel', () => ({
       </button>
     </div>
   ),
-  PagePropertiesPanel: ({ metadata, onMetadataChange }: any) => (
+  PagePropertiesPanel: ({ metadata, onMetadataChange }: unknown) => (
     <div data-testid="page-properties-panel">
       {metadata?.title}
       <button onClick={() => onMetadataChange({ title: 'Updated' })}>
@@ -332,7 +332,7 @@ describe('EditorPane', () => {
 
   describe('Resizable Divider (Split Mode)', () => {
     it('should render divider in split mode', () => {
-      const { container } = renderWithRouter(<EditorPane showPreview={true} />);
+      renderWithRouter(<EditorPane showPreview={true} />);
       
       // Check for split layout
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
@@ -404,3 +404,5 @@ describe('EditorPane', () => {
     });
   });
 });
+
+

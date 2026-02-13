@@ -26,6 +26,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { createStoragePlugin } from '../storage/index.js';
 import { PageSummary } from '../types/index.js';
+import type { StoragePlugin } from '../storage/StoragePlugin.js';
 
 interface SearchResult {
   guid: string;
@@ -39,7 +40,7 @@ interface SearchResult {
  */
 async function buildPagePath(
   pageGuid: string,
-  storagePlugin: any
+  storagePlugin: StoragePlugin
 ): Promise<string> {
   try {
     const ancestors = await storagePlugin.getAncestors(pageGuid);

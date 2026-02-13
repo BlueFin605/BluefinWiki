@@ -20,7 +20,6 @@ interface LinkedPagesPanelProps {
 }
 
 export const LinkedPagesPanel: React.FC<LinkedPagesPanelProps> = ({
-  pageGuid: _pageGuid,
   backlinks,
   isLoading,
   onPageClick,
