@@ -206,6 +206,20 @@ namespace Infrastructure.Stacks
                 Description = "Move page to new parent location"
             });
             
+            var pagesSearchFunction = new Function(this, "PagesSearchFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-search.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Search pages by title (for link autocomplete)"
+            });
+            
             // =============================================================================
             // API Gateway Routes - /pages
             // =============================================================================
@@ -264,6 +278,14 @@ namespace Infrastructure.Stacks
             // PUT /pages/{guid}/move - Move page to new parent
             var moveResource = pageGuidResource.AddResource("move");
             moveResource.AddMethod("PUT", new LambdaIntegration(pagesMoveFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+            
+            // GET /pages/search - Search pages by title
+            var searchResource = pagesResource.AddResource("search");
+            searchResource.AddMethod("GET", new LambdaIntegration(pagesSearchFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer

@@ -569,16 +569,16 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Provide "Create Page" quick action
 
 #### 6.3 Link Autocomplete
-- [ ] Build link suggestion component
-  - [ ] Trigger on `[[` input in editor
-  - [ ] Show dropdown with matching pages
-  - [ ] Fuzzy search by title
-  - [ ] Display page hierarchy path for context (e.g., "Parent > Child")
-  - [ ] Insert full wiki link on selection
-- [ ] Optimize suggestion queries
-  - [ ] Debounce input (200ms)
-  - [ ] Limit results to 10 items
-  - [ ] Cache recent searches
+- [X] Build link suggestion component
+  - [X] Trigger on `[[` input in editor
+  - [X] Show dropdown with matching pages
+  - [X] Fuzzy search by title
+  - [X] Display page hierarchy path for context (e.g., "Parent > Child")
+  - [X] Insert full wiki link on selection
+- [X] Optimize suggestion queries
+  - [X] Debounce input (200ms)
+  - [X] Limit results to 10 items
+  - [X] Cache recent searches
 
 #### 6.4 Backlinks Tracking
 - [ ] Create DynamoDB table: `page_links`
