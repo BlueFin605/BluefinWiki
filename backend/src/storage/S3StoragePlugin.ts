@@ -317,13 +317,17 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const { metadata, body } = this.parseFrontmatter(markdown);
 
       // Build PageContent object
+      const folderId = Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId;
+      const parentGuid = Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid;
+      const effectiveFolderId = folderId || parentGuid || '';
+      
       const pageContent: PageContent = {
         guid: Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
         content: body,
-        folderId: Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId || (Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid) || '',
+        folderId: (effectiveFolderId === null || effectiveFolderId === 'null') ? '' : effectiveFolderId,
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
-        status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived',
+        status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
         createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
         modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',

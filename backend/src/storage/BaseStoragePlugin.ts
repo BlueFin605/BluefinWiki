@@ -67,7 +67,7 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
       throw this.createError('Creator and modifier user IDs are required', 'INVALID_PAGE_CONTENT', 400);
     }
 
-    if (!['draft', 'published', 'archived'].includes(content.status)) {
+    if (!['draft', 'published', 'archived', 'deleted'].includes(content.status)) {
       throw this.createError('Invalid page status', 'INVALID_PAGE_CONTENT', 400);
     }
   }
