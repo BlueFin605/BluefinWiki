@@ -40,7 +40,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     const { container } = render(
       <LinkAutocomplete
@@ -60,7 +60,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: true,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     render(
       <LinkAutocomplete
@@ -80,7 +80,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     render(
       <LinkAutocomplete
@@ -159,7 +159,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     const { container } = render(
       <LinkAutocomplete
@@ -219,7 +219,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     render(
       <LinkAutocomplete
@@ -244,7 +244,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: mockSuggestions,
       isLoading: false,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     render(
       <LinkAutocomplete
@@ -278,7 +278,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: mockSuggestions,
       isLoading: false,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     render(
       <LinkAutocomplete
@@ -303,7 +303,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as ReturnType<typeof usePages.usePageSearch>);
+    } as unknown as ReturnType<typeof usePages.usePageSearch>);
 
     render(
       <LinkAutocomplete
