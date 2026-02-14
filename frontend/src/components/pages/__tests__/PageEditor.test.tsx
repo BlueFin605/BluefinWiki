@@ -13,9 +13,9 @@ vi.mock('../../../hooks/usePages');
 
 // Mock the EditorPane component
 vi.mock('../../editor/EditorPane', () => ({
-  EditorPane: ({ onContentChange, onSave, metadata }: unknown) => (
+  EditorPane: ({ onContentChange, onSave, metadata }: { onContentChange?: (content: string) => void; onSave?: () => void; metadata?: any }) => (
     <div data-testid="editor-pane">
-      <button onClick={() => onContentChange('new content')}>Change Content</button>
+      <button onClick={() => onContentChange && onContentChange('new content')}>Change Content</button>
       <button onClick={onSave}>Save</button>
       {metadata && <div data-testid="metadata">{metadata.title}</div>}
     </div>
@@ -49,11 +49,9 @@ describe('PageEditor', () => {
       isLoading: true,
       error: null,
       refetch: vi.fn(),
-    } as unknown);
+    } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({
-      mutateAsync: vi.fn(),
-    } as unknown);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
 
     renderPageEditor('test-guid');
 
@@ -67,11 +65,9 @@ describe('PageEditor', () => {
       isLoading: false,
       error: { response: { data: { message: 'Page not found' } } },
       refetch: mockRefetch,
-    } as unknown);
+       } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({
-      mutateAsync: vi.fn(),
-    } as unknown);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
 
     renderPageEditor('test-guid');
 
@@ -101,11 +97,9 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as unknown);
+    } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({
-      mutateAsync: vi.fn(),
-    } as unknown);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
 
     renderPageEditor('test-guid');
 
@@ -134,11 +128,9 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as unknown);
+    } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({
-      mutateAsync: mockMutateAsync,
-    } as unknown);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
 
     renderPageEditor('test-guid');
 
@@ -161,7 +153,7 @@ describe('PageEditor', () => {
   });
 
   it('shows conflict dialog on 409 error', async () => {
-    const mockMutateAsync = vi.fn().mockRejectedValue({
+    vi.fn().mockRejectedValue({
       response: { status: 409 },
     });
 
@@ -181,11 +173,9 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as unknown);
+    } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({
-      mutateAsync: mockMutateAsync,
-    } as unknown);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
 
     renderPageEditor('test-guid');
 
@@ -224,11 +214,9 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as unknown);
+    } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({
-      mutateAsync: mockMutateAsync,
-    } as unknown);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
 
     renderPageEditor('test-guid');
 
@@ -268,11 +256,9 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as unknown);
+    } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({
-      mutateAsync: mockMutateAsync,
-    } as unknown);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
 
     renderPageEditor('test-guid');
 
@@ -295,5 +281,8 @@ describe('PageEditor', () => {
     }, { timeout: 3000 });
   });
 });
+
+
+
 
 

@@ -156,7 +156,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       }
 
       // Check for network or server errors
-      if (error.response?.status >= 500 || !error.response) {
+      const err = error as any;
+      if (err.response?.status >= 500 || !err.response) {
         // Server error or network error - implement retry
         if (retryCount < 3) {
           setSaveError(`Save failed. Retrying... (${retryCount + 1}/3)`);
@@ -175,7 +176,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       }
 
       // Other errors (e.g., validation, auth)
-      setSaveError(error.response?.data?.message || 'Failed to save page');
+      setSaveError(err.response?.data?.message || 'Failed to save page');
       setRetryCount(0);
     }
   }, [content, metadata, updatePage, retryCount]);

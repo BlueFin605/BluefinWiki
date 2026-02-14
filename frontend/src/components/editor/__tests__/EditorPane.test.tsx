@@ -10,14 +10,14 @@ import { EditorPane } from '../EditorPane';
 
 // Mock child components
 vi.mock('../MarkdownEditor', () => ({
-  default: vi.fn(({ onChange, editable }: unknown) => (
+  default: vi.fn(({ onChange, editable }: { onChange?: (value: string) => void; editable?: boolean }) => (
     <div data-testid="markdown-editor" data-editable={editable}>
       <button onClick={() => onChange && onChange('new content')}>
         Change Content
       </button>
     </div>
   )),
-  MarkdownEditor: vi.fn(({ onChange, editable }: unknown) => (
+  MarkdownEditor: vi.fn(({ onChange, editable }: { onChange?: (value: string) => void; editable?: boolean }) => (
     <div data-testid="markdown-editor" data-editable={editable}>
       <button onClick={() => onChange && onChange('new content')}>
         Change Content
@@ -27,40 +27,40 @@ vi.mock('../MarkdownEditor', () => ({
 }));
 
 vi.mock('../MarkdownPreview', () => ({
-  default: ({ content }: unknown) => (
+  default: ({ content }: { content?: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
-  MarkdownPreview: ({ content }: unknown) => (
+  MarkdownPreview: ({ content }: { content?: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
 }));
 
 vi.mock('../MarkdownToolbar', () => ({
-  default: ({ onAction, disabled }: unknown) => (
+  default: ({ onAction, disabled }: { onAction?: (action: string) => void; disabled?: boolean }) => (
     <div data-testid="markdown-toolbar" data-disabled={disabled}>
-      <button onClick={() => onAction('bold')}>Bold</button>
+      <button onClick={() => onAction && onAction('bold')}>Bold</button>
     </div>
   ),
-  MarkdownToolbar: ({ onAction, disabled }: unknown) => (
+  MarkdownToolbar: ({ onAction, disabled }: { onAction?: (action: string) => void; disabled?: boolean }) => (
     <div data-testid="markdown-toolbar" data-disabled={disabled}>
-      <button onClick={() => onAction('bold')}>Bold</button>
+      <button onClick={() => onAction && onAction('bold')}>Bold</button>
     </div>
   ),
 }));
 
 vi.mock('../PagePropertiesPanel', () => ({
-  default: ({ metadata, onMetadataChange }: unknown) => (
+  default: ({ metadata, onMetadataChange }: { metadata?: any; onMetadataChange?: (metadata: any) => void }) => (
     <div data-testid="page-properties-panel">
       {metadata?.title}
-      <button onClick={() => onMetadataChange({ title: 'Updated' })}>
+      <button onClick={() => onMetadataChange && onMetadataChange({ title: 'Updated' })}>
         Update
       </button>
     </div>
   ),
-  PagePropertiesPanel: ({ metadata, onMetadataChange }: unknown) => (
+  PagePropertiesPanel: ({ metadata, onMetadataChange }: { metadata?: any; onMetadataChange?: (metadata: any) => void }) => (
     <div data-testid="page-properties-panel">
       {metadata?.title}
-      <button onClick={() => onMetadataChange({ title: 'Updated' })}>
+      <button onClick={() => onMetadataChange && onMetadataChange({ title: 'Updated' })}>
         Update
       </button>
     </div>

@@ -38,7 +38,7 @@ describe('CreatePageFromLinkModal', () => {
       isPending: false,
       isError: false,
       error: null,
-    } as unknown);
+    } as any);
   });
 
   const renderModal = (props = {}) => {
@@ -229,7 +229,7 @@ describe('CreatePageFromLinkModal', () => {
         isPending: true,
         isError: false,
         error: null,
-      } as unknown);
+      } as any);
 
       renderModal();
       
