@@ -109,6 +109,9 @@ if (typeof document !== 'undefined') {
       setPosition: vi.fn(),
     } as any)) as any;
   }
+
+  // Mock scrollIntoView for JSDOM
+  Element.prototype.scrollIntoView = vi.fn();
 }
 
 // Export expect for convenience

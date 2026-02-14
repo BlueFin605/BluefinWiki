@@ -51,7 +51,14 @@ describe('PageEditor', () => {
       refetch: vi.fn(),
     } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+
+    vi.mocked(usePages.useBacklinks).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as any);
 
     renderPageEditor('test-guid');
 
@@ -67,7 +74,14 @@ describe('PageEditor', () => {
       refetch: mockRefetch,
        } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+
+    vi.mocked(usePages.useBacklinks).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as any);
 
     renderPageEditor('test-guid');
 
@@ -99,7 +113,14 @@ describe('PageEditor', () => {
       refetch: vi.fn(),
     } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({
+      mutateAsync: vi.fn(),
+    } as any);
+
+    vi.mocked(usePages.useBacklinks).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as any);
 
     renderPageEditor('test-guid');
 
@@ -130,7 +151,14 @@ describe('PageEditor', () => {
       refetch: vi.fn(),
     } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({
+      mutateAsync: mockMutateAsync,
+    } as any);
+
+    vi.mocked(usePages.useBacklinks).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as any);
 
     renderPageEditor('test-guid');
 
@@ -153,7 +181,7 @@ describe('PageEditor', () => {
   });
 
   it('shows conflict dialog on 409 error', async () => {
-    vi.fn().mockRejectedValue({
+    const mockMutateAsync = vi.fn().mockRejectedValue({
       response: { status: 409 },
     });
 
@@ -175,7 +203,14 @@ describe('PageEditor', () => {
       refetch: vi.fn(),
     } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({
+      mutateAsync: mockMutateAsync,
+    } as any);
+
+    vi.mocked(usePages.useBacklinks).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as any);
 
     renderPageEditor('test-guid');
 
@@ -216,7 +251,14 @@ describe('PageEditor', () => {
       refetch: vi.fn(),
     } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({
+      mutateAsync: mockMutateAsync,
+    } as any);
+
+    vi.mocked(usePages.useBacklinks).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as any);
 
     renderPageEditor('test-guid');
 
@@ -258,7 +300,14 @@ describe('PageEditor', () => {
       refetch: vi.fn(),
     } as any);
 
-    vi.mocked(usePages.useUpdatePage).mockReturnValue({      mutateAsync: vi.fn(),    } as any);
+    vi.mocked(usePages.useUpdatePage).mockReturnValue({
+      mutateAsync: mockMutateAsync,
+    } as any);
+
+    vi.mocked(usePages.useBacklinks).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as any);
 
     renderPageEditor('test-guid');
 
