@@ -13,7 +13,7 @@ vi.mock('../../../hooks/usePages');
 
 // Mock the EditorPane component
 vi.mock('../../editor/EditorPane', () => ({
-  EditorPane: ({ onContentChange, onSave, metadata }: { onContentChange?: (content: string) => void; onSave?: () => void; metadata?: any }) => (
+  EditorPane: ({ onContentChange, onSave, metadata }: { onContentChange?: (content: string) => void; onSave?: () => void; metadata?: Record<string, unknown> }) => (
     <div data-testid="editor-pane">
       <button onClick={() => onContentChange && onContentChange('new content')}>Change Content</button>
       <button onClick={onSave}>Save</button>
@@ -49,16 +49,16 @@ describe('PageEditor', () => {
       isLoading: true,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.usePageDetail>);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.useUpdatePage>);
 
     vi.mocked(usePages.useBacklinks).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as ReturnType<typeof usePages.useBacklinks>);
 
     renderPageEditor('test-guid');
 
@@ -72,16 +72,16 @@ describe('PageEditor', () => {
       isLoading: false,
       error: { response: { data: { message: 'Page not found' } } },
       refetch: mockRefetch,
-       } as any);
+       } as ReturnType<typeof usePages.usePageDetail>);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.useUpdatePage>);
 
     vi.mocked(usePages.useBacklinks).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as ReturnType<typeof usePages.useBacklinks>);
 
     renderPageEditor('test-guid');
 
@@ -111,16 +111,16 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.usePageDetail>);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.useUpdatePage>);
 
     vi.mocked(usePages.useBacklinks).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as ReturnType<typeof usePages.useBacklinks>);
 
     renderPageEditor('test-guid');
 
@@ -149,16 +149,16 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.usePageDetail>);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as ReturnType<typeof usePages.useUpdatePage>);
 
     vi.mocked(usePages.useBacklinks).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as ReturnType<typeof usePages.useBacklinks>);
 
     renderPageEditor('test-guid');
 
@@ -201,16 +201,16 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.usePageDetail>);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as ReturnType<typeof usePages.useUpdatePage>);
 
     vi.mocked(usePages.useBacklinks).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as ReturnType<typeof usePages.useBacklinks>);
 
     renderPageEditor('test-guid');
 
@@ -249,16 +249,16 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.usePageDetail>);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as ReturnType<typeof usePages.useUpdatePage>);
 
     vi.mocked(usePages.useBacklinks).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as ReturnType<typeof usePages.useBacklinks>);
 
     renderPageEditor('test-guid');
 
@@ -298,16 +298,16 @@ describe('PageEditor', () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    } as any);
+    } as ReturnType<typeof usePages.usePageDetail>);
 
     vi.mocked(usePages.useUpdatePage).mockReturnValue({
       mutateAsync: mockMutateAsync,
-    } as any);
+    } as ReturnType<typeof usePages.useUpdatePage>);
 
     vi.mocked(usePages.useBacklinks).mockReturnValue({
       data: [],
       isLoading: false,
-    } as any);
+    } as ReturnType<typeof usePages.useBacklinks>);
 
     renderPageEditor('test-guid');
 

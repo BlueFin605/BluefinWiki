@@ -38,7 +38,7 @@ describe('CreatePageFromLinkModal', () => {
       isPending: false,
       isError: false,
       error: null,
-    } as any);
+    } as ReturnType<typeof usePages.useCreatePage>);
   });
 
   const renderModal = (props = {}) => {
@@ -229,7 +229,7 @@ describe('CreatePageFromLinkModal', () => {
         isPending: true,
         isError: false,
         error: null,
-      } as any);
+      } as ReturnType<typeof usePages.useCreatePage>);
 
       renderModal();
       
