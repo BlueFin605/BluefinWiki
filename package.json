@@ -13,7 +13,7 @@
     "type-check": "npm run type-check --workspaces",
     "test": "npm run test --workspaces",
     "test:all": "npm run test:all --workspaces",
-    "postinstall": "test \"$CI\" != true && husky install || true"
+    "postinstall": "node -e \"process.env.CI !== 'true' && require('child_process').execSync('husky install')\""
   },
   "devDependencies": {
     "husky": "^9.0.11",
