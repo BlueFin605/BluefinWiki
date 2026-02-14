@@ -50,7 +50,7 @@ vi.mock('../MarkdownToolbar', () => ({
 }));
 
 vi.mock('../PagePropertiesPanel', () => ({
-  default: ({ metadata, onMetadataChange }: { metadata?: any; onMetadataChange?: (metadata: any) => void }) => (
+  default: ({ metadata, onMetadataChange }: { metadata?: Record<string, unknown>; onMetadataChange?: (metadata: Record<string, unknown>) => void }) => (
     <div data-testid="page-properties-panel">
       {metadata?.title}
       <button onClick={() => onMetadataChange && onMetadataChange({ title: 'Updated' })}>
@@ -58,7 +58,7 @@ vi.mock('../PagePropertiesPanel', () => ({
       </button>
     </div>
   ),
-  PagePropertiesPanel: ({ metadata, onMetadataChange }: { metadata?: any; onMetadataChange?: (metadata: any) => void }) => (
+  PagePropertiesPanel: ({ metadata, onMetadataChange }: { metadata?: Record<string, unknown>; onMetadataChange?: (metadata: Record<string, unknown>) => void }) => (
     <div data-testid="page-properties-panel">
       {metadata?.title}
       <button onClick={() => onMetadataChange && onMetadataChange({ title: 'Updated' })}>

@@ -12,6 +12,7 @@
     "lint": "npm run lint --workspaces",
     "type-check": "npm run type-check --workspaces",
     "test": "npm run test --workspaces",
+    "test:all": "npm run test:all --workspaces",
     "postinstall": "test \"$CI\" != true && husky install || true"
   },
   "devDependencies": {
