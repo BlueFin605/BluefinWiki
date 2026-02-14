@@ -63,14 +63,14 @@ async function buildPagePath(
 /**
  * Flatten page tree into a list of all pages
  */
-function flattenPageTree(pages: PageSummary[]): PageSummary[] {
+function flattenPageTree(pages: (PageSummary & { children?: PageSummary[] })[]): PageSummary[] {
   const result: PageSummary[] = [];
   
-  function traverse(items: PageSummary[]) {
+  function traverse(items: (PageSummary & { children?: PageSummary[] })[]) {
     for (const item of items) {
       result.push(item);
-      if ('children' in item && Array.isArray((item as any).children)) {
-        traverse((item as any).children);
+      if (item.children && Array.isArray(item.children)) {
+        traverse(item.children);
       }
     }
   }
