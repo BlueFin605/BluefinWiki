@@ -2,6 +2,7 @@ import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageSummary } from '../types/index.js';
+import type { StoragePlugin } from '../storage/StoragePlugin.js';
 
 /**
  * Lambda: links-resolve
@@ -172,6 +173,25 @@ function isValidGuid(query: string): boolean {
   return uuidRegex.test(query);
 }
 
+/**
+ * Recursively collect all pages from storage
+ */
+async function collectPages(
+  parentGuid: string | null,
+  storagePlugin: StoragePlugin,
+  allPages: PageSummary[],
+  pageMap: Map<string, PageSummary>
+): Promise<void> {
+  const children = await storagePlugin.listChildren(parentGuid);
+  for (const child of children) {
+    allPages.push(child);
+    pageMap.set(child.guid, child);
+    if (child.hasChildren) {
+      await collectPages(child.guid, storagePlugin, allPages, pageMap);
+    }
+  }
+}
+
 export const handler = withAuth(async (
   event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -221,7 +241,7 @@ export const handler = withAuth(async (
             guid: page.guid,
             title: page.title,
             parentGuid: page.folderId || null,
-            status: page.status,
+            status: (page.status === 'deleted' ? 'archived' : page.status) as 'draft' | 'published' | 'archived',
             modifiedAt: page.modifiedAt,
             modifiedBy: page.modifiedBy,
             hasChildren: false
@@ -262,19 +282,8 @@ export const handler = withAuth(async (
     const allPages: PageSummary[] = [];
     const pageMap = new Map<string, PageSummary>();
 
-    async function collectPages(parentGuid: string | null) {
-      const children = await storagePlugin.listChildren(parentGuid);
-      for (const child of children) {
-        allPages.push(child);
-        pageMap.set(child.guid, child);
-        if (child.hasChildren) {
-          await collectPages(child.guid);
-        }
-      }
-    }
-
     // Start from root level
-    await collectPages(null);
+    await collectPages(null, storagePlugin, allPages, pageMap);
 
     // Calculate confidence scores for all pages
     const matches: LinkMatch[] = [];

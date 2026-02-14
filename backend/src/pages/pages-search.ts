@@ -24,8 +24,9 @@
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { createStoragePlugin } from '../storage/index.js';
 import { PageSummary } from '../types/index.js';
+import type { StoragePlugin } from '../storage/StoragePlugin.js';
+import { getStoragePlugin } from '../storage/index.js';
 
 interface SearchResult {
   guid: string;
@@ -39,7 +40,7 @@ interface SearchResult {
  */
 async function buildPagePath(
   pageGuid: string,
-  storagePlugin: any
+  storagePlugin: StoragePlugin
 ): Promise<string> {
   try {
     const ancestors = await storagePlugin.getAncestors(pageGuid);
@@ -62,17 +63,19 @@ async function buildPagePath(
 /**
  * Flatten page tree into a list of all pages
  */
-function flattenPageTree(pages: PageSummary[]): PageSummary[] {
+function flattenPageTree(pages: (PageSummary & { children?: PageSummary[] })[]): PageSummary[] {
   const result: PageSummary[] = [];
   
-  function traverse(page: PageSummary) {
-    result.push(page);
-    if (page.children && page.children.length > 0) {
-      page.children.forEach(traverse);
+  function traverse(items: (PageSummary & { children?: PageSummary[] })[]) {
+    for (const item of items) {
+      result.push(item);
+      if (item.children && Array.isArray(item.children)) {
+        traverse(item.children);
+      }
     }
   }
   
-  pages.forEach(traverse);
+  traverse(pages);
   return result;
 }
 
@@ -163,7 +166,7 @@ export const handler = async (
       50 // Max limit
     );
     
-    const storagePlugin = createStoragePlugin();
+    const storagePlugin = getStoragePlugin();
     
     // Get all pages from storage
     const pageTree = await storagePlugin.buildPageTree();
@@ -186,7 +189,7 @@ export const handler = async (
         guid: page.guid,
         title: page.title,
         path: await buildPagePath(page.guid, storagePlugin),
-        folderId: page.folderId || null,
+        folderId: page.parentGuid,
       }))
     );
     

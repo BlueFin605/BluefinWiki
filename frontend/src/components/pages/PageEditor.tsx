@@ -74,7 +74,6 @@ const ConflictDialog: React.FC<ConflictDialogProps> = ({
 
 export const PageEditor: React.FC<PageEditorProps> = ({
   pageGuid,
-  onPageDeleted: _onPageDeleted,
   onNavigateToPage,
 }) => {
   const [content, setContent] = useState('');
@@ -147,17 +146,18 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       setSaveError(null);
       setRetryCount(0);
       pendingSaveRef.current = null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save failed:', error);
 
       // Check for conflict (409 status)
-      if (error.response?.status === 409) {
+      if ((error as { response?: { status?: number } })?.response?.status === 409) {
         setShowConflictDialog(true);
         return;
       }
 
       // Check for network or server errors
-      if (error.response?.status >= 500 || !error.response) {
+      const err = error as { response?: { status: number; data?: { message?: string } } };
+      if ((err.response?.status && err.response.status >= 500) || !err.response) {
         // Server error or network error - implement retry
         if (retryCount < 3) {
           setSaveError(`Save failed. Retrying... (${retryCount + 1}/3)`);
@@ -176,7 +176,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       }
 
       // Other errors (e.g., validation, auth)
-      setSaveError(error.response?.data?.message || 'Failed to save page');
+      setSaveError(err.response?.data?.message || 'Failed to save page');
       setRetryCount(0);
     }
   }, [content, metadata, updatePage, retryCount]);
@@ -198,7 +198,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       lastSavedVersionRef.current = content;
       setSaveError(null);
       pendingSaveRef.current = null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       setSaveError('Failed to save changes. Please try again.');
     }
   }, [content, updatePage]);
@@ -246,7 +246,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             Failed to Load Page
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {(error as any)?.response?.data?.message || 'An error occurred while loading the page.'}
+            {(error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'An error occurred while loading the page.'}
           </p>
           <button
             onClick={() => refetch()}

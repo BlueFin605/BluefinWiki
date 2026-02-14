@@ -3,18 +3,36 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MarkdownEditor } from '../MarkdownEditor';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MarkdownEditor, type MarkdownEditorRef } from '../MarkdownEditor';
+import { createRef } from 'react';
 
 describe('MarkdownEditor', () => {
+  let queryClient: QueryClient;
+
   beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
     vi.clearAllMocks();
   });
 
+  const renderWithClient = (ui: React.ReactElement) => {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        {ui}
+      </QueryClientProvider>
+    );
+  };
+
   describe('Basic Rendering', () => {
     it('should render with initial value', async () => {
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="# Hello World" />
       );
 
@@ -25,7 +43,7 @@ describe('MarkdownEditor', () => {
     });
 
     it('should render empty editor when no initial value', async () => {
-      const { container } = render(<MarkdownEditor />);
+      const { container } = renderWithClient(<MarkdownEditor />);
 
       await waitFor(() => {
         const editorElement = container.querySelector('.cm-editor');
@@ -34,7 +52,7 @@ describe('MarkdownEditor', () => {
     });
 
     it('should render as read-only when editable is false', async () => {
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="# Test" editable={false} />
       );
 
@@ -53,7 +71,7 @@ describe('MarkdownEditor', () => {
     it('should call onChange when content changes', async () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="" onChange={onChange} />
       );
 
@@ -76,7 +94,7 @@ describe('MarkdownEditor', () => {
     it('should update content when typing', async () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="" onChange={onChange} />
       );
 
@@ -100,8 +118,8 @@ describe('MarkdownEditor', () => {
   describe('Toolbar Actions', () => {
     it('should apply bold formatting', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -122,8 +140,8 @@ describe('MarkdownEditor', () => {
 
     it('should apply italic formatting', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -143,8 +161,8 @@ describe('MarkdownEditor', () => {
 
     it('should apply strikethrough formatting', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -164,8 +182,8 @@ describe('MarkdownEditor', () => {
 
     it('should apply heading formats', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -190,8 +208,8 @@ describe('MarkdownEditor', () => {
 
     it('should insert unordered list', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -211,8 +229,8 @@ describe('MarkdownEditor', () => {
 
     it('should insert ordered list', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -232,8 +250,8 @@ describe('MarkdownEditor', () => {
 
     it('should insert task list', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -253,8 +271,8 @@ describe('MarkdownEditor', () => {
 
     it('should insert link', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -274,8 +292,8 @@ describe('MarkdownEditor', () => {
 
     it('should insert image', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -295,8 +313,8 @@ describe('MarkdownEditor', () => {
 
     it('should insert inline code', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -316,8 +334,8 @@ describe('MarkdownEditor', () => {
 
     it('should insert code block', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
 
@@ -340,7 +358,7 @@ describe('MarkdownEditor', () => {
     it('should save on Ctrl+S', async () => {
       const user = userEvent.setup();
       const onSave = vi.fn();
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="Test" onSave={onSave} />
       );
 
@@ -363,7 +381,7 @@ describe('MarkdownEditor', () => {
 
   describe('CodeMirror Features', () => {
     it('should display line numbers', async () => {
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="Line 1\nLine 2\nLine 3" />
       );
 
@@ -376,7 +394,7 @@ describe('MarkdownEditor', () => {
     it('should support undo/redo', async () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="" onChange={onChange} />
       );
 
@@ -398,7 +416,7 @@ describe('MarkdownEditor', () => {
     });
 
     it('should have markdown syntax highlighting', async () => {
-      const { container } = render(
+      const { container } = renderWithClient(
         <MarkdownEditor initialValue="# Heading\n**bold**\n*italic*" />
       );
 
@@ -413,8 +431,8 @@ describe('MarkdownEditor', () => {
 
   describe('Ref Exposure', () => {
     it('should expose applyToolbarAction method', async () => {
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" />
       );
 
@@ -424,12 +442,12 @@ describe('MarkdownEditor', () => {
       });
 
       expect(ref.current).toBeTruthy();
-      expect(ref.current.applyToolbarAction).toBeInstanceOf(Function);
+      expect(ref.current?.applyToolbarAction).toBeInstanceOf(Function);
     });
 
     it('should expose getView method', async () => {
-      const ref = { current: null } as any;
-      const { container } = render(
+      const ref = createRef<MarkdownEditorRef>();
+      const { container } = renderWithClient(
         <MarkdownEditor ref={ref} initialValue="" />
       );
 
@@ -439,8 +457,9 @@ describe('MarkdownEditor', () => {
       });
 
       expect(ref.current).toBeTruthy();
-      expect(ref.current.getView).toBeInstanceOf(Function);
-      expect(ref.current.getView()).toBeTruthy();
+      expect(ref.current?.getView).toBeInstanceOf(Function);
+      expect(ref.current?.getView()).toBeTruthy();
     });
   });
 });
+

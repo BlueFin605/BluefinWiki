@@ -6,18 +6,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EditorPane } from '../EditorPane';
 
 // Mock child components
 vi.mock('../MarkdownEditor', () => ({
-  default: vi.fn(({ onChange, editable }: any) => (
+  default: vi.fn(({ onChange, editable }: { onChange?: (value: string) => void; editable?: boolean }) => (
     <div data-testid="markdown-editor" data-editable={editable}>
       <button onClick={() => onChange && onChange('new content')}>
         Change Content
       </button>
     </div>
   )),
-  MarkdownEditor: vi.fn(({ onChange, editable }: any) => (
+  MarkdownEditor: vi.fn(({ onChange, editable }: { onChange?: (value: string) => void; editable?: boolean }) => (
     <div data-testid="markdown-editor" data-editable={editable}>
       <button onClick={() => onChange && onChange('new content')}>
         Change Content
@@ -27,40 +28,40 @@ vi.mock('../MarkdownEditor', () => ({
 }));
 
 vi.mock('../MarkdownPreview', () => ({
-  default: ({ content }: any) => (
+  default: ({ content }: { content?: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
-  MarkdownPreview: ({ content }: any) => (
+  MarkdownPreview: ({ content }: { content?: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
 }));
 
 vi.mock('../MarkdownToolbar', () => ({
-  default: ({ onAction, disabled }: any) => (
+  default: ({ onAction, disabled }: { onAction?: (action: string) => void; disabled?: boolean }) => (
     <div data-testid="markdown-toolbar" data-disabled={disabled}>
-      <button onClick={() => onAction('bold')}>Bold</button>
+      <button onClick={() => onAction && onAction('bold')}>Bold</button>
     </div>
   ),
-  MarkdownToolbar: ({ onAction, disabled }: any) => (
+  MarkdownToolbar: ({ onAction, disabled }: { onAction?: (action: string) => void; disabled?: boolean }) => (
     <div data-testid="markdown-toolbar" data-disabled={disabled}>
-      <button onClick={() => onAction('bold')}>Bold</button>
+      <button onClick={() => onAction && onAction('bold')}>Bold</button>
     </div>
   ),
 }));
 
 vi.mock('../PagePropertiesPanel', () => ({
-  default: ({ metadata, onMetadataChange }: any) => (
+  default: ({ metadata, onMetadataChange }: { metadata?: Record<string, unknown>; onMetadataChange?: (metadata: Record<string, unknown>) => void }) => (
     <div data-testid="page-properties-panel">
-      {metadata?.title}
-      <button onClick={() => onMetadataChange({ title: 'Updated' })}>
+      {String(metadata?.title || '')}
+      <button onClick={() => onMetadataChange && onMetadataChange({ title: 'Updated' })}>
         Update
       </button>
     </div>
   ),
-  PagePropertiesPanel: ({ metadata, onMetadataChange }: any) => (
+  PagePropertiesPanel: ({ metadata, onMetadataChange }: { metadata?: Record<string, unknown>; onMetadataChange?: (metadata: Record<string, unknown>) => void }) => (
     <div data-testid="page-properties-panel">
-      {metadata?.title}
-      <button onClick={() => onMetadataChange({ title: 'Updated' })}>
+      {String(metadata?.title || '')}
+      <button onClick={() => onMetadataChange && onMetadataChange({ title: 'Updated' })}>
         Update
       </button>
     </div>
@@ -80,9 +81,20 @@ vi.mock('../../hooks/useUnsavedChanges', () => ({
   useUnsavedChanges: vi.fn(),
 }));
 
-// Helper to render with Router context
+// Helper to render with Router and QueryClient context
 const renderWithRouter = (ui: React.ReactElement) => {
-  return render(<BrowserRouter>{ui}</BrowserRouter>);
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>{ui}</BrowserRouter>
+    </QueryClientProvider>
+  );
 };
 
 describe('EditorPane', () => {
@@ -332,7 +344,7 @@ describe('EditorPane', () => {
 
   describe('Resizable Divider (Split Mode)', () => {
     it('should render divider in split mode', () => {
-      const { container } = renderWithRouter(<EditorPane showPreview={true} />);
+      renderWithRouter(<EditorPane showPreview={true} />);
       
       // Check for split layout
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
@@ -404,3 +416,5 @@ describe('EditorPane', () => {
     });
   });
 });
+
+

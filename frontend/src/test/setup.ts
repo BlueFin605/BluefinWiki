@@ -76,8 +76,8 @@ if (typeof document !== 'undefined') {
     range.getClientRects = vi.fn(() => ({
       length: 0,
       item: () => null,
-      [Symbol.iterator]: function* () {},
-    }));
+      [Symbol.iterator]: function* (): Generator<DOMRect, undefined, unknown> {},
+    } as DOMRectList));
     
     return range;
   };
@@ -107,9 +107,13 @@ if (typeof document !== 'undefined') {
       selectAllChildren: vi.fn(),
       setBaseAndExtent: vi.fn(),
       setPosition: vi.fn(),
-    })) as any;
+    } as unknown as Selection)) as () => Selection;
   }
+
+  // Mock scrollIntoView for JSDOM
+  Element.prototype.scrollIntoView = vi.fn();
 }
 
 // Export expect for convenience
 export { expect };
+

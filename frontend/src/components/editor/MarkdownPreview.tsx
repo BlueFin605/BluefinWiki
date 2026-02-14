@@ -12,6 +12,11 @@ interface MarkdownPreviewProps {
   onBrokenLinkClick?: (linkText: string, linkTarget: string) => void;
 }
 
+// Type helper for react-markdown component props
+type MarkdownComponentProps<T extends keyof JSX.IntrinsicElements> = React.ComponentPropsWithoutRef<T> & {
+  node?: unknown;
+};
+
 /**
  * Markdown preview component using react-markdown
  * Features:
@@ -36,11 +41,12 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         rehypePlugins={[rehypeHighlight]}
         components={{
           // Customize link rendering to handle both wiki links and external links
-          a: ({ node, children, href, ...props }) => {
+          a: ({ children, href, ...props }: MarkdownComponentProps<'a'>) => {
             // Check if this is a wiki link by looking at data attributes
-            const isWikiLink = (props as any)['data-wiki-link'] === 'true';
-            const isBroken = (props as any)['data-broken'] === 'true';
-            const wikiTarget = (props as any)['data-wiki-target'];
+            const dataProps = props as Record<string, unknown>;
+            const isWikiLink = dataProps['data-wiki-link'] === 'true';
+            const isBroken = dataProps['data-broken'] === 'true';
+            const wikiTarget = dataProps['data-wiki-target'] as string | undefined;
             
             if (isWikiLink) {
               // Wiki link styling
@@ -95,45 +101,45 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             );
           },
           // Style headings
-          h1: ({ node, children, ...props }) => (
+          h1: ({ children, ...props }: MarkdownComponentProps<'h1'>) => (
             <h1 {...props} className="text-3xl font-bold mt-6 mb-4 text-gray-900 dark:text-gray-100">
               {children}
             </h1>
           ),
-          h2: ({ node, children, ...props }) => (
+          h2: ({ children, ...props }: MarkdownComponentProps<'h2'>) => (
             <h2 {...props} className="text-2xl font-bold mt-5 mb-3 text-gray-900 dark:text-gray-100">
               {children}
             </h2>
           ),
-          h3: ({ node, children, ...props }) => (
+          h3: ({ children, ...props }: MarkdownComponentProps<'h3'>) => (
             <h3 {...props} className="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">
               {children}
             </h3>
           ),
-          h4: ({ node, children, ...props }) => (
+          h4: ({ children, ...props }: MarkdownComponentProps<'h4'>) => (
             <h4 {...props} className="text-lg font-semibold mt-3 mb-2 text-gray-900 dark:text-gray-100">
               {children}
             </h4>
           ),
-          h5: ({ node, children, ...props }) => (
+          h5: ({ children, ...props }: MarkdownComponentProps<'h5'>) => (
             <h5 {...props} className="text-base font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
               {children}
             </h5>
           ),
-          h6: ({ node, children, ...props }) => (
+          h6: ({ children, ...props }: MarkdownComponentProps<'h6'>) => (
             <h6 {...props} className="text-sm font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
               {children}
             </h6>
           ),
           // Style paragraphs
-          p: ({ node, children, ...props }) => (
+          p: ({ children, ...props }: MarkdownComponentProps<'p'>) => (
             <p {...props} className="mb-4 text-gray-800 dark:text-gray-200 leading-relaxed">
               {children}
             </p>
           ),
           // Style lists (including task lists)
-          ul: ({ node, children, ...props }) => {
-            const isTaskList = (props as any).className?.includes('contains-task-list');
+          ul: ({ children, ...props }: MarkdownComponentProps<'ul'>) => {
+            const isTaskList = props.className?.includes('contains-task-list');
             return (
               <ul
                 {...props}
@@ -145,13 +151,13 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               </ul>
             );
           },
-          ol: ({ node, children, ...props }) => (
+          ol: ({ children, ...props }: MarkdownComponentProps<'ol'>) => (
             <ol {...props} className="list-decimal list-inside mb-4 space-y-1 text-gray-800 dark:text-gray-200">
               {children}
             </ol>
           ),
-          li: ({ node, children, ...props }) => {
-            const isTaskItem = (props as any).className?.includes('task-list-item');
+          li: ({ children, ...props }: MarkdownComponentProps<'li'>) => {
+            const isTaskItem = props.className?.includes('task-list-item');
             return (
               <li
                 {...props}
@@ -162,7 +168,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             );
           },
           // Style code blocks (syntax highlighting handled by rehype-highlight)
-          code: ({ node, className, children, ...props }) => {
+          code: ({ className, children, ...props }: MarkdownComponentProps<'code'>) => {
             const inline = !className;
             return inline ? (
               <code
@@ -183,7 +189,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             );
           },
           // Style blockquotes
-          blockquote: ({ node, children, ...props }) => (
+          blockquote: ({ children, ...props }: MarkdownComponentProps<'blockquote'>) => (
             <blockquote
               {...props}
               className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-2 mb-4 italic text-gray-700 dark:text-gray-300"
@@ -192,34 +198,34 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             </blockquote>
           ),
           // Style tables
-          table: ({ node, children, ...props }) => (
+          table: ({ children, ...props }: MarkdownComponentProps<'table'>) => (
             <div className="overflow-x-auto mb-4">
               <table {...props} className="min-w-full border-collapse border border-gray-300 dark:border-gray-600">
                 {children}
               </table>
             </div>
           ),
-          thead: ({ node, children, ...props }) => (
+          thead: ({ children, ...props }: MarkdownComponentProps<'thead'>) => (
             <thead {...props} className="bg-gray-100 dark:bg-gray-800">
               {children}
             </thead>
           ),
-          th: ({ node, children, ...props }) => (
+          th: ({ children, ...props }: MarkdownComponentProps<'th'>) => (
             <th {...props} className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">
               {children}
             </th>
           ),
-          td: ({ node, children, ...props }) => (
+          td: ({ children, ...props }: MarkdownComponentProps<'td'>) => (
             <td {...props} className="border border-gray-300 dark:border-gray-600 px-4 py-2">
               {children}
             </td>
           ),
           // Style horizontal rules
-          hr: ({ node, ...props }) => (
+          hr: (props: MarkdownComponentProps<'hr'>) => (
             <hr {...props} className="my-6 border-t-2 border-gray-300 dark:border-gray-600" />
           ),
           // Style images
-          img: ({ node, src, alt, ...props }) => (
+          img: ({ src, alt, ...props }: MarkdownComponentProps<'img'>) => (
             <img
               {...props}
               src={src}
