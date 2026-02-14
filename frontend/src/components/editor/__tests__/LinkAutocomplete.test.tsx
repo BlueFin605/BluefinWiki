@@ -40,7 +40,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as unknown);
+    } as any);
 
     const { container } = render(
       <LinkAutocomplete
@@ -60,7 +60,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: true,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -80,7 +80,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -105,7 +105,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: mockSuggestions,
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -132,7 +132,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: mockSuggestions,
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -159,7 +159,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as unknown);
+    } as any);
 
     const { container } = render(
       <LinkAutocomplete
@@ -188,7 +188,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: mockSuggestions,
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -219,7 +219,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -244,7 +244,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: mockSuggestions,
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -278,7 +278,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: mockSuggestions,
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete
@@ -303,7 +303,7 @@ describe('LinkAutocomplete', () => {
     vi.spyOn(usePages, 'usePageSearch').mockReturnValue({
       data: [],
       isLoading: false,
-    } as unknown);
+    } as any);
 
     render(
       <LinkAutocomplete

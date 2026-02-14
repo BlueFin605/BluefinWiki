@@ -24,9 +24,9 @@
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { createStoragePlugin } from '../storage/index.js';
 import { PageSummary } from '../types/index.js';
 import type { StoragePlugin } from '../storage/StoragePlugin.js';
+import { getStoragePlugin } from '../storage/index.js';
 
 interface SearchResult {
   guid: string;
@@ -64,17 +64,8 @@ async function buildPagePath(
  * Flatten page tree into a list of all pages
  */
 function flattenPageTree(pages: PageSummary[]): PageSummary[] {
-  const result: PageSummary[] = [];
-  
-  function traverse(page: PageSummary) {
-    result.push(page);
-    if (page.children && page.children.length > 0) {
-      page.children.forEach(traverse);
-    }
-  }
-  
-  pages.forEach(traverse);
-  return result;
+  // PageSummary doesn't have children property, so just return the array
+  return pages;
 }
 
 /**
@@ -164,7 +155,7 @@ export const handler = async (
       50 // Max limit
     );
     
-    const storagePlugin = createStoragePlugin();
+    const storagePlugin = getStoragePlugin();
     
     // Get all pages from storage
     const pageTree = await storagePlugin.buildPageTree();
@@ -187,7 +178,7 @@ export const handler = async (
         guid: page.guid,
         title: page.title,
         path: await buildPagePath(page.guid, storagePlugin),
-        folderId: page.folderId || null,
+        folderId: page.parentGuid,
       }))
     );
     

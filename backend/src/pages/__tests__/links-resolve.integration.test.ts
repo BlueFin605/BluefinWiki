@@ -14,11 +14,10 @@ process.env.AWS_REGION = 'us-east-1';
 process.env.AWS_COGNITO_USER_POOL_ID = 'us-east-1_TESTPOOL';
 process.env.AWS_COGNITO_CLIENT_ID = 'test-client-id';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { S3StoragePlugin } from '../../storage/S3StoragePlugin.js';
-import { StoragePluginRegistry, initializeStoragePlugin, resetStoragePlugin } from '../../storage/StoragePluginRegistry.js';
-import { PageContent } from '../../types/index.js';
+import { initializeStoragePlugin, resetStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import {
   S3Client,
   CreateBucketCommand,
@@ -45,9 +44,6 @@ describe('links-resolve Lambda Integration Tests', () => {
   let ambiguousPage2Guid: string;
 
   beforeAll(async () => {
-    // Register S3 plugin with the registry
-    StoragePluginRegistry.register('s3', S3StoragePlugin);
-    
     // Initialize S3 client for LocalStack
     s3Client = new S3Client({
       region: TEST_REGION,
@@ -187,7 +183,7 @@ describe('links-resolve Lambda Integration Tests', () => {
       }
     } as any;
 
-    return handler(event);
+    return handler(event, {} as any);
   }
 
   /**

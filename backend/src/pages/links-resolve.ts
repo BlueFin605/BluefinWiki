@@ -2,6 +2,7 @@ import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageSummary } from '../types/index.js';
+import type { StoragePlugin } from '../storage/StoragePlugin.js';
 
 /**
  * Lambda: links-resolve
@@ -240,7 +241,7 @@ export const handler = withAuth(async (
             guid: page.guid,
             title: page.title,
             parentGuid: page.folderId || null,
-            status: page.status,
+            status: (page.status === 'deleted' ? 'archived' : page.status) as 'draft' | 'published' | 'archived',
             modifiedAt: page.modifiedAt,
             modifiedBy: page.modifiedBy,
             hasChildren: false

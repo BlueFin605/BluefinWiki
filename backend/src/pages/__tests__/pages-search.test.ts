@@ -9,10 +9,10 @@ import { S3StoragePlugin } from '../../storage/S3StoragePlugin.js';
 
 // Mock the storage plugin
 vi.mock('../../storage/index.js', () => ({
-  createStoragePlugin: vi.fn(),
+  getStoragePlugin: vi.fn(),
 }));
 
-const { createStoragePlugin } = await import('../../storage/index.js');
+const { getStoragePlugin } = await import('../../storage/index.js');
 
 describe('pages-search', () => {
   let mockPlugin: S3StoragePlugin;
@@ -27,7 +27,7 @@ describe('pages-search', () => {
       loadPage: vi.fn(),
     } as any;
 
-    (createStoragePlugin as any).mockReturnValue(mockPlugin);
+    (getStoragePlugin as any).mockReturnValue(mockPlugin);
   });
 
   it('should return 400 if query parameter is missing', async () => {

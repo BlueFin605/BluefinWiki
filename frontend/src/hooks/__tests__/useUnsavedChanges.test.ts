@@ -13,7 +13,7 @@ vi.mock('react-router-dom', async () => {
     ...actual,
     useBeforeUnload: vi.fn((callback) => {
       // Store the callback for testing
-      (global as unknown).__beforeUnloadCallback = callback;
+      (global as any).__beforeUnloadCallback = callback;
     }),
     useLocation: vi.fn(() => ({ pathname: '/' })),
   };
@@ -22,7 +22,7 @@ vi.mock('react-router-dom', async () => {
 describe('useUnsavedChanges', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete (global as unknown).__beforeUnloadCallback;
+    delete (global as any).__beforeUnloadCallback;
     vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
@@ -31,13 +31,13 @@ describe('useUnsavedChanges', () => {
       renderHook(() => useUnsavedChanges({ isDirty: false }));
       
       // No warnings should be set
-      expect((global as unknown).__beforeUnloadCallback).toBeDefined();
+      expect((global as any).__beforeUnloadCallback).toBeDefined();
     });
 
     it('should warn when isDirty is true', () => {
       renderHook(() => useUnsavedChanges({ isDirty: true }));
       
-      expect((global as unknown).__beforeUnloadCallback).toBeDefined();
+      expect((global as any).__beforeUnloadCallback).toBeDefined();
     });
 
     it('should not warn when enabled is false', () => {
@@ -46,7 +46,7 @@ describe('useUnsavedChanges', () => {
       );
       
       // Hook should be disabled
-      expect((global as unknown).__beforeUnloadCallback).toBeDefined();
+      expect((global as any).__beforeUnloadCallback).toBeDefined();
     });
   });
 
@@ -55,7 +55,7 @@ describe('useUnsavedChanges', () => {
       renderHook(() => useUnsavedChanges({ isDirty: true }));
       
       const event = new Event('beforeunload') as BeforeUnloadEvent;
-      const callback = (global as unknown).__beforeUnloadCallback;
+      const callback = (global as any).__beforeUnloadCallback;
       
       if (callback) {
         const result = callback(event);
@@ -68,7 +68,7 @@ describe('useUnsavedChanges', () => {
       renderHook(() => useUnsavedChanges({ isDirty: false }));
       
       const event = new Event('beforeunload') as BeforeUnloadEvent;
-      const callback = (global as unknown).__beforeUnloadCallback;
+      const callback = (global as any).__beforeUnloadCallback;
       
       if (callback) {
         const result = callback(event);
@@ -83,7 +83,7 @@ describe('useUnsavedChanges', () => {
       );
       
       const event = new Event('beforeunload') as BeforeUnloadEvent;
-      const callback = (global as unknown).__beforeUnloadCallback;
+      const callback = (global as any).__beforeUnloadCallback;
       
       if (callback) {
         const result = callback(event);
@@ -95,7 +95,7 @@ describe('useUnsavedChanges', () => {
       renderHook(() => useUnsavedChanges({ isDirty: true }));
       
       const event = new Event('beforeunload') as BeforeUnloadEvent;
-      const callback = (global as unknown).__beforeUnloadCallback;
+      const callback = (global as any).__beforeUnloadCallback;
       
       if (callback) {
         const result = callback(event);
@@ -177,7 +177,7 @@ describe('useUnsavedChanges', () => {
       
       // Initially not dirty
       const event1 = new Event('beforeunload') as BeforeUnloadEvent;
-      let callback = (global as unknown).__beforeUnloadCallback;
+      let callback = (global as any).__beforeUnloadCallback;
       if (callback) {
         expect(callback(event1)).toBeUndefined();
       }
@@ -186,7 +186,7 @@ describe('useUnsavedChanges', () => {
       rerender({ isDirty: true });
       
       const event2 = new Event('beforeunload') as BeforeUnloadEvent;
-      callback = (global as unknown).__beforeUnloadCallback;
+      callback = (global as any).__beforeUnloadCallback;
       if (callback) {
         expect(callback(event2)).toBeDefined();
       }
@@ -200,7 +200,7 @@ describe('useUnsavedChanges', () => {
       
       // Initially disabled
       let event = new Event('beforeunload') as BeforeUnloadEvent;
-      let callback = (global as unknown).__beforeUnloadCallback;
+      let callback = (global as any).__beforeUnloadCallback;
       if (callback) {
         expect(callback(event)).toBeUndefined();
       }
@@ -209,7 +209,7 @@ describe('useUnsavedChanges', () => {
       rerender({ enabled: true });
       
       event = new Event('beforeunload') as BeforeUnloadEvent;
-      callback = (global as unknown).__beforeUnloadCallback;
+      callback = (global as any).__beforeUnloadCallback;
       if (callback) {
         expect(callback(event)).toBeDefined();
       }
@@ -303,7 +303,7 @@ describe('useUnsavedChanges', () => {
         useUnsavedChanges({ isDirty: true })
       );
       
-      expect((global as unknown).__beforeUnloadCallback).toBeDefined();
+      expect((global as any).__beforeUnloadCallback).toBeDefined();
       
       unmount1();
       unmount2();
@@ -320,7 +320,7 @@ describe('useUnsavedChanges', () => {
         value: '',
       });
       
-      const callback = (global as unknown).__beforeUnloadCallback;
+      const callback = (global as any).__beforeUnloadCallback;
       if (callback) {
         const result = callback(event);
         expect(result).toBeDefined();

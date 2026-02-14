@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MarkdownEditor } from '../MarkdownEditor';
+import { MarkdownEditor, type MarkdownEditorRef } from '../MarkdownEditor';
+import { createRef } from 'react';
 
 describe('MarkdownEditor', () => {
   beforeEach(() => {
@@ -100,7 +101,7 @@ describe('MarkdownEditor', () => {
   describe('Toolbar Actions', () => {
     it('should apply bold formatting', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -122,7 +123,7 @@ describe('MarkdownEditor', () => {
 
     it('should apply italic formatting', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -143,7 +144,7 @@ describe('MarkdownEditor', () => {
 
     it('should apply strikethrough formatting', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -164,7 +165,7 @@ describe('MarkdownEditor', () => {
 
     it('should apply heading formats', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -190,7 +191,7 @@ describe('MarkdownEditor', () => {
 
     it('should insert unordered list', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -211,7 +212,7 @@ describe('MarkdownEditor', () => {
 
     it('should insert ordered list', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -232,7 +233,7 @@ describe('MarkdownEditor', () => {
 
     it('should insert task list', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -253,7 +254,7 @@ describe('MarkdownEditor', () => {
 
     it('should insert link', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -274,7 +275,7 @@ describe('MarkdownEditor', () => {
 
     it('should insert image', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -295,7 +296,7 @@ describe('MarkdownEditor', () => {
 
     it('should insert inline code', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -316,7 +317,7 @@ describe('MarkdownEditor', () => {
 
     it('should insert code block', async () => {
       const onChange = vi.fn();
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" onChange={onChange} />
       );
@@ -413,7 +414,7 @@ describe('MarkdownEditor', () => {
 
   describe('Ref Exposure', () => {
     it('should expose applyToolbarAction method', async () => {
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" />
       );
@@ -424,11 +425,11 @@ describe('MarkdownEditor', () => {
       });
 
       expect(ref.current).toBeTruthy();
-      expect(ref.current.applyToolbarAction).toBeInstanceOf(Function);
+      expect(ref.current?.applyToolbarAction).toBeInstanceOf(Function);
     });
 
     it('should expose getView method', async () => {
-      const ref = { current: null } as unknown;
+      const ref = createRef<MarkdownEditorRef>();
       const { container } = render(
         <MarkdownEditor ref={ref} initialValue="" />
       );
@@ -439,8 +440,8 @@ describe('MarkdownEditor', () => {
       });
 
       expect(ref.current).toBeTruthy();
-      expect(ref.current.getView).toBeInstanceOf(Function);
-      expect(ref.current.getView()).toBeTruthy();
+      expect(ref.current?.getView).toBeInstanceOf(Function);
+      expect(ref.current?.getView()).toBeTruthy();
     });
   });
 });
