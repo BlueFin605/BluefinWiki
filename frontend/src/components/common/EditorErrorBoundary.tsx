@@ -28,8 +28,8 @@ export class EditorErrorBoundary extends Component<Props, State> {
     };
   }
 
-  static getDerivedStateFromError(_error: Error): Partial<State> {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
