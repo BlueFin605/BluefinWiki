@@ -156,8 +156,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       }
 
       // Check for network or server errors
-      const err = error as { response?: { status: number } };
-      if (err.response?.status >= 500 || !err.response) {
+      const err = error as { response?: { status: number; data?: { message?: string } } };
+      if ((err.response?.status && err.response.status >= 500) || !err.response) {
         // Server error or network error - implement retry
         if (retryCount < 3) {
           setSaveError(`Save failed. Retrying... (${retryCount + 1}/3)`);

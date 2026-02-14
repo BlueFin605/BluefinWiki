@@ -107,7 +107,7 @@ if (typeof document !== 'undefined') {
       selectAllChildren: vi.fn(),
       setBaseAndExtent: vi.fn(),
       setPosition: vi.fn(),
-    } as unknown)) as Selection;
+    } as unknown as Selection)) as () => Selection;
   }
 
   // Mock scrollIntoView for JSDOM
