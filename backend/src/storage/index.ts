@@ -5,7 +5,7 @@
  */
 
 // Core interfaces and types
-export { StoragePlugin } from './StoragePlugin.js';
+export type { StoragePlugin } from './StoragePlugin.js';
 export { BaseStoragePlugin } from './BaseStoragePlugin.js';
 
 // Concrete implementations

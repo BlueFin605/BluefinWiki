@@ -33,8 +33,8 @@ export interface WikiLink {
  * Represents a page link record in DynamoDB
  */
 export interface PageLinkRecord {
-  sourceGuid: string;
-  targetGuid: string;
+  sourcePageGuid: string;
+  targetPageGuid: string;
   linkText?: string;
   createdAt: string;
 }
@@ -94,8 +94,8 @@ export async function saveLinkRelationship(
   const now = new Date().toISOString();
   
   const record: PageLinkRecord = {
-    sourceGuid,
-    targetGuid,
+    sourcePageGuid: sourceGuid,
+    targetPageGuid: targetGuid,
     linkText,
     createdAt: now,
   };
@@ -117,9 +117,9 @@ export async function removePageLinks(sourceGuid: string): Promise<void> {
   // Query all existing links for this source page
   const queryCommand = new QueryCommand({
     TableName: PAGE_LINKS_TABLE,
-    KeyConditionExpression: 'sourceGuid = :sourceGuid',
+    KeyConditionExpression: 'sourcePageGuid = :sourcePageGuid',
     ExpressionAttributeValues: marshall({
-      ':sourceGuid': sourceGuid,
+      ':sourcePageGuid': sourceGuid,
     }),
   });
   
@@ -140,8 +140,8 @@ export async function removePageLinks(sourceGuid: string): Promise<void> {
         [PAGE_LINKS_TABLE]: batch.map(item => ({
           DeleteRequest: {
             Key: marshall({
-              sourceGuid: item.sourceGuid,
-              targetGuid: item.targetGuid,
+              sourcePageGuid: item.sourcePageGuid,
+              targetPageGuid: item.targetPageGuid,
             }),
           },
         })),
@@ -183,10 +183,10 @@ export async function updatePageLinks(
 export async function getBacklinks(targetGuid: string): Promise<PageLinkRecord[]> {
   const command = new QueryCommand({
     TableName: PAGE_LINKS_TABLE,
-    IndexName: 'targetGuid-index',
-    KeyConditionExpression: 'targetGuid = :targetGuid',
+    IndexName: 'TargetPageIndex',
+    KeyConditionExpression: 'targetPageGuid = :targetPageGuid',
     ExpressionAttributeValues: marshall({
-      ':targetGuid': targetGuid,
+      ':targetPageGuid': targetGuid,
     }),
   });
   
@@ -208,9 +208,9 @@ export async function getBacklinks(targetGuid: string): Promise<PageLinkRecord[]
 export async function getOutboundLinks(sourceGuid: string): Promise<PageLinkRecord[]> {
   const command = new QueryCommand({
     TableName: PAGE_LINKS_TABLE,
-    KeyConditionExpression: 'sourceGuid = :sourceGuid',
+    KeyConditionExpression: 'sourcePageGuid = :sourcePageGuid',
     ExpressionAttributeValues: marshall({
-      ':sourceGuid': sourceGuid,
+      ':sourcePageGuid': sourceGuid,
     }),
   });
   

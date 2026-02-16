@@ -34,34 +34,14 @@ export const PageTree: React.FC<PageTreeProps> = ({
   // Move page mutation
   const movePage = useMovePage(draggedPage?.guid || '');
 
-  // Build tree structure recursively
-  const buildTree = useCallback(
-    (pages: PageSummary[]): PageTreeNode[] => {
-      return pages.map((page) => ({
-        ...page,
-        isExpanded: expandedGuids.has(page.guid),
-        children: [],
-      }));
-    },
-    [expandedGuids]
-  );
-
-  const [treeData, setTreeData] = useState<PageTreeNode[]>([]);
-
-  // Load children for expanded nodes
-  useEffect(() => {
-    const loadChildren = async () => {
-      const tree = buildTree(rootPages);
-
-      // For each expanded node, we'd need to load its children
-      // For now, we'll keep a flat structure and add recursive loading later
-      // This is a simplified version that only shows root pages
-
-      setTreeData(tree);
-    };
-
-    loadChildren();
-  }, [rootPages, buildTree]);
+  // Build tree structure from root pages
+  const treeData = React.useMemo(() => {
+    return rootPages.map((page) => ({
+      ...page,
+      isExpanded: expandedGuids.has(page.guid),
+      children: [],
+    }));
+  }, [rootPages, expandedGuids]);
 
   // Toggle expand/collapse
   const handleToggleExpand = useCallback((guid: string) => {

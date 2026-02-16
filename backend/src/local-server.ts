@@ -12,6 +12,11 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { APIGatewayProxyEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
+import { initializeStoragePlugin, StoragePluginRegistry } from './storage/index.js';
+import { S3StoragePlugin } from './storage/S3StoragePlugin.js';
+
+// Register storage plugins
+StoragePluginRegistry.register('s3', S3StoragePlugin);
 
 // Import Lambda handlers
 import { handler as pagesCreate } from './pages/pages-create.js';
@@ -34,7 +39,7 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: true, // Allow all origins in development
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -162,6 +167,7 @@ function wrapLambdaHandler(handler: (event: APIGatewayProxyEvent, context: Conte
 // ============================================================================
 
 app.post('/pages', wrapLambdaHandler(pagesCreate));
+app.get('/pages/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages
 app.get('/pages/:guid', wrapLambdaHandler(pagesGet));
 app.put('/pages/:guid', wrapLambdaHandler(pagesUpdate));
 app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));
@@ -225,18 +231,106 @@ app.use((err: Error, req: Request, res: Response, next: Function) => {
 // Start Server
 // ============================================================================
 
-app.listen(PORT, () => {
-  console.log('╔══════════════════════════════════════════════════════════════╗');
-  console.log('║  BlueFinWiki Local Development Server                       ║');
-  console.log('╚══════════════════════════════════════════════════════════════╝');
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`🌍 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-  console.log(`☁️  AWS Endpoint: ${process.env.AWS_ENDPOINT_URL || 'http://localhost:4566'}`);
-  console.log(`🔐 Cognito Endpoint: ${process.env.COGNITO_ENDPOINT || 'http://localhost:9229'}`);
-  console.log('');
-  console.log('📋 Available Routes:');
-  console.log('   GET    /health');
-  console.log('   POST   /pages');
+// Initialize storage plugin before starting server
+async function startServer() {
+  try {
+    const bucketName = process.env.S3_PAGES_BUCKET || 'bluefinwiki-pages-local';
+    
+    // Initialize S3 storage plugin
+    await initializeStoragePlugin({
+      type: 's3',
+      bucketName,
+      region: process.env.AWS_REGION || 'us-east-1',
+      endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
+    });
+    console.log('✅ Storage plugin initialized');
+    
+    // Create S3 bucket if it doesn't exist (for LocalStack)
+    try {
+      const { S3Client, HeadBucketCommand, CreateBucketCommand } = await import('@aws-sdk/client-s3');
+      const s3Client = new S3Client({
+        region: process.env.AWS_REGION || 'us-east-1',
+        endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
+        },
+      });
+      
+      try {
+        await s3Client.send(new HeadBucketCommand({ Bucket: bucketName }));
+        console.log(`✅ S3 bucket '${bucketName}' already exists`);
+      } catch (error) {
+        // Bucket doesn't exist, create it
+        await s3Client.send(new CreateBucketCommand({ Bucket: bucketName }));
+        console.log(`✅ Created S3 bucket '${bucketName}'`);
+      }
+    } catch (error) {
+      console.warn('⚠️  Could not verify/create S3 bucket:', error);
+    }
+
+    // Create DynamoDB tables if they don't exist (for LocalStack)
+    try {
+      const { DynamoDBClient, ListTablesCommand, CreateTableCommand } = await import('@aws-sdk/client-dynamodb');
+      const dynamoClient = new DynamoDBClient({
+        region: process.env.AWS_REGION || 'us-east-1',
+        endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
+        },
+      });
+
+      const pageLinksTable = process.env.DYNAMODB_PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local';
+      
+      // Check if table exists
+      const { TableNames } = await dynamoClient.send(new ListTablesCommand({}));
+      
+      if (!TableNames?.includes(pageLinksTable)) {
+        // Create page-links table
+        await dynamoClient.send(new CreateTableCommand({
+          TableName: pageLinksTable,
+          AttributeDefinitions: [
+            { AttributeName: 'sourcePageGuid', AttributeType: 'S' },
+            { AttributeName: 'targetPageGuid', AttributeType: 'S' },
+          ],
+          KeySchema: [
+            { AttributeName: 'sourcePageGuid', KeyType: 'HASH' },
+            { AttributeName: 'targetPageGuid', KeyType: 'RANGE' },
+          ],
+          BillingMode: 'PAY_PER_REQUEST',
+          GlobalSecondaryIndexes: [
+            {
+              IndexName: 'TargetPageIndex',
+              KeySchema: [
+                { AttributeName: 'targetPageGuid', KeyType: 'HASH' },
+                { AttributeName: 'sourcePageGuid', KeyType: 'RANGE' },
+              ],
+              Projection: { ProjectionType: 'ALL' },
+            },
+          ],
+        }));
+        console.log(`✅ Created DynamoDB table '${pageLinksTable}'`);
+      } else {
+        console.log(`✅ DynamoDB table '${pageLinksTable}' already exists`);
+      }
+    } catch (error) {
+      console.warn('⚠️  Could not verify/create DynamoDB tables:', error);
+    }
+
+    app.listen(PORT, () => {
+      console.log('╔══════════════════════════════════════════════════════════════╗');
+      console.log('║  BlueFinWiki Local Development Server                       ║');
+      console.log('╚══════════════════════════════════════════════════════════════╝');
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`🌍 CORS enabled for: all origins (development mode)`);
+      console.log(`☁️  AWS Endpoint: ${process.env.AWS_ENDPOINT_URL || 'http://localhost:4566'}`);
+      console.log(`🔐 Cognito Endpoint: ${process.env.COGNITO_ENDPOINT || 'http://localhost:9229'}`);
+      console.log('');
+      console.log('📋 Available Routes:');
+      console.log('   GET    /health');
+      console.log('   POST   /pages');
   console.log('   GET    /pages/:guid');
   console.log('   PUT    /pages/:guid');
   console.log('   DELETE /pages/:guid');
@@ -253,4 +347,12 @@ app.listen(PORT, () => {
   console.log('');
   console.log('Press Ctrl+C to stop');
   console.log('════════════════════════════════════════════════════════════════');
-});
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();

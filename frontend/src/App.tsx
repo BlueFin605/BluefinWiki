@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import {
@@ -25,12 +25,12 @@ const Dashboard = () => (
   <div className="min-h-screen bg-gray-50 p-8">
     <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
     <p className="text-gray-600">Welcome to BlueFinWiki!</p>
-    <a
-      href="/pages"
+    <Link
+      to="/pages"
       className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
     >
       Go to Pages
-    </a>
+    </Link>
   </div>
 );
 
