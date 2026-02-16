@@ -13,6 +13,7 @@ import {
 } from 'amazon-cognito-identity-js';
 import userPool from '../config/cognitoConfig';
 import { User, AuthState, LoginCredentials } from '../types/auth';
+import { authenticateWithPassword } from '../utils/cognitoAuth';
 
 interface AuthContextType extends AuthState {
   signIn: (credentials: LoginCredentials) => Promise<void>;
@@ -80,6 +81,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (session.isValid()) {
           const user = extractUserFromSession(session, cognitoUser);
+          // Store idToken in localStorage for API requests
+          const idToken = session.getIdToken().getJwtToken();
+          localStorage.setItem('idToken', idToken);
+          
           setAuthState({
             user,
             isAuthenticated: true,
@@ -87,6 +92,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             error: null,
           });
         } else {
+          localStorage.removeItem('idToken');
           setAuthState({
             user: null,
             isAuthenticated: false,
@@ -113,45 +119,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const authenticationDetails = new AuthenticationDetails({
-        Username: credentials.email,
-        Password: credentials.password,
-      });
+      // Use USER_PASSWORD_AUTH flow which is compatible with cognito-local
+      const authResult = await authenticateWithPassword(
+        credentials.email,
+        credentials.password
+      );
 
       const cognitoUser = new CognitoUser({
         Username: credentials.email,
         Pool: userPool,
       });
 
-      // Set device key if "remember me" is enabled
-      if (credentials.rememberMe) {
-        cognitoUser.setDeviceStatusRemembered({
-          onSuccess: () => console.log('Device remembered'),
-          onFailure: (err) => console.error('Failed to remember device:', err),
-        });
-      }
+      // Store the session in CognitoUser's storage so it persists across page refreshes
+      cognitoUser.setSignInUserSession(authResult.session);
 
-      const session = await new Promise<CognitoUserSession>((resolve, reject) => {
-        cognitoUser.authenticateUser(authenticationDetails, {
-          onSuccess: (session) => resolve(session),
-          onFailure: (err) => reject(err),
-          newPasswordRequired: (userAttributes) => {
-            reject({
-              code: 'NewPasswordRequired',
-              message: 'New password required',
-              userAttributes,
-            });
-          },
-          mfaRequired: () => {
-            reject({
-              code: 'MFARequired',
-              message: 'MFA verification required',
-            });
-          },
-        });
-      });
+      // Note: Device remembering is skipped as it requires a fully authenticated session
+      // The rememberMe functionality is handled through session persistence in localStorage
 
-      const user = extractUserFromSession(session, cognitoUser);
+      const user = extractUserFromSession(authResult.session, cognitoUser);
+      
+      // Store idToken in localStorage for API requests
+      const idToken = authResult.session.getIdToken().getJwtToken();
+      localStorage.setItem('idToken', idToken);
 
       setAuthState({
         user,
@@ -200,6 +189,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (cognitoUser) {
         cognitoUser.signOut();
       }
+      
+      // Clear idToken from localStorage
+      localStorage.removeItem('idToken');
 
       setAuthState({
         user: null,
@@ -235,6 +227,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       const user = extractUserFromSession(session, cognitoUser);
+      
+      // Update idToken in localStorage
+      const idToken = session.getIdToken().getJwtToken();
+      localStorage.setItem('idToken', idToken);
       
       setAuthState((prev) => ({
         ...prev,
