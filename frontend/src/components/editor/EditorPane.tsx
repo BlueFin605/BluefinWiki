@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 import MarkdownPreview from './MarkdownPreview';
 import MarkdownToolbar, { ToolbarAction } from './MarkdownToolbar';
@@ -61,6 +61,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const editorRef = useRef<MarkdownEditorRef>(null);
+  const lastLoadedPageGuidRef = useRef<string | undefined>(pageGuid);
+  const lastInitialContentRef = useRef<string>(initialContent);
 
   const handleContentChange = useCallback((newContent: string) => {
     setContent(newContent);
@@ -79,6 +81,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     delay: autosaveDelay,
     enabled: enableAutosave && editable,
   });
+
+  // Update content when navigating to a different page OR when initialContent changes from external source
+  useEffect(() => {
+    const pageChanged = pageGuid !== lastLoadedPageGuidRef.current;
+    const initialContentChanged = initialContent !== lastInitialContentRef.current;
+    
+    // Only update if page changed OR if initialContent changed and we're not currently editing
+    if (pageChanged || (initialContentChanged && !isDirty)) {
+      setContent(initialContent);
+      lastLoadedPageGuidRef.current = pageGuid;
+      lastInitialContentRef.current = initialContent;
+    }
+  }, [pageGuid, initialContent, isDirty]);
 
   // Unsaved changes warning
   useUnsavedChanges({
