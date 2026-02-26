@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/local-server.ts",
+    "dev": "NODE_OPTIONS='--enable-source-maps' tsx watch src/local-server.ts",
+    "dev:debug": "NODE_OPTIONS='--enable-source-maps --inspect' tsx watch src/local-server.ts",
     "build": "tsc",
     "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",

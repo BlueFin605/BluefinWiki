@@ -129,12 +129,29 @@ export const useUpdatePage = (guid: string) => {
       return response.data;
     },
     onSuccess: (updatedPage) => {
-      // Update the detail cache
-      queryClient.setQueryData(pageKeys.detail(guid), updatedPage);
+      // Only update cache if we have full page content
+      // Backend currently returns minimal response, so we skip cache update
+      // to avoid overwriting complete data with incomplete response
+      if (updatedPage.content !== undefined) {
+        queryClient.setQueryData(pageKeys.detail(guid), updatedPage);
+      } else {
+        // Just update the metadata fields we know changed
+        queryClient.setQueryData(pageKeys.detail(guid), (oldData: PageContent | undefined) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            title: updatedPage.title || oldData.title,
+            modifiedAt: updatedPage.modifiedAt || oldData.modifiedAt,
+            modifiedBy: updatedPage.modifiedBy || oldData.modifiedBy,
+          };
+        });
+      }
       // Invalidate parent's children list
-      queryClient.invalidateQueries({
-        queryKey: pageKeys.children(updatedPage.folderId || null),
-      });
+      if (updatedPage.folderId !== undefined) {
+        queryClient.invalidateQueries({
+          queryKey: pageKeys.children(updatedPage.folderId || null),
+        });
+      }
     },
   });
 };

@@ -112,7 +112,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       setSaveError(null);
       setRetryCount(0);
     }
-  }, [pageData]);
+  }, [pageData, pageGuid]);
 
   // Handle content changes
   const handleContentChange = useCallback((newContent: string) => {

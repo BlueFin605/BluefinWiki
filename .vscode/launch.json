@@ -1,0 +1,58 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Backend (Node.js)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:debug"],
+      "cwd": "${workspaceFolder}/backend",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "restart": true,
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "outputCapture": "std"
+    },
+    {
+      "type": "msedge",
+      "request": "launch",
+      "name": "Debug React in Edge",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/frontend",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "/*": "${webRoot}/*"
+      }
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug React in Chrome",
+      "url": "http://localhost:3002",
+      "webRoot": "${workspaceFolder}/frontend",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "/*": "${webRoot}/*"
+      }
+    },
+    {
+      "type": "msedge",
+      "request": "attach",
+      "name": "Attach to Edge",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/frontend"
+    },
+    {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Attach to Chrome",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/frontend"
+    }
+  ]
+}

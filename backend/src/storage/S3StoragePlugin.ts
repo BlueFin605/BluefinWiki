@@ -209,11 +209,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       `modifiedBy: "${content.modifiedBy}"`,
       `createdAt: "${content.createdAt}"`,
       `modifiedAt: "${content.modifiedAt}"`,
-      '---',
-      '' // Empty line after frontmatter
+      '---'
     );
     
-    return lines.join('\n') + content.content;
+    return lines.join('\n') + '\n' + content.content;
   }
 
   /**

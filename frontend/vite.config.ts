@@ -7,6 +7,9 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  build: {
+    sourcemap: true,
+  },
   server: {
     port: 3000,
     proxy: {
