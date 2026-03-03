@@ -133,6 +133,7 @@ export const PagesView: React.FC = () => {
               activePageGuid={activePageGuid}
               onPageSelect={handlePageSelect}
               onContextMenu={handleContextMenu}
+              onNewChild={handleNewChild}
             />
           </div>
         </div>

@@ -18,12 +18,14 @@ interface PageTreeProps {
   activePageGuid?: string;
   onPageSelect: (guid: string) => void;
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
+  onNewChild: (page: PageTreeNode) => void;
 }
 
 export const PageTree: React.FC<PageTreeProps> = ({
   activePageGuid,
   onPageSelect,
   onContextMenu,
+  onNewChild,
 }) => {
   const [expandedGuids, setExpandedGuids] = useState<Set<string>>(new Set());
   const [draggedPage, setDraggedPage] = useState<PageTreeNode | null>(null);
@@ -36,12 +38,8 @@ export const PageTree: React.FC<PageTreeProps> = ({
 
   // Build tree structure from root pages
   const treeData = React.useMemo(() => {
-    return rootPages.map((page) => ({
-      ...page,
-      isExpanded: expandedGuids.has(page.guid),
-      children: [],
-    }));
-  }, [rootPages, expandedGuids]);
+    return rootPages;
+  }, [rootPages]);
 
   // Toggle expand/collapse
   const handleToggleExpand = useCallback((guid: string) => {
@@ -144,10 +142,12 @@ export const PageTree: React.FC<PageTreeProps> = ({
           page={page}
           level={0}
           isActive={page.guid === activePageGuid}
+          expandedGuids={expandedGuids}
           onSelect={onPageSelect}
           onContextMenu={onContextMenu}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
+          onNewChild={onNewChild}
           onDrop={handleDrop}
           onToggleExpand={handleToggleExpand}
         />
