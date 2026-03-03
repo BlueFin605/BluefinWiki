@@ -16,7 +16,7 @@ import { initializeStoragePlugin, StoragePluginRegistry } from './storage/index.
 import { S3StoragePlugin } from './storage/S3StoragePlugin.js';
 
 // Register storage plugins
-StoragePluginRegistry.register('s3', S3StoragePlugin);
+StoragePluginRegistry.register('s3', S3StoragePlugin as never);
 
 // Import Lambda handlers
 import { handler as pagesCreate } from './pages/pages-create.js';
@@ -46,7 +46,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
@@ -196,7 +196,7 @@ app.delete('/admin/invitations/:invitationCode', wrapLambdaHandler(adminRevokeIn
 // Health Check
 // ============================================================================
 
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
@@ -219,7 +219,7 @@ app.use((req, res) => {
 // Error Handler
 // ============================================================================
 
-app.use((err: Error, req: Request, res: Response) => {
+app.use((err: Error, _req: Request, res: Response) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
     error: 'Internal Server Error',

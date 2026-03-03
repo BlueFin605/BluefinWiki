@@ -46,6 +46,7 @@ import { BaseStoragePlugin } from './BaseStoragePlugin.js';
 import { PageContent, Version, PageSummary } from '../types/index.js';
 
 interface S3StorageConfig {
+  type?: 's3';
   bucketName: string;
   region?: string;
   endpoint?: string; // For LocalStack

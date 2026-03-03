@@ -33,8 +33,8 @@ export interface WikiLink {
  * Represents a page link record in DynamoDB
  */
 export interface PageLinkRecord {
-  sourcePageGuid: string;
-  targetPageGuid: string;
+  sourceGuid: string;
+  targetGuid: string;
   linkText?: string;
   createdAt: string;
 }
@@ -94,8 +94,8 @@ export async function saveLinkRelationship(
   const now = new Date().toISOString();
   
   const record: PageLinkRecord = {
-    sourcePageGuid: sourceGuid,
-    targetPageGuid: targetGuid,
+    sourceGuid: sourceGuid,
+    targetGuid: targetGuid,
     linkText,
     createdAt: now,
   };
@@ -140,8 +140,8 @@ export async function removePageLinks(sourceGuid: string): Promise<void> {
         [PAGE_LINKS_TABLE]: batch.map(item => ({
           DeleteRequest: {
             Key: marshall({
-              sourcePageGuid: item.sourcePageGuid,
-              targetPageGuid: item.targetPageGuid,
+              sourceGuid: item.sourceGuid,
+              targetGuid: item.targetGuid,
             }),
           },
         })),

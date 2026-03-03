@@ -8,7 +8,7 @@
 import { StoragePlugin } from './StoragePlugin.js';
 import { StoragePluginConfig } from '../types/index.js';
 
-type StoragePluginConstructor = new (config: StoragePluginConfig) => StoragePlugin;
+type StoragePluginConstructor = new (config: Record<string, unknown>) => StoragePlugin;
 
 /**
  * Registry for storage plugin implementations
