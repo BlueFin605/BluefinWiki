@@ -9,7 +9,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import {
   CognitoUser,
   CognitoUserSession,
-  AuthenticationDetails,
 } from 'amazon-cognito-identity-js';
 import userPool from '../config/cognitoConfig';
 import { User, AuthState, LoginCredentials } from '../types/auth';

@@ -7,7 +7,7 @@ const CLIENT_ID = process.env.COGNITO_CLIENT_ID || process.env.CLIENT_ID!;
 const IS_LOCAL = process.env.NODE_ENV === 'development' || USER_POOL_ID?.startsWith('local_');
 
 // Create JWT verifier instance (reused across invocations) - skip for local development
-let verifier: any = null;
+let verifier: CognitoJwtVerifier<{ userPoolId: string; tokenUse: 'access'; clientId: string }> | null = null;
 if (!IS_LOCAL) {
   verifier = CognitoJwtVerifier.create({
     userPoolId: USER_POOL_ID,
@@ -228,7 +228,7 @@ export function hasPermission(
  * Decode JWT without verification (for local development only)
  * This should NEVER be used in production!
  */
-function decodeJWT(token: string): any {
+function decodeJWT(token: string): { sub: string; username?: string; 'cognito:username'?: string; 'cognito:groups'?: string[] } {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) {
