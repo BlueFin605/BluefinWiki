@@ -7,7 +7,7 @@ const CLIENT_ID = process.env.COGNITO_CLIENT_ID || process.env.CLIENT_ID!;
 const IS_LOCAL = process.env.NODE_ENV === 'development' || USER_POOL_ID?.startsWith('local_');
 
 // Create JWT verifier instance (reused across invocations) - skip for local development
-let verifier: CognitoJwtVerifier<{ userPoolId: string; tokenUse: 'access'; clientId: string }> | null = null;
+let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 if (!IS_LOCAL) {
   verifier = CognitoJwtVerifier.create({
     userPoolId: USER_POOL_ID,
@@ -81,6 +81,9 @@ export function withAuth(
           console.log('🔓 Local mode: Decoding JWT without verification');
           payload = decodeJWT(token);
         } else {
+          if (!verifier) {
+            throw new Error('Cognito verifier not initialized');
+          }
           payload = await verifier.verify(token);
         }
       } catch (error) {
