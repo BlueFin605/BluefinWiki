@@ -81,7 +81,7 @@ describe('S3StoragePlugin', () => {
       expect(s3Mock.commandCalls(PutObjectCommand).length).toBe(1);
       const call = s3Mock.commandCalls(PutObjectCommand)[0];
       expect(call.args[0].input.Bucket).toBe('test-bucket');
-      expect(call.args[0].input.Key).toBe(`${guid}.md`);
+      expect(call.args[0].input.Key).toBe(`${guid}/${guid}.md`);
       expect(call.args[0].input.ContentType).toBe('text/markdown');
       
       // Verify the body contains frontmatter and content
@@ -113,7 +113,7 @@ describe('S3StoragePlugin', () => {
       await plugin.savePage(guid, parentGuid, content);
 
       const call = s3Mock.commandCalls(PutObjectCommand)[0];
-      expect(call.args[0].input.Key).toBe(`${parentGuid}/${guid}.md`);
+      expect(call.args[0].input.Key).toBe(`${parentGuid}/${guid}/${guid}.md`);
     });
 
     it('should include metadata in frontmatter', async () => {
@@ -415,23 +415,23 @@ Content`;
       s3Mock.on(ListObjectsV2Command).callsFake((_input: any) => {
         listCallCount++;
         if (listCallCount === 1) {
-          // First call: list root pages
+          // First call: list root pages (return folders as CommonPrefixes)
           return {
-            Contents: [
-              { Key: `${guid1}.md` },
-              { Key: `${guid2}.md` },
+            CommonPrefixes: [
+              { Prefix: `${guid1}/` },
+              { Prefix: `${guid2}/` },
             ],
           };
         }
         // Subsequent calls for hasChildren checks - return empty
-        return { Contents: [] };
+        return { Contents: [], CommonPrefixes: [] };
       });
 
       // Mock GetObject with fresh streams
       s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${guid1}.md`) {
+        if (input.Key === `${guid1}/${guid1}.md`) {
           return { Body: createMockStream(markdownContent1)() } as any;
-        } else if (input.Key === `${guid2}.md`) {
+        } else if (input.Key === `${guid2}/${guid2}.md`) {
           return { Body: createMockStream(markdownContent2)() } as any;
         }
         throw { name: 'NoSuchKey' };
@@ -439,7 +439,7 @@ Content`;
 
       // Mock HeadObject for findPageKey
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${guid1}.md` || input.Key === `${guid2}.md`) {
+        if (input.Key === `${guid1}/${guid1}.md` || input.Key === `${guid2}/${guid2}.md`) {
           return { ContentLength: 100, LastModified: new Date() };
         }
         throw { name: 'NotFound' };
@@ -476,38 +476,39 @@ Content`;
       // Mock HeadObject for findPageKey - handle root check first, then folder check
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
         // Root check will fail, folder check will succeed
-        if (input.Key === `${childGuid}.md`) {
+        if (input.Key === `${childGuid}/${childGuid}.md`) {
           throw { name: 'NotFound' };
         }
-        if (input.Key === `${parentGuid}/${childGuid}.md`) {
+        if (input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
           return { ContentLength: 100, LastModified: new Date() };
         }
         throw { name: 'NotFound' };
       });
 
-      // Mock ListObjectsV2Command for findPageKey when root check fails
+      // Mock ListObjectsV2Command
       s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-        // If it's searching for the child page key
-        if (!input.Prefix || input.Prefix === '') {
+        // If it's searching for the child page key (no prefix or Delimiter)
+        if (!input.Prefix && !input.Delimiter) {
           return {
             Contents: [
-              { Key: `${parentGuid}/${childGuid}.md` },
+              { Key: `${parentGuid}/${childGuid}/${childGuid}.md` },
             ],
           };
         }
-        // For hasChildren checks or list children calls
-        if (input.Prefix === `${parentGuid}/`) {
+        // For listing children of parent (with Delimiter)
+        if (input.Prefix === `${parentGuid}/` && input.Delimiter === '/') {
           return {
-            Contents: [
-              { Key: `${parentGuid}/${childGuid}.md` },
+            CommonPrefixes: [
+              { Prefix: `${parentGuid}/${childGuid}/` },
+              { Prefix: `${parentGuid}/${parentGuid}/` }, // parent's own folder
             ],
           };
         }
-        // For hasChildren check on child page
-        if (input.Prefix === `${childGuid}/`) {
-          return { Contents: [] };
+        // For hasChildren checks
+        if (input.Prefix === `${childGuid}/` && input.Delimiter === '/') {
+          return { Contents: [], CommonPrefixes: [] };
         }
-        return { Contents: [] };
+        return { Contents: [], CommonPrefixes: [] };
       });
 
       const children = await plugin.listChildren(parentGuid);

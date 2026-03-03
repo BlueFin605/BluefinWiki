@@ -108,6 +108,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
         modifiedBy: pageData.modifiedBy,
         createdAt: pageData.createdAt,
         modifiedAt: pageData.modifiedAt,
+        guid: pageData.guid,
       });
       setSaveError(null);
       setRetryCount(0);
