@@ -9,9 +9,9 @@
  * - Keyboard navigation
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { PageTreeItem } from './PageTreeItem';
-import { PageTreeNode, PageSummary } from '../../types/page';
+import { PageTreeNode } from '../../types/page';
 import { usePageChildren, useMovePage } from '../../hooks/usePages';
 
 interface PageTreeProps {
