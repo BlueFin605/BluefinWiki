@@ -605,25 +605,37 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Check if a page has children (non-recursive S3 check)
-   * In new structure, children are at {guid}/{child-guid}/{child-guid}.md
-   * So we need to check for nested folders, not just any files
+   * In new structure, children are at {ancestor-path}/{guid}/{child-guid}/{child-guid}.md
+   * Need to find where the page is located first, then check for child folders
    */
   private async hasChildrenDirect(guid: string): Promise<boolean> {
     try {
-      const prefix = `${guid}/`;
+      // Find the page's location
+      const pageKey = await this.findPageKey(guid);
+      if (!pageKey) {
+        return false;
+      }
+      
+      // Extract the page's folder path from its key
+      // Key format: {ancestor-path}/{guid}/{guid}.md
+      // We want: {ancestor-path}/{guid}/
+      const pageFolder = pageKey.substring(0, pageKey.lastIndexOf('/') + 1);
+      
       const listCommand = new ListObjectsV2Command({
         Bucket: this.bucketName,
-        Prefix: prefix,
+        Prefix: pageFolder,
         Delimiter: '/', // Get folders only
       });
 
       const response = await this.s3Client.send(listCommand);
-      // Check for CommonPrefixes (folders) excluding the page's own folder
+      // Check for CommonPrefixes (child folders)
       if (response.CommonPrefixes && response.CommonPrefixes.length > 0) {
-        // Filter out the page's own .md file path
+        // Any folder other than the page's own folder indicates children
+        // The page's own .md file is in the same folder, so child folders = children
         const childFolders = response.CommonPrefixes.filter(p => {
-          const folder = p.Prefix?.replace(`${guid}/`, '').replace('/', '');
-          return folder && folder !== guid; // Exclude the page's own guid folder
+          const pathParts = p.Prefix?.split('/').filter(part => part.length > 0) || [];
+          const folderGuid = pathParts[pathParts.length - 1];
+          return folderGuid !== guid; // Exclude the page's own guid folder
         });
         return childFolders.length > 0;
       }
@@ -702,6 +714,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         // We want: {ancestor-path}/{parentGuid}/
         const parentFolder = parentKey.substring(0, parentKey.lastIndexOf('/') + 1);
         
+        console.log(`[listChildren] Parent: ${parentGuid}, ParentKey: ${parentKey}, ParentFolder: ${parentFolder}`);
+        
         let continuationToken: string | undefined = undefined;
 
         do {
@@ -714,6 +728,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
           const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
 
+          console.log(`[listChildren] CommonPrefixes:`, response.CommonPrefixes?.map(p => p.Prefix));
+          console.log(`[listChildren] Contents:`, response.Contents?.map(c => c.Key));
+
           // Get child folders (CommonPrefixes)
           if (response.CommonPrefixes) {
             for (const childPrefix of response.CommonPrefixes) {
@@ -722,6 +739,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                 // Format: {ancestor-path}/{parentGuid}/{childGuid}/
                 const pathParts = childPrefix.Prefix.split('/');
                 const guid = pathParts[pathParts.length - 2]; // Second to last part (before trailing /)
+                
+                console.log(`[listChildren] Processing child prefix: ${childPrefix.Prefix}, extracted guid: ${guid}, parentGuid: ${parentGuid}`);
                 
                 // Skip the parent's own guid folder (the .md file is in its own folder)
                 if (guid === parentGuid) continue;
