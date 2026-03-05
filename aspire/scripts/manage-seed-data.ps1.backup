@@ -69,7 +69,7 @@ switch ($Action) {
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
-            Write-Host "Export completed successfully!" -ForegroundColor Green
+            Write-Host "✓ Export completed successfully!" -ForegroundColor Green
             Write-Host ""
             Write-Host "To import this data later:" -ForegroundColor Cyan
             if ($Output) {
@@ -79,14 +79,14 @@ switch ($Action) {
                 Write-Host "  .\manage-seed-data.ps1 -Action import -Source 'seed-snapshots/$date'" -ForegroundColor White
             }
         } else {
-            Write-Host "Export failed!" -ForegroundColor Red
+            Write-Host "✗ Export failed!" -ForegroundColor Red
             exit 1
         }
     }
     
     'import' {
         if (-not $Source) {
-            Write-Host "Error: -Source parameter is required for import action" -ForegroundColor Red
+            Write-Host "✗ Error: -Source parameter is required for import action" -ForegroundColor Red
             Write-Host ""
             Write-Host "Usage: .\manage-seed-data.ps1 -Action import -Source 'seed-snapshots/2026-03-03'" -ForegroundColor Yellow
             exit 1
@@ -99,9 +99,9 @@ switch ($Action) {
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
-            Write-Host "Import completed successfully!" -ForegroundColor Green
+            Write-Host "✓ Import completed successfully!" -ForegroundColor Green
         } else {
-            Write-Host "Import failed!" -ForegroundColor Red
+            Write-Host "✗ Import failed!" -ForegroundColor Red
             exit 1
         }
     }
@@ -114,7 +114,7 @@ switch ($Action) {
         npm run init-db
         
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "Failed to initialize tables!" -ForegroundColor Red
+            Write-Host "✗ Failed to initialize tables!" -ForegroundColor Red
             exit 1
         }
         
@@ -123,7 +123,7 @@ switch ($Action) {
         npm run seed
         
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "Failed to seed data!" -ForegroundColor Red
+            Write-Host "✗ Failed to seed data!" -ForegroundColor Red
             exit 1
         }
         
@@ -134,7 +134,7 @@ switch ($Action) {
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
             Write-Host "==================================================================" -ForegroundColor Green
-            Write-Host "  Environment setup complete!" -ForegroundColor Green
+            Write-Host "  ✓ Environment setup complete!" -ForegroundColor Green
             Write-Host "==================================================================" -ForegroundColor Green
             Write-Host ""
             Write-Host "Test Credentials:" -ForegroundColor Cyan
@@ -145,7 +145,7 @@ switch ($Action) {
             Write-Host "  1. Start creating your test data" -ForegroundColor White
             Write-Host "  2. Export snapshot: .\manage-seed-data.ps1 -Action export" -ForegroundColor White
         } else {
-            Write-Host "Failed to setup Cognito!" -ForegroundColor Red
+            Write-Host "✗ Failed to setup Cognito!" -ForegroundColor Red
             exit 1
         }
     }
@@ -155,7 +155,7 @@ switch ($Action) {
         Write-Host ""
         
         if (-not $Source) {
-            Write-Host "No source specified - will reset to baseline data" -ForegroundColor Yellow
+            Write-Host "ⓘ No source specified - will reset to baseline data" -ForegroundColor Yellow
             $resetToBaseline = $true
         } else {
             Write-Host "Will restore from: $Source" -ForegroundColor Yellow
@@ -181,9 +181,9 @@ switch ($Action) {
         if (Test-Path $localStackDataPath) {
             Write-Host "Removing LocalStack data..." -ForegroundColor Cyan
             Remove-Item -Path $localStackDataPath -Recurse -Force
-            Write-Host "LocalStack data removed" -ForegroundColor Green
+            Write-Host "✓ LocalStack data removed" -ForegroundColor Green
         } else {
-            Write-Host "No LocalStack data to remove" -ForegroundColor Yellow
+            Write-Host "ⓘ No LocalStack data to remove" -ForegroundColor Yellow
         }
         
         Write-Host ""
@@ -211,7 +211,7 @@ switch ($Action) {
                 Write-Host "  .\manage-seed-data.ps1 -Action export" -ForegroundColor White
             } else {
                 foreach ($snapshot in $snapshots) {
-                    Write-Host "  $($snapshot.Name)" -ForegroundColor White
+                    Write-Host "  📁 $($snapshot.Name)" -ForegroundColor White
                     
                     $metadataPath = Join-Path $snapshot.FullName "metadata.json"
                     if (Test-Path $metadataPath) {
