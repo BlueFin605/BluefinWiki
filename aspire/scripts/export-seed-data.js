@@ -22,13 +22,19 @@
  *       user-preferences.json
  *     s3/
  *       pages/
- *         {guid}/{guid}.md
- *         {parent-guid}/{child-guid}/{child-guid}.md
+ *         {hash16}.md              # Hash-based filenames (prevents Windows path length issues)
+ *         _key-mapping.json        # Maps hash filenames to original S3 keys
  *       attachments/
- *         {guid}/{filename}
+ *         {hash16}.{ext}
+ *         _key-mapping.json
  *       exports/
- *         {export-id}.{format}
+ *         {hash16}.{ext}
+ *         _key-mapping.json
  *     metadata.json (snapshot metadata)
+ * 
+ * Note: S3 objects use SHA-256 hash-based filenames (16 chars) instead of preserving
+ * the nested directory structure to prevent Windows MAX_PATH issues (260 character limit).
+ * The _key-mapping.json file preserves the original S3 key for proper restoration on import.
  */
 
 const { S3Client, ListObjectsV2Command, GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -36,6 +42,7 @@ const { DynamoDBClient, ScanCommand } = require('@aws-sdk/client-dynamodb');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const fs = require('fs').promises;
 const path = require('path');
+const crypto = require('crypto');
 
 const LOCALSTACK_ENDPOINT = process.env.AWS_ENDPOINT || 'http://localhost:4566';
 const REGION = 'us-east-1';
@@ -106,6 +113,7 @@ async function exportS3Bucket(bucketName, bucketType) {
 
   let continuationToken;
   let totalObjects = 0;
+  const keyMapping = {}; // Map flattened filename to original S3 key
 
   do {
     const listCommand = new ListObjectsV2Command({
@@ -128,9 +136,16 @@ async function exportS3Bucket(bucketName, bucketType) {
         const getResponse = await s3Client.send(getCommand);
         const content = await streamToString(getResponse.Body);
 
-        // Write to file maintaining directory structure
-        const filePath = path.join(bucketDir, key);
-        await ensureDir(path.dirname(filePath));
+        // Use hash-based naming to prevent Windows MAX_PATH issues (260 chars)
+        // Hash the S3 key to create a short, unique filename
+        const hash = crypto.createHash('sha256').update(key).digest('hex').substring(0, 16);
+        const extension = path.extname(key) || '';
+        const flattenedKey = `${hash}${extension}`;
+        const filePath = path.join(bucketDir, flattenedKey);
+        
+        // Store mapping for import to restore original structure
+        keyMapping[flattenedKey] = key;
+        
         await fs.writeFile(filePath, content, 'utf8');
 
         totalObjects++;
@@ -140,6 +155,13 @@ async function exportS3Bucket(bucketName, bucketType) {
 
     continuationToken = listResponse.NextContinuationToken;
   } while (continuationToken);
+
+  // Save key mapping file for import
+  if (totalObjects > 0) {
+    const mappingPath = path.join(bucketDir, '_key-mapping.json');
+    await fs.writeFile(mappingPath, JSON.stringify(keyMapping, null, 2), 'utf8');
+    console.log(`  ✓ Saved key mapping`);
+  }
 
   console.log(`  Total objects exported from ${bucketType}: ${totalObjects}`);
   return totalObjects;
