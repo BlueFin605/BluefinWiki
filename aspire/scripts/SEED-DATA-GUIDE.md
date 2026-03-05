@@ -88,14 +88,20 @@ seed-snapshots/
       activity-log.json
     s3/
       pages/
-        {guid}/{guid}.md
-        {parent-guid}/{child-guid}/{child-guid}.md
+        {hash16}.md              # Hash-based filenames to avoid Windows path length issues
+        _key-mapping.json        # Maps hash filenames back to original S3 keys
       attachments/
-        {guid}/{filename}
+        {hash16}.{ext}
+        _key-mapping.json
       exports/
-        {export-id}.{format}
+        {hash16}.{ext}
+        _key-mapping.json
     metadata.json
 ```
+
+> **Note:** To prevent Windows MAX_PATH issues (260 character limit), S3 objects are stored 
+> with hash-based filenames instead of preserving the nested directory structure. The 
+> `_key-mapping.json` file maintains the mapping to restore the correct S3 keys on import.
 
 **Usage:**
 ```bash

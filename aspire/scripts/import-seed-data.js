@@ -112,6 +112,19 @@ async function importS3Bucket(bucketName, bucketType) {
     return 0;
   }
 
+  // Check if key mapping file exists (new flattened format)
+  const mappingPath = path.join(bucketDir, '_key-mapping.json');
+  let keyMapping = null;
+  
+  try {
+    const mappingContent = await fs.readFile(mappingPath, 'utf8');
+    keyMapping = JSON.parse(mappingContent);
+    console.log(`  ✓ Using flattened key mapping`);
+  } catch {
+    // No mapping file, use old nested directory format
+    console.log(`  ⓘ Using legacy directory structure format`);
+  }
+
   // Find all files recursively using glob
   const files = await glob('**/*', {
     cwd: bucketDir,
@@ -122,11 +135,22 @@ async function importS3Bucket(bucketName, bucketType) {
   let totalUploaded = 0;
 
   for (const file of files) {
+    // Skip the mapping file itself
+    if (file === '_key-mapping.json') {
+      continue;
+    }
+
     const filePath = path.join(bucketDir, file);
     const content = await fs.readFile(filePath, 'utf8');
     
-    // Use the relative path as the S3 key (with forward slashes)
-    const s3Key = file.replace(/\\/g, '/');
+    // Use key mapping if available, otherwise use the relative path
+    let s3Key;
+    if (keyMapping && keyMapping[file]) {
+      s3Key = keyMapping[file];
+    } else {
+      // Fallback to legacy format (nested directories)
+      s3Key = file.replace(/\\/g, '/');
+    }
 
     const putCommand = new PutObjectCommand({
       Bucket: bucketName,
