@@ -12,6 +12,7 @@ import { mockClient } from 'aws-sdk-client-mock';
 import {
   S3Client,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
@@ -82,14 +83,42 @@ describe('Page Hierarchy - Ancestor Path Calculation', () => {
     const parentGuid = uuidv4();
     const childGuid = uuidv4();
 
+    // Mock HeadObject to locate both child and parent pages
+    s3Mock.on(HeadObjectCommand).callsFake((input) => {
+      const key = input.Key as string;
+      // Parent at root level
+      if (key === `${parentGuid}/${parentGuid}.md`) {
+        return { ContentLength: 100, LastModified: new Date() };
+      }
+      // Child page under parent
+      if (key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
+        return { ContentLength: 100, LastModified: new Date() };
+      }
+      throw { name: 'NotFound' };
+    });
+
+    // Mock ListObjects to help findPageKey locate the pages
+    s3Mock.on(ListObjectsV2Command).callsFake((input) => {
+      // Search for child page (no Prefix/Delimiter)
+      if (!input.Prefix && !input.Delimiter) {
+        return {
+          Contents: [
+            { Key: `${parentGuid}/${childGuid}/${childGuid}.md` },
+            { Key: `${parentGuid}/${parentGuid}.md` },
+          ],
+        };
+      }
+      return { Contents: [] };
+    });
+
     // Mock child page load - needs to match any GetObjectCommand
     s3Mock.on(GetObjectCommand).callsFake((input) => {
-      if (input.Key === `${childGuid}.md` || input.Key === `${parentGuid}/${childGuid}.md`) {
+      if (input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(childGuid, 'Child Page', parentGuid))(),
         });
       }
-      if (input.Key === `${parentGuid}.md`) {
+      if (input.Key === `${parentGuid}/${parentGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(parentGuid, 'Parent Page', null))(),
         });
@@ -113,22 +142,22 @@ describe('Page Hierarchy - Ancestor Path Calculation', () => {
 
     // Mock all page loads with callsFake to handle any key match
     s3Mock.on(GetObjectCommand).callsFake((input) => {
-      if (input.Key === `${level3Guid}.md` || input.Key.includes(level3Guid)) {
+      if (input.Key.includes(level3Guid) && input.Key.endsWith(`${level3Guid}.md`)) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(level3Guid, 'Level 3', level2Guid))(),
         });
       }
-      if (input.Key === `${level2Guid}.md` || input.Key.includes(level2Guid)) {
+      if (input.Key.includes(level2Guid) && input.Key.endsWith(`${level2Guid}.md`) && !input.Key.includes(level3Guid)) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(level2Guid, 'Level 2', level1Guid))(),
         });
       }
-      if (input.Key === `${level1Guid}.md` || input.Key.includes(level1Guid)) {
+      if (input.Key.includes(level1Guid) && input.Key.endsWith(`${level1Guid}.md`) && !input.Key.includes(level2Guid) && !input.Key.includes(level3Guid)) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(level1Guid, 'Level 1', rootGuid))(),
         });
       }
-      if (input.Key === `${rootGuid}.md`) {
+      if (input.Key === `${rootGuid}/${rootGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(rootGuid, 'Root', null))(),
         });
