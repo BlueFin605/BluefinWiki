@@ -114,6 +114,37 @@ if (typeof document !== 'undefined') {
   Element.prototype.scrollIntoView = vi.fn();
 }
 
+// Suppress JSDOM undici errors that don't affect test results
+// These are internal JSDOM issues with fetch/XMLHttpRequest handling
+const originalConsoleError = console.error;
+const originalUnhandledRejection = process.listeners('unhandledRejection');
+
+// Remove default handlers
+process.removeAllListeners('unhandledRejection');
+
+// Add custom handler that filters out known JSDOM issues
+process.on('unhandledRejection', (reason: any) => {
+  // Suppress known JSDOM/undici errors
+  if (
+    reason?.code === 'UND_ERR_INVALID_ARG' ||
+    (reason?.message && reason.message.includes('invalid onError method'))
+  ) {
+    // Silently ignore these JSDOM internal errors
+    return;
+  }
+  
+  // For other errors, use the original handlers or log them
+  if (originalUnhandledRejection.length > 0) {
+    originalUnhandledRejection.forEach((handler) => {
+      if (typeof handler === 'function') {
+        handler(reason, Promise.reject(reason));
+      }
+    });
+  } else {
+    console.error('Unhandled Rejection:', reason);
+  }
+});
+
 // Export expect for convenience
 export { expect };
 

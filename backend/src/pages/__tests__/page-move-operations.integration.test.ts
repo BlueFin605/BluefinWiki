@@ -73,14 +73,14 @@ describe('Page Operations - Move Pages Between Parents', () => {
     const newParentGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(pageGuid, 'Page', null))(),
         });
@@ -89,8 +89,8 @@ describe('Page Operations - Move Pages Between Parents', () => {
     });
 
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-      if (input.Prefix === `${pageGuid}/`) {
-        return Promise.resolve({ Contents: [] });
+      if (input.Prefix === `${pageGuid}/` && input.Delimiter === '/') {
+        return Promise.resolve({ CommonPrefixes: [] });
       }
       return Promise.resolve({ Contents: [] });
     });
@@ -113,17 +113,17 @@ describe('Page Operations - Move Pages Between Parents', () => {
     const pageGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}/${pageGuid}.md`) {
+      if (input.Key === `${parentGuid}/${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({});
       }
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.reject({ name: 'NotFound' });
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}/${pageGuid}.md`) {
+      if (input.Key === `${parentGuid}/${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(pageGuid, 'Page', parentGuid))(),
         });
@@ -132,12 +132,12 @@ describe('Page Operations - Move Pages Between Parents', () => {
     });
 
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-      if (input.Prefix === `${parentGuid}/${pageGuid}/`) {
-        return Promise.resolve({ Contents: [] });
+      if (input.Prefix === `${parentGuid}/${pageGuid}/` && input.Delimiter === '/') {
+        return Promise.resolve({ CommonPrefixes: [] });
       }
       if (!input.Prefix && !input.ContinuationToken) {
         return Promise.resolve({
-          Contents: [{ Key: `${parentGuid}/${pageGuid}.md` }],
+          Contents: [{ Key: `${parentGuid}/${pageGuid}/${pageGuid}.md` }],
         });
       }
       return Promise.resolve({ Contents: [] });
@@ -160,22 +160,22 @@ describe('Page Operations - Move Pages Between Parents', () => {
     const newParentGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${oldParentGuid}/${pageGuid}.md` ||
-          input.Key === `${oldParentGuid}/${pageGuid}/${childGuid}.md` ||
-          input.Key === `${pageGuid}/${childGuid}.md`) {
+      if (input.Key === `${oldParentGuid}/${pageGuid}/${pageGuid}.md` ||
+          input.Key === `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md` ||
+          input.Key === `${pageGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${oldParentGuid}/${pageGuid}.md`) {
+      if (input.Key === `${oldParentGuid}/${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(pageGuid, 'Page', oldParentGuid))(),
         });
       }
-      if (input.Key === `${oldParentGuid}/${pageGuid}/${childGuid}.md` ||
-          input.Key === `${pageGuid}/${childGuid}.md`) {
+      if (input.Key === `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md` ||
+          input.Key === `${pageGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(childGuid, 'Child', pageGuid))(),
         });
@@ -187,8 +187,8 @@ describe('Page Operations - Move Pages Between Parents', () => {
       // When listing children of the page being moved
       if (input.Prefix === `${pageGuid}/` && input.Delimiter === '/') {
         return Promise.resolve({
-          Contents: [
-            { Key: `${pageGuid}/${childGuid}.md`, LastModified: new Date(), Size: 100 },
+          CommonPrefixes: [
+            { Prefix: `${pageGuid}/${childGuid}/` },
           ],
         });
       }
@@ -196,8 +196,8 @@ describe('Page Operations - Move Pages Between Parents', () => {
       if (!input.Prefix && !input.Delimiter) {
         return Promise.resolve({
           Contents: [
-            { Key: `${oldParentGuid}/${pageGuid}.md` },
-            { Key: `${oldParentGuid}/${pageGuid}/${childGuid}.md` },
+            { Key: `${oldParentGuid}/${pageGuid}/${pageGuid}.md` },
+            { Key: `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md` },
           ],
         });
       }
@@ -219,13 +219,13 @@ describe('Page Operations - Move Pages Between Parents', () => {
     const childGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}.md`) {
+      if (input.Key === `${parentGuid}/${parentGuid}.md`) {
         return Promise.resolve({});
       }
-      if (input.Key === `${childGuid}.md`) {
+      if (input.Key === `${childGuid}/${childGuid}.md`) {
         return Promise.reject({ name: 'NotFound' });
       }
-      if (input.Key === `${parentGuid}/${childGuid}.md`) {
+      if (input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
@@ -236,8 +236,8 @@ describe('Page Operations - Move Pages Between Parents', () => {
       if (!input.Prefix && !input.Delimiter) {
         return Promise.resolve({
           Contents: [
-            { Key: `${parentGuid}.md` },
-            { Key: `${parentGuid}/${childGuid}.md` },
+            { Key: `${parentGuid}/${parentGuid}.md` },
+            { Key: `${parentGuid}/${childGuid}/${childGuid}.md` },
           ],
         });
       }
@@ -245,12 +245,12 @@ describe('Page Operations - Move Pages Between Parents', () => {
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}.md`) {
+      if (input.Key === `${parentGuid}/${parentGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(parentGuid, 'Parent', null))(),
         });
       }
-      if (input.Key === `${parentGuid}/${childGuid}.md`) {
+      if (input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(childGuid, 'Child', parentGuid))(),
         });
