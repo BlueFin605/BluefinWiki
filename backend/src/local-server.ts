@@ -272,7 +272,13 @@ async function startServer() {
 
     // Create DynamoDB tables if they don't exist (for LocalStack)
     try {
-      const { DynamoDBClient, ListTablesCommand, CreateTableCommand } = await import('@aws-sdk/client-dynamodb');
+      const {
+        DynamoDBClient,
+        ListTablesCommand,
+        CreateTableCommand,
+        DescribeTableCommand,
+        DeleteTableCommand,
+      } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({
         region: process.env.AWS_REGION || 'us-east-1',
         endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
@@ -283,37 +289,57 @@ async function startServer() {
       });
 
       const pageLinksTable = process.env.DYNAMODB_PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local';
+
+      const createPageLinksTable = async () => {
+        await dynamoClient.send(new CreateTableCommand({
+          TableName: pageLinksTable,
+          AttributeDefinitions: [
+            { AttributeName: 'sourceGuid', AttributeType: 'S' },
+            { AttributeName: 'targetGuid', AttributeType: 'S' },
+          ],
+          KeySchema: [
+            { AttributeName: 'sourceGuid', KeyType: 'HASH' },
+            { AttributeName: 'targetGuid', KeyType: 'RANGE' },
+          ],
+          BillingMode: 'PAY_PER_REQUEST',
+          GlobalSecondaryIndexes: [
+            {
+              IndexName: 'targetGuid-index',
+              KeySchema: [{ AttributeName: 'targetGuid', KeyType: 'HASH' }],
+              Projection: { ProjectionType: 'ALL' },
+            },
+          ],
+        }));
+      };
       
       // Check if table exists
       const { TableNames } = await dynamoClient.send(new ListTablesCommand({}));
       
       if (!TableNames?.includes(pageLinksTable)) {
         // Create page-links table
-        await dynamoClient.send(new CreateTableCommand({
-          TableName: pageLinksTable,
-          AttributeDefinitions: [
-            { AttributeName: 'sourcePageGuid', AttributeType: 'S' },
-            { AttributeName: 'targetPageGuid', AttributeType: 'S' },
-          ],
-          KeySchema: [
-            { AttributeName: 'sourcePageGuid', KeyType: 'HASH' },
-            { AttributeName: 'targetPageGuid', KeyType: 'RANGE' },
-          ],
-          BillingMode: 'PAY_PER_REQUEST',
-          GlobalSecondaryIndexes: [
-            {
-              IndexName: 'TargetPageIndex',
-              KeySchema: [
-                { AttributeName: 'targetPageGuid', KeyType: 'HASH' },
-                { AttributeName: 'sourcePageGuid', KeyType: 'RANGE' },
-              ],
-              Projection: { ProjectionType: 'ALL' },
-            },
-          ],
-        }));
+        await createPageLinksTable();
         console.log(`✅ Created DynamoDB table '${pageLinksTable}'`);
       } else {
-        console.log(`✅ DynamoDB table '${pageLinksTable}' already exists`);
+        const describeResult = await dynamoClient.send(new DescribeTableCommand({
+          TableName: pageLinksTable,
+        }));
+        const table = describeResult.Table;
+        const keySchema = table?.KeySchema || [];
+        const hasExpectedKeySchema =
+          keySchema.some(key => key.AttributeName === 'sourceGuid' && key.KeyType === 'HASH') &&
+          keySchema.some(key => key.AttributeName === 'targetGuid' && key.KeyType === 'RANGE');
+
+        const gsiNames = table?.GlobalSecondaryIndexes?.map(gsi => gsi.IndexName) || [];
+        const hasExpectedBacklinkIndex = gsiNames.includes('targetGuid-index');
+
+        if (!hasExpectedKeySchema || !hasExpectedBacklinkIndex) {
+          console.warn(`⚠️  DynamoDB table '${pageLinksTable}' has outdated schema; recreating for local compatibility`);
+          await dynamoClient.send(new DeleteTableCommand({ TableName: pageLinksTable }));
+          await createPageLinksTable();
+          console.log(`✅ Recreated DynamoDB table '${pageLinksTable}' with expected schema`);
+        } else {
+          console.log(`✅ DynamoDB table '${pageLinksTable}' already exists`);
+        }
       }
     } catch (error) {
       console.warn('⚠️  Could not verify/create DynamoDB tables:', error);

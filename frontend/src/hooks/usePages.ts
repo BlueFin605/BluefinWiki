@@ -129,23 +129,13 @@ export const useUpdatePage = (guid: string) => {
       return response.data;
     },
     onSuccess: (updatedPage) => {
-      // Only update cache if we have full page content
-      // Backend currently returns minimal response, so we skip cache update
-      // to avoid overwriting complete data with incomplete response
-      if (updatedPage.content !== undefined) {
-        queryClient.setQueryData(pageKeys.detail(guid), updatedPage);
-      } else {
-        // Just update the metadata fields we know changed
-        queryClient.setQueryData(pageKeys.detail(guid), (oldData: PageContent | undefined) => {
-          if (!oldData) return oldData;
-          return {
-            ...oldData,
-            title: updatedPage.title || oldData.title,
-            modifiedAt: updatedPage.modifiedAt || oldData.modifiedAt,
-            modifiedBy: updatedPage.modifiedBy || oldData.modifiedBy,
-          };
-        });
-      }
+      // Invalidate the page detail cache to ensure fresh data is fetched
+      // This is necessary because the backend returns minimal response data,
+      // so we can't reliably update the cache with partial information
+      queryClient.invalidateQueries({
+        queryKey: pageKeys.detail(guid),
+      });
+      
       // Invalidate parent's children list
       if (updatedPage.folderId !== undefined) {
         queryClient.invalidateQueries({

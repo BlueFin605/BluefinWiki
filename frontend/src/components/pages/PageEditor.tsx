@@ -83,6 +83,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const lastSavedVersionRef = useRef<string>('');
   const pendingSaveRef = useRef<UpdatePageRequest | null>(null);
+  const lastLoadedPageGuidRef = useRef<string | undefined>();
+  const isInitialLoadRef = useRef(true);
 
   // Fetch page details
   const { data: pageData, isLoading, error, refetch } = usePageDetail(pageGuid);
@@ -96,10 +98,22 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   const updatePage = useUpdatePage(pageGuid);
 
   // Load page content when data is fetched
+  // Only load on initial fetch or when switching to a different page
+  // This prevents overwriting unsaved changes when pageData is refetched
   useEffect(() => {
     if (pageData) {
-      setContent(pageData.content);
-      lastSavedVersionRef.current = pageData.content;
+      const pageChanged = pageGuid !== lastLoadedPageGuidRef.current;
+      const isInitialLoad = isInitialLoadRef.current;
+      
+      // Only update content if this is initial load or page changed
+      if (isInitialLoad || pageChanged) {
+        setContent(pageData.content);
+        lastSavedVersionRef.current = pageData.content;
+        lastLoadedPageGuidRef.current = pageGuid;
+        isInitialLoadRef.current = false;
+      }
+      
+      // Always update metadata (it's read-only in the editor)
       setMetadata({
         title: pageData.title,
         tags: pageData.tags,
@@ -113,7 +127,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       setSaveError(null);
       setRetryCount(0);
     }
-  }, [pageData, pageGuid]);
+  }, [pageData?.guid, pageGuid]);
 
   // Handle content changes
   const handleContentChange = useCallback((newContent: string) => {
