@@ -19,7 +19,10 @@ const dynamoClient = new DynamoDBClient({
   }),
 });
 
-const PAGE_LINKS_TABLE = process.env.DYNAMODB_PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local';
+// Helper function to get the table name dynamically (allows tests to override via env vars)
+function getPageLinksTable(): string {
+  return process.env.DYNAMODB_PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local';
+}
 
 /**
  * Represents a wiki link found in page content
@@ -101,7 +104,7 @@ export async function saveLinkRelationship(
   };
   
   const command = new PutItemCommand({
-    TableName: PAGE_LINKS_TABLE,
+    TableName: getPageLinksTable(),
     Item: marshall(record),
   });
   
@@ -116,10 +119,10 @@ export async function saveLinkRelationship(
 export async function removePageLinks(sourceGuid: string): Promise<void> {
   // Query all existing links for this source page
   const queryCommand = new QueryCommand({
-    TableName: PAGE_LINKS_TABLE,
-    KeyConditionExpression: 'sourcePageGuid = :sourcePageGuid',
+    TableName: getPageLinksTable(),
+    KeyConditionExpression: 'sourceGuid = :sourceGuid',
     ExpressionAttributeValues: marshall({
-      ':sourcePageGuid': sourceGuid,
+      ':sourceGuid': sourceGuid,
     }),
   });
   
@@ -137,7 +140,7 @@ export async function removePageLinks(sourceGuid: string): Promise<void> {
     
     const batchCommand = new BatchWriteItemCommand({
       RequestItems: {
-        [PAGE_LINKS_TABLE]: batch.map(item => ({
+        [getPageLinksTable()]: batch.map(item => ({
           DeleteRequest: {
             Key: marshall({
               sourceGuid: item.sourceGuid,
@@ -182,11 +185,11 @@ export async function updatePageLinks(
  */
 export async function getBacklinks(targetGuid: string): Promise<PageLinkRecord[]> {
   const command = new QueryCommand({
-    TableName: PAGE_LINKS_TABLE,
-    IndexName: 'TargetPageIndex',
-    KeyConditionExpression: 'targetPageGuid = :targetPageGuid',
+    TableName: getPageLinksTable(),
+    IndexName: 'targetGuid-index',
+    KeyConditionExpression: 'targetGuid = :targetGuid',
     ExpressionAttributeValues: marshall({
-      ':targetPageGuid': targetGuid,
+      ':targetGuid': targetGuid,
     }),
   });
   
@@ -207,10 +210,10 @@ export async function getBacklinks(targetGuid: string): Promise<PageLinkRecord[]
  */
 export async function getOutboundLinks(sourceGuid: string): Promise<PageLinkRecord[]> {
   const command = new QueryCommand({
-    TableName: PAGE_LINKS_TABLE,
-    KeyConditionExpression: 'sourcePageGuid = :sourcePageGuid',
+    TableName: getPageLinksTable(),
+    KeyConditionExpression: 'sourceGuid = :sourceGuid',
     ExpressionAttributeValues: marshall({
-      ':sourcePageGuid': sourceGuid,
+      ':sourceGuid': sourceGuid,
     }),
   });
   

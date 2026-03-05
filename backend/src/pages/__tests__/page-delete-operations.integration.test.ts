@@ -71,16 +71,18 @@ describe('Page Operations - Delete Pages with Children', () => {
     const pageGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
-    s3Mock.on(ListObjectsV2Command, {
-      Prefix: `${pageGuid}/`,
-    }).resolves({
-      Contents: [],
+    s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+      if (input.Prefix === `${pageGuid}/` && input.Delimiter === '/') {
+        // No child folders
+        return Promise.resolve({ Contents: [], CommonPrefixes: [] });
+      }
+      return Promise.resolve({ Contents: [] });
     });
 
     s3Mock.on(DeleteObjectCommand).resolves({});
@@ -89,7 +91,7 @@ describe('Page Operations - Delete Pages with Children', () => {
 
     const deleteCalls = s3Mock.commandCalls(DeleteObjectCommand);
     expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0].args[0].input.Key).toBe(`${pageGuid}.md`);
+    expect(deleteCalls[0].args[0].input.Key).toBe(`${pageGuid}/${pageGuid}.md`);
   });
 
   it('should reject deleting page with children when recursive=false', async () => {
@@ -151,21 +153,20 @@ describe('Page Operations - Delete Pages with Children', () => {
     const pageGuid = uuidv4();
     const childGuid = uuidv4();
 
+    // Mock HeadObjectCommand for folder-based structure
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({});
       }
-      if (input.Key === `${childGuid}.md`) {
-        return Promise.reject({ name: 'NotFound' });
-      }
-      if (input.Key === `${pageGuid}/${childGuid}.md`) {
+      if (input.Key === `${pageGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
+    // Mock GetObjectCommand for reading page content
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}/${childGuid}.md`) {
+      if (input.Key === `${pageGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(childGuid, 'Child', pageGuid))(),
         });
@@ -173,47 +174,43 @@ describe('Page Operations - Delete Pages with Children', () => {
       return Promise.reject({ name: 'NoSuchKey' });
     });
 
+    // Mock ListObjectsV2Command for different scenarios
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+      // Listing children with delimiter (checking for child folders)
       if (input.Prefix === `${pageGuid}/` && input.Delimiter === '/') {
         return Promise.resolve({
-          Contents: [
-            {
-              Key: `${pageGuid}/${childGuid}.md`,
-              LastModified: new Date(),
-              Size: 100,
-            },
-          ],
+          Contents: [],
+          CommonPrefixes: [{ Prefix: `${pageGuid}/${childGuid}/` }],
         });
       }
+      // Listing all objects under parent folder for deletion
       if (input.Prefix === `${pageGuid}/` && !input.Delimiter) {
         return Promise.resolve({
           Contents: [
-            {
-              Key: `${pageGuid}/${childGuid}.md`,
-              LastModified: new Date(),
-              Size: 100,
-            },
+            { Key: `${pageGuid}/${childGuid}/${childGuid}.md`, LastModified: new Date(), Size: 100 },
           ],
         });
       }
-      if (!input.Prefix && !input.ContinuationToken) {
+      // Checking if child has children
+      if (input.Prefix === `${childGuid}/` && input.Delimiter === '/') {
+        return Promise.resolve({ Contents: [], CommonPrefixes: [] });
+      }
+      // Global search for pages
+      if (!input.Prefix && !input.Delimiter) {
         return Promise.resolve({
           Contents: [
-            { Key: `${pageGuid}.md` },
-            { Key: `${pageGuid}/${childGuid}.md` },
+            { Key: `${pageGuid}/${pageGuid}.md` },
+            { Key: `${pageGuid}/${childGuid}/${childGuid}.md` },
           ],
         });
-      }
-      if (input.Prefix === `${childGuid}/` && input.Delimiter === '/') {
-        return Promise.resolve({ Contents: [] });
       }
       return Promise.resolve({ Contents: [] });
     });
 
     s3Mock.on(DeleteObjectsCommand).resolves({
       Deleted: [
-        { Key: `${pageGuid}.md` },
-        { Key: `${pageGuid}/${childGuid}.md` },
+        { Key: `${pageGuid}/${pageGuid}.md` },
+        { Key: `${pageGuid}/${childGuid}/${childGuid}.md` },
       ],
     });
 

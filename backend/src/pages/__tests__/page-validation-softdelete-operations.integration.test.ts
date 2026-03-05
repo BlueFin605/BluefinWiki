@@ -81,7 +81,7 @@ describe('Page Operations - Validation Error Message Tests', () => {
     const pageGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
@@ -90,7 +90,7 @@ describe('Page Operations - Validation Error Message Tests', () => {
     s3Mock.on(ListObjectsV2Command).resolves({ Contents: [] });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(pageGuid, 'Page', null))(),
         });
@@ -123,7 +123,7 @@ describe('Page Operations - Validation Error Message Tests', () => {
     const nonExistentParent = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${nonExistentParent}.md`) {
+      if (input.Key === `${nonExistentParent}/${nonExistentParent}.md`) {
         return Promise.reject({ name: 'NotFound' });
       }
       return Promise.reject({ name: 'NotFound' });
@@ -227,12 +227,12 @@ describe('Page Operations - Soft Delete and Trash Tests', () => {
     const deletedGuid = uuidv4();
 
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-      // When listing children of parent
+      // When listing children of parent using folder structure
       if (input.Prefix === `${parentGuid}/` && input.Delimiter === '/') {
         return Promise.resolve({
-          Contents: [
-            { Key: `${parentGuid}/${activeGuid}.md`, LastModified: new Date(), Size: 100 },
-            { Key: `${parentGuid}/${deletedGuid}.md`, LastModified: new Date(), Size: 100 },
+          CommonPrefixes: [
+            { Prefix: `${parentGuid}/${activeGuid}/` },
+            { Prefix: `${parentGuid}/${deletedGuid}/` },
           ],
         });
       }
@@ -240,8 +240,8 @@ describe('Page Operations - Soft Delete and Trash Tests', () => {
       if (!input.Prefix && !input.Delimiter) {
         return Promise.resolve({
           Contents: [
-            { Key: `${parentGuid}/${activeGuid}.md` },
-            { Key: `${parentGuid}/${deletedGuid}.md` },
+            { Key: `${parentGuid}/${activeGuid}/${activeGuid}.md` },
+            { Key: `${parentGuid}/${deletedGuid}/${deletedGuid}.md` },
           ],
         });
       }
@@ -253,19 +253,24 @@ describe('Page Operations - Soft Delete and Trash Tests', () => {
     });
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}/${activeGuid}.md` || input.Key === `${parentGuid}/${deletedGuid}.md`) {
+      // Check parent page
+      if (input.Key === `${parentGuid}/${parentGuid}.md`) {
+        return Promise.resolve({});
+      }
+      // Check child pages
+      if (input.Key === `${parentGuid}/${activeGuid}/${activeGuid}.md` || input.Key === `${parentGuid}/${deletedGuid}/${deletedGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}/${activeGuid}.md`) {
+      if (input.Key === `${parentGuid}/${activeGuid}/${activeGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(activeGuid, 'Active', parentGuid))(),
         });
       }
-      if (input.Key === `${parentGuid}/${deletedGuid}.md`) {
+      if (input.Key === `${parentGuid}/${deletedGuid}/${deletedGuid}.md`) {
         const deletedContent = `---
 guid: "${deletedGuid}"
 title: "Deleted"
@@ -296,7 +301,7 @@ modifiedAt: "2026-02-12T10:00:00Z"
     const pageGuid = uuidv4();
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         const deletedContent = `---
 guid: "${pageGuid}"
 title: "Trashed Page"
@@ -345,20 +350,32 @@ modifiedAt: "2026-02-12T10:00:00Z"
     const pageGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
-    s3Mock.on(ListObjectsV2Command).resolves({ Contents: [] });
+    s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+      // When searching for the page
+      if (!input.Prefix && !input.Delimiter) {
+        return Promise.resolve({
+          Contents: [{ Key: `${pageGuid}/${pageGuid}.md` }],
+        });
+      }
+      // When checking for children
+      if (input.Prefix === `${pageGuid}/` && input.Delimiter === '/') {
+        return Promise.resolve({ CommonPrefixes: [] });
+      }
+      return Promise.resolve({ Contents: [] });
+    });
     s3Mock.on(DeleteObjectCommand).resolves({});
 
     await plugin.deletePage(pageGuid, false);
 
     const deleteCalls = s3Mock.commandCalls(DeleteObjectCommand);
     expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0].args[0].input.Key).toBe(`${pageGuid}.md`);
+    expect(deleteCalls[0].args[0].input.Key).toBe(`${pageGuid}/${pageGuid}.md`);
   });
 
   it('should handle soft delete with children', async () => {
