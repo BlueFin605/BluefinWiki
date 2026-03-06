@@ -15,18 +15,16 @@ import { useCreatePage } from '../../hooks/usePages';
 interface NewPageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultParentGuid?: string | null;
-}
+  defaultParentGuid?: string | null;  onPageCreated?: () => void;}
 
 export const NewPageModal: React.FC<NewPageModalProps> = ({
   isOpen,
   onClose,
   defaultParentGuid = null,
+  onPageCreated,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [parentGuid, setParentGuid] = useState<string | null>(defaultParentGuid);
-  const [isRootPage, setIsRootPage] = useState(defaultParentGuid === null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const createPage = useCreatePage();
@@ -53,7 +51,7 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
 
     const request: CreatePageRequest = {
       title: title.trim(),
-      parentGuid: isRootPage ? null : parentGuid,
+      parentGuid: defaultParentGuid,
       description: description.trim() || undefined,
       content: '# ' + title.trim() + '\n\nStart writing your page content here...',
     };
@@ -61,6 +59,8 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
     try {
       await createPage.mutateAsync(request);
       handleClose();
+      // Trigger parent refresh
+      onPageCreated?.();
     } catch (error) {
       console.error('Failed to create page:', error);
       setErrors({
@@ -72,8 +72,6 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
   const handleClose = () => {
     setTitle('');
     setDescription('');
-    setParentGuid(defaultParentGuid);
-    setIsRootPage(defaultParentGuid === null);
     setErrors({});
     onClose();
   };
@@ -94,7 +92,7 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
       >
         <div className="flex justify-between items-center mb-4">
           <h2 id="new-page-title" className="text-2xl font-bold text-gray-900">
-            Create New Page
+            {defaultParentGuid ? 'Create Child Page' : 'Create New Page'}
           </h2>
           <button
             onClick={handleClose}
@@ -150,44 +148,11 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
             />
           </div>
 
-          {/* Root Page Checkbox */}
-          <div className="mb-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={isRootPage}
-                onChange={(e) => {
-                  setIsRootPage(e.target.checked);
-                  if (e.target.checked) {
-                    setParentGuid(null);
-                  }
-                }}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <span className="ml-2 text-sm text-gray-700">Create as root page</span>
-            </label>
-            <p className="mt-1 text-xs text-gray-500">
-              Root pages appear at the top level of the page tree
-            </p>
-          </div>
-
-          {/* Parent Selection (only shown if not root page) */}
-          {!isRootPage && (
-            <div className="mb-4">
-              <label htmlFor="parent-page" className="block text-sm font-medium text-gray-700 mb-1">
-                Parent Page
-              </label>
-              <select
-                id="parent-page"
-                value={parentGuid || ''}
-                onChange={(e) => setParentGuid(e.target.value || null)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select parent page...</option>
-                {/* TODO: Load and display available parent pages */}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                The new page will be created as a child of the selected page
+          {/* Info about page location */}
+          {defaultParentGuid && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800">
+                This page will be created as a child of the selected page.
               </p>
             </div>
           )}

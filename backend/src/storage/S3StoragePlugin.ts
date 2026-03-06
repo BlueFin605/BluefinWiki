@@ -4,9 +4,9 @@
  * Implements storage plugin interface using AWS S3 for page persistence.
  * 
  * Architecture:
- * - Root pages: stored at {bucket}/{guid}.md
- * - Child pages: stored at {bucket}/{parent-guid}/{guid}.md
- * - Multi-level nesting: {bucket}/{grandparent-guid}/{parent-guid}/{guid}.md
+ * - Every page: stored at {bucket}/{guid}/{guid}.md (page content always inside its own folder)
+ * - Child pages: stored at {bucket}/{parent-guid}/{child-guid}/{child-guid}.md
+ * - Multi-level nesting: {bucket}/{grandparent-guid}/{parent-guid}/{child-guid}/{child-guid}.md
  * - Page metadata stored in YAML frontmatter
  * - S3 versioning enabled for history tracking
  * 
@@ -46,6 +46,7 @@ import { BaseStoragePlugin } from './BaseStoragePlugin.js';
 import { PageContent, Version, PageSummary } from '../types/index.js';
 
 interface S3StorageConfig {
+  type?: 's3';
   bucketName: string;
   region?: string;
   endpoint?: string; // For LocalStack
@@ -78,18 +79,45 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Build S3 key path for a page
-   * Root pages: {guid}.md
-   * Child pages: {parent-guid}/{guid}.md
+   * Every page is stored in its own folder: {guid}/{guid}.md
+   * Child pages: {parent-guid}/{child-guid}/{child-guid}.md
+   * Multi-level: {grandparent-guid}/{parent-guid}/{child-guid}/{child-guid}.md
    * 
-   * Note: For deeply nested pages, we need to build the full path
-   * by traversing up the parent chain. For now, we'll use a simpler approach
-   * where parentGuid is the immediate parent, and we store the full path.
+   * This provides a consistent structure where:
+   * - Each page has its own folder (for future attachments/assets)
+   * - The folder hierarchy reflects the page hierarchy
+   * - The page content is always at {guid}/{guid}.md within its folder
    */
-  private buildPageKey(guid: string, parentGuid: string | null): string {
+  private async buildPageKey(guid: string, parentGuid: string | null): Promise<string> {
     if (parentGuid === null || parentGuid === '') {
-      return `${guid}.md`;
+      return `${guid}/${guid}.md`;
     }
-    return `${parentGuid}/${guid}.md`;
+    
+    // Build full ancestor path for proper nesting
+    const ancestorPath = await this.buildAncestorPath(parentGuid);
+    return `${ancestorPath}${guid}/${guid}.md`;
+  }
+
+  /**
+   * Build the full ancestor path for a page
+   * Returns path with trailing slash, e.g., "grandparent/parent/"
+   */
+  private async buildAncestorPath(guid: string): Promise<string> {
+    try {
+      const page = await this.loadPage(guid);
+      
+      if (!page.folderId || page.folderId === '') {
+        // This is a root page
+        return `${guid}/`;
+      }
+      
+      // Recursively build path for parent
+      const parentPath = await this.buildAncestorPath(page.folderId);
+      return `${parentPath}${guid}/`;
+    } catch (error) {
+      // If we can't load the parent, treat current as root
+      return `${guid}/`;
+    }
   }
 
 
@@ -209,11 +237,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       `modifiedBy: "${content.modifiedBy}"`,
       `createdAt: "${content.createdAt}"`,
       `modifiedAt: "${content.modifiedAt}"`,
-      '---',
-      '' // Empty line after frontmatter
+      '---'
     );
     
-    return lines.join('\n') + content.content;
+    return lines.join('\n') + '\n' + content.content;
   }
 
   /**
@@ -238,7 +265,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       content.folderId = parentGuid || '';
 
       // Build S3 key
-      const key = this.buildPageKey(guid, parentGuid);
+      const key = await this.buildPageKey(guid, parentGuid);
 
       // Serialize to markdown with frontmatter
       const markdown = this.serializeToMarkdown(content);
@@ -365,8 +392,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    */
   private async findPageKey(guid: string): Promise<string | null> {
     try {
-      // First, try as a root page
-      const rootKey = `${guid}.md`;
+      // First, try as a root page (new structure: {guid}/{guid}.md)
+      const rootKey = `${guid}/${guid}.md`;
       try {
         await this.s3Client.send(new HeadObjectCommand({
           Bucket: this.bucketName,
@@ -380,7 +407,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         }
       }
 
-      // Search for the page in all folders
+      // Search for the page in all folders (new structure: {parent}/{guid}/{guid}.md)
       let continuationToken: string | undefined = undefined;
       
       do {
@@ -393,7 +420,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         
         if (response.Contents) {
           for (const obj of response.Contents) {
-            if (obj.Key && obj.Key.endsWith(`/${guid}.md`)) {
+            if (obj.Key && obj.Key.endsWith(`/${guid}/${guid}.md`)) {
               return obj.Key;
             }
           }
@@ -579,18 +606,41 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Check if a page has children (non-recursive S3 check)
+   * In new structure, children are at {ancestor-path}/{guid}/{child-guid}/{child-guid}.md
+   * Need to find where the page is located first, then check for child folders
    */
   private async hasChildrenDirect(guid: string): Promise<boolean> {
     try {
-      const prefix = `${guid}/`;
+      // Find the page's location
+      const pageKey = await this.findPageKey(guid);
+      if (!pageKey) {
+        return false;
+      }
+      
+      // Extract the page's folder path from its key
+      // Key format: {ancestor-path}/{guid}/{guid}.md
+      // We want: {ancestor-path}/{guid}/
+      const pageFolder = pageKey.substring(0, pageKey.lastIndexOf('/') + 1);
+      
       const listCommand = new ListObjectsV2Command({
         Bucket: this.bucketName,
-        Prefix: prefix,
-        MaxKeys: 1, // Only need to know if at least one exists
+        Prefix: pageFolder,
+        Delimiter: '/', // Get folders only
       });
 
       const response = await this.s3Client.send(listCommand);
-      return (response.Contents && response.Contents.length > 0) || false;
+      // Check for CommonPrefixes (child folders)
+      if (response.CommonPrefixes && response.CommonPrefixes.length > 0) {
+        // Any folder other than the page's own folder indicates children
+        // The page's own .md file is in the same folder, so child folders = children
+        const childFolders = response.CommonPrefixes.filter(p => {
+          const pathParts = p.Prefix?.split('/').filter(part => part.length > 0) || [];
+          const folderGuid = pathParts[pathParts.length - 1];
+          return folderGuid !== guid; // Exclude the page's own guid folder
+        });
+        return childFolders.length > 0;
+      }
+      return false;
     } catch (error) {
       // If listing fails, assume no children
       return false;
@@ -605,7 +655,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const children: PageSummary[] = [];
 
       if (parentGuid === null) {
-        // List root-level pages (files at bucket root)
+        // List root-level pages (folders at bucket root)
+        // In new structure: {guid}/{guid}.md
         let continuationToken: string | undefined = undefined;
 
         do {
@@ -617,22 +668,26 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
           const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
 
-          if (response.Contents) {
-            for (const obj of response.Contents) {
-              if (obj.Key && obj.Key.endsWith('.md') && !obj.Key.includes('/')) {
-                // This is a root-level page
-                const guid = obj.Key.replace('.md', '');
+          // Get root folders (CommonPrefixes)
+          if (response.CommonPrefixes) {
+            for (const prefix of response.CommonPrefixes) {
+              if (prefix.Prefix) {
+                // Extract GUID from folder name (remove trailing /)
+                const guid = prefix.Prefix.replace(/\/$/, '');
                 try {
                   const page = await this.loadPage(guid);
-                  children.push({
-                    guid: page.guid,
-                    title: page.title,
-                    parentGuid: null,
-                    status: page.status === 'deleted' ? 'archived' : page.status,
-                    modifiedAt: page.modifiedAt,
-                    modifiedBy: page.modifiedBy,
-                    hasChildren: await this.hasChildrenDirect(guid),
-                  });
+                  // Only include pages that are actually root pages (folderId is null or empty)
+                  if (!page.folderId || page.folderId === '') {
+                    children.push({
+                      guid: page.guid,
+                      title: page.title,
+                      parentGuid: null,
+                      status: page.status === 'deleted' ? 'archived' : page.status,
+                      modifiedAt: page.modifiedAt,
+                      modifiedBy: page.modifiedBy,
+                      hasChildren: await this.hasChildrenDirect(guid),
+                    });
+                  }
                 } catch (err) {
                   // Skip pages that can't be loaded
                   console.warn(`Failed to load page ${guid}:`, err);
@@ -645,43 +700,65 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         } while (continuationToken);
       } else {
         // List children in the parent's folder
-        const prefix = `${parentGuid}/`;
+        // In new structure: need to find where parent is located first
+        // Then list its immediate child folders
+        
+        // First, find the parent's location to build the correct prefix
+        const parentKey = await this.findPageKey(parentGuid);
+        if (!parentKey) {
+          // Parent not found, return empty
+          return [];
+        }
+        
+        // Extract the parent's folder path from its key
+        // Key format: {ancestor-path}/{parentGuid}/{parentGuid}.md
+        // We want: {ancestor-path}/{parentGuid}/
+        const parentFolder = parentKey.substring(0, parentKey.lastIndexOf('/') + 1);
+        
+        console.log(`[listChildren] Parent: ${parentGuid}, ParentKey: ${parentKey}, ParentFolder: ${parentFolder}`);
+        
         let continuationToken: string | undefined = undefined;
 
         do {
           const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
             Bucket: this.bucketName,
-            Prefix: prefix,
+            Prefix: parentFolder,
             Delimiter: '/',
             ContinuationToken: continuationToken,
           });
 
           const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
 
-          if (response.Contents) {
-            for (const obj of response.Contents) {
-              if (obj.Key && obj.Key.endsWith('.md')) {
-                // Extract GUID from key
-                const keyParts = obj.Key.split('/');
-                const filename = keyParts[keyParts.length - 1];
-                const guid = filename.replace('.md', '');
+          console.log(`[listChildren] CommonPrefixes:`, response.CommonPrefixes?.map(p => p.Prefix));
+          console.log(`[listChildren] Contents:`, response.Contents?.map(c => c.Key));
 
-                // Only include direct children (not nested)
-                if (keyParts.length === 2) {
-                  try {
-                    const page = await this.loadPage(guid);
-                    children.push({
-                      guid: page.guid,
-                      title: page.title,
-                      parentGuid: parentGuid,
-                      status: page.status === 'deleted' ? 'archived' : page.status,
-                      modifiedAt: page.modifiedAt,
-                      modifiedBy: page.modifiedBy,
-                      hasChildren: await this.hasChildrenDirect(guid),
-                    });
-                  } catch (err) {
-                    console.warn(`Failed to load page ${guid}:`, err);
-                  }
+          // Get child folders (CommonPrefixes)
+          if (response.CommonPrefixes) {
+            for (const childPrefix of response.CommonPrefixes) {
+              if (childPrefix.Prefix) {
+                // Extract child GUID from folder path
+                // Format: {ancestor-path}/{parentGuid}/{childGuid}/
+                const pathParts = childPrefix.Prefix.split('/');
+                const guid = pathParts[pathParts.length - 2]; // Second to last part (before trailing /)
+                
+                console.log(`[listChildren] Processing child prefix: ${childPrefix.Prefix}, extracted guid: ${guid}, parentGuid: ${parentGuid}`);
+                
+                // Skip the parent's own guid folder (the .md file is in its own folder)
+                if (guid === parentGuid) continue;
+
+                try {
+                  const page = await this.loadPage(guid);
+                  children.push({
+                    guid: page.guid,
+                    title: page.title,
+                    parentGuid: parentGuid,
+                    status: page.status === 'deleted' ? 'archived' : page.status,
+                    modifiedAt: page.modifiedAt,
+                    modifiedBy: page.modifiedBy,
+                    hasChildren: await this.hasChildrenDirect(guid),
+                  });
+                } catch (err) {
+                  console.warn(`Failed to load page ${guid}:`, err);
                 }
               }
             }
@@ -735,7 +812,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // Build new key
-      const newKey = this.buildPageKey(guid, newParentGuid);
+      const newKey = await this.buildPageKey(guid, newParentGuid);
 
       // If keys are the same, nothing to do
       if (oldKey === newKey) {
@@ -778,7 +855,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         const childOldKey = await this.findPageKey(child.guid);
         if (childOldKey) {
           // Copy child to new location
-          const childNewKey = this.buildPageKey(child.guid, guid);
+          const childNewKey = await this.buildPageKey(child.guid, guid);
           
           const childCopyCommand = new CopyObjectCommand({
             Bucket: this.bucketName,

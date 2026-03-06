@@ -362,6 +362,8 @@ Detailed specifications and implementation plans:
 - [SPECIFICATIONS.md](./SPECIFICATIONS.md) - Feature specifications
 - [TECHNICAL-PLAN.md](./TECHNICAL-PLAN.md) - Technical implementation details
 - [TASKS.md](./TASKS.md) - Implementation tasks and timeline
+- [MVP-SIMPLIFICATIONS.md](./MVP-SIMPLIFICATIONS.md) - MVP simplifications and post-MVP roadmap
+- [gaps.md](./gaps.md) - Feature gaps and future enhancements
 - [CONTRIBUTING.md](./CONTRIBUTING.md) - Contributing guidelines
 
 ## 🤝 Contributing

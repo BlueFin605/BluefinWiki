@@ -53,7 +53,7 @@ describe('Page Operations - Create Child Pages at Various Depths', () => {
 
     const calls = s3Mock.commandCalls(PutObjectCommand);
     expect(calls).toHaveLength(1);
-    expect(calls[0].args[0].input.Key).toBe(`${guid}.md`);
+    expect(calls[0].args[0].input.Key).toBe(`${guid}/${guid}.md`);
   });
 
   it('should create child page under parent', async () => {
@@ -79,7 +79,7 @@ describe('Page Operations - Create Child Pages at Various Depths', () => {
 
     const calls = s3Mock.commandCalls(PutObjectCommand);
     expect(calls).toHaveLength(1);
-    expect(calls[0].args[0].input.Key).toBe(`${parentGuid}/${childGuid}.md`);
+    expect(calls[0].args[0].input.Key).toBe(`${parentGuid}/${childGuid}/${childGuid}.md`);
   });
 
   it('should create deeply nested page (3 levels)', async () => {
@@ -106,6 +106,6 @@ describe('Page Operations - Create Child Pages at Various Depths', () => {
 
     const calls = s3Mock.commandCalls(PutObjectCommand);
     expect(calls).toHaveLength(1);
-    expect(calls[0].args[0].input.Key).toBe(`${level1Guid}/${level2Guid}.md`);
+    expect(calls[0].args[0].input.Key).toBe(`${level1Guid}/${level2Guid}/${level2Guid}.md`);
   });
 });

@@ -64,7 +64,7 @@ describe('S3 Storage Structure - Correct Paths for Nested Pages', () => {
     await plugin.savePage(guid, null, content);
 
     const calls = s3Mock.commandCalls(PutObjectCommand);
-    expect(calls[0].args[0].input.Key).toBe(`${guid}.md`);
+    expect(calls[0].args[0].input.Key).toBe(`${guid}/${guid}.md`);
     expect(calls[0].args[0].input.Bucket).toBe('test-bucket');
   });
 
@@ -89,7 +89,7 @@ describe('S3 Storage Structure - Correct Paths for Nested Pages', () => {
     await plugin.savePage(childGuid, parentGuid, content);
 
     const calls = s3Mock.commandCalls(PutObjectCommand);
-    expect(calls[0].args[0].input.Key).toBe(`${parentGuid}/${childGuid}.md`);
+    expect(calls[0].args[0].input.Key).toBe(`${parentGuid}/${childGuid}/${childGuid}.md`);
   });
 
   it('should use deep nested path for grandchildren', async () => {
@@ -116,7 +116,7 @@ describe('S3 Storage Structure - Correct Paths for Nested Pages', () => {
     await plugin.savePage(childGuid, parentGuid, content);
 
     const calls = s3Mock.commandCalls(PutObjectCommand);
-    expect(calls[0].args[0].input.Key).toBe(`${parentGuid}/${childGuid}.md`);
+    expect(calls[0].args[0].input.Key).toBe(`${parentGuid}/${childGuid}/${childGuid}.md`);
   });
 });
 
@@ -272,7 +272,7 @@ modifiedAt: "2026-02-10T12:00:00Z"
 # Content
 `;
 
-    s3Mock.on(GetObjectCommand, { Key: `${guid}.md` }).resolves({
+    s3Mock.on(GetObjectCommand, { Key: `${guid}/${guid}.md` }).resolves({
       Body: createMockStream(mockContent)(),
     });
 
@@ -299,7 +299,7 @@ modifiedAt: "2026-02-10T12:00:00Z"
 # Content
 `;
 
-    s3Mock.on(GetObjectCommand, { Key: `${guid}.md` }).resolves({
+    s3Mock.on(GetObjectCommand, { Key: `${guid}/${guid}.md` }).resolves({
       Body: createMockStream(mockContent)(),
     });
 
@@ -574,7 +574,7 @@ describe('Edge Cases - Concurrent Operations', () => {
     const targetGuid = uuidv4();
 
     // Mock both pages as root pages
-    s3Mock.on(GetObjectCommand, { Key: `${page1Guid}.md` }).resolves({
+    s3Mock.on(GetObjectCommand, { Key: `${page1Guid}/${page1Guid}.md` }).resolves({
       Body: createMockStream(`---
 guid: "${page1Guid}"
 title: "Page 1"
@@ -591,7 +591,7 @@ modifiedAt: "2026-02-10T12:00:00Z"
 `)(),
     });
 
-    s3Mock.on(GetObjectCommand, { Key: `${page2Guid}.md` }).resolves({
+    s3Mock.on(GetObjectCommand, { Key: `${page2Guid}/${page2Guid}.md` }).resolves({
       Body: createMockStream(`---
 guid: "${page2Guid}"
 title: "Page 2"

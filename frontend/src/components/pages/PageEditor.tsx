@@ -4,10 +4,9 @@
  * Integrates the editor with backend APIs for loading and saving pages.
  * Features:
  * - Load page content on mount
- * - Autosave with optimistic updates
- * - Conflict detection (409 errors)
- * - Loading states and error handling
- * - Retry mechanism for failed saves
+ * - Manual save with simple error handling
+ * - Loading states
+ * - WARNING: Changing pages discards unsaved changes
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -23,66 +22,14 @@ interface PageEditorProps {
   onNavigateToPage?: (guid: string) => void;
 }
 
-interface ConflictDialogProps {
-  isOpen: boolean;
-  onKeepLocal: () => void;
-  onUseRemote: () => void;
-  onCancel: () => void;
-}
-
-const ConflictDialog: React.FC<ConflictDialogProps> = ({
-  isOpen,
-  onKeepLocal,
-  onUseRemote,
-  onCancel,
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-          Conflict Detected
-        </h3>
-        <p className="text-gray-700 dark:text-gray-300 mb-6">
-          This page has been modified by another user. What would you like to do?
-        </p>
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={onKeepLocal}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Keep My Changes (Overwrite)
-          </button>
-          <button
-            onClick={onUseRemote}
-            className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            Use Their Changes (Discard Mine)
-          </button>
-          <button
-            onClick={onCancel}
-            className="w-full px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-          >
-            Cancel (Continue Editing)
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export const PageEditor: React.FC<PageEditorProps> = ({
   pageGuid,
   onNavigateToPage,
 }) => {
   const [content, setContent] = useState('');
   const [metadata, setMetadata] = useState<PageMetadata | undefined>();
-  const [showConflictDialog, setShowConflictDialog] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const lastSavedVersionRef = useRef<string>('');
-  const pendingSaveRef = useRef<UpdatePageRequest | null>(null);
+  const lastLoadedPageGuidRef = useRef<string | undefined>();
 
   // Fetch page details
   const { data: pageData, isLoading, error, refetch } = usePageDetail(pageGuid);
@@ -95,11 +42,15 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   // Update page mutation
   const updatePage = useUpdatePage(pageGuid);
 
-  // Load page content when data is fetched
+  // Load page content when data is fetched or page changes
   useEffect(() => {
-    if (pageData) {
+    if (pageData && pageData.guid === pageGuid) {
+      // Always update content when pageData changes (including fresh data from API)
+      // WARNING: This discards any unsaved changes
       setContent(pageData.content);
-      lastSavedVersionRef.current = pageData.content;
+      lastLoadedPageGuidRef.current = pageGuid;
+      
+      // Always update metadata
       setMetadata({
         title: pageData.title,
         tags: pageData.tags,
@@ -108,11 +59,11 @@ export const PageEditor: React.FC<PageEditorProps> = ({
         modifiedBy: pageData.modifiedBy,
         createdAt: pageData.createdAt,
         modifiedAt: pageData.modifiedAt,
+        guid: pageData.guid,
       });
       setSaveError(null);
-      setRetryCount(0);
     }
-  }, [pageData]);
+  }, [pageData, pageGuid]);
 
   // Handle content changes
   const handleContentChange = useCallback((newContent: string) => {
@@ -124,9 +75,11 @@ export const PageEditor: React.FC<PageEditorProps> = ({
     setMetadata(prev => prev ? { ...prev, ...changes } : undefined);
   }, []);
 
-  // Save function with conflict detection and retry logic
+  // Simple save function
   const handleSave = useCallback(async () => {
-    if (!metadata) return;
+    if (!metadata) {
+      return;
+    }
 
     const updateRequest: UpdatePageRequest = {
       content,
@@ -135,94 +88,30 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       status: metadata.status,
     };
 
-    // Store pending save for retry
-    pendingSaveRef.current = updateRequest;
-
     try {
-      await updatePage.mutateAsync(updateRequest);
+      const updatedPage = await updatePage.mutateAsync(updateRequest);
       
-      // Success: update last saved version
-      lastSavedVersionRef.current = content;
-      setSaveError(null);
-      setRetryCount(0);
-      pendingSaveRef.current = null;
-    } catch (error: unknown) {
-      console.error('Save failed:', error);
-
-      // Check for conflict (409 status)
-      if ((error as { response?: { status?: number } })?.response?.status === 409) {
-        setShowConflictDialog(true);
-        return;
+      // Update metadata with server response
+      if (updatedPage) {
+        setMetadata({
+          title: updatedPage.title,
+          tags: updatedPage.tags,
+          status: updatedPage.status,
+          createdBy: updatedPage.createdBy,
+          modifiedBy: updatedPage.modifiedBy,
+          createdAt: updatedPage.createdAt,
+          modifiedAt: updatedPage.modifiedAt,
+          guid: updatedPage.guid,
+        });
       }
-
-      // Check for network or server errors
-      const err = error as { response?: { status: number; data?: { message?: string } } };
-      if ((err.response?.status && err.response.status >= 500) || !err.response) {
-        // Server error or network error - implement retry
-        if (retryCount < 3) {
-          setSaveError(`Save failed. Retrying... (${retryCount + 1}/3)`);
-          setRetryCount(prev => prev + 1);
-          
-          // Exponential backoff: 2s, 4s, 8s
-          const delay = Math.pow(2, retryCount + 1) * 1000;
-          setTimeout(() => {
-            handleSave();
-          }, delay);
-        } else {
-          setSaveError('Save failed after 3 retries. Your changes are saved locally.');
-          setRetryCount(0);
-        }
-        return;
-      }
-
-      // Other errors (e.g., validation, auth)
-      setSaveError(err.response?.data?.message || 'Failed to save page');
-      setRetryCount(0);
-    }
-  }, [content, metadata, updatePage, retryCount]);
-
-  // Conflict resolution: Keep local changes
-  const handleKeepLocal = useCallback(async () => {
-    setShowConflictDialog(false);
-    
-    if (!pendingSaveRef.current) return;
-
-    try {
-      // Force save with current content (overwrite remote changes)
-      await updatePage.mutateAsync({
-        ...pendingSaveRef.current,
-        // Add force flag if your API supports it
-        // force: true,
-      });
       
-      lastSavedVersionRef.current = content;
       setSaveError(null);
-      pendingSaveRef.current = null;
     } catch (error: unknown) {
-      setSaveError('Failed to save changes. Please try again.');
+      // Display error message
+      const err = error as { response?: { data?: { message?: string } } };
+      setSaveError(err.response?.data?.message || 'Failed to save page. Please try again.');
     }
-  }, [content, updatePage]);
-
-  // Conflict resolution: Use remote changes
-  const handleUseRemote = useCallback(async () => {
-    setShowConflictDialog(false);
-    pendingSaveRef.current = null;
-    
-    // Refetch the page to get latest content
-    const result = await refetch();
-    if (result.data) {
-      setContent(result.data.content);
-      lastSavedVersionRef.current = result.data.content;
-      setSaveError(null);
-    }
-  }, [refetch]);
-
-  // Conflict resolution: Cancel (continue editing)
-  const handleCancelConflict = useCallback(() => {
-    setShowConflictDialog(false);
-    pendingSaveRef.current = null;
-    setSaveError('Conflict not resolved. Changes not saved.');
-  }, []);
+  }, [content, metadata, updatePage]);
 
   // Render loading skeleton
   if (isLoading) {
@@ -295,12 +184,11 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             onSave={handleSave}
             editable={true}
             showPreview={true}
-            enableAutosave={true}
-            autosaveDelay={5000}
             metadata={metadata}
             onMetadataChange={handleMetadataChange}
             showPropertiesPanel={true}
             pageGuid={pageGuid}
+            isSaving={updatePage.isPending}
           />
         </div>
       </div>
@@ -318,14 +206,6 @@ export const PageEditor: React.FC<PageEditorProps> = ({
           }}
         />
       </div>
-
-      {/* Conflict dialog */}
-      <ConflictDialog
-        isOpen={showConflictDialog}
-        onKeepLocal={handleKeepLocal}
-        onUseRemote={handleUseRemote}
-        onCancel={handleCancelConflict}
-      />
     </div>
   );
 };

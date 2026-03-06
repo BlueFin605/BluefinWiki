@@ -9,6 +9,7 @@ export interface PageMetadata {
   modifiedBy: string;
   createdAt: string;
   modifiedAt: string;
+  guid?: string;
 }
 
 interface PagePropertiesPanelProps {
@@ -283,6 +284,18 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
           <p>Modified: {formatTimestamp(metadata.modifiedAt)}</p>
         </div>
       </div>
+
+      {/* Page GUID (Read-only, for debugging) */}
+      {metadata.guid && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Page ID
+          </label>
+          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+            {metadata.guid}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

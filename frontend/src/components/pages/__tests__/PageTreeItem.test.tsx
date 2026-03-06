@@ -35,7 +35,10 @@ describe('PageTreeItem', () => {
     onDragOver: vi.fn(),
     onDrop: vi.fn(),
     onToggleExpand: vi.fn(),
+    onNewChild: vi.fn(),
   };
+
+  const mockExpandedGuids = new Set<string>();
 
   it('renders page title', () => {
     const queryClient = createTestQueryClient();
@@ -45,6 +48,7 @@ describe('PageTreeItem', () => {
         <PageTreeItem
           page={mockPage}
           level={0}
+          expandedGuids={mockExpandedGuids}
           {...mockHandlers}
         />
       </QueryClientProvider>
@@ -61,6 +65,7 @@ describe('PageTreeItem', () => {
         <PageTreeItem
           page={mockPage}
           level={0}
+          expandedGuids={mockExpandedGuids}
           {...mockHandlers}
         />
       </QueryClientProvider>
@@ -82,6 +87,7 @@ describe('PageTreeItem', () => {
         <PageTreeItem
           page={pageWithChildren}
           level={0}
+          expandedGuids={mockExpandedGuids}
           {...mockHandlers}
         />
       </QueryClientProvider>
@@ -103,6 +109,7 @@ describe('PageTreeItem', () => {
         <PageTreeItem
           page={draftPage}
           level={0}
+          expandedGuids={mockExpandedGuids}
           {...mockHandlers}
         />
       </QueryClientProvider>
@@ -123,6 +130,7 @@ describe('PageTreeItem', () => {
         <PageTreeItem
           page={archivedPage}
           level={0}
+          expandedGuids={mockExpandedGuids}
           {...mockHandlers}
         />
       </QueryClientProvider>
@@ -140,6 +148,7 @@ describe('PageTreeItem', () => {
           page={mockPage}
           level={0}
           isActive={true}
+          expandedGuids={mockExpandedGuids}
           {...mockHandlers}
         />
       </QueryClientProvider>
@@ -161,6 +170,7 @@ describe('PageTreeItem', () => {
         <PageTreeItem
           page={pageWithChildren}
           level={0}
+          expandedGuids={mockExpandedGuids}
           {...mockHandlers}
         />
       </QueryClientProvider>

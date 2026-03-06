@@ -81,7 +81,7 @@ describe('S3StoragePlugin', () => {
       expect(s3Mock.commandCalls(PutObjectCommand).length).toBe(1);
       const call = s3Mock.commandCalls(PutObjectCommand)[0];
       expect(call.args[0].input.Bucket).toBe('test-bucket');
-      expect(call.args[0].input.Key).toBe(`${guid}.md`);
+      expect(call.args[0].input.Key).toBe(`${guid}/${guid}.md`);
       expect(call.args[0].input.ContentType).toBe('text/markdown');
       
       // Verify the body contains frontmatter and content
@@ -113,7 +113,7 @@ describe('S3StoragePlugin', () => {
       await plugin.savePage(guid, parentGuid, content);
 
       const call = s3Mock.commandCalls(PutObjectCommand)[0];
-      expect(call.args[0].input.Key).toBe(`${parentGuid}/${guid}.md`);
+      expect(call.args[0].input.Key).toBe(`${parentGuid}/${guid}/${guid}.md`);
     });
 
     it('should include metadata in frontmatter', async () => {
@@ -253,22 +253,44 @@ Content`;
 
       // childContent2 not needed for this test
 
-      // Mock HeadObject for findPageKey - must find parent page first
+      // Mock HeadObject for findPageKey - only parent exists at root level
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
         const key = input.Key as string;
-        if (key === `${guid}.md` || key === `${child1Guid}.md` || key === `${child2Guid}.md` ||
-            key === `${guid}/${child1Guid}.md` || key === `${guid}/${child2Guid}.md`) {
+        // Parent page at root
+        if (key === `${guid}/${guid}.md`) {
           return { ContentLength: 100, LastModified: new Date() };
         }
+        // Children are NOT at root level, they're nested
         throw { name: 'NotFound' };
       });
 
-      // Mock that children exist
-      s3Mock.on(ListObjectsV2Command).resolves({
-        Contents: [
-          { Key: `${guid}/${child1Guid}.md` },
-          { Key: `${guid}/${child2Guid}.md` },
-        ],
+      // Mock that children exist - listChildren uses CommonPrefixes (folders)
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+        // For listChildren: Prefix=${guid}/, Delimiter=/
+        if (input.Prefix === `${guid}/` && input.Delimiter === '/') {
+          return {
+            CommonPrefixes: [
+              { Prefix: `${guid}/${child1Guid}/` },
+              { Prefix: `${guid}/${child2Guid}/` },
+              { Prefix: `${guid}/${guid}/` }, // parent's own folder
+            ],
+          };
+        }
+        // For hasChildrenDirect checks on child pages
+        if ((input.Prefix === `${guid}/${child1Guid}/` || input.Prefix === `${guid}/${child2Guid}/`) && input.Delimiter === '/') {
+          return { CommonPrefixes: [] };
+        }
+        // For findPageKey search (no Prefix/Delimiter) - return all files
+        if (!input.Prefix && !input.Delimiter) {
+          return {
+            Contents: [
+              { Key: `${guid}/${guid}.md` },
+              { Key: `${guid}/${child1Guid}/${child1Guid}.md` },
+              { Key: `${guid}/${child2Guid}/${child2Guid}.md` },
+            ],
+          };
+        }
+        return { Contents: [] };
       });
 
       // Mock GetObject to return streams for children
@@ -297,19 +319,54 @@ modifiedAt: "2026-02-10T12:00:00Z"
 
 Content`;
 
-      // Mock HeadObject for finding pages
-      s3Mock.on(HeadObjectCommand).callsFake(() => {
-        return { ContentLength: 100, LastModified: new Date() };
+      // Mock HeadObject for finding pages - only parent at root
+      s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+        const key = input.Key as string;
+        // Parent at root level
+        if (key === `${guid}/${guid}.md`) {
+          return { ContentLength: 100, LastModified: new Date() };
+        }
+        // Children NOT at root
+        throw { name: 'NotFound' };
       });
 
-      // Multiple ListObjects calls: hasChildren checks and deletion listing
-      // Return children for hasChildren, then all objects for deletion
-      s3Mock.on(ListObjectsV2Command).resolves({
-        Contents: [
-          { Key: `${guid}.md` },
-          { Key: `${guid}/${child1Guid}.md` },
-          { Key: `${guid}/${child2Guid}.md` },
-        ],
+      // Mock ListObjects calls: listChildren uses CommonPrefixes, deletion uses Contents
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+        // For listChildren: Prefix=${guid}/, Delimiter=/
+        if (input.Prefix === `${guid}/` && input.Delimiter === '/') {
+          return {
+            CommonPrefixes: [
+              { Prefix: `${guid}/${child1Guid}/` },
+              { Prefix: `${guid}/${child2Guid}/` },
+              { Prefix: `${guid}/${guid}/` }, // parent's own folder
+            ],
+          };
+        }
+        // For hasChildrenDirect checks on child pages
+        if ((input.Prefix === `${guid}/${child1Guid}/` || input.Prefix === `${guid}/${child2Guid}/`) && input.Delimiter === '/') {
+          return { CommonPrefixes: [] };
+        }
+        // For findPageKey search (no Prefix/Delimiter) - return all files
+        if (!input.Prefix && !input.Delimiter) {
+          return {
+            Contents: [
+              { Key: `${guid}/${guid}.md` },
+              { Key: `${guid}/${child1Guid}/${child1Guid}.md` },
+              { Key: `${guid}/${child2Guid}/${child2Guid}.md` },
+            ],
+          };
+        }
+        // For deletion listing: Prefix=${guid}/, no Delimiter
+        if (input.Prefix === `${guid}/` && !input.Delimiter) {
+          return {
+            Contents: [
+              { Key: `${guid}/${guid}.md` },
+              { Key: `${guid}/${child1Guid}/${child1Guid}.md` },
+              { Key: `${guid}/${child2Guid}/${child2Guid}.md` },
+            ],
+          };
+        }
+        return { Contents: [] };
       });
 
       // Mock GetObject for child pages
@@ -331,7 +388,7 @@ Content`;
 
       // Mock HeadObject to find the page
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${guid}.md`) {
+        if (input.Key === `${guid}/${guid}.md`) {
           return { ContentLength: 100, LastModified: new Date() };
         }
         throw { name: 'NotFound' };
@@ -340,13 +397,13 @@ Content`;
       s3Mock.on(ListObjectVersionsCommand).resolves({
         Versions: [
           {
-            Key: `${guid}.md`,
+            Key: `${guid}/${guid}.md`,
             VersionId: 'v2',
             LastModified: new Date('2026-02-10T14:00:00Z'),
             Size: 200,
           },
           {
-            Key: `${guid}.md`,
+            Key: `${guid}/${guid}.md`,
             VersionId: 'v1',
             LastModified: new Date('2026-02-10T12:00:00Z'),
             Size: 150,
@@ -415,23 +472,23 @@ Content`;
       s3Mock.on(ListObjectsV2Command).callsFake((_input: any) => {
         listCallCount++;
         if (listCallCount === 1) {
-          // First call: list root pages
+          // First call: list root pages (return folders as CommonPrefixes)
           return {
-            Contents: [
-              { Key: `${guid1}.md` },
-              { Key: `${guid2}.md` },
+            CommonPrefixes: [
+              { Prefix: `${guid1}/` },
+              { Prefix: `${guid2}/` },
             ],
           };
         }
         // Subsequent calls for hasChildren checks - return empty
-        return { Contents: [] };
+        return { Contents: [], CommonPrefixes: [] };
       });
 
       // Mock GetObject with fresh streams
       s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${guid1}.md`) {
+        if (input.Key === `${guid1}/${guid1}.md`) {
           return { Body: createMockStream(markdownContent1)() } as any;
-        } else if (input.Key === `${guid2}.md`) {
+        } else if (input.Key === `${guid2}/${guid2}.md`) {
           return { Body: createMockStream(markdownContent2)() } as any;
         }
         throw { name: 'NoSuchKey' };
@@ -439,7 +496,7 @@ Content`;
 
       // Mock HeadObject for findPageKey
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${guid1}.md` || input.Key === `${guid2}.md`) {
+        if (input.Key === `${guid1}/${guid1}.md` || input.Key === `${guid2}/${guid2}.md`) {
           return { ContentLength: 100, LastModified: new Date() };
         }
         throw { name: 'NotFound' };
@@ -473,41 +530,44 @@ Content`;
         return { Body: createMockStream(childContent)() } as any;
       });
 
-      // Mock HeadObject for findPageKey - handle root check first, then folder check
+      // Mock HeadObject for findPageKey - parent and child pages
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        // Root check will fail, folder check will succeed
-        if (input.Key === `${childGuid}.md`) {
-          throw { name: 'NotFound' };
+        // Parent at root level
+        if (input.Key === `${parentGuid}/${parentGuid}.md`) {
+          return { ContentLength: 100, LastModified: new Date() };
         }
-        if (input.Key === `${parentGuid}/${childGuid}.md`) {
+        // Child page under parent
+        if (input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
           return { ContentLength: 100, LastModified: new Date() };
         }
         throw { name: 'NotFound' };
       });
 
-      // Mock ListObjectsV2Command for findPageKey when root check fails
+      // Mock ListObjectsV2Command
       s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-        // If it's searching for the child page key
-        if (!input.Prefix || input.Prefix === '') {
+        // For finding pages (no Prefix/Delimiter) - return all pages
+        if (!input.Prefix && !input.Delimiter) {
           return {
             Contents: [
-              { Key: `${parentGuid}/${childGuid}.md` },
+              { Key: `${parentGuid}/${parentGuid}.md` },
+              { Key: `${parentGuid}/${childGuid}/${childGuid}.md` },
             ],
           };
         }
-        // For hasChildren checks or list children calls
-        if (input.Prefix === `${parentGuid}/`) {
+        // For listing children of parent (with Delimiter)
+        if (input.Prefix === `${parentGuid}/` && input.Delimiter === '/') {
           return {
-            Contents: [
-              { Key: `${parentGuid}/${childGuid}.md` },
+            CommonPrefixes: [
+              { Prefix: `${parentGuid}/${childGuid}/` },
+              { Prefix: `${parentGuid}/${parentGuid}/` }, // parent's own folder
             ],
           };
         }
-        // For hasChildren check on child page
-        if (input.Prefix === `${childGuid}/`) {
-          return { Contents: [] };
+        // For hasChildrenDirect checks on child
+        if (input.Prefix === `${parentGuid}/${childGuid}/` && input.Delimiter === '/') {
+          return { CommonPrefixes: [] };
         }
-        return { Contents: [] };
+        return { Contents: [], CommonPrefixes: [] };
       });
 
       const children = await plugin.listChildren(parentGuid);
@@ -548,7 +608,7 @@ Content`;
 
       // Mock finding the page at root level
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${guid}.md`) {
+        if (input.Key === `${guid}/${guid}.md`) {
           return { ContentLength: 100, LastModified: new Date() };
         }
         throw { name: 'NotFound' };
@@ -600,7 +660,7 @@ Content`;
       // Mock ListObjectsV2 to find page under parent
       s3Mock.on(ListObjectsV2Command).resolves({
         Contents: [
-          { Key: `${oldParentGuid}/${guid}.md` },
+          { Key: `${oldParentGuid}/${guid}/${guid}.md` },
         ],
       });
 
@@ -716,25 +776,25 @@ Content`;
 
       s3Mock.on(ListObjectsV2Command).resolves({
         Contents: [
-          { Key: `${parentGuid}/${childGuid}.md` },
-          { Key: `${parentGuid}.md` },
+          { Key: `${parentGuid}/${childGuid}/${childGuid}.md` },
+          { Key: `${parentGuid}/${parentGuid}.md` },
         ],
       });
 
       s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
         const key = input.Key;
-        if (key === `${childGuid}.md`) {
+        if (key === `${childGuid}/${childGuid}.md`) {
           throw { name: 'NotFound' };
-        } else if (key === `${parentGuid}.md`) {
+        } else if (key === `${parentGuid}/${parentGuid}.md`) {
           return {};
         }
         return {};
       });
 
       s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-        if (input.Key === `${parentGuid}/${childGuid}.md`) {
+        if (input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
           return { Body: createMockStream(childContent)() } as any;
-        } else if (input.Key === `${parentGuid}.md`) {
+        } else if (input.Key === `${parentGuid}/${parentGuid}.md`) {
           return { Body: createMockStream(parentContent)() } as any;
         }
         throw new Error('Key not found');
@@ -798,9 +858,9 @@ Content`;
 
       s3Mock.on(ListObjectsV2Command).resolves({
         Contents: [
-          { Key: `${parentGuid}/${childGuid}/${grandchildGuid}.md` },
-          { Key: `${parentGuid}/${childGuid}.md` },
-          { Key: `${parentGuid}.md` },
+          { Key: `${parentGuid}/${childGuid}/${grandchildGuid}/${grandchildGuid}.md` },
+          { Key: `${parentGuid}/${childGuid}/${childGuid}.md` },
+          { Key: `${parentGuid}/${parentGuid}.md` },
         ],
       });
 
@@ -809,7 +869,7 @@ Content`;
           return { Body: createMockStream(grandchildContent)() } as any;
         } else if (input.Key.includes(childGuid) && !input.Key.includes(grandchildGuid)) {
           return { Body: createMockStream(childContent)() } as any;
-        } else if (input.Key === `${parentGuid}.md`) {
+        } else if (input.Key === `${parentGuid}/${parentGuid}.md`) {
           return { Body: createMockStream(parentContent)() } as any;
         }
         throw new Error('Key not found');

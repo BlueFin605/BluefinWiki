@@ -7,31 +7,42 @@
 
 import React, { useState } from 'react';
 import { PageTreeNode } from '../../types/page';
+import { usePageChildren } from '../../hooks/usePages';
 
 interface PageTreeItemProps {
   page: PageTreeNode;
   level: number;
   isActive?: boolean;
+  expandedGuids: Set<string>;
   onSelect: (guid: string) => void;
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
   onDragStart: (event: React.DragEvent, page: PageTreeNode) => void;
   onDragOver: (event: React.DragEvent, page: PageTreeNode) => void;
   onDrop: (event: React.DragEvent, page: PageTreeNode) => void;
   onToggleExpand: (guid: string) => void;
+  onNewChild: (page: PageTreeNode) => void;
 }
 
 export const PageTreeItem: React.FC<PageTreeItemProps> = ({
   page,
   level,
   isActive = false,
+  expandedGuids,
   onSelect,
   onContextMenu,
   onDragStart,
   onDragOver,
   onDrop,
   onToggleExpand,
+  onNewChild,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Check if this page is expanded
+  const isExpanded = expandedGuids.has(page.guid);
+
+  // Fetch children when page is expanded
+  const { data: children = [] } = usePageChildren(isExpanded ? page.guid : null);
 
   const handleDragOver = (event: React.DragEvent) => {
     event.preventDefault();
@@ -52,9 +63,9 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       onSelect(page.guid);
-    } else if (event.key === 'ArrowRight' && page.hasChildren && !page.isExpanded) {
+    } else if (event.key === 'ArrowRight' && page.hasChildren && !isExpanded) {
       onToggleExpand(page.guid);
-    } else if (event.key === 'ArrowLeft' && page.hasChildren && page.isExpanded) {
+    } else if (event.key === 'ArrowLeft' && page.hasChildren && isExpanded) {
       onToggleExpand(page.guid);
     }
   };
@@ -65,7 +76,7 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
     <div>
       <div
         className={`
-          flex items-center py-2 px-2 cursor-pointer hover:bg-gray-100 rounded
+          group flex items-center py-2 px-2 cursor-pointer hover:bg-gray-100 rounded
           ${isActive ? 'bg-blue-50 border-l-4 border-blue-600' : ''}
           ${isDragOver ? 'bg-blue-100 border-2 border-blue-400 border-dashed' : ''}
         `}
@@ -81,7 +92,7 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
         tabIndex={0}
         role="treeitem"
         aria-selected={isActive}
-        aria-expanded={page.hasChildren ? page.isExpanded : undefined}
+        aria-expanded={page.hasChildren ? isExpanded : undefined}
       >
         {/* Expand/Collapse Icon */}
         {page.hasChildren && (
@@ -91,10 +102,10 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
               e.stopPropagation();
               onToggleExpand(page.guid);
             }}
-            aria-label={page.isExpanded ? 'Collapse' : 'Expand'}
+            aria-label={isExpanded ? 'Collapse' : 'Expand'}
           >
             <svg
-              className={`w-4 h-4 transition-transform ${page.isExpanded ? 'rotate-90' : ''}`}
+              className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
               fill="currentColor"
               viewBox="0 0 20 20"
             >
@@ -129,6 +140,26 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
           {page.title}
         </span>
 
+        {/* Add Child Page Button */}
+        <button
+          className="ml-1 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            onNewChild(page);
+          }}
+          aria-label="Add child page"
+          title="Create child page"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+        </button>
+
         {/* Status Badge */}
         {page.status === 'draft' && (
           <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded">
@@ -143,20 +174,25 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
       </div>
 
       {/* Render Children */}
-      {page.isExpanded && page.children && page.children.length > 0 && (
+      {isExpanded && children.length > 0 && (
         <div role="group">
-          {page.children.map((child) => (
+          {children.map((child) => (
             <PageTreeItem
               key={child.guid}
-              page={child}
+              page={{
+                ...child,
+                children: [],
+              }}
               level={level + 1}
               isActive={isActive}
+              expandedGuids={expandedGuids}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
               onDragStart={onDragStart}
               onDragOver={onDragOver}
               onDrop={onDrop}
               onToggleExpand={onToggleExpand}
+              onNewChild={onNewChild}
             />
           ))}
         </div>

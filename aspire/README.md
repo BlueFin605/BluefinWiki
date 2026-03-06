@@ -70,6 +70,31 @@ The dashboard provides:
 - Docker Desktop (for LocalStack and MailHog containers)
 - Node.js 18+ (for backend and frontend)
 
+## Seed Data Management
+
+**NEW!** You can now export and import test data for repeatable environment setup.
+
+```bash
+cd scripts
+
+# Export current S3 and DynamoDB data
+.\manage-seed-data.ps1 -Action export
+
+# Import from a snapshot
+.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-03"
+
+# Full setup with baseline data
+.\manage-seed-data.ps1 -Action setup
+```
+
+**Use cases:**
+- Capture test data you've manually created
+- Share test data with team members
+- Reset to a known state when testing
+- Update seed data as you add features
+
+See [SEED-DATA.md](SEED-DATA.md) for complete guide.
+
 ## Environment Variables
 
 All environment variables are automatically configured by Aspire:

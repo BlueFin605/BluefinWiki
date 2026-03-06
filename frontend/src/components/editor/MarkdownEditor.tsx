@@ -39,6 +39,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const isUpdatingProgrammaticallyRef = useRef(false);
   
   // Link autocomplete state
   const [autocompleteVisible, setAutocompleteVisible] = useState(false);
@@ -358,9 +359,20 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         },
       ]),
       EditorView.updateListener.of((update) => {
-        if (update.docChanged && onChange) {
+        if (update.docChanged) {
           const content = update.state.doc.toString();
-          onChange(content);
+          console.log('[MarkdownEditor] docChanged detected:', {
+            contentLength: content.length,
+            isUpdatingProgrammatically: isUpdatingProgrammaticallyRef.current,
+            onChangeExists: !!onChange,
+          });
+          
+          if (onChange && !isUpdatingProgrammaticallyRef.current) {
+            console.log('[MarkdownEditor] Calling onChange with new content');
+            onChange(content);
+          } else if (onChange && isUpdatingProgrammaticallyRef.current) {
+            console.log('[MarkdownEditor] docChanged during programmatic update, skipping onChange');
+          }
         }
         
         // Check for [[ trigger on any change
@@ -419,6 +431,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
 
     const currentContent = viewRef.current.state.doc.toString();
     if (currentContent !== initialValue) {
+      isUpdatingProgrammaticallyRef.current = true;
       viewRef.current.dispatch({
         changes: {
           from: 0,
@@ -426,6 +439,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
           insert: initialValue,
         },
       });
+      isUpdatingProgrammaticallyRef.current = false;
     }
   }, [initialValue, isReady]);
 

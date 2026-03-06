@@ -9,21 +9,25 @@
  * - Keyboard navigation
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { PageTreeItem } from './PageTreeItem';
-import { PageTreeNode, PageSummary } from '../../types/page';
+import { PageTreeNode } from '../../types/page';
 import { usePageChildren, useMovePage } from '../../hooks/usePages';
 
 interface PageTreeProps {
   activePageGuid?: string;
   onPageSelect: (guid: string) => void;
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
+  onNewChild: (page: PageTreeNode) => void;
+  onPageMoved?: () => void;
 }
 
 export const PageTree: React.FC<PageTreeProps> = ({
   activePageGuid,
   onPageSelect,
   onContextMenu,
+  onNewChild,
+  onPageMoved,
 }) => {
   const [expandedGuids, setExpandedGuids] = useState<Set<string>>(new Set());
   const [draggedPage, setDraggedPage] = useState<PageTreeNode | null>(null);
@@ -34,34 +38,10 @@ export const PageTree: React.FC<PageTreeProps> = ({
   // Move page mutation
   const movePage = useMovePage(draggedPage?.guid || '');
 
-  // Build tree structure recursively
-  const buildTree = useCallback(
-    (pages: PageSummary[]): PageTreeNode[] => {
-      return pages.map((page) => ({
-        ...page,
-        isExpanded: expandedGuids.has(page.guid),
-        children: [],
-      }));
-    },
-    [expandedGuids]
-  );
-
-  const [treeData, setTreeData] = useState<PageTreeNode[]>([]);
-
-  // Load children for expanded nodes
-  useEffect(() => {
-    const loadChildren = async () => {
-      const tree = buildTree(rootPages);
-
-      // For each expanded node, we'd need to load its children
-      // For now, we'll keep a flat structure and add recursive loading later
-      // This is a simplified version that only shows root pages
-
-      setTreeData(tree);
-    };
-
-    loadChildren();
-  }, [rootPages, buildTree]);
+  // Build tree structure from root pages
+  const treeData = React.useMemo(() => {
+    return rootPages;
+  }, [rootPages]);
 
   // Toggle expand/collapse
   const handleToggleExpand = useCallback((guid: string) => {
@@ -118,6 +98,8 @@ export const PageTree: React.FC<PageTreeProps> = ({
         });
 
         setDraggedPage(null);
+        // Trigger parent refresh
+        onPageMoved?.();
       } catch (error) {
         console.error('Failed to move page:', error);
         alert('Failed to move page. Please try again.');
@@ -164,10 +146,12 @@ export const PageTree: React.FC<PageTreeProps> = ({
           page={page}
           level={0}
           isActive={page.guid === activePageGuid}
+          expandedGuids={expandedGuids}
           onSelect={onPageSelect}
           onContextMenu={onContextMenu}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
+          onNewChild={onNewChild}
           onDrop={handleDrop}
           onToggleExpand={handleToggleExpand}
         />

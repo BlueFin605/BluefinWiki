@@ -95,7 +95,7 @@ describe('Page Operations - Rename Pages', () => {
 
     const saveCalls = s3Mock.commandCalls(PutObjectCommand);
     expect(saveCalls).toHaveLength(1);
-    expect(saveCalls[0].args[0].input.Key).toBe(`${pageGuid}.md`);
+    expect(saveCalls[0].args[0].input.Key).toBe(`${pageGuid}/${pageGuid}.md`);
 
     const body = saveCalls[0].args[0].input.Body as string;
     expect(body).toContain(`title: "${newTitle}"`);
@@ -106,7 +106,7 @@ describe('Page Operations - Rename Pages', () => {
     const childGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}.md` || input.Key === `${parentGuid}/${childGuid}.md`) {
+      if (input.Key === `${parentGuid}/${parentGuid}.md` || input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
@@ -117,8 +117,8 @@ describe('Page Operations - Rename Pages', () => {
       if (!input.Prefix && !input.Delimiter) {
         return Promise.resolve({
           Contents: [
-            { Key: `${parentGuid}.md` },
-            { Key: `${parentGuid}/${childGuid}.md` },
+            { Key: `${parentGuid}/${parentGuid}.md` },
+            { Key: `${parentGuid}/${childGuid}/${childGuid}.md` },
           ],
         });
       }
@@ -126,12 +126,12 @@ describe('Page Operations - Rename Pages', () => {
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${parentGuid}.md`) {
+      if (input.Key === `${parentGuid}/${parentGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(parentGuid, 'Parent', null))(),
         });
       }
-      if (input.Key === `${parentGuid}/${childGuid}.md`) {
+      if (input.Key === `${parentGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(childGuid, 'Child', parentGuid))(),
         });
