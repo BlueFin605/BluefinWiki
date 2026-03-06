@@ -77,28 +77,30 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   }, [onSave, isDirty, content]);
 
-  // Update content when navigating to a different page
+  // Update content ONLY when navigating to a different page
+  // EditorPane owns the content state - PageEditor just provides initial content
   useEffect(() => {
     const pageChanged = pageGuid !== lastLoadedPageGuidRef.current;
     
-    console.log('EditorPane effect:', {
-      pageGuid,
-      lastLoaded: lastLoadedPageGuidRef.current,
-      pageChanged,
-      initialContent: initialContent.substring(0, 50),
-      savedContent: savedContentRef.current.substring(0, 50),
-      willUpdate: pageChanged || initialContent !== savedContentRef.current
-    });
-    
-    // Update if page changed OR if initial content changed for the same page (data just loaded)
+    // Update when:
+    // 1. Switching to a different page (pageChanged), OR
+    // 2. Fresh data arrived for current page (initialContent changed from what we loaded)
+    //    This happens when navigating back and API returns fresh data
     // WARNING: When changing pages, all unsaved changes are lost
-    if (pageChanged || initialContent !== savedContentRef.current) {
-      console.log('EditorPane: Updating content to:', initialContent.substring(0, 50));
+    if (pageChanged) {
+      // New page - load it
       setContent(initialContent);
       savedContentRef.current = initialContent;
       lastLoadedPageGuidRef.current = pageGuid;
+    } else if (initialContent !== savedContentRef.current) {
+      // Same page but fresh data from API (e.g., navigated back after saving)
+      // Only update if we haven't made local edits (content === savedContentRef)
+      if (content === savedContentRef.current) {
+        setContent(initialContent);
+        savedContentRef.current = initialContent;
+      }
     }
-  }, [pageGuid, initialContent]);
+  }, [pageGuid, initialContent, content]);
 
   // Handle toolbar action
   const handleToolbarAction = useCallback((action: ToolbarAction) => {
