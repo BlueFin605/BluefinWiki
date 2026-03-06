@@ -10,12 +10,14 @@ import {
 } from './components/auth';
 import { PagesView } from './components/pages/PagesView';
 
-// Create a query client for React Query
+// Query client with NO caching - always fetch fresh data
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
+      staleTime: 0,      // Data is immediately stale
+      cacheTime: 0,      // Don't cache data at all
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
     },
   },
 });

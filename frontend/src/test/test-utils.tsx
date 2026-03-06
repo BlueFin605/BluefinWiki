@@ -15,12 +15,7 @@ export function renderWithProviders(
   ui: ReactElement,
   options?: Omit<RenderOptions, 'wrapper'>
 ) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
+  const queryClient = new QueryClient();
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (

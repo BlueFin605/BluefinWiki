@@ -19,6 +19,7 @@ interface PageTreeProps {
   onPageSelect: (guid: string) => void;
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
   onNewChild: (page: PageTreeNode) => void;
+  onPageMoved?: () => void;
 }
 
 export const PageTree: React.FC<PageTreeProps> = ({
@@ -26,6 +27,7 @@ export const PageTree: React.FC<PageTreeProps> = ({
   onPageSelect,
   onContextMenu,
   onNewChild,
+  onPageMoved,
 }) => {
   const [expandedGuids, setExpandedGuids] = useState<Set<string>>(new Set());
   const [draggedPage, setDraggedPage] = useState<PageTreeNode | null>(null);
@@ -96,6 +98,8 @@ export const PageTree: React.FC<PageTreeProps> = ({
         });
 
         setDraggedPage(null);
+        // Trigger parent refresh
+        onPageMoved?.();
       } catch (error) {
         console.error('Failed to move page:', error);
         alert('Failed to move page. Please try again.');

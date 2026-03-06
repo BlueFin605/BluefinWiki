@@ -150,16 +150,12 @@ export const handler = withAuth(async (
       changes: Object.keys(updates),
     });
 
-    // Return success response
+    // Return success response with full page content
+    // This allows the frontend to update the cache without requiring invalidation
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        guid,
-        title: updatedPage.title,
-        modifiedAt: now,
-        modifiedBy: user.userId,
-      }),
+      body: JSON.stringify(updatedPage),
     };
   } catch (err: unknown) {
     console.error('Error updating page:', err);

@@ -155,6 +155,35 @@ Here's what **most wiki systems** have and your coverage status:
 3. ~~Advanced exports~~ - Covered in spec #14 ✅
 4. RSS feeds - Still missing
 5. Page redirects - Still missing
+6. **Autosave functionality** - REMOVED FROM MVP (manual save only), to be added post-MVP
+7. **Frontend caching (React Query)** - REMOVED FROM MVP, to be added post-MVP for performance optimization
+8. **PDF caching** - Deferred to post-MVP
+9. **Search results caching** - Deferred to post-MVP
+
+### 📝 **MVP Simplifications (March 2026)**
+
+To expedite MVP delivery, the following features were temporarily removed and will be re-implemented post-MVP:
+
+#### **Editor Autosave → Manual Save Only**
+- **Removed**: Automatic save with debouncing, unsaved changes warnings
+- **Current**: Manual save button with simple change indicator (saved/unsaved/saving states)
+- **Impact**: Users must click Save button; navigating away loses unsaved changes
+- **Post-MVP Plan**: 
+  - Re-implement autosave with 5-second debounce
+  - Add browser navigation warnings for unsaved changes
+  - Consider localStorage backup for recovery
+
+#### **Frontend Caching → No Client Caching**
+- **Removed**: React Query caching of API responses
+- **Current**: Fresh data fetched on every request
+- **Impact**: Slightly more API calls, but acceptable for MVP with 3-20 concurrent users
+- **Post-MVP Plan**:
+  - Implement React Query caching with appropriate TTLs:
+    - Search results: 5-minute cache
+    - Page hierarchy: Cache with invalidation on edits
+    - Page content: Cache with optimistic updates
+  - Add CloudFront API response caching
+  - Consider PDF render caching (1-hour TTL)
 
 ### 💡 **Status Update**
 

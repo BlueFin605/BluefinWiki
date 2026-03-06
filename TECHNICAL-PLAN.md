@@ -80,13 +80,16 @@ BlueFinWiki is a family-focused wiki platform designed for 3-20 users with plugg
 - DynamoDB: Single-digit ms latency, serverless, predictable pricing
 - CloudSearch: Managed search, lower cost than Elasticsearch for small datasets
 
-**Caching Strategy**:
+**Caching Strategy** (Deferred to Post-MVP):
 - **No backend in-memory caching**: Lambda containers are ephemeral (recycled after 15-45min inactivity)
 - For low-traffic family wikis, cold starts would reset cache making it ineffective
 - S3 provides sub-10ms latency which is sufficient for 3-20 concurrent users
-- **Frontend caching**: React Query handles client-side API response caching
-- **CDN caching**: CloudFront caches static assets and optionally API responses
-- **Future optimization**: If needed, use DynamoDB or ElastiCache for shared persistent state across Lambda invocations
+- **Frontend caching**: REMOVED FOR MVP - Manual refresh only, React Query caching deferred to post-MVP
+- **CDN caching**: CloudFront caches static assets only (API caching deferred to post-MVP)
+- **Future optimization**: Post-MVP features:
+  - Implement React Query caching for API responses
+  - Add CloudFront API response caching
+  - Consider DynamoDB or ElastiCache for shared persistent state if needed
 
 ### Infrastructure
 - **IaC**: AWS CDK (C#) or Terraform
@@ -252,7 +255,8 @@ BlueFinWiki is a family-focused wiki platform designed for 3-20 users with plugg
 - [ ] Integrate CodeMirror 6 with Markdown mode
 - [ ] Build split-pane editor (Markdown | Preview)
 - [ ] Implement live preview with react-markdown
-- [ ] Add autosave with debounce (5s)
+- [ ] ~~Add autosave with debounce (5s)~~ DEFERRED TO POST-MVP
+- [ ] Add manual save button with unsaved changes indicator
 - [ ] Create page CRUD endpoints:
   - `/pages` POST (create page in folder)
   - `/pages/{guid}` GET (load page content)
@@ -260,12 +264,12 @@ BlueFinWiki is a family-focused wiki platform designed for 3-20 users with plugg
   - `/pages/{guid}` DELETE (soft delete → archive)
 - [ ] Build frontend editor component
 - [ ] Add Markdown toolbar (bold, italic, headers, lists, links)
-- [ ] Implement unsaved changes warning
+- [ ] ~~Implement unsaved changes warning~~ SIMPLIFIED - Changes lost on navigation (to be revisited post-MVP)
 - [ ] Add page title inline editing
 
 **Deliverables**:
 - Working Markdown editor with live preview
-- Autosave functionality with loading indicators
+- Manual save with unsaved changes indicator (autosave deferred to post-MVP)
 - Page CRUD operations integrated
 
 #### Week 6: Page Links (Spec #5)

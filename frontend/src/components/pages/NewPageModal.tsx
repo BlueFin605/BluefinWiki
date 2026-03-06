@@ -15,13 +15,13 @@ import { useCreatePage } from '../../hooks/usePages';
 interface NewPageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultParentGuid?: string | null;
-}
+  defaultParentGuid?: string | null;  onPageCreated?: () => void;}
 
 export const NewPageModal: React.FC<NewPageModalProps> = ({
   isOpen,
   onClose,
   defaultParentGuid = null,
+  onPageCreated,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -59,6 +59,8 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
     try {
       await createPage.mutateAsync(request);
       handleClose();
+      // Trigger parent refresh
+      onPageCreated?.();
     } catch (error) {
       console.error('Failed to create page:', error);
       setErrors({
