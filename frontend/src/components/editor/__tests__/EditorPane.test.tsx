@@ -226,14 +226,8 @@ describe('EditorPane', () => {
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
 
-    it('should disable autosave when enableAutosave is false', () => {
-      renderWithRouter(<EditorPane enableAutosave={false} />);
-      
-      expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
-    });
-
-    it('should use custom autosave delay', () => {
-      renderWithRouter(<EditorPane autosaveDelay={3000} />);
+    it('should render editor without autosave', () => {
+      renderWithRouter(<EditorPane />);
       
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
@@ -396,20 +390,14 @@ describe('EditorPane', () => {
   });
 
   describe('Save Status Display', () => {
-    it('should show save status when autosave is enabled', () => {
-      renderWithRouter(<EditorPane enableAutosave={true} editable={true} />);
+    it('should show save status when editable', () => {
+      renderWithRouter(<EditorPane editable={true} />);
       
-      // Component should render with autosave enabled
+      // Component should render
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
 
-    it('should not show save status when autosave is disabled', () => {
-      renderWithRouter(<EditorPane enableAutosave={false} />);
-      
-      expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
-    });
-
-    it('should not show save status when not editable', () => {
+    it('should show read-only status when not editable', () => {
       renderWithRouter(<EditorPane editable={false} />);
       
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();

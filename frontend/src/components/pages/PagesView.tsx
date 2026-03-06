@@ -10,7 +10,6 @@
  */
 
 import React, { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PageTree } from './PageTree';
 import { PageContextMenu } from './PageContextMenu';
 import { NewPageModal } from './NewPageModal';
@@ -20,16 +19,6 @@ import { EditorErrorBoundary } from '../common/EditorErrorBoundary';
 import { PageEditor } from './PageEditor';
 import { PageTreeNode } from '../../types/page';
 import { useDeletePage } from '../../hooks/usePages';
-
-// Create a query client for React Query
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-});
 
 export const PagesView: React.FC = () => {
   const [activePageGuid, setActivePageGuid] = useState<string | undefined>();
@@ -46,6 +35,7 @@ export const PagesView: React.FC = () => {
     isOpen: boolean;
     page: PageTreeNode | null;
   }>({ isOpen: false, page: null });
+  const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
 
   const deletePage = useDeletePage();
 
@@ -80,6 +70,8 @@ export const PagesView: React.FC = () => {
       });
       setDeleteConfirm({ isOpen: false, page: null });
       setActivePageGuid(undefined);
+      // Trigger tree refresh
+      setTreeRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Failed to delete page:', error);
       alert('Failed to delete page. Please try again.');
@@ -100,8 +92,22 @@ export const PagesView: React.FC = () => {
     setNewPageModal({ isOpen: true, parentGuid: null });
   };
 
+  const handlePageCreated = () => {
+    // Trigger tree refresh after page creation
+    setTreeRefreshTrigger(prev => prev + 1);
+  };
+
+  const handlePageMoved = () => {
+    // Trigger tree refresh after page move
+    setTreeRefreshTrigger(prev => prev + 1);
+  };
+
+  const handlePageRenamed = () => {
+    // Trigger tree refresh after rename
+    setTreeRefreshTrigger(prev => prev + 1);
+  };
+
   return (
-    <QueryClientProvider client={queryClient}>
       <div className="flex h-screen bg-gray-50">
         {/* Sidebar with page tree */}
         <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
@@ -130,10 +136,12 @@ export const PagesView: React.FC = () => {
           {/* Page Tree */}
           <div className="flex-1 overflow-y-auto p-2">
             <PageTree
+              key={treeRefreshTrigger}
               activePageGuid={activePageGuid}
               onPageSelect={handlePageSelect}
               onContextMenu={handleContextMenu}
               onNewChild={handleNewChild}
+              onPageMoved={handlePageMoved}
             />
           </div>
         </div>
@@ -200,6 +208,7 @@ export const PagesView: React.FC = () => {
           isOpen={newPageModal.isOpen}
           onClose={() => setNewPageModal({ isOpen: false, parentGuid: null })}
           defaultParentGuid={newPageModal.parentGuid}
+          onPageCreated={handlePageCreated}
         />
 
         {/* Delete Confirmation Dialog */}
@@ -225,13 +234,15 @@ export const PagesView: React.FC = () => {
               <h3 className="text-lg font-semibold mb-4">Rename Page</h3>
               <PageRenameInline
                 page={renamingPage}
-                onComplete={() => setRenamingPage(null)}
+                onComplete={() => {
+                  setRenamingPage(null);
+                  handlePageRenamed();
+                }}
                 onCancel={() => setRenamingPage(null)}
               />
             </div>
           </div>
         )}
       </div>
-    </QueryClientProvider>
   );
 };

@@ -1,4 +1,2 @@
-export { useAutosave } from './useAutosave';
-export type { AutosaveOptions, AutosaveState } from './useAutosave';
-export { useUnsavedChanges } from './useUnsavedChanges';
-export type { UseUnsavedChangesOptions } from './useUnsavedChanges';
+// All autosave and unsaved changes functionality has been removed
+// Pages now use manual save only
