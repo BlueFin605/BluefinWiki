@@ -44,17 +44,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
 
   // Load page content when data is fetched or page changes
   useEffect(() => {
-    console.log('PageEditor effect:', {
-      pageGuid,
-      hasPageData: !!pageData,
-      pageDataGuid: pageData?.guid,
-      pageDataContent: pageData?.content?.substring(0, 50),
-      lastLoaded: lastLoadedPageGuidRef.current,
-    });
-    
     if (pageData && pageData.guid === pageGuid) {
-      console.log('PageEditor: Setting content from pageData:', pageData.content.substring(0, 50));
-      
       // Always update content when pageData changes (including fresh data from API)
       // WARNING: This discards any unsaved changes
       setContent(pageData.content);
