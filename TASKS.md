@@ -506,15 +506,17 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Lists (unordered, ordered, task)
   - [X] Links, images, code blocks
   - [X] Keyboard shortcuts (Ctrl+B, Ctrl+I, etc.)
-- [X] Implement autosave mechanism
-  - [X] Debounce save (5 seconds after last edit)
-  - [X] Show "Saving..." indicator
-  - [X] Display last saved timestamp
-  - [X] Handle save errors gracefully
-- [X] Add unsaved changes warning
-  - [X] Detect dirty state
-  - [X] Show prompt on navigation/close
-  - [X] Offer save or discard options
+- [X] Implement autosave mechanism **→ REMOVED FOR MVP (deferred to post-MVP)**
+  - [X] ~~Debounce save (5 seconds after last edit)~~ REMOVED
+  - [X] ~~Show "Saving..." indicator~~ NOW shows manual save status
+  - [X] ~~Display last saved timestamp~~ REMOVED
+  - [X] ~~Handle save errors gracefully~~ Still implemented for manual save
+- [X] Add unsaved changes warning **→ SIMPLIFIED FOR MVP**
+  - [X] Detect dirty state (still implemented)
+  - [X] ~~Show prompt on navigation/close~~ REMOVED - changes lost on navigation (to be revisited post-MVP)
+  - [X] ~~Offer save or discard options~~ REMOVED
+  
+**Note**: Editor now uses manual save only with simple change indicator. Autosave and advanced unsaved changes handling deferred to post-MVP.
 
 #### 5.4 Page Metadata Editing
 - [X] Create page properties panel
@@ -762,11 +764,11 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [ ] Show "Did you mean?" for typos
   - [ ] Display "No results" with suggestions
 
-#### 8.5 Search Performance Optimization
-- [ ] Implement client-side caching
-  - [ ] Cache search results (React Query)
-  - [ ] 5-minute cache TTL
-  - [ ] Invalidate on page edits
+#### 8.5 Search Performance Optimization **→ DEFERRED TO POST-MVP**
+- [ ] Implement client-side caching **→ POST-MVP**
+  - [ ] Cache search results (React Query) **→ POST-MVP**
+  - [ ] 5-minute cache TTL **→ POST-MVP**
+  - [ ] Invalidate on page edits **→ POST-MVP**
 - [ ] Add search analytics
   - [ ] Log search queries (DynamoDB)
   - [ ] Track zero-result queries
@@ -980,7 +982,7 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 - [ ] Implement breadcrumb data fetching
   - [ ] Traverse page hierarchy from current page using parentGuid
   - [ ] Build path array: [root, parent, ..., current]
-  - [ ] Cache page hierarchy (React Query)
+  - [ ] ~~Cache page hierarchy (React Query)~~ **→ DEFERRED TO POST-MVP**
 - [ ] Integrate breadcrumbs into page layout
   - [ ] Position: top of content area, below header
   - [ ] Sticky on scroll (optional)
@@ -1186,7 +1188,7 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [ ] Table of contents (if multiple pages)
   - [ ] Syntax highlighting for code blocks
 - [ ] Optimize PDF generation
-  - [ ] Cache rendered PDFs (1 hour)
+  - [ ] ~~Cache rendered PDFs (1 hour)~~ **→ DEFERRED TO POST-MVP**
   - [ ] Queue exports for large pages (SQS)
   - [ ] Timeout: 30 seconds (Lambda limit)
 

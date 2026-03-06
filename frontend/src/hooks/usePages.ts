@@ -1,8 +1,9 @@
 /**
  * React Query hooks for page operations
+ * Simple implementation without caching logic
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../config/api';
 import {
   PageContent,
@@ -11,16 +12,6 @@ import {
   UpdatePageRequest,
   MovePageRequest,
 } from '../types/page';
-
-// Query keys
-export const pageKeys = {
-  all: ['pages'] as const,
-  children: (parentGuid: string | null) => [...pageKeys.all, 'children', parentGuid] as const,
-  detail: (guid: string) => [...pageKeys.all, 'detail', guid] as const,
-  ancestors: (guid: string) => [...pageKeys.all, 'ancestors', guid] as const,
-  search: (query: string) => [...pageKeys.all, 'search', query] as const,
-  backlinks: (guid: string) => [...pageKeys.all, 'backlinks', guid] as const,
-};
 
 /**
  * Search result for link autocomplete
@@ -56,7 +47,7 @@ export interface BacklinksResponse {
  */
 export const usePageChildren = (parentGuid: string | null) => {
   return useQuery({
-    queryKey: pageKeys.children(parentGuid),
+    queryKey: ['pages', 'children', parentGuid],
     queryFn: async (): Promise<PageSummary[]> => {
       const path = parentGuid ? `/pages/${parentGuid}/children` : '/pages/children';
       const response = await apiClient.get(path);
@@ -70,7 +61,7 @@ export const usePageChildren = (parentGuid: string | null) => {
  */
 export const usePageDetail = (guid: string) => {
   return useQuery({
-    queryKey: pageKeys.detail(guid),
+    queryKey: ['pages', 'detail', guid],
     queryFn: async (): Promise<PageContent> => {
       const response = await apiClient.get(`/pages/${guid}`);
       return response.data;
@@ -84,7 +75,7 @@ export const usePageDetail = (guid: string) => {
  */
 export const usePageAncestors = (guid: string) => {
   return useQuery({
-    queryKey: pageKeys.ancestors(guid),
+    queryKey: ['pages', 'ancestors', guid],
     queryFn: async (): Promise<PageSummary[]> => {
       const response = await apiClient.get(`/pages/${guid}/ancestors`);
       return response.data.ancestors || [];
@@ -97,22 +88,10 @@ export const usePageAncestors = (guid: string) => {
  * Create a new page
  */
 export const useCreatePage = () => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (request: CreatePageRequest): Promise<PageContent> => {
       const response = await apiClient.post('/pages', request);
       return response.data;
-    },
-    onSuccess: (newPage) => {
-      // Invalidate children list for the parent
-      queryClient.invalidateQueries({
-        queryKey: pageKeys.children(newPage.folderId || null),
-      });
-      // Invalidate all children queries to refresh tree
-      queryClient.invalidateQueries({
-        queryKey: pageKeys.all,
-      });
     },
   });
 };
@@ -121,20 +100,10 @@ export const useCreatePage = () => {
  * Update a page
  */
 export const useUpdatePage = (guid: string) => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (request: UpdatePageRequest): Promise<PageContent> => {
       const response = await apiClient.put(`/pages/${guid}`, request);
       return response.data;
-    },
-    onSuccess: (updatedPage) => {
-      // Update the detail cache
-      queryClient.setQueryData(pageKeys.detail(guid), updatedPage);
-      // Invalidate parent's children list
-      queryClient.invalidateQueries({
-        queryKey: pageKeys.children(updatedPage.folderId || null),
-      });
     },
   });
 };
@@ -143,17 +112,9 @@ export const useUpdatePage = (guid: string) => {
  * Move a page to a new parent
  */
 export const useMovePage = (guid: string) => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (request: MovePageRequest): Promise<void> => {
       await apiClient.post(`/pages/${guid}/move`, request);
-    },
-    onSuccess: () => {
-      // Invalidate all children queries to refresh entire tree
-      queryClient.invalidateQueries({
-        queryKey: pageKeys.all,
-      });
     },
   });
 };
@@ -162,8 +123,6 @@ export const useMovePage = (guid: string) => {
  * Delete a page
  */
 export const useDeletePage = () => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       guid,
@@ -176,12 +135,6 @@ export const useDeletePage = () => {
         data: { recursive },
       });
     },
-    onSuccess: () => {
-      // Invalidate all children queries to refresh entire tree
-      queryClient.invalidateQueries({
-        queryKey: pageKeys.all,
-      });
-    },
   });
 };
 
@@ -190,7 +143,7 @@ export const useDeletePage = () => {
  */
 export const usePageSearch = (query: string, options?: { enabled?: boolean; limit?: number }) => {
   return useQuery({
-    queryKey: pageKeys.search(query),
+    queryKey: ['pages', 'search', query],
     queryFn: async (): Promise<PageSearchResult[]> => {
       if (!query || query.trim() === '') {
         return [];
@@ -205,7 +158,6 @@ export const usePageSearch = (query: string, options?: { enabled?: boolean; limi
       return response.data.results || [];
     },
     enabled: options?.enabled !== false && !!query && query.trim() !== '',
-    staleTime: 30000, // Cache for 30 seconds
   });
 };
 
@@ -214,12 +166,11 @@ export const usePageSearch = (query: string, options?: { enabled?: boolean; limi
  */
 export const useBacklinks = (guid: string) => {
   return useQuery({
-    queryKey: pageKeys.backlinks(guid),
+    queryKey: ['pages', 'backlinks', guid],
     queryFn: async (): Promise<BacklinksResponse> => {
       const response = await apiClient.get(`/pages/${guid}/backlinks`);
       return response.data;
     },
     enabled: !!guid,
-    staleTime: 60000, // Cache for 1 minute
   });
 };

@@ -11,7 +11,7 @@ process.env.AWS_REGION = 'us-east-1';
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { extractWikiLinks, saveLinkRelationship, getBacklinks, updatePageLinks, removePageLinks } from '../link-extraction.js';
-import { DynamoDBClient, DeleteTableCommand, CreateTableCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, DeleteTableCommand, CreateTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 
 // LocalStack DynamoDB for testing
@@ -57,8 +57,20 @@ describe('Backlinks Functionality', () => {
       BillingMode: 'PAY_PER_REQUEST',
     }));
 
-    // Wait for table to be ready
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for table to be ready with retry logic
+    let tableReady = false;
+    for (let i = 0; i < 10; i++) {
+      try {
+        await dynamoClient.send(new DescribeTableCommand({ TableName: TEST_TABLE }));
+        tableReady = true;
+        break;
+      } catch (err) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    if (!tableReady) {
+      throw new Error('Failed to create DynamoDB test table');
+    }
 
     // Override environment variable for tests
     process.env.DYNAMODB_PAGE_LINKS_TABLE = TEST_TABLE;

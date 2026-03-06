@@ -86,8 +86,17 @@ describe('Page Operations - Folder Metadata Tests', () => {
     };
 
     s3Mock.on(PutObjectCommand).resolves({});
+    
+    // Mock HeadObjectCommand for findPageKey
+    s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
+        return Promise.resolve({});
+      }
+      return Promise.reject({ name: 'NotFound' });
+    });
+    
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(pageGuid, 'Test Page', null, '# Content'))(),
         });
@@ -111,14 +120,14 @@ describe('Page Operations - Folder Metadata Tests', () => {
     const originalCreatedAt = '2026-02-10T12:00:00Z';
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         const content = `---
 guid: "${pageGuid}"
 title: "Test Page"
@@ -157,8 +166,15 @@ modifiedAt: "${originalCreatedAt}"
   it('should handle pages with empty or null folderId', async () => {
     const pageGuid = uuidv4();
 
+    s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
+        return Promise.resolve({});
+      }
+      return Promise.reject({ name: 'NotFound' });
+    });
+
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${pageGuid}.md`) {
+      if (input.Key === `${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(pageGuid, 'Root Page', null))(),
         });
@@ -229,20 +245,18 @@ describe('Page Operations - Pagination Tests', () => {
     const childrenGuids = Array.from({ length: 10 }, () => uuidv4());
 
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-      // When listing children of parent
+      // When listing children of parent using folder structure
       if (input.Prefix === `${parentGuid}/` && input.Delimiter === '/') {
         return Promise.resolve({
-          Contents: childrenGuids.map(id => ({
-            Key: `${parentGuid}/${id}.md`,
-            LastModified: new Date(),
-            Size: 100,
+          CommonPrefixes: childrenGuids.map(id => ({
+            Prefix: `${parentGuid}/${id}/`,
           })),
         });
       }
       // When searching for a page (findPageKey - no Prefix, no Delimiter)
       if (!input.Prefix && !input.Delimiter) {
         return Promise.resolve({
-          Contents: childrenGuids.map(id => ({ Key: `${parentGuid}/${id}.md` })),
+          Contents: childrenGuids.map(id => ({ Key: `${parentGuid}/${id}/${id}.md` })),
         });
       }
       // When checking if a child has children (hasChildrenDirect)
@@ -253,7 +267,12 @@ describe('Page Operations - Pagination Tests', () => {
     });
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      const matchingGuid = childrenGuids.find(id => input.Key === `${parentGuid}/${id}.md`);
+      // Check parent page
+      if (input.Key === `${parentGuid}/${parentGuid}.md`) {
+        return Promise.resolve({});
+      }
+      // Check child pages
+      const matchingGuid = childrenGuids.find(id => input.Key === `${parentGuid}/${id}/${id}.md`);
       if (matchingGuid) {
         return Promise.resolve({});
       }
@@ -261,7 +280,7 @@ describe('Page Operations - Pagination Tests', () => {
     });
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
-      const matchingGuid = childrenGuids.find(id => input.Key === `${parentGuid}/${id}.md`);
+      const matchingGuid = childrenGuids.find(id => input.Key === `${parentGuid}/${id}/${id}.md`);
       if (matchingGuid) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(matchingGuid, 'Child', parentGuid))(),
@@ -280,8 +299,13 @@ describe('Page Operations - Pagination Tests', () => {
     const secondBatch = Array.from({ length: 5 }, () => uuidv4());
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+      // Check parent page
+      if (input.Key === `${parentGuid}/${parentGuid}.md`) {
+        return Promise.resolve({});
+      }
+      // Check child pages
       const allGuids = [...firstBatch, ...secondBatch];
-      const matchingGuid = allGuids.find(id => input.Key === `${parentGuid}/${id}.md`);
+      const matchingGuid = allGuids.find(id => input.Key === `${parentGuid}/${id}/${id}.md`);
       if (matchingGuid) {
         return Promise.resolve({});
       }
@@ -290,7 +314,7 @@ describe('Page Operations - Pagination Tests', () => {
 
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
       const allGuids = [...firstBatch, ...secondBatch];
-      const matchingGuid = allGuids.find(id => input.Key === `${parentGuid}/${id}.md`);
+      const matchingGuid = allGuids.find(id => input.Key === `${parentGuid}/${id}/${id}.md`);
       if (matchingGuid) {
         return Promise.resolve({
           Body: createMockStream(createMockPageContent(matchingGuid, 'Child', parentGuid))(),
@@ -300,13 +324,11 @@ describe('Page Operations - Pagination Tests', () => {
     });
 
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-      // First batch of children
+      // First batch of children using folder structure
       if (input.Prefix === `${parentGuid}/` && input.Delimiter === '/' && !input.ContinuationToken) {
         return Promise.resolve({
-          Contents: firstBatch.map(id => ({
-            Key: `${parentGuid}/${id}.md`,
-            LastModified: new Date(),
-            Size: 100,
+          CommonPrefixes: firstBatch.map(id => ({
+            Prefix: `${parentGuid}/${id}/`,
           })),
           IsTruncated: true,
           NextContinuationToken: 'token-2',
@@ -315,10 +337,8 @@ describe('Page Operations - Pagination Tests', () => {
       // Second batch of children
       if (input.ContinuationToken === 'token-2') {
         return Promise.resolve({
-          Contents: secondBatch.map(id => ({
-            Key: `${parentGuid}/${id}.md`,
-            LastModified: new Date(),
-            Size: 100,
+          CommonPrefixes: secondBatch.map(id => ({
+            Prefix: `${parentGuid}/${id}/`,
           })),
           IsTruncated: false,
         });
@@ -330,7 +350,7 @@ describe('Page Operations - Pagination Tests', () => {
       // When searching for pages
       if (!input.Prefix && !input.ContinuationToken) {
         return Promise.resolve({
-          Contents: [...firstBatch, ...secondBatch].map(id => ({ Key: `${parentGuid}/${id}.md` })),
+          Contents: [...firstBatch, ...secondBatch].map(id => ({ Key: `${parentGuid}/${id}/${id}.md` })),
         });
       }
       return Promise.resolve({ Contents: [] });
@@ -358,13 +378,13 @@ describe('Page Operations - Pagination Tests', () => {
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
       if (!input.Prefix && !input.ContinuationToken) {
         return Promise.resolve({
-          Contents: guids.slice(0, 1000).map(id => ({ Key: `${id}.md` })),
+          Contents: guids.slice(0, 1000).map(id => ({ Key: `${id}/${id}.md` })),
           IsTruncated: true,
           NextContinuationToken: 'batch-2',
         });
       } else if (input.ContinuationToken === 'batch-2') {
         return Promise.resolve({
-          Contents: guids.slice(1000).map(id => ({ Key: `${id}.md` })),
+          Contents: guids.slice(1000).map(id => ({ Key: `${id}/${id}.md` })),
           IsTruncated: false,
         });
       }

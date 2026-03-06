@@ -1,10 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 import MarkdownPreview from './MarkdownPreview';
 import MarkdownToolbar, { ToolbarAction } from './MarkdownToolbar';
 import PagePropertiesPanel, { PageMetadata } from './PagePropertiesPanel';
-import { useAutosave } from '../../hooks/useAutosave';
-import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { CreatePageFromLinkModal } from '../pages/CreatePageFromLinkModal';
 
 interface EditorPaneProps {
@@ -13,10 +11,6 @@ interface EditorPaneProps {
   onSave?: () => Promise<void> | void;
   editable?: boolean;
   showPreview?: boolean;
-  /** Enable autosave (default: true) */
-  enableAutosave?: boolean;
-  /** Autosave delay in milliseconds (default: 5000) */
-  autosaveDelay?: number;
   /** Page metadata for properties panel */
   metadata?: PageMetadata;
   /** Callback when metadata changes */
@@ -25,6 +19,8 @@ interface EditorPaneProps {
   showPropertiesPanel?: boolean;
   /** Current page GUID for context when creating pages from links */
   pageGuid?: string;
+  /** Is the save operation in progress */
+  isSaving?: boolean;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -36,8 +32,7 @@ type ViewMode = 'split' | 'edit' | 'preview';
  * - Resizable divider between editor and preview
  * - Toggle between split, edit-only, and preview-only modes
  * - Synchronized content between editor and preview
- * - Autosave with debouncing
- * - Unsaved changes warning
+ * - Manual save with unsaved changes indicator
  */
 export const EditorPane: React.FC<EditorPaneProps> = ({
   initialContent = '',
@@ -45,12 +40,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   onSave,
   editable = true,
   showPreview = true,
-  enableAutosave = true,
-  autosaveDelay = 5000,
   metadata,
   onMetadataChange,
   showPropertiesPanel = false,
   pageGuid,
+  isSaving = false,
 }) => {
   const [content, setContent] = useState(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
@@ -61,7 +55,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const editorRef = useRef<MarkdownEditorRef>(null);
-
+  const lastLoadedPageGuidRef = useRef<string | undefined>(pageGuid);
+  const savedContentRef = useRef<string>(initialContent);
+  
+  // Track if content has changed
+  const isDirty = content !== savedContentRef.current;
+  
   const handleContentChange = useCallback((newContent: string) => {
     setContent(newContent);
     if (onContentChange) {
@@ -69,22 +68,39 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   }, [onContentChange]);
 
-  // Autosave hook
-  const { isSaving, lastSaved, isDirty, triggerSave } = useAutosave(content, {
-    onSave: async () => {
-      if (onSave) {
-        await onSave();
-      }
-    },
-    delay: autosaveDelay,
-    enabled: enableAutosave && editable,
-  });
+  // Handle manual save
+  const handleManualSave = useCallback(async () => {
+    if (onSave && isDirty) {
+      await onSave();
+      // Update saved content reference after successful save
+      savedContentRef.current = content;
+    }
+  }, [onSave, isDirty, content]);
 
-  // Unsaved changes warning
-  useUnsavedChanges({
-    isDirty,
-    enabled: enableAutosave && editable,
-  });
+  // Update content ONLY when navigating to a different page
+  // EditorPane owns the content state - PageEditor just provides initial content
+  useEffect(() => {
+    const pageChanged = pageGuid !== lastLoadedPageGuidRef.current;
+    
+    // Update when:
+    // 1. Switching to a different page (pageChanged), OR
+    // 2. Fresh data arrived for current page (initialContent changed from what we loaded)
+    //    This happens when navigating back and API returns fresh data
+    // WARNING: When changing pages, all unsaved changes are lost
+    if (pageChanged) {
+      // New page - load it
+      setContent(initialContent);
+      savedContentRef.current = initialContent;
+      lastLoadedPageGuidRef.current = pageGuid;
+    } else if (initialContent !== savedContentRef.current) {
+      // Same page but fresh data from API (e.g., navigated back after saving)
+      // Only update if we haven't made local edits (content === savedContentRef)
+      if (content === savedContentRef.current) {
+        setContent(initialContent);
+        savedContentRef.current = initialContent;
+      }
+    }
+  }, [pageGuid, initialContent, content]);
 
   // Handle toolbar action
   const handleToolbarAction = useCallback((action: ToolbarAction) => {
@@ -92,11 +108,6 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       editorRef.current.applyToolbarAction(action);
     }
   }, []);
-
-  // Handle manual save (e.g., Ctrl+S)
-  const handleManualSave = useCallback(() => {
-    triggerSave();
-  }, [triggerSave]);
 
   // Handle broken link click - open modal to create page
   const handleBrokenLinkClick = useCallback((linkText: string, linkTarget: string) => {
@@ -119,12 +130,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       });
       
       handleContentChange(updatedContent);
-      triggerSave();
+      // Note: User must manually save after creating page from link
     }
     
     setShowCreatePageModal(false);
     setBrokenLinkData(null);
-  }, [brokenLinkData, content, handleContentChange, triggerSave]);
+  }, [brokenLinkData, content, handleContentChange]);
 
   // Handle divider drag
   const handleMouseDown = useCallback(() => {
@@ -201,42 +212,37 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   );
 
   const renderSaveStatus = () => {
-    if (!enableAutosave || !editable) return null;
+    if (!editable) {
+      return (
+        <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300">
+          Read-only
+        </div>
+      );
+    }
+
+    if (isSaving) {
+      return (
+        <div className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 border border-blue-500 dark:border-blue-400 rounded text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+          <span className="animate-spin">⏳</span>
+          Saving...
+        </div>
+      );
+    }
+
+    if (isDirty) {
+      return (
+        <div className="px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-600 dark:border-yellow-500 rounded text-sm text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
+          <span>●</span>
+          Unsaved changes
+        </div>
+      );
+    }
 
     return (
-      <div className="text-sm text-gray-600 dark:text-gray-400">
-        {isSaving && (
-          <span className="flex items-center gap-1">
-            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            Saving...
-          </span>
-        )}
-        {!isSaving && isDirty && (
-          <span>Unsaved changes</span>
-        )}
-        {!isSaving && !isDirty && lastSaved && (
-          <span>
-            Saved {formatTimestamp(lastSaved)}
-          </span>
-        )}
+      <div className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 border border-green-600 dark:border-green-500 rounded text-sm text-green-700 dark:text-green-300">
+        ✓ All changes saved
       </div>
     );
-  };
-
-  const formatTimestamp = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-
-    if (diffSecs < 10) return 'just now';
-    if (diffSecs < 60) return `${diffSecs}s ago`;
-    if (diffMins < 60) return `${diffMins}m ago`;
-    
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -267,9 +273,21 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       {/* Main Editor Area */}
       <div className="flex-1 flex flex-col">
         {/* Top toolbar with view mode toggle and save status */}
-        <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
+        <div className="flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
             {renderSaveStatus()}
+            {editable && (
+              <button
+                onClick={handleManualSave}
+                disabled={!isDirty || isSaving}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                title={isDirty ? 'Save changes (Ctrl+S)' : 'No changes to save'}
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             {metadata && (
               <button
                 onClick={() => setShowProperties(!showProperties)}
@@ -280,8 +298,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 {showProperties ? '◀ Hide' : '▶ Properties'}
               </button>
             )}
+            {renderViewModeButtons()}
           </div>
-          {renderViewModeButtons()}
         </div>
 
         {/* Markdown formatting toolbar */}

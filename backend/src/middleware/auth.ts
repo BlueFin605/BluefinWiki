@@ -2,15 +2,19 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
 // Environment variables
-const USER_POOL_ID = process.env.USER_POOL_ID!;
-const CLIENT_ID = process.env.CLIENT_ID!;
+const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || process.env.USER_POOL_ID!;
+const CLIENT_ID = process.env.COGNITO_CLIENT_ID || process.env.CLIENT_ID!;
+const IS_LOCAL = process.env.NODE_ENV === 'development' || USER_POOL_ID?.startsWith('local_');
 
-// Create JWT verifier instance (reused across invocations)
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: USER_POOL_ID,
-  tokenUse: 'access',
-  clientId: CLIENT_ID,
-});
+// Create JWT verifier instance (reused across invocations) - skip for local development
+let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+if (!IS_LOCAL) {
+  verifier = CognitoJwtVerifier.create({
+    userPoolId: USER_POOL_ID,
+    tokenUse: 'access',
+    clientId: CLIENT_ID,
+  });
+}
 
 // Extend the APIGatewayProxyEvent to include user context
 export interface AuthenticatedEvent extends APIGatewayProxyEvent {
@@ -68,10 +72,20 @@ export function withAuth(
         };
       }
 
-      // Verify JWT token using Cognito JWKS
+      // Verify JWT token using Cognito JWKS (or decode for local development)
       let payload;
       try {
-        payload = await verifier.verify(token);
+        if (IS_LOCAL) {
+          // For local development, decode JWT without verification
+          // cognito-local generates valid JWTs but with non-standard pool IDs
+          console.log('🔓 Local mode: Decoding JWT without verification');
+          payload = decodeJWT(token);
+        } else {
+          if (!verifier) {
+            throw new Error('Cognito verifier not initialized');
+          }
+          payload = await verifier.verify(token);
+        }
       } catch (error) {
         console.error('JWT verification failed:', error);
         return {
@@ -211,4 +225,25 @@ export function hasPermission(
 
   // Standard users can only access their own resources
   return user.userId === resourceOwnerId;
+}
+
+/**
+ * Decode JWT without verification (for local development only)
+ * This should NEVER be used in production!
+ */
+function decodeJWT(token: string): { sub: string; username?: string; 'cognito:username'?: string; 'cognito:groups'?: string[] } {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWT format');
+    }
+    
+    // Decode the payload (second part)
+    const payload = parts[1];
+    const decoded = Buffer.from(payload, 'base64url').toString('utf8');
+    return JSON.parse(decoded);
+  } catch (error) {
+    console.error('Failed to decode JWT:', error);
+    throw new Error('Invalid JWT token');
+  }
 }

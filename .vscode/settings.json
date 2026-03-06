@@ -41,7 +41,11 @@
         "Start-Process": true,
         "npm run test:integration": true,
         "../node_modules/vitest/vitest.mjs": true,
-        ".\\setup-aspire.ps1": true
+        ".\\setup-aspire.ps1": true,
+        "aws": true,
+        "ConvertFrom-Json": true,
+        "ForEach-Object": true,
+        "npm run import-seed": true
     }
 }
 

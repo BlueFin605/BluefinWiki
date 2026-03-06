@@ -5,14 +5,19 @@
   "scripts": {
     "init-db": "node init-dynamodb.js",
     "seed": "node seed-data.js",
+    "export-seed": "node export-seed-data.js",
+    "import-seed": "node import-seed-data.js",
     "setup-cognito": "node setup-cognito-local.js",
     "setup": "npm run init-db && npm run seed && npm run setup-cognito"
   },
   "dependencies": {
-    "@aws-sdk/client-cognito-identity-provider": "^3.490.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.990.0",
     "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/lib-dynamodb": "^3.490.0",
+    "@aws-sdk/util-dynamodb": "^3.490.0",
     "bcryptjs": "^2.4.3",
+    "glob": "^10.3.10",
     "uuid": "^9.0.1"
   }
 }

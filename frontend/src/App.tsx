@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import {
@@ -10,12 +10,14 @@ import {
 } from './components/auth';
 import { PagesView } from './components/pages/PagesView';
 
-// Create a query client for React Query
+// Query client with NO caching - always fetch fresh data
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
+      staleTime: 0,      // Data is immediately stale
+      cacheTime: 0,      // Don't cache data at all
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
     },
   },
 });
@@ -25,12 +27,12 @@ const Dashboard = () => (
   <div className="min-h-screen bg-gray-50 p-8">
     <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
     <p className="text-gray-600">Welcome to BlueFinWiki!</p>
-    <a
-      href="/pages"
+    <Link
+      to="/pages"
       className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
     >
       Go to Pages
-    </a>
+    </Link>
   </div>
 );
 

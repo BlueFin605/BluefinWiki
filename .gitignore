@@ -14,7 +14,7 @@ out/
 
 # CDK
 cdk.out/
-*.js
+#*.js
 *.d.ts
 !jest.config.js
 !.eslintrc.cjs
