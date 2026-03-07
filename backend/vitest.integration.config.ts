@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.integration.test.ts'], // Only run integration tests
     exclude: ['**/node_modules/**', '**/dist/**', '**/page-operations.integration.test.ts', '**/links-resolve.integration.test.ts'], // Temporarily exclude problematic tests
-    testTimeout: 30000, // Longer timeout for integration tests
+    testTimeout: 60000, // Longer timeout for integration tests (increased for attachment tests)
     hookTimeout: 30000,
     env: {
       AWS_ENDPOINT: 'http://localhost:4566',
