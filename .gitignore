@@ -58,3 +58,15 @@ Thumbs.db
 # AWS
 .aws-sam/
 samconfig.toml
+
+# .NET
+bin/
+obj/
+packages/
+*.user
+*.suo
+
+# Generic env and logs
+.env*
+!.env.example
+*.log

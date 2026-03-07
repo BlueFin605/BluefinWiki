@@ -702,21 +702,21 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Handle server-side validation errors
 
 #### 7.4 Attachment Display & Management
-- [ ] Build attachment list component
-  - [ ] Show filename, size, upload date
-  - [ ] Display file type icon
-  - [ ] Download link to `/pages/{pageGuid}/attachments/{attachmentGuid}` (proxied through API)
-  - [ ] Delete button (admin + author only)
-- [ ] Implement image preview
-  - [ ] Inline thumbnail for images
-  - [ ] Lightbox/modal for full-size view
-  - [ ] Support for common formats (JPEG, PNG, GIF, WebP)
-  - [ ] Image URLs use API endpoint: `/pages/{pageGuid}/attachments/{attachmentGuid}`
-- [ ] Implement delete attachment UI
-  - [ ] Verify permissions client-side (author or admin)
-  - [ ] Call DELETE endpoint via API
-  - [ ] Update UI to remove deleted attachment
-  - [ ] Handle errors gracefully
+- [X] Build attachment list component
+  - [X] Show filename, size, upload date
+  - [X] Display file type icon
+  - [X] Download link to `/pages/{pageGuid}/attachments/{attachmentGuid}` (proxied through API)
+  - [X] Delete button (admin + author only)
+- [X] Implement image preview
+  - [X] Inline thumbnail for images
+  - [X] Lightbox/modal for full-size view
+  - [X] Support for common formats (JPEG, PNG, GIF, WebP)
+  - [X] Image URLs use API endpoint: `/pages/{pageGuid}/attachments/{attachmentGuid}`
+- [X] Implement delete attachment UI
+  - [X] Verify permissions client-side (author or admin)
+  - [X] Call DELETE endpoint via API
+  - [X] Update UI to remove deleted attachment
+  - [X] Handle errors gracefully
 
 #### 7.5 Editor Integration
 - [ ] Add attachment button to editor toolbar

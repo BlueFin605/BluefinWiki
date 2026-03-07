@@ -11,10 +11,12 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { EditorPane } from '../editor/EditorPane';
+import { AttachmentManager } from '../editor/AttachmentManager';
 import { PageMetadata } from '../editor/PagePropertiesPanel';
 import { usePageDetail, useUpdatePage, useBacklinks } from '../../hooks/usePages';
 import { UpdatePageRequest } from '../../types/page';
 import { LinkedPagesPanel } from './LinkedPagesPanel';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface PageEditorProps {
   pageGuid: string;
@@ -26,6 +28,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   pageGuid,
   onNavigateToPage,
 }) => {
+  const { user } = useAuth();
   const [content, setContent] = useState('');
   const [metadata, setMetadata] = useState<PageMetadata | undefined>();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -194,17 +197,28 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       </div>
 
       {/* Linked Pages Sidebar */}
-      <div className="w-80 flex-shrink-0">
-        <LinkedPagesPanel
-          pageGuid={pageGuid}
-          backlinks={backlinksData?.backlinks || []}
-          isLoading={backlinksLoading}
-          onPageClick={(guid) => {
-            if (onNavigateToPage) {
-              onNavigateToPage(guid);
-            }
-          }}
-        />
+      <div className="w-80 flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700">
+        <div className="h-1/2 min-h-0">
+          <LinkedPagesPanel
+            pageGuid={pageGuid}
+            backlinks={backlinksData?.backlinks || []}
+            isLoading={backlinksLoading}
+            onPageClick={(guid) => {
+              if (onNavigateToPage) {
+                onNavigateToPage(guid);
+              }
+            }}
+          />
+        </div>
+
+        <div className="h-1/2 min-h-0 border-t border-gray-200 dark:border-gray-700">
+          <AttachmentManager
+            pageGuid={pageGuid}
+            currentUserId={user?.userId}
+            currentUserRole={user?.role}
+            pageAuthorId={metadata?.createdBy}
+          />
+        </div>
       </div>
     </div>
   );
