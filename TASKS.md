@@ -684,22 +684,22 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Return success/error status
 
 #### 7.3 Frontend Upload UI
-- [ ] Build file upload component
-  - [ ] Drag-and-drop zone
-  - [ ] File picker button (fallback)
-  - [ ] Multi-file upload support
-  - [ ] Progress bar per file
-- [ ] Implement upload flow (multipart/form-data to REST API)
-  - [ ] 1. Create FormData with file
-  - [ ] 2. POST to `/pages/{pageGuid}/attachments` with file
-  - [ ] 3. Track upload progress with XMLHttpRequest progress events
-  - [ ] 4. Receive response with attachmentGuid and metadata
-  - [ ] 5. Insert markdown reference and display in list
-- [ ] Add upload validation
-  - [ ] Check file size before upload (client-side, 10MB images / 50MB docs)
-  - [ ] Validate MIME type client-side
-  - [ ] Show error messages for invalid files
-  - [ ] Handle server-side validation errors
+- [X] Build file upload component
+  - [X] Drag-and-drop zone
+  - [X] File picker button (fallback)
+  - [X] Multi-file upload support
+  - [X] Progress bar per file
+- [X] Implement upload flow (multipart/form-data to REST API)
+  - [X] 1. Create FormData with file
+  - [X] 2. POST to `/pages/{pageGuid}/attachments` with file
+  - [X] 3. Track upload progress with XMLHttpRequest progress events
+  - [X] 4. Receive response with attachmentGuid and metadata
+  - [X] 5. Insert markdown reference and display in list
+- [X] Add upload validation
+  - [X] Check file size before upload (client-side, 10MB images / 50MB docs)
+  - [X] Validate MIME type client-side
+  - [X] Show error messages for invalid files
+  - [X] Handle server-side validation errors
 
 #### 7.4 Attachment Display & Management
 - [ ] Build attachment list component

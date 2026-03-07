@@ -6,3 +6,6 @@ export { MarkdownToolbar } from './MarkdownToolbar';
 export type { ToolbarAction } from './MarkdownToolbar';
 export { PagePropertiesPanel } from './PagePropertiesPanel';
 export type { PageMetadata } from './PagePropertiesPanel';
+export { default as FileUpload } from './FileUpload';
+export { default as AttachmentUploadList } from './AttachmentUploadList';
+export { default as AttachmentUploader } from './AttachmentUploader';
