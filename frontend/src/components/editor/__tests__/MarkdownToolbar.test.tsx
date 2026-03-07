@@ -25,9 +25,10 @@ describe('MarkdownToolbar', () => {
       expect(screen.getByLabelText('Ordered list')).toBeInTheDocument();
       expect(screen.getByLabelText('Task list')).toBeInTheDocument();
       
-      // Link and image buttons
+      // Link, image, and attachment buttons
       expect(screen.getByLabelText('Insert link')).toBeInTheDocument();
       expect(screen.getByLabelText('Insert image')).toBeInTheDocument();
+      expect(screen.getByLabelText('Upload attachment')).toBeInTheDocument();
       
       // Code buttons
       expect(screen.getByLabelText('Inline code')).toBeInTheDocument();
@@ -218,6 +219,43 @@ describe('MarkdownToolbar', () => {
     });
   });
 
+  describe('Attachment Actions (Task 7.5)', () => {
+    it('should render attachment button', () => {
+      render(<MarkdownToolbar onAction={vi.fn()} />);
+      
+      expect(screen.getByLabelText('Upload attachment')).toBeInTheDocument();
+    });
+
+    it('should call onAction with attachment when attachment button is clicked', async () => {
+      const user = userEvent.setup();
+      const onAction = vi.fn();
+      render(<MarkdownToolbar onAction={onAction} />);
+      
+      const attachmentButton = screen.getByLabelText('Upload attachment');
+      await user.click(attachmentButton);
+      
+      expect(onAction).toHaveBeenCalledWith('attachment');
+    });
+
+    it('should disable attachment button when disabled prop is true', () => {
+      render(<MarkdownToolbar onAction={vi.fn()} disabled={true} />);
+      
+      const attachmentButton = screen.getByLabelText('Upload attachment');
+      expect(attachmentButton).toBeDisabled();
+    });
+
+    it('should not call onAction when attachment button is disabled', async () => {
+      const user = userEvent.setup();
+      const onAction = vi.fn();
+      render(<MarkdownToolbar onAction={onAction} disabled={true} />);
+      
+      const attachmentButton = screen.getByLabelText('Upload attachment');
+      await user.click(attachmentButton);
+      
+      expect(onAction).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Code Actions', () => {
     it('should call onAction with code for inline code', async () => {
       const user = userEvent.setup();
@@ -282,6 +320,7 @@ describe('MarkdownToolbar', () => {
       expect(screen.getByLabelText('Task list')).toBeDisabled();
       expect(screen.getByLabelText('Insert link')).toBeDisabled();
       expect(screen.getByLabelText('Insert image')).toBeDisabled();
+      expect(screen.getByLabelText('Upload attachment')).toBeDisabled();
       expect(screen.getByLabelText('Inline code')).toBeDisabled();
       expect(screen.getByLabelText('Code block')).toBeDisabled();
     });
