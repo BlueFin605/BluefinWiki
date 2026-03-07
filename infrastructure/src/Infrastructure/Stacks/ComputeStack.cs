@@ -71,14 +71,12 @@ namespace Infrastructure.Stacks
             
             // Grant Lambda access to S3 buckets
             storageStack.PagesBucket.GrantReadWrite(lambdaRole);
-            storageStack.AttachmentsBucket.GrantReadWrite(lambdaRole);
             storageStack.ExportsBucket.GrantReadWrite(lambdaRole);
             
             // Grant Lambda access to DynamoDB tables
             databaseStack.UserProfilesTable.GrantReadWriteData(lambdaRole);
             databaseStack.InvitationsTable.GrantReadWriteData(lambdaRole);
             databaseStack.PageLinksTable.GrantReadWriteData(lambdaRole);
-            databaseStack.AttachmentsTable.GrantReadWriteData(lambdaRole);
             databaseStack.CommentsTable.GrantReadWriteData(lambdaRole);
             databaseStack.ActivityLogTable.GrantReadWriteData(lambdaRole);
             databaseStack.UserPreferencesTable.GrantReadWriteData(lambdaRole);
@@ -91,12 +89,10 @@ namespace Infrastructure.Stacks
             var commonEnvVars = new Dictionary<string, string>
             {
                 { "PAGES_BUCKET", storageStack.PagesBucket.BucketName },
-                { "ATTACHMENTS_BUCKET", storageStack.AttachmentsBucket.BucketName },
                 { "EXPORTS_BUCKET", storageStack.ExportsBucket.BucketName },
                 { "USER_PROFILES_TABLE", databaseStack.UserProfilesTable.TableName },
                 { "INVITATIONS_TABLE", databaseStack.InvitationsTable.TableName },
                 { "PAGE_LINKS_TABLE", databaseStack.PageLinksTable.TableName },
-                { "ATTACHMENTS_TABLE", databaseStack.AttachmentsTable.TableName },
                 { "COMMENTS_TABLE", databaseStack.CommentsTable.TableName },
                 { "ACTIVITY_LOG_TABLE", databaseStack.ActivityLogTable.TableName },
                 { "USER_PREFERENCES_TABLE", databaseStack.UserPreferencesTable.TableName },

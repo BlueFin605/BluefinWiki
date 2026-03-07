@@ -191,45 +191,51 @@ interface PageLinkRecord {
 
 ---
 
-### 5. Attachments Table
+### 5. Attachments Metadata (Sidecar JSON Files)
 
-**Purpose**: Store metadata for uploaded files (actual files in S3)
+**Purpose**: Store metadata for uploaded files alongside the actual files in S3
 
-**Table Name**: 
-- Production: `bluefinwiki-attachments-{environment}`
-- Local: `bluefinwiki-attachments-local`
+**Storage Location**: S3 Pages Bucket  
+**Format**: Sidecar `.meta.json` files stored with attachments
 
-**Primary Key**:
-- **Partition Key (PK)**: `guid` (String)
+**S3 Structure**:
+```
+bluefinwiki-pages-{environment}/
+  {pageGuid}/
+    page.json                    # Page content
+    _attachments/
+      photo.jpg                  # Actual attachment file
+      photo.jpg.meta.json        # Metadata sidecar file
+      document.pdf
+      document.pdf.meta.json
+```
 
-**Attributes**:
+**Metadata Schema** (in `.meta.json` files):
 ```typescript
-interface AttachmentRecord {
+interface AttachmentMetadata {
   guid: string;             // Attachment GUID
   pageGuid: string;         // Parent page GUID
   filename: string;         // Original filename
   size: number;             // File size in bytes
   mimeType: string;         // MIME type (e.g., 'image/png')
-  s3Key: string;            // S3 object key
   uploadedBy: string;       // Cognito sub (userId)
   uploadedAt: string;       // ISO 8601 timestamp
   status: 'active' | 'deleted';
 }
 ```
 
-**Global Secondary Indexes**:
-
-1. **pageGuid-index**
-   - **Partition Key**: `pageGuid` (String)
-   - **Sort Key**: `uploadedAt` (String)
-   - **Projection**: ALL
-   - **Purpose**: List attachments for a specific page
-
 **Access Patterns**:
-- Get attachment by ID: `Query(PK=guid)`
-- List attachments for page: `Query(GSI=pageGuid-index, PK=pageGuid)`
+- Get attachment metadata: Read `{pageGuid}/_attachments/{filename}.meta.json` from S3
+- List attachments for page: List objects with prefix `{pageGuid}/_attachments/` and filter `.meta.json` files
+- Delete attachment: Delete both the file and its `.meta.json` sidecar
 
-**Billing**: PAY_PER_REQUEST
+**Benefits**:
+- No DynamoDB table needed - reduces infrastructure costs
+- Metadata stays with the file - easier to manage and backup
+- Atomic operations - file and metadata are together
+- Simple cleanup - deleting a page deletes all attachments automatically
+
+**Note**: Previous versions used a DynamoDB table. If already deployed, the table can remain for backwards compatibility but should not be used in new code.
 
 ---
 
@@ -431,7 +437,6 @@ interface SiteConfigRecord {
 
 ✅ **Relational Metadata**
 - Page links (backlinks tracking)
-- Attachments metadata (files stored in S3)
 - Comments and discussions
 
 ✅ **System Data**
@@ -448,8 +453,8 @@ interface SiteConfigRecord {
 - Example: `pages/{guid}.json`, `folders/{guid}.json`
 
 ❌ **File Attachments**
-- Stored in S3 buckets
-- Only metadata in DynamoDB
+- Stored in S3 at {pageGuid}/_attachments/
+- Metadata in sidecar .meta.json files (not DynamoDB)
 
 ❌ **Search Index**
 - Managed by AWS CloudSearch
@@ -468,7 +473,6 @@ interface SiteConfigRecord {
 | Users | 3,000 | 150 | 0.01 | $0.01 |
 | Invitations | 100 | 50 | 0.001 | $0.01 |
 | Page Links | 5,000 | 500 | 0.05 | $0.05 |
-| Attachments | 2,000 | 200 | 0.02 | $0.02 |
 | Comments | 3,000 | 300 | 0.03 | $0.03 |
 | Activity Log | 1,000 | 2,000 | 0.1 | $0.10 |
 | User Prefs | 500 | 100 | 0.001 | $0.01 |

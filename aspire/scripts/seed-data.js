@@ -37,7 +37,7 @@ const s3Client = new S3Client({
 });
 
 const PAGES_BUCKET = 'bluefinwiki-pages-local';
-const ATTACHMENTS_BUCKET = 'bluefinwiki-attachments-local';
+// Note: Attachments stored in PAGES_BUCKET at {pageGuid}/_attachments/
 
 // Test users
 const ADMIN_USER_ID = uuidv4();
