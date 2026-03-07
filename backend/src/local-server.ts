@@ -27,6 +27,7 @@ import { handler as pagesListChildren } from './pages/pages-list-children.js';
 import { handler as pagesMove } from './pages/pages-move.js';
 import { handler as pagesSearch } from './pages/pages-search.js';
 import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
+import { pagesAttachmentsUpload, pagesAttachmentsDownload } from './pages/index.js';
 import { handler as linksResolve } from './pages/links-resolve.js';
 import { handler as authRegister } from './auth/auth-register.js';
 import { handler as authMe } from './auth/auth-me.js';
@@ -65,11 +66,17 @@ function toLambdaEvent(req: Request): APIGatewayProxyEvent {
   });
 
   const event: APIGatewayProxyEvent = {
-    body: req.body ? JSON.stringify(req.body) : null,
+    body: req.body
+      ? Buffer.isBuffer(req.body)
+        ? req.body.toString('base64')
+        : typeof req.body === 'string'
+          ? req.body
+          : JSON.stringify(req.body)
+      : null,
     headers,
     multiValueHeaders: {},
     httpMethod: req.method,
-    isBase64Encoded: false,
+    isBase64Encoded: Buffer.isBuffer(req.body),
     path: req.path,
     pathParameters: req.params as { [name: string]: string } | null,
     queryStringParameters: req.query as { [name: string]: string } | null,
@@ -176,6 +183,12 @@ app.post('/pages/:guid/move', wrapLambdaHandler(pagesMove));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
 app.get('/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
+app.post(
+  '/pages/:pageGuid/attachments',
+  express.raw({ type: () => true, limit: '60mb' }),
+  wrapLambdaHandler(pagesAttachmentsUpload)
+);
+app.get('/pages/:pageGuid/attachments/:attachmentGuid', wrapLambdaHandler(pagesAttachmentsDownload));
 
 // ============================================================================
 // API Routes - Authentication

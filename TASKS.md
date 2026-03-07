@@ -629,25 +629,25 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Note: Keep table if already deployed for now; just don't use it in new code
 
 #### 7.1 Upload Infrastructure (using Pages Bucket)
-- [ ] Implement storage plugin attachment methods
-  - [ ] Storage path: `page-guid/_attachments/` within pages bucket
-  - [ ] `uploadAttachment(pageGuid, file)`: Upload to S3 at `{pageGuid}/_attachments/{attachmentGuid}.{ext}`
-  - [ ] `deleteAttachment(pageGuid, attachmentGuid)`: Remove file from S3
-  - [ ] `getAttachmentUrl(pageGuid, attachmentGuid)`: Generate temporary download URL
-  - [ ] Generate unique attachment GUIDs to avoid collisions
-- [ ] Implement attachment upload endpoint (multipart/form-data)
-  - [ ] API: `POST /pages/{pageGuid}/attachments` (multipart upload)
-  - [ ] Accept file via multipart/form-data streaming
-  - [ ] Validate file type during upload (whitelist: images, PDFs, docs per FR-003, FR-004)
-  - [ ] Enforce size limits: 10MB images, 50MB documents (FR-007)
-  - [ ] Stream to storage plugin's `uploadAttachment()` method
-  - [ ] Create .meta.json sidecar file with metadata
-  - [ ] Return: attachmentGuid, filename, size, url
-- [ ] Implement attachment download endpoint
-  - [ ] API: `GET /pages/{pageGuid}/attachments/{attachmentGuid}`
-  - [ ] Proxy download from storage plugin
-  - [ ] Set proper Content-Type and Content-Disposition headers
-  - [ ] Stream file to client (don't load fully into memory)
+- [X] Implement storage plugin attachment methods
+  - [X] Storage path: `page-guid/_attachments/` within pages bucket
+  - [X] `uploadAttachment(pageGuid, file)`: Upload to S3 at `{pageGuid}/_attachments/{attachmentGuid}.{ext}`
+  - [X] `deleteAttachment(pageGuid, attachmentGuid)`: Remove file from S3
+  - [X] `getAttachmentUrl(pageGuid, attachmentGuid)`: Generate temporary download URL
+  - [X] Generate unique attachment GUIDs to avoid collisions
+- [X] Implement attachment upload endpoint (multipart/form-data)
+  - [X] API: `POST /pages/{pageGuid}/attachments` (multipart upload)
+  - [X] Accept file via multipart/form-data streaming
+  - [X] Validate file type during upload (whitelist: images, PDFs, docs per FR-003, FR-004)
+  - [X] Enforce size limits: 10MB images, 50MB documents (FR-007)
+  - [X] Stream to storage plugin's `uploadAttachment()` method
+  - [X] Create .meta.json sidecar file with metadata
+  - [X] Return: attachmentGuid, filename, size, url
+- [X] Implement attachment download endpoint
+  - [X] API: `GET /pages/{pageGuid}/attachments/{attachmentGuid}`
+  - [X] Proxy download from storage plugin
+  - [X] Set proper Content-Type and Content-Disposition headers
+  - [X] Stream file to client (don't load fully into memory)
 
 #### 7.2 Attachment Metadata & Listing (Sidecar JSON Files)
 - [ ] Metadata file creation (part of upload endpoint above)

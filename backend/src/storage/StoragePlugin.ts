@@ -13,7 +13,14 @@
  * - This enables hierarchical organization without a separate folder concept
  */
 
-import { PageContent, Version, PageSummary } from '../types/index.js';
+import {
+  PageContent,
+  Version,
+  PageSummary,
+  AttachmentUploadInput,
+  AttachmentUploadResult,
+  AttachmentMetadata,
+} from '../types/index.js';
 
 export interface StoragePlugin {
   /**
@@ -77,6 +84,41 @@ export interface StoragePlugin {
    * @throws StoragePluginError if circular reference detected or move fails
    */
   movePage(guid: string, newParentGuid: string | null): Promise<void>;
+
+  /**
+   * Upload an attachment for a page
+   *
+   * @param pageGuid - Page GUID to attach to
+   * @param file - Attachment file details
+   * @returns Upload result with attachment GUID and storage key
+   */
+  uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult>;
+
+  /**
+   * Delete an attachment from a page
+   *
+   * @param pageGuid - Page GUID
+   * @param attachmentGuid - Attachment GUID
+   */
+  deleteAttachment(pageGuid: string, attachmentGuid: string): Promise<void>;
+
+  /**
+   * Save sidecar metadata for an attachment
+   *
+   * @param pageGuid - Page GUID
+   * @param attachmentGuid - Attachment GUID
+   * @param metadata - Attachment metadata payload
+   */
+  saveAttachmentMetadata(pageGuid: string, attachmentGuid: string, metadata: AttachmentMetadata): Promise<void>;
+
+  /**
+   * Get a temporary URL for attachment download
+   *
+   * @param pageGuid - Page GUID
+   * @param attachmentGuid - Attachment GUID
+   * @returns Temporary URL
+   */
+  getAttachmentUrl(pageGuid: string, attachmentGuid: string): Promise<string>;
 
   /**
    * Get ancestors of a page (for breadcrumbs)
