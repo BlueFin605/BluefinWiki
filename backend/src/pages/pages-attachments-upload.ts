@@ -67,6 +67,7 @@ export const handler = withAuth(async (
       size: uploaded.size,
       uploadedAt: new Date().toISOString(),
       uploadedBy: user.userId,
+      dimensions: extractImageDimensions(parsedFile.data, parsedFile.contentType),
       checksum: createHash('sha256').update(parsedFile.data).digest('hex'),
     };
 
@@ -115,4 +116,64 @@ function badRequest(message: string): APIGatewayProxyResult {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ error: message }),
   };
+}
+
+function extractImageDimensions(
+  data: Buffer,
+  contentType: string
+): { width: number; height: number } | undefined {
+  try {
+    if (contentType === 'image/png') {
+      if (data.length >= 24) {
+        const width = data.readUInt32BE(16);
+        const height = data.readUInt32BE(20);
+        if (width > 0 && height > 0) {
+          return { width, height };
+        }
+      }
+      return undefined;
+    }
+
+    if (contentType === 'image/gif') {
+      if (data.length >= 10) {
+        const width = data.readUInt16LE(6);
+        const height = data.readUInt16LE(8);
+        if (width > 0 && height > 0) {
+          return { width, height };
+        }
+      }
+      return undefined;
+    }
+
+    if (contentType === 'image/jpeg' || contentType === 'image/jpg') {
+      let offset = 2;
+      while (offset + 9 < data.length) {
+        if (data[offset] !== 0xFF) {
+          offset += 1;
+          continue;
+        }
+
+        const marker = data[offset + 1];
+        const isStartOfFrame = marker >= 0xC0 && marker <= 0xCF && ![0xC4, 0xC8, 0xCC].includes(marker);
+        if (isStartOfFrame) {
+          const height = data.readUInt16BE(offset + 5);
+          const width = data.readUInt16BE(offset + 7);
+          if (width > 0 && height > 0) {
+            return { width, height };
+          }
+          return undefined;
+        }
+
+        const segmentLength = data.readUInt16BE(offset + 2);
+        if (segmentLength <= 0) {
+          break;
+        }
+        offset += segmentLength + 2;
+      }
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
 }

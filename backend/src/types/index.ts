@@ -131,6 +131,11 @@ export interface AttachmentMetadata {
   size: number;
   uploadedAt: string;
   uploadedBy: string;
+  dimensions?: {
+    width: number;
+    height: number;
+  };
+  duration?: number;
   checksum?: string;
 }
 

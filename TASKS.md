@@ -667,21 +667,21 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
     - [X] Test metadata persistence and retrieval
 
 #### 7.2 Attachment Metadata & Listing (Sidecar JSON Files)
-- [ ] Metadata file creation (part of upload endpoint above)
-  - [ ] Storage path: `{pageGuid}/_attachments/{attachmentGuid}.meta.json`
-  - [ ] Metadata structure: `{ attachmentId, originalFilename, contentType, size, uploadedAt, uploadedBy, dimensions?, duration?, checksum }`
-  - [ ] Create metadata file atomically with attachment upload
-  - [ ] Extract image dimensions during upload if applicable
-- [ ] Implement list attachments endpoint
-  - [ ] API: `GET /pages/{pageGuid}/attachments`
-  - [ ] List S3 objects in `{pageGuid}/_attachments/` folder
-  - [ ] Read `.meta.json` files for each attachment
-  - [ ] Return sorted list (newest first by uploadedAt)
-- [ ] Implement delete attachment endpoint
-  - [ ] API: `DELETE /pages/{pageGuid}/attachments/{attachmentGuid}`
-  - [ ] Use storage plugin's `deleteAttachment()` method
-  - [ ] Remove both attachment file and .meta.json file
-  - [ ] Return success/error status
+- [X] Metadata file creation (part of upload endpoint above)
+  - [X] Storage path: `{pageGuid}/_attachments/{attachmentGuid}.meta.json`
+  - [X] Metadata structure: `{ attachmentId, originalFilename, contentType, size, uploadedAt, uploadedBy, dimensions?, duration?, checksum }`
+  - [X] Create metadata file atomically with attachment upload
+  - [X] Extract image dimensions during upload if applicable
+- [X] Implement list attachments endpoint
+  - [X] API: `GET /pages/{pageGuid}/attachments`
+  - [X] List S3 objects in `{pageGuid}/_attachments/` folder
+  - [X] Read `.meta.json` files for each attachment
+  - [X] Return sorted list (newest first by uploadedAt)
+- [X] Implement delete attachment endpoint
+  - [X] API: `DELETE /pages/{pageGuid}/attachments/{attachmentGuid}`
+  - [X] Use storage plugin's `deleteAttachment()` method
+  - [X] Remove both attachment file and .meta.json file
+  - [X] Return success/error status
 
 #### 7.3 Frontend Upload UI
 - [ ] Build file upload component

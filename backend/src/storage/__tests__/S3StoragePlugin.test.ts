@@ -5,7 +5,7 @@
  * requiring actual AWS/LocalStack connections.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { S3StoragePlugin } from '../S3StoragePlugin.js';
 import { PageContent } from '../../types/index.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,48 +14,57 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
-        const pageContent = `---
-title: "Test Page"
-guid: "${pageGuid}"
-parentGuid: null
-folderId: ""
-status: "published"
-tags: []
-createdBy: "user-123"
-modifiedBy: "user-123"
-createdAt: "2026-02-10T12:00:00Z"
-modifiedAt: "2026-02-10T12:00:00Z"
----
-
-Test content`;
   DeleteObjectCommand,
-        // Mock page exists check
-        s3Mock.on(GetObjectCommand).resolves({
-          Body: createMockStream(pageContent)() as any,
-        });
-
   DeleteObjectsCommand,
   ListObjectVersionsCommand,
-        // Test PNG
-        const pngResult = await plugin.uploadAttachment(pageGuid, {
-          originalFilename: 'image.png',
-          contentType: 'image/png',
-          data: Buffer.from('content'),
-          uploadedBy: 'user-123',
-        });
-        expect(pngResult.filename).toBe('image.png');
-        expect(pngResult.attachmentKey).toContain('.png');
+  ListObjectsV2Command,
+  HeadObjectCommand,
+  HeadBucketCommand,
+  CopyObjectCommand,
+} from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 
-        // Test DOCX
-        const docxResult = await plugin.uploadAttachment(pageGuid, {
-          originalFilename: 'document.docx',
-          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          data: Buffer.from('content'),
-          uploadedBy: 'user-123',
-        });
-        expect(docxResult.filename).toBe('document.docx');
-        expect(docxResult.attachmentKey).toContain('.docx');
+// Helper to create mock streams for S3 GetObject responses
+const createMockStream = (content: string) => {
+  return () => {
+    const stream = new Readable();
+    stream.push(content);
+    stream.push(null);
+    return stream;
+  };
+};
+
+// Test constants
+const TEST_BUCKET = 'test-bucket';
+const TEST_REGION = 'us-east-1';
+
+describe('S3StoragePlugin', () => {
+  let s3Mock: ReturnType<typeof mockClient>;
+  let plugin: S3StoragePlugin;
+
+  beforeEach(() => {
+    // Create mock S3 client
+    s3Mock = mockClient(S3Client);
+    
+    // Initialize plugin with mocked client
+    plugin = new S3StoragePlugin({
+      bucketName: TEST_BUCKET,
+      region: TEST_REGION,
+    });
+
+    // Inject the mocked client
+    (plugin as any).s3Client = s3Mock as any;
+  });
+
+  afterEach(() => {
+    s3Mock.reset();
+  });
+
+  describe('savePage', () => {
+    it('should save a page to S3 with frontmatter', async () => {
+      const pageGuid = uuidv4();
       const content: PageContent = {
+        guid: pageGuid,
         title: 'Test Page',
         content: '# Hello World\n\nThis is a test.',
         folderId: '',
@@ -66,25 +75,22 @@ Test content`;
         createdAt: '2026-02-10T12:00:00Z',
         modifiedAt: '2026-02-10T12:00:00Z',
       };
-              // Test PNG
-              const pngResult = await plugin.uploadAttachment(pageGuid, {
-                originalFilename: 'image.png',
-                contentType: 'image/png',
-                data: Buffer.from('content'),
-                uploadedBy: 'user-123',
-              });
-              expect(pngResult.filename).toBe('image.png');
-              expect(pngResult.attachmentKey).toContain('.png');
 
-              // Test DOCX
-              const docxResult = await plugin.uploadAttachment(pageGuid, {
-                originalFilename: 'document.docx',
-                contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                data: Buffer.from('content'),
-                uploadedBy: 'user-123',
-              });
-              expect(docxResult.filename).toBe('document.docx');
-              expect(docxResult.attachmentKey).toContain('.docx');
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await plugin.savePage(pageGuid, null, content);
+
+      const calls = s3Mock.commandCalls(PutObjectCommand);
+      expect(calls.length).toBeGreaterThan(0);
+      
+      const firstCall = calls[0];
+      expect(firstCall.args[0].input.Bucket).toBe(TEST_BUCKET);
+      expect(firstCall.args[0].input.Key).toBe(`${pageGuid}/${pageGuid}.md`);
+      
+      const body = firstCall.args[0].input.Body as string;
+      expect(body).toContain('---');
+      expect(body).toContain('title: "Test Page"');
+      expect(body).toContain('# Hello World');
     });
 
     it('should include metadata in frontmatter', async () => {
@@ -1049,7 +1055,7 @@ Test content`;
     });
 
     describe('deleteAttachment', () => {
-      it('should delete an attachment from S3', async () => {
+      it('should delete attachment file and metadata sidecar from S3', async () => {
         const pageGuid = uuidv4();
         const attachmentGuid = uuidv4();
 
@@ -1060,15 +1066,18 @@ Test content`;
           ],
         });
 
-        s3Mock.on(DeleteObjectCommand).resolves({});
+        s3Mock.on(DeleteObjectsCommand).resolves({});
 
         await plugin.deleteAttachment(pageGuid, attachmentGuid);
 
-        // Verify delete was called
-        const deleteCalls = s3Mock.commandCalls(DeleteObjectCommand);
+        // Verify both file and metadata delete were requested
+        const deleteCalls = s3Mock.commandCalls(DeleteObjectsCommand);
         expect(deleteCalls.length).toBeGreaterThan(0);
         const lastCall = deleteCalls[deleteCalls.length - 1];
-        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/_attachments/${attachmentGuid}.pdf`);
+        expect(lastCall.args[0].input.Delete?.Objects).toEqual([
+          { Key: `${pageGuid}/_attachments/${attachmentGuid}.pdf` },
+          { Key: `${pageGuid}/_attachments/${attachmentGuid}.meta.json` },
+        ]);
       });
 
       it('should reject invalid page GUID', async () => {

@@ -300,6 +300,10 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
 
   abstract saveAttachmentMetadata(pageGuid: string, attachmentGuid: string, metadata: AttachmentMetadata): Promise<void>;
 
+  abstract getAttachmentMetadata(pageGuid: string, attachmentGuid: string): Promise<AttachmentMetadata>;
+
+  abstract listAttachments(pageGuid: string): Promise<AttachmentMetadata[]>;
+
   abstract getAttachmentUrl(pageGuid: string, attachmentGuid: string): Promise<string>;
 
   abstract healthCheck(): Promise<boolean>;

@@ -27,7 +27,12 @@ import { handler as pagesListChildren } from './pages/pages-list-children.js';
 import { handler as pagesMove } from './pages/pages-move.js';
 import { handler as pagesSearch } from './pages/pages-search.js';
 import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
-import { pagesAttachmentsUpload, pagesAttachmentsDownload } from './pages/index.js';
+import {
+  pagesAttachmentsUpload,
+  pagesAttachmentsDownload,
+  pagesAttachmentsList,
+  pagesAttachmentsDelete,
+} from './pages/index.js';
 import { handler as linksResolve } from './pages/links-resolve.js';
 import { handler as authRegister } from './auth/auth-register.js';
 import { handler as authMe } from './auth/auth-me.js';
@@ -188,7 +193,9 @@ app.post(
   express.raw({ type: () => true, limit: '60mb' }),
   wrapLambdaHandler(pagesAttachmentsUpload)
 );
+app.get('/pages/:pageGuid/attachments', wrapLambdaHandler(pagesAttachmentsList));
 app.get('/pages/:pageGuid/attachments/:attachmentGuid', wrapLambdaHandler(pagesAttachmentsDownload));
+app.delete('/pages/:pageGuid/attachments/:attachmentGuid', wrapLambdaHandler(pagesAttachmentsDelete));
 
 // ============================================================================
 // API Routes - Authentication

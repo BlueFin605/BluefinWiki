@@ -243,6 +243,34 @@ namespace Infrastructure.Stacks
                 LogRetention = lambdaProps.LogRetention,
                 Description = "Download page attachment"
             });
+
+            var pagesAttachmentsListFunction = new Function(this, "PagesAttachmentsListFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-list.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List page attachments"
+            });
+
+            var pagesAttachmentsDeleteFunction = new Function(this, "PagesAttachmentsDeleteFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-delete.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Delete page attachment"
+            });
             
             // =============================================================================
             // API Gateway Routes - /pages
@@ -323,9 +351,23 @@ namespace Infrastructure.Stacks
                 Authorizer = cognitoAuthorizer
             });
 
+            // GET /pages/{guid}/attachments - List attachments
+            attachmentsResource.AddMethod("GET", new LambdaIntegration(pagesAttachmentsListFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
             // GET /pages/{guid}/attachments/{attachmentGuid} - Download attachment
             var attachmentGuidResource = attachmentsResource.AddResource("{attachmentGuid}");
             attachmentGuidResource.AddMethod("GET", new LambdaIntegration(pagesAttachmentsDownloadFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // DELETE /pages/{guid}/attachments/{attachmentGuid} - Delete attachment
+            attachmentGuidResource.AddMethod("DELETE", new LambdaIntegration(pagesAttachmentsDeleteFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
