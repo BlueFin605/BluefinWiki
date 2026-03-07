@@ -18,6 +18,7 @@ import {
   S3Client,
   CreateBucketCommand,
   DeleteBucketCommand,
+  ListObjectVersionsCommand,
   ListObjectsV2Command,
   DeleteObjectsCommand,
   PutBucketVersioningCommand,
@@ -27,6 +28,64 @@ import {
 const LOCALSTACK_ENDPOINT = process.env.LOCALSTACK_ENDPOINT || 'http://localhost:4566';
 const TEST_BUCKET = 'bluefinwiki-test-pages';
 const TEST_REGION = 'us-east-1';
+
+async function emptyVersionedBucket(s3Client: S3Client, bucketName: string): Promise<void> {
+  let keyMarker: string | undefined;
+  let versionIdMarker: string | undefined;
+  let isTruncated = true;
+
+  while (isTruncated) {
+    const versionsResponse = await s3Client.send(
+      new ListObjectVersionsCommand({
+        Bucket: bucketName,
+        KeyMarker: keyMarker,
+        VersionIdMarker: versionIdMarker,
+      })
+    );
+
+    const objectsToDelete = [
+      ...(versionsResponse.Versions ?? [])
+        .filter((version) => version.Key && version.VersionId)
+        .map((version) => ({ Key: version.Key!, VersionId: version.VersionId! })),
+      ...(versionsResponse.DeleteMarkers ?? [])
+        .filter((marker) => marker.Key && marker.VersionId)
+        .map((marker) => ({ Key: marker.Key!, VersionId: marker.VersionId! })),
+    ];
+
+    if (objectsToDelete.length > 0) {
+      await s3Client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucketName,
+          Delete: {
+            Objects: objectsToDelete,
+            Quiet: true,
+          },
+        })
+      );
+    }
+
+    isTruncated = versionsResponse.IsTruncated === true;
+    keyMarker = versionsResponse.NextKeyMarker;
+    versionIdMarker = versionsResponse.NextVersionIdMarker;
+  }
+
+  // Defensive cleanup for any unversioned objects
+  const listResponse = await s3Client.send(
+    new ListObjectsV2Command({ Bucket: bucketName })
+  );
+
+  if (listResponse.Contents && listResponse.Contents.length > 0) {
+    await s3Client.send(
+      new DeleteObjectsCommand({
+        Bucket: bucketName,
+        Delete: {
+          Objects: listResponse.Contents.map((obj) => ({ Key: obj.Key! })),
+          Quiet: true,
+        },
+      })
+    );
+  }
+}
 
 describe('S3StoragePlugin Integration Tests', () => {
   let plugin: S3StoragePlugin;
@@ -73,21 +132,7 @@ describe('S3StoragePlugin Integration Tests', () => {
   afterAll(async () => {
     // Clean up test bucket
     try {
-      // Delete all objects first
-      const listResponse = await s3Client.send(
-        new ListObjectsV2Command({ Bucket: TEST_BUCKET })
-      );
-
-      if (listResponse.Contents && listResponse.Contents.length > 0) {
-        await s3Client.send(
-          new DeleteObjectsCommand({
-            Bucket: TEST_BUCKET,
-            Delete: {
-              Objects: listResponse.Contents.map(obj => ({ Key: obj.Key! })),
-            },
-          })
-        );
-      }
+      await emptyVersionedBucket(s3Client, TEST_BUCKET);
 
       // Delete bucket
       await s3Client.send(new DeleteBucketCommand({ Bucket: TEST_BUCKET }));
@@ -97,21 +142,8 @@ describe('S3StoragePlugin Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    // Clean up all objects before each test
-    const listResponse = await s3Client.send(
-      new ListObjectsV2Command({ Bucket: TEST_BUCKET })
-    );
-
-    if (listResponse.Contents && listResponse.Contents.length > 0) {
-      await s3Client.send(
-        new DeleteObjectsCommand({
-          Bucket: TEST_BUCKET,
-          Delete: {
-            Objects: listResponse.Contents.map(obj => ({ Key: obj.Key! })),
-          },
-        })
-      );
-    }
+    // Clean up all objects and versions before each test
+    await emptyVersionedBucket(s3Client, TEST_BUCKET);
   });
 
   describe('End-to-end page lifecycle', () => {
