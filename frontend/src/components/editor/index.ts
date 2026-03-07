@@ -9,3 +9,4 @@ export type { PageMetadata } from './PagePropertiesPanel';
 export { default as FileUpload } from './FileUpload';
 export { default as AttachmentUploadList } from './AttachmentUploadList';
 export { default as AttachmentUploader } from './AttachmentUploader';
+export { default as AttachmentManager } from './AttachmentManager';
