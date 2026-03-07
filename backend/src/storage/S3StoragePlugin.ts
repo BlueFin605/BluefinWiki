@@ -956,6 +956,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       const attachmentKey = await this.findAttachmentKey(pageGuid, attachmentGuid);
+      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
+
       if (!attachmentKey) {
         throw this.createError(
           `Attachment not found: ${attachmentGuid}`,
@@ -964,9 +966,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         );
       }
 
-      await this.s3Client.send(new DeleteObjectCommand({
+      await this.s3Client.send(new DeleteObjectsCommand({
         Bucket: this.bucketName,
-        Key: attachmentKey,
+        Delete: {
+          Objects: [
+            { Key: attachmentKey },
+            { Key: metadataKey },
+          ],
+          Quiet: true,
+        },
       }));
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
@@ -1013,6 +1021,108 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       throw this.createError(
         `Failed to save attachment metadata: ${error.message}`,
         'ATTACHMENT_METADATA_SAVE_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Get sidecar metadata JSON for an attachment
+   */
+  async getAttachmentMetadata(pageGuid: string, attachmentGuid: string): Promise<AttachmentMetadata> {
+    try {
+      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
+      const response = await this.s3Client.send(new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: metadataKey,
+      }));
+
+      const metadataBody = await this.readBodyAsString(response.Body);
+      const metadata = JSON.parse(metadataBody) as AttachmentMetadata;
+      return metadata;
+    } catch (err: unknown) {
+      const error = err as { code?: string; name?: string; message?: string };
+
+      if (error.code === 'INVALID_GUID') {
+        throw err;
+      }
+
+      if (error.name === 'NoSuchKey') {
+        throw this.createError(
+          `Attachment metadata not found: ${attachmentGuid}`,
+          'ATTACHMENT_METADATA_NOT_FOUND',
+          404
+        );
+      }
+
+      throw this.createError(
+        `Failed to load attachment metadata: ${error.message}`,
+        'ATTACHMENT_METADATA_LOAD_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * List attachments for a page (newest first)
+   */
+  async listAttachments(pageGuid: string): Promise<AttachmentMetadata[]> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      await this.loadPage(pageGuid);
+
+      const prefix = `${pageGuid}/_attachments/`;
+      const response = await this.s3Client.send(new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: prefix,
+        MaxKeys: 1000,
+      }));
+
+      const metadataKeys = (response.Contents || [])
+        .map(item => item.Key)
+        .filter((key): key is string => Boolean(key))
+        .filter(key => key.endsWith('.meta.json'));
+
+      if (metadataKeys.length === 0) {
+        return [];
+      }
+
+      const metadataEntries = await Promise.all(
+        metadataKeys.map(async (metadataKey) => {
+          try {
+            const getResult = await this.s3Client.send(new GetObjectCommand({
+              Bucket: this.bucketName,
+              Key: metadataKey,
+            }));
+            const metadataBody = await this.readBodyAsString(getResult.Body);
+            return JSON.parse(metadataBody) as AttachmentMetadata;
+          } catch (err: unknown) {
+            const error = err as { message?: string };
+            console.warn(`Skipping invalid attachment metadata at ${metadataKey}: ${error.message}`);
+            return null;
+          }
+        })
+      );
+
+      return metadataEntries
+        .filter((entry): entry is AttachmentMetadata => entry !== null)
+        .sort((left, right) => Date.parse(right.uploadedAt) - Date.parse(left.uploadedAt));
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to list attachments: ${error.message}`,
+        'ATTACHMENT_LIST_FAILED',
         500
       );
     }
@@ -1086,6 +1196,27 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     }
 
     return candidates[0];
+  }
+
+  private async readBodyAsString(body: unknown): Promise<string> {
+    if (!body) {
+      return '';
+    }
+
+    if (typeof body === 'string') {
+      return body;
+    }
+
+    if (Buffer.isBuffer(body)) {
+      return body.toString('utf-8');
+    }
+
+    if (typeof body === 'object' && body !== null && 'transformToString' in body) {
+      const transformable = body as { transformToString: (encoding?: string) => Promise<string> };
+      return transformable.transformToString('utf-8');
+    }
+
+    return String(body);
   }
 
   /**

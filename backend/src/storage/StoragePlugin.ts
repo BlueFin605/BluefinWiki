@@ -112,6 +112,23 @@ export interface StoragePlugin {
   saveAttachmentMetadata(pageGuid: string, attachmentGuid: string, metadata: AttachmentMetadata): Promise<void>;
 
   /**
+   * Get sidecar metadata for an attachment
+   *
+   * @param pageGuid - Page GUID
+   * @param attachmentGuid - Attachment GUID
+   * @returns Attachment metadata
+   */
+  getAttachmentMetadata(pageGuid: string, attachmentGuid: string): Promise<AttachmentMetadata>;
+
+  /**
+   * List all attachments for a page
+   *
+   * @param pageGuid - Page GUID
+   * @returns Sorted attachment metadata (newest first)
+   */
+  listAttachments(pageGuid: string): Promise<AttachmentMetadata[]>;
+
+  /**
    * Get a temporary URL for attachment download
    *
    * @param pageGuid - Page GUID

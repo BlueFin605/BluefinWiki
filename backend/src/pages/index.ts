@@ -16,4 +16,6 @@ export { handler as linksResolve } from './links-resolve.js';
 export { handler as pagesBacklinks } from './pages-backlinks.js';
 export { handler as pagesAttachmentsUpload } from './pages-attachments-upload.js';
 export { handler as pagesAttachmentsDownload } from './pages-attachments-download.js';
+export { handler as pagesAttachmentsList } from './pages-attachments-list.js';
+export { handler as pagesAttachmentsDelete } from './pages-attachments-delete.js';
 
