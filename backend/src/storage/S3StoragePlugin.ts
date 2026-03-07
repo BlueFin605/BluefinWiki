@@ -42,8 +42,16 @@ import {
   CopyObjectCommand,
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { BaseStoragePlugin } from './BaseStoragePlugin.js';
-import { PageContent, Version, PageSummary } from '../types/index.js';
+import {
+  PageContent,
+  Version,
+  PageSummary,
+  AttachmentUploadInput,
+  AttachmentUploadResult,
+  AttachmentMetadata,
+} from '../types/index.js';
 
 interface S3StorageConfig {
   type?: 's3';
@@ -886,6 +894,198 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         500
       );
     }
+  }
+
+  /**
+   * Upload attachment to page-specific attachments folder
+   * Path: {pageGuid}/_attachments/{attachmentGuid}.{ext}
+   */
+  async uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid page GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Ensure page exists
+      await this.loadPage(pageGuid);
+
+      const extension = this.extractSafeExtension(file.originalFilename);
+      const attachmentGuid = this.generateGuid();
+      const attachmentKey = `${pageGuid}/_attachments/${attachmentGuid}${extension}`;
+
+      await this.s3Client.send(new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: attachmentKey,
+        Body: file.data,
+        ContentType: file.contentType,
+        Metadata: {
+          attachmentguid: attachmentGuid,
+          originalfilename: encodeURIComponent(file.originalFilename),
+          uploadedby: file.uploadedBy,
+        },
+      }));
+
+      return {
+        attachmentGuid,
+        attachmentKey,
+        filename: file.originalFilename,
+        contentType: file.contentType,
+        size: file.data.length,
+      };
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to upload attachment: ${error.message}`,
+        'ATTACHMENT_UPLOAD_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Delete an attachment file from page attachments folder
+   */
+  async deleteAttachment(pageGuid: string, attachmentGuid: string): Promise<void> {
+    try {
+      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      const attachmentKey = await this.findAttachmentKey(pageGuid, attachmentGuid);
+      if (!attachmentKey) {
+        throw this.createError(
+          `Attachment not found: ${attachmentGuid}`,
+          'ATTACHMENT_NOT_FOUND',
+          404
+        );
+      }
+
+      await this.s3Client.send(new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: attachmentKey,
+      }));
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to delete attachment: ${error.message}`,
+        'ATTACHMENT_DELETE_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Save attachment metadata sidecar JSON
+   * Path: {pageGuid}/_attachments/{attachmentGuid}.meta.json
+   */
+  async saveAttachmentMetadata(
+    pageGuid: string,
+    attachmentGuid: string,
+    metadata: AttachmentMetadata
+  ): Promise<void> {
+    try {
+      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
+
+      await this.s3Client.send(new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: metadataKey,
+        Body: JSON.stringify(metadata),
+        ContentType: 'application/json',
+      }));
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code === 'INVALID_GUID') {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to save attachment metadata: ${error.message}`,
+        'ATTACHMENT_METADATA_SAVE_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Generate temporary download URL for an attachment
+   */
+  async getAttachmentUrl(pageGuid: string, attachmentGuid: string): Promise<string> {
+    try {
+      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      const attachmentKey = await this.findAttachmentKey(pageGuid, attachmentGuid);
+      if (!attachmentKey) {
+        throw this.createError(
+          `Attachment not found: ${attachmentGuid}`,
+          'ATTACHMENT_NOT_FOUND',
+          404
+        );
+      }
+
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: attachmentKey,
+      });
+
+      return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to generate attachment URL: ${error.message}`,
+        'ATTACHMENT_URL_FAILED',
+        500
+      );
+    }
+  }
+
+  private extractSafeExtension(filename: string): string {
+    const lastDotIndex = filename.lastIndexOf('.');
+    if (lastDotIndex === -1) {
+      return '';
+    }
+
+    const rawExtension = filename.substring(lastDotIndex).toLowerCase();
+    const safeExtension = rawExtension.replace(/[^.a-z0-9]/g, '');
+    return safeExtension.length > 10 ? safeExtension.substring(0, 10) : safeExtension;
+  }
+
+  private async findAttachmentKey(pageGuid: string, attachmentGuid: string): Promise<string | null> {
+    const prefix = `${pageGuid}/_attachments/${attachmentGuid}`;
+    const response = await this.s3Client.send(new ListObjectsV2Command({
+      Bucket: this.bucketName,
+      Prefix: prefix,
+      MaxKeys: 25,
+    }));
+
+    const candidates = (response.Contents || [])
+      .map(item => item.Key)
+      .filter((key): key is string => Boolean(key))
+      .filter(key => key.startsWith(`${pageGuid}/_attachments/${attachmentGuid}.`))
+      .filter(key => !key.endsWith('.meta.json'));
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    return candidates[0];
   }
 
   /**

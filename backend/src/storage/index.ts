@@ -26,6 +26,9 @@ export type {
   PageContent,
   Version,
   PageSummary,
+  AttachmentUploadInput,
+  AttachmentUploadResult,
+  AttachmentMetadata,
   StoragePluginConfig,
   StoragePluginError,
 } from '../types/index.js';

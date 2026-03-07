@@ -8,7 +8,15 @@
 
 import { v4 as uuidv4, validate as validateUUID } from 'uuid';
 import { StoragePlugin } from './StoragePlugin.js';
-import { PageContent, Version, PageSummary, StoragePluginError } from '../types/index.js';
+import {
+  PageContent,
+  Version,
+  PageSummary,
+  StoragePluginError,
+  AttachmentUploadInput,
+  AttachmentUploadResult,
+  AttachmentMetadata,
+} from '../types/index.js';
 
 export abstract class BaseStoragePlugin implements StoragePlugin {
   protected readonly pluginType: string;
@@ -285,6 +293,14 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
   abstract listChildren(parentGuid: string | null): Promise<PageSummary[]>;
 
   abstract movePage(guid: string, newParentGuid: string | null): Promise<void>;
+
+  abstract uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult>;
+
+  abstract deleteAttachment(pageGuid: string, attachmentGuid: string): Promise<void>;
+
+  abstract saveAttachmentMetadata(pageGuid: string, attachmentGuid: string, metadata: AttachmentMetadata): Promise<void>;
+
+  abstract getAttachmentUrl(pageGuid: string, attachmentGuid: string): Promise<string>;
 
   abstract healthCheck(): Promise<boolean>;
 
