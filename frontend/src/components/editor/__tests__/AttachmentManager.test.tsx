@@ -876,4 +876,393 @@ describe('AttachmentManager Component', () => {
       expect(global.URL.revokeObjectURL).toHaveBeenCalled();
     });
   });
+
+  describe('Copy Markdown Link (Task 7.5)', () => {
+    beforeEach(() => {
+      // Mock clipboard API
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: vi.fn().mockResolvedValue(undefined),
+        },
+      });
+    });
+
+    it('should render Copy Markdown button for each attachment', async () => {
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const copyButtons = screen.getAllByRole('button', { name: /copy markdown/i });
+      expect(copyButtons.length).toBeGreaterThan(0);
+    });
+
+    it('should copy file markdown link to clipboard for non-image files', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      // Find the copy button for the PDF (non-image)
+      const pdfItem = screen.getByText('document.pdf').closest('li');
+      const copyButton = within(pdfItem as HTMLElement).getByRole('button', {
+        name: /copy markdown/i,
+      });
+
+      await user.click(copyButton);
+
+      await waitFor(() => {
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+          '[document.pdf](/pages/test-page-guid-123/attachments/attach-1)'
+        );
+      });
+    });
+
+    it('should copy image markdown syntax for image files', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('family-photo.jpg')).toBeInTheDocument();
+      });
+
+      // Find the copy button for the image
+      const imageItem = screen.getByText('family-photo.jpg').closest('li');
+      const copyButton = within(imageItem as HTMLElement).getByRole('button', {
+        name: /copy markdown/i,
+      });
+
+      await user.click(copyButton);
+
+      await waitFor(() => {
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+          '![family-photo.jpg](/pages/test-page-guid-123/attachments/attach-2)'
+        );
+      });
+    });
+
+    it('should show success feedback after copying', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const copyButtons = screen.getAllByRole('button', { name: /copy markdown/i });
+      await user.click(copyButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/copied/i)).toBeInTheDocument();
+      });
+    });
+
+    it('should handle clipboard copy errors gracefully', async () => {
+      const user = userEvent.setup();
+      const errorMessage = 'Clipboard access denied';
+
+      vi.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error(errorMessage));
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const copyButtons = screen.getAllByRole('button', { name: /copy markdown/i });
+      await user.click(copyButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/failed to copy/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Insert Markdown Link into Editor (Task 7.5)', () => {
+    it('should render Insert button when onInsertMarkdown prop is provided', async () => {
+      const onInsertMarkdown = vi.fn();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={onInsertMarkdown}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const insertButtons = screen.getAllByRole('button', { name: /insert/i });
+      expect(insertButtons.length).toBeGreaterThan(0);
+    });
+
+    it('should not render Insert button when onInsertMarkdown is not provided', async () => {
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const insertButtons = screen.queryAllByRole('button', { name: /^insert$/i });
+      expect(insertButtons).toHaveLength(0);
+    });
+
+    it('should call onInsertMarkdown with file markdown when Insert is clicked', async () => {
+      const user = userEvent.setup();
+      const onInsertMarkdown = vi.fn();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={onInsertMarkdown}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const pdfItem = screen.getByText('document.pdf').closest('li');
+      const insertButton = within(pdfItem as HTMLElement).getByRole('button', {
+        name: /insert/i,
+      });
+
+      await user.click(insertButton);
+
+      expect(onInsertMarkdown).toHaveBeenCalledWith(
+        '[document.pdf](/pages/test-page-guid-123/attachments/attach-1)'
+      );
+    });
+
+    it('should call onInsertMarkdown with image markdown for images', async () => {
+      const user = userEvent.setup();
+      const onInsertMarkdown = vi.fn();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={onInsertMarkdown}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('family-photo.jpg')).toBeInTheDocument();
+      });
+
+      const imageItem = screen.getByText('family-photo.jpg').closest('li');
+      const insertButton = within(imageItem as HTMLElement).getByRole('button', {
+        name: /insert/i,
+      });
+
+      await user.click(insertButton);
+
+      expect(onInsertMarkdown).toHaveBeenCalledWith(
+        '![family-photo.jpg](/pages/test-page-guid-123/attachments/attach-2)'
+      );
+    });
+  });
+
+  describe('Markdown Format Verification (Task 7.5)', () => {
+    it('should use correct markdown syntax for images', async () => {
+      const onInsertMarkdown = vi.fn();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={onInsertMarkdown}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('family-photo.jpg')).toBeInTheDocument();
+      });
+
+      const imageItem = screen.getByText('family-photo.jpg').closest('li');
+      const insertButton = within(imageItem as HTMLElement).getByRole('button', {
+        name: /insert/i,
+      });
+
+      await userEvent.click(insertButton);
+
+      // Verify markdown starts with ![
+      const markdown = onInsertMarkdown.mock.calls[0][0];
+      expect(markdown).toMatch(/^!\[.*\]\(.*\)$/);
+      expect(markdown).toContain('![family-photo.jpg]');
+      expect(markdown).toContain('/pages/test-page-guid-123/attachments/attach-2)');
+    });
+
+    it('should use correct markdown syntax for non-image files', async () => {
+      const onInsertMarkdown = vi.fn();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={onInsertMarkdown}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const pdfItem = screen.getByText('document.pdf').closest('li');
+      const insertButton = within(pdfItem as HTMLElement).getByRole('button', {
+        name: /insert/i,
+      });
+
+      await userEvent.click(insertButton);
+
+      // Verify markdown is [text](url) format without !
+      const markdown = onInsertMarkdown.mock.calls[0][0];
+      expect(markdown).toMatch(/^\[.*\]\(.*\)$/);
+      expect(markdown).not.toMatch(/^!/);
+      expect(markdown).toContain('[document.pdf]');
+      expect(markdown).toContain('/pages/test-page-guid-123/attachments/attach-1)');
+    });
+
+    it('should include page GUID in attachment URL', async () => {
+      const onInsertMarkdown = vi.fn();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={onInsertMarkdown}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const pdfItem = screen.getByText('document.pdf').closest('li');
+      const insertButton = within(pdfItem as HTMLElement).getByRole('button', {
+        name: /insert/i,
+      });
+
+      await userEvent.click(insertButton);
+
+      const markdown = onInsertMarkdown.mock.calls[0][0];
+      expect(markdown).toContain(`/pages/${testPageGuid}/attachments/`);
+    });
+
+    it('should include attachment ID in URL', async () => {
+      const onInsertMarkdown = vi.fn();
+
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={onInsertMarkdown}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      const pdfItem = screen.getByText('document.pdf').closest('li');
+      const insertButton = within(pdfItem as HTMLElement).getByRole('button', {
+        name: /insert/i,
+      });
+
+      await userEvent.click(insertButton);
+
+      const markdown = onInsertMarkdown.mock.calls[0][0];
+      expect(markdown).toContain('/attachments/attach-1');
+    });
+  });
+
+  describe('Drag and Drop Links (Task 7.5)', () => {
+    it('should display helper text about copying or dragging links', async () => {
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={vi.fn()}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/copy a markdown link or drag it into the editor/i)).toBeInTheDocument();
+    });
+
+    it('should allow draggable interaction on attachment items', async () => {
+      render(
+        <AttachmentManager
+          pageGuid={testPageGuid}
+          currentUserId="user-123"
+          currentUserRole="Standard"
+          onInsertMarkdown={vi.fn()}
+        />
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('document.pdf')).toBeInTheDocument();
+      });
+
+      // Attachment list items should exist (drag behavior would be tested in E2E)
+      const pdfItem = screen.getByText('document.pdf').closest('li');
+      expect(pdfItem).toBeInTheDocument();
+    });
+  });
 });
