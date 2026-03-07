@@ -180,7 +180,7 @@ describe('PageEditor', () => {
     });
   });
 
-  it('shows conflict dialog on 409 error', async () => {
+  it('shows generic save error on 409 error', async () => {
     const mockMutateAsync = vi.fn().mockRejectedValue({
       response: { status: 409 },
     });
@@ -223,13 +223,11 @@ describe('PageEditor', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Conflict Detected')).toBeInTheDocument();
-      expect(screen.getByText('Keep My Changes (Overwrite)')).toBeInTheDocument();
-      expect(screen.getByText('Use Their Changes (Discard Mine)')).toBeInTheDocument();
+      expect(screen.getByText('Failed to save page. Please try again.')).toBeInTheDocument();
     });
   });
 
-  it('retries on server error', async () => {
+  it('shows generic save error on server error', async () => {
     const mockMutateAsync = vi.fn()
       .mockRejectedValueOnce({ response: { status: 500 } });
 
@@ -273,7 +271,7 @@ describe('PageEditor', () => {
     // Wait for first call and error message
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledTimes(1);
-      expect(screen.getByText(/Save failed\. Retrying\.\.\./)).toBeInTheDocument();
+      expect(screen.getByText('Failed to save page. Please try again.')).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
