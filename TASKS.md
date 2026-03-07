@@ -635,7 +635,6 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] `deleteAttachment(pageGuid, attachmentGuid)`: Remove file from S3
   - [X] `getAttachmentUrl(pageGuid, attachmentGuid)`: Generate temporary download URL
   - [X] Generate unique attachment GUIDs to avoid collisions
-- [X] Implement attachment upload endpoint (multipart/form-data)
   - [X] API: `POST /pages/{pageGuid}/attachments` (multipart upload)
   - [X] Accept file via multipart/form-data streaming
   - [X] Validate file type during upload (whitelist: images, PDFs, docs per FR-003, FR-004)
@@ -643,11 +642,29 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Stream to storage plugin's `uploadAttachment()` method
   - [X] Create .meta.json sidecar file with metadata
   - [X] Return: attachmentGuid, filename, size, url
-- [X] Implement attachment download endpoint
   - [X] API: `GET /pages/{pageGuid}/attachments/{attachmentGuid}`
   - [X] Proxy download from storage plugin
   - [X] Set proper Content-Type and Content-Disposition headers
   - [X] Stream file to client (don't load fully into memory)
+  - [X] Write unit tests for attachment utilities
+    - [X] Test multipart file parsing (various formats, boundaries, encodings)
+    - [X] Test file validation (type whitelist, size limits)
+    - [X] Test header extraction and body decoding
+    - [X] Test error cases (missing boundary, unsupported types, oversized files)
+  - [X] Write unit tests for S3StoragePlugin attachment methods
+    - [X] Test uploadAttachment with various file types and extensions
+    - [X] Test deleteAttachment with valid and invalid GUIDs
+    - [X] Test getAttachmentUrl presigned URL generation
+    - [X] Test saveAttachmentMetadata and getAttachmentMetadata
+    - [X] Test listAttachments with sorting and filtering
+    - [X] Test error scenarios (invalid GUIDs, missing pages, missing attachments)
+  - [X] Write integration tests for complete attachment lifecycle
+    - [X] Test upload → save metadata → list → download → delete flow
+    - [X] Test multiple attachments per page
+    - [X] Test various file types (images, PDFs, Office docs)
+    - [X] Test size validation at 10MB/50MB boundaries
+    - [X] Test error handling (non-existent pages, invalid GUIDs)
+    - [X] Test metadata persistence and retrieval
 
 #### 7.2 Attachment Metadata & Listing (Sidecar JSON Files)
 - [ ] Metadata file creation (part of upload endpoint above)

@@ -14,54 +14,48 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Test content`;
   DeleteObjectCommand,
+        // Mock page exists check
+        s3Mock.on(GetObjectCommand).resolves({
+          Body: createMockStream(pageContent)() as any,
+        });
+
   DeleteObjectsCommand,
   ListObjectVersionsCommand,
-  ListObjectsV2Command,
-  HeadObjectCommand,
-  CopyObjectCommand,
-  HeadBucketCommand,
-} from '@aws-sdk/client-s3';
-import { Readable } from 'stream';
-import { sdkStreamMixin } from '@smithy/util-stream';
+        // Test PNG
+        const pngResult = await plugin.uploadAttachment(pageGuid, {
+          originalFilename: 'image.png',
+          contentType: 'image/png',
+          data: Buffer.from('content'),
+          uploadedBy: 'user-123',
+        });
+        expect(pngResult.filename).toBe('image.png');
+        expect(pngResult.attachmentKey).toContain('.png');
 
-// Create a mock S3 client
-const s3Mock = mockClient(S3Client);
-
-// Helper function to create a mock SDK stream
-// Creates a fresh stream each time to avoid "already transformed" errors
-function createMockStream(content: string) {
-  return () => {
-    const stream = new Readable();
-    stream.push(content);
-    stream.push(null);
-    return sdkStreamMixin(stream);
-  };
-}
-
-describe('S3StoragePlugin', () => {
-  let plugin: S3StoragePlugin;
-
-  beforeEach(() => {
-    // Reset all mocks before each test
-    s3Mock.reset();
-    
-    // Create plugin instance
-    plugin = new S3StoragePlugin({
-      bucketName: 'test-bucket',
-      region: 'us-east-1',
-    });
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe('savePage', () => {
-    it('should save a root-level page to S3', async () => {
-      const guid = uuidv4();
+        // Test DOCX
+        const docxResult = await plugin.uploadAttachment(pageGuid, {
+          originalFilename: 'document.docx',
+          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          data: Buffer.from('content'),
+          uploadedBy: 'user-123',
+        });
+        expect(docxResult.filename).toBe('document.docx');
+        expect(docxResult.attachmentKey).toContain('.docx');
       const content: PageContent = {
-        guid,
         title: 'Test Page',
         content: '# Hello World\n\nThis is a test.',
         folderId: '',
@@ -72,48 +66,25 @@ describe('S3StoragePlugin', () => {
         createdAt: '2026-02-10T12:00:00Z',
         modifiedAt: '2026-02-10T12:00:00Z',
       };
+              // Test PNG
+              const pngResult = await plugin.uploadAttachment(pageGuid, {
+                originalFilename: 'image.png',
+                contentType: 'image/png',
+                data: Buffer.from('content'),
+                uploadedBy: 'user-123',
+              });
+              expect(pngResult.filename).toBe('image.png');
+              expect(pngResult.attachmentKey).toContain('.png');
 
-      s3Mock.on(PutObjectCommand).resolves({});
-
-      await plugin.savePage(guid, null, content);
-
-      // Verify S3 PutObject was called with correct parameters
-      expect(s3Mock.commandCalls(PutObjectCommand).length).toBe(1);
-      const call = s3Mock.commandCalls(PutObjectCommand)[0];
-      expect(call.args[0].input.Bucket).toBe('test-bucket');
-      expect(call.args[0].input.Key).toBe(`${guid}/${guid}.md`);
-      expect(call.args[0].input.ContentType).toBe('text/markdown');
-      
-      // Verify the body contains frontmatter and content
-      const body = call.args[0].input.Body as string;
-      expect(body).toContain('---');
-      expect(body).toContain('title: "Test Page"');
-      expect(body).toContain(`guid: "${guid}"`);
-      expect(body).toContain('# Hello World');
-    });
-
-    it('should save a child page under a parent', async () => {
-      const guid = uuidv4();
-      const parentGuid = uuidv4();
-      const content: PageContent = {
-        guid,
-        title: 'Child Page',
-        content: 'Child content',
-        folderId: parentGuid,
-        tags: [],
-        status: 'published',
-        createdBy: 'user-123',
-        modifiedBy: 'user-123',
-        createdAt: '2026-02-10T12:00:00Z',
-        modifiedAt: '2026-02-10T12:00:00Z',
-      };
-
-      s3Mock.on(PutObjectCommand).resolves({});
-
-      await plugin.savePage(guid, parentGuid, content);
-
-      const call = s3Mock.commandCalls(PutObjectCommand)[0];
-      expect(call.args[0].input.Key).toBe(`${parentGuid}/${guid}/${guid}.md`);
+              // Test DOCX
+              const docxResult = await plugin.uploadAttachment(pageGuid, {
+                originalFilename: 'document.docx',
+                contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                data: Buffer.from('content'),
+                uploadedBy: 'user-123',
+              });
+              expect(docxResult.filename).toBe('document.docx');
+              expect(docxResult.attachmentKey).toContain('.docx');
     });
 
     it('should include metadata in frontmatter', async () => {
@@ -951,6 +922,259 @@ Content`;
 
       const result = await plugin.isDescendantOf(guid1, guid2);
       expect(result).toBe(false);
+    });
+  });
+
+  describe('Attachment Operations', () => {
+    describe('uploadAttachment', () => {
+      it('should upload an attachment to the pages bucket', async () => {
+        const pageGuid = uuidv4();
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Test content`;
+
+        // Mock page exists check
+        s3Mock.on(GetObjectCommand).resolves({
+          Body: createMockStream(pageContent)() as any,
+        });
+
+        s3Mock.on(PutObjectCommand).resolves({});
+
+        const fileData = Buffer.from('fake file content');
+        const result = await plugin.uploadAttachment(pageGuid, {
+          originalFilename: 'test-document.pdf',
+          contentType: 'application/pdf',
+          data: fileData,
+          uploadedBy: 'user-123',
+        });
+
+        expect(result).toMatchObject({
+          filename: 'test-document.pdf',
+          contentType: 'application/pdf',
+          size: fileData.length,
+        });
+        expect(result.attachmentGuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+        expect(result.attachmentKey).toContain(`${pageGuid}/_attachments/`);
+
+        // Verify S3 PutObject was called
+        const putCalls = s3Mock.commandCalls(PutObjectCommand);
+        expect(putCalls.length).toBeGreaterThan(0);
+        const lastCall = putCalls[putCalls.length - 1];
+        expect(lastCall.args[0].input.Bucket).toBe('test-bucket');
+        expect(lastCall.args[0].input.Key).toContain(`${pageGuid}/_attachments/`);
+        expect(lastCall.args[0].input.ContentType).toBe('application/pdf');
+      });
+
+      it('should support various file extensions', async () => {
+        const pageGuid = uuidv4();
+          const pageContent = `---
+  title: "Test Page"
+  guid: "${pageGuid}"
+  parentGuid: null
+  folderId: ""
+  status: "published"
+  tags: []
+  createdBy: "user-123"
+  modifiedBy: "user-123"
+  createdAt: "2026-02-10T12:00:00Z"
+  modifiedAt: "2026-02-10T12:00:00Z"
+  ---
+
+  Test content`;
+
+          // Mock page exists check
+          s3Mock.on(GetObjectCommand).resolves({
+            Body: createMockStream(pageContent)() as any,
+          });
+
+          s3Mock.on(PutObjectCommand).resolves({});
+
+          // Test PNG
+          const pngResult = await plugin.uploadAttachment(pageGuid, {
+            originalFilename: 'image.png',
+            contentType: 'image/png',
+            data: Buffer.from('content'),
+            uploadedBy: 'user-123',
+          });
+          expect(pngResult.filename).toBe('image.png');
+          expect(pngResult.attachmentKey).toContain('.png');
+
+          // Test DOCX
+          const docxResult = await plugin.uploadAttachment(pageGuid, {
+            originalFilename: 'document.docx',
+            contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            data: Buffer.from('content'),
+            uploadedBy: 'user-123',
+          });
+          expect(docxResult.filename).toBe('document.docx');
+          expect(docxResult.attachmentKey).toContain('.docx');
+      });
+
+      it('should reject invalid page GUID', async () => {
+        await expect(
+          plugin.uploadAttachment('invalid-guid', {
+            originalFilename: 'test.pdf',
+            contentType: 'application/pdf',
+            data: Buffer.from('test'),
+            uploadedBy: 'user-123',
+          })
+        ).rejects.toThrow(/Invalid page GUID format/i);
+      });
+
+      it('should reject upload if page does not exist', async () => {
+        const pageGuid = uuidv4();
+
+        s3Mock.on(GetObjectCommand).rejects({ name: 'NoSuchKey' });
+
+        await expect(
+          plugin.uploadAttachment(pageGuid, {
+            originalFilename: 'test.pdf',
+            contentType: 'application/pdf',
+            data: Buffer.from('test'),
+            uploadedBy: 'user-123',
+          })
+        ).rejects.toThrow(/Page not found/i);
+      });
+    });
+
+    describe('deleteAttachment', () => {
+      it('should delete an attachment from S3', async () => {
+        const pageGuid = uuidv4();
+        const attachmentGuid = uuidv4();
+
+        // Mock finding the attachment key
+        s3Mock.on(ListObjectsV2Command).resolves({
+          Contents: [
+            { Key: `${pageGuid}/_attachments/${attachmentGuid}.pdf` },
+          ],
+        });
+
+        s3Mock.on(DeleteObjectCommand).resolves({});
+
+        await plugin.deleteAttachment(pageGuid, attachmentGuid);
+
+        // Verify delete was called
+        const deleteCalls = s3Mock.commandCalls(DeleteObjectCommand);
+        expect(deleteCalls.length).toBeGreaterThan(0);
+        const lastCall = deleteCalls[deleteCalls.length - 1];
+        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/_attachments/${attachmentGuid}.pdf`);
+      });
+
+      it('should reject invalid page GUID', async () => {
+        const attachmentGuid = uuidv4();
+        await expect(
+          plugin.deleteAttachment('invalid-guid', attachmentGuid)
+        ).rejects.toThrow(/Invalid GUID format/i);
+      });
+
+      it('should reject invalid attachment GUID', async () => {
+        const pageGuid = uuidv4();
+        await expect(
+          plugin.deleteAttachment(pageGuid, 'invalid-guid')
+        ).rejects.toThrow(/Invalid GUID format/i);
+      });
+
+      it('should throw error if attachment not found', async () => {
+        const pageGuid = uuidv4();
+        const attachmentGuid = uuidv4();
+
+        s3Mock.on(ListObjectsV2Command).resolves({
+          Contents: [],
+        });
+
+        await expect(
+          plugin.deleteAttachment(pageGuid, attachmentGuid)
+        ).rejects.toThrow(/Attachment not found/i);
+      });
+    });
+
+    describe('saveAttachmentMetadata', () => {
+      it('should save metadata as .meta.json sidecar file', async () => {
+        const pageGuid = uuidv4();
+        const attachmentGuid = uuidv4();
+        const metadata = {
+          attachmentId: attachmentGuid,
+          originalFilename: 'test-document.pdf',
+          contentType: 'application/pdf',
+          size: 12345,
+          uploadedAt: '2026-03-07T12:00:00Z',
+          uploadedBy: 'user-123',
+          checksum: 'abc123def456',
+        };
+
+        s3Mock.on(PutObjectCommand).resolves({});
+
+        await plugin.saveAttachmentMetadata(pageGuid, attachmentGuid, metadata);
+
+        // Verify metadata was saved
+        const putCalls = s3Mock.commandCalls(PutObjectCommand);
+        expect(putCalls.length).toBeGreaterThan(0);
+        const lastCall = putCalls[putCalls.length - 1];
+        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/_attachments/${attachmentGuid}.meta.json`);
+        expect(lastCall.args[0].input.ContentType).toBe('application/json');
+
+        const savedBody = JSON.parse(lastCall.args[0].input.Body as string);
+        expect(savedBody).toEqual(metadata);
+      });
+
+      it('should reject invalid GUIDs', async () => {
+        const attachmentGuid = uuidv4();
+        await expect(
+          plugin.saveAttachmentMetadata('invalid-guid', attachmentGuid, {} as any)
+        ).rejects.toThrow(/Invalid GUID format/i);
+      });
+    });
+
+    describe('getAttachmentUrl', () => {
+      it('should generate a presigned URL for the attachment', async () => {
+        const pageGuid = uuidv4();
+        const attachmentGuid = uuidv4();
+
+        // Mock finding the attachment key
+        s3Mock.on(ListObjectsV2Command).resolves({
+          Contents: [
+            { Key: `${pageGuid}/_attachments/${attachmentGuid}.pdf` },
+          ],
+        });
+
+        const url = await plugin.getAttachmentUrl(pageGuid, attachmentGuid);
+
+        expect(url).toBeTruthy();
+        expect(typeof url).toBe('string');
+        // Presigned URLs should contain the bucket and key
+        expect(url).toContain('test-bucket');
+      });
+
+      it('should throw error if attachment not found', async () => {
+        const pageGuid = uuidv4();
+        const attachmentGuid = uuidv4();
+
+        s3Mock.on(ListObjectsV2Command).resolves({
+          Contents: [],
+        });
+
+        await expect(
+          plugin.getAttachmentUrl(pageGuid, attachmentGuid)
+        ).rejects.toThrow(/Attachment not found/i);
+      });
+
+      it('should reject invalid GUIDs', async () => {
+        const attachmentGuid = uuidv4();
+        await expect(
+          plugin.getAttachmentUrl('invalid-guid', attachmentGuid)
+        ).rejects.toThrow(/Invalid GUID format/i);
+      });
     });
   });
 });
