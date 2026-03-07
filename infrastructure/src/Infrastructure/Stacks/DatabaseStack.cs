@@ -12,7 +12,6 @@ namespace Infrastructure.Stacks
         public Table UserProfilesTable { get; private set; }
         public Table InvitationsTable { get; private set; }
         public Table PageLinksTable { get; private set; }
-        public Table AttachmentsTable { get; private set; }
         public Table CommentsTable { get; private set; }
         public Table ActivityLogTable { get; private set; }
         public Table UserPreferencesTable { get; private set; }
@@ -80,23 +79,8 @@ namespace Infrastructure.Stacks
                 ProjectionType = ProjectionType.ALL
             });
             
-            // Attachments table - metadata for uploaded files
-            AttachmentsTable = new Table(this, "AttachmentsTable", new TableProps
-            {
-                TableName = $"bluefinwiki-attachments-{config.Name}",
-                PartitionKey = new Attribute { Name = "guid", Type = AttributeType.STRING },
-                BillingMode = BillingMode.PAY_PER_REQUEST,
-                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
-            });
-            
-            // GSI for querying attachments by page
-            AttachmentsTable.AddGlobalSecondaryIndex(new GlobalSecondaryIndexProps
-            {
-                IndexName = "pageGuid-index",
-                PartitionKey = new Attribute { Name = "pageGuid", Type = AttributeType.STRING },
-                SortKey = new Attribute { Name = "uploadedAt", Type = AttributeType.STRING },
-                ProjectionType = ProjectionType.ALL
-            });
+            // Note: Attachments metadata stored in sidecar .meta.json files in S3,
+            // not in DynamoDB. Files stored at: {pageGuid}/_attachments/
             
             // Comments table - page discussions
             CommentsTable = new Table(this, "CommentsTable", new TableProps

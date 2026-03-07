@@ -11,7 +11,6 @@ namespace Infrastructure.Stacks
     public class StorageStack : Stack
     {
         public IBucket PagesBucket { get; private set; }
-        public IBucket AttachmentsBucket { get; private set; }
         public IBucket ExportsBucket { get; private set; }
         
         internal StorageStack(Construct scope, string id, IStackProps props, EnvironmentConfig config) 
@@ -47,36 +46,8 @@ namespace Infrastructure.Stacks
                 }
             });
             
-            // S3 Bucket for attachments (images, PDFs, etc.)
-            AttachmentsBucket = new Bucket(this, "AttachmentsBucket", new BucketProps
-            {
-                BucketName = $"bluefinwiki-attachments-{config.Name}",
-                Versioned = false, // Attachments don't need versioning
-                Encryption = BucketEncryption.S3_MANAGED,
-                BlockPublicAccess = BlockPublicAccess.BLOCK_ALL,
-                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
-                AutoDeleteObjects = !config.IsProd,
-                LifecycleRules = new[]
-                {
-                    new LifecycleRule
-                    {
-                        Id = "DeleteOrphanedAttachments",
-                        Expiration = Duration.Days(90),
-                        Enabled = true,
-                        Prefix = "orphaned/" // Attachments moved here when page deleted
-                    }
-                },
-                Cors = new[]
-                {
-                    new CorsRule
-                    {
-                        AllowedMethods = new[] { HttpMethods.GET, HttpMethods.PUT },
-                        AllowedOrigins = new[] { "*" },
-                        AllowedHeaders = new[] { "*" },
-                        MaxAge = 3000
-                    }
-                }
-            });
+            // Note: Attachments are stored in PagesBucket at {pageGuid}/_attachments/
+            // with metadata in sidecar .meta.json files
             
             // S3 Bucket for exports (PDFs, HTML bundles)
             ExportsBucket = new Bucket(this, "ExportsBucket", new BucketProps
@@ -104,15 +75,8 @@ namespace Infrastructure.Stacks
             new CfnOutput(this, "PagesBucketName", new CfnOutputProps
             {
                 Value = PagesBucket.BucketName,
-                Description = "S3 bucket for page storage",
+                Description = "S3 bucket for page storage (includes attachments at {pageGuid}/_attachments/)",
                 ExportName = $"{config.Name}-pages-bucket"
-            });
-            
-            new CfnOutput(this, "AttachmentsBucketName", new CfnOutputProps
-            {
-                Value = AttachmentsBucket.BucketName,
-                Description = "S3 bucket for attachments",
-                ExportName = $"{config.Name}-attachments-bucket"
             });
             
             new CfnOutput(this, "ExportsBucketName", new CfnOutputProps

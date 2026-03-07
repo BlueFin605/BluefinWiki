@@ -617,16 +617,16 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 **Goal**: Enable file uploads and management
 
 #### 7.0 Infrastructure Cleanup (Align with Spec)
-- [ ] Remove separate attachments bucket from infrastructure
-  - [ ] Update `StorageStack.cs`: Remove `AttachmentsBucket` property and creation
-  - [ ] Update `ComputeStack.cs`: Remove references to `AttachmentsBucket`
-  - [ ] Update environment configs: Remove `S3_ATTACHMENTS_BUCKET` / `ATTACHMENTS_BUCKET` variables
-  - [ ] Update local Aspire setup: Remove attachments bucket from LocalStack
-  - [ ] Update documentation: Note attachments stored in pages bucket at `{pageGuid}/_attachments/`
-- [ ] Remove DynamoDB attachments table (metadata in sidecar .meta.json files instead)
-  - [ ] Update `DatabaseStack.cs`: Remove attachments table definition
-  - [ ] Update `DATABASE-SCHEMA.md`: Document that attachments use sidecar JSON, not DynamoDB
-  - [ ] Note: Keep table if already deployed for now; just don't use it in new code
+- [X] Remove separate attachments bucket from infrastructure
+  - [X] Update `StorageStack.cs`: Remove `AttachmentsBucket` property and creation
+  - [X] Update `ComputeStack.cs`: Remove references to `AttachmentsBucket`
+  - [X] Update environment configs: Remove `S3_ATTACHMENTS_BUCKET` / `ATTACHMENTS_BUCKET` variables
+  - [X] Update local Aspire setup: Remove attachments bucket from LocalStack
+  - [X] Update documentation: Note attachments stored in pages bucket at `{pageGuid}/_attachments/`
+- [X] Remove DynamoDB attachments table (metadata in sidecar .meta.json files instead)
+  - [X] Update `DatabaseStack.cs`: Remove attachments table definition
+  - [X] Update `DATABASE-SCHEMA.md`: Document that attachments use sidecar JSON, not DynamoDB
+  - [X] Note: Keep table if already deployed for now; just don't use it in new code
 
 #### 7.1 Upload Infrastructure (using Pages Bucket)
 - [ ] Implement storage plugin attachment methods
