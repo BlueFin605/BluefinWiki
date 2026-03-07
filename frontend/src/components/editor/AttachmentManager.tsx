@@ -8,6 +8,8 @@ interface AttachmentManagerProps {
   currentUserId?: string;
   currentUserRole?: 'Admin' | 'Standard';
   pageAuthorId?: string;
+  onInsertMarkdown?: (markdown: string) => void;
+  className?: string;
 }
 
 const IMAGE_MIME_TYPES = new Set([
@@ -46,6 +48,8 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   currentUserId,
   currentUserRole,
   pageAuthorId,
+  onInsertMarkdown,
+  className,
 }) => {
   const { listAttachments, deleteAttachment } = useAttachments(pageGuid);
 
@@ -210,8 +214,57 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     setPreviewAttachment(attachment);
   }, []);
 
+  const buildMarkdownLink = useCallback((attachment: AttachmentMetadata) => {
+    const attachmentUrl = `/pages/${pageGuid}/attachments/${attachment.attachmentId}`;
+    const isImage = isImageContentType(attachment.contentType);
+    const altText = attachment.originalFilename.replace(/\.[^/.]+$/, '') || 'attachment';
+
+    if (isImage) {
+      return `![${altText}](${attachmentUrl})`;
+    }
+
+    return `[${attachment.originalFilename}](${attachmentUrl})`;
+  }, [pageGuid]);
+
+  const copyMarkdownToClipboard = useCallback(async (attachment: AttachmentMetadata) => {
+    const markdown = buildMarkdownLink(attachment);
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(markdown);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = markdown;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to copy markdown link';
+      setActionError(message);
+    }
+  }, [buildMarkdownLink]);
+
+  const handleDragStart = useCallback((event: React.DragEvent<HTMLButtonElement>, attachment: AttachmentMetadata) => {
+    const markdown = buildMarkdownLink(attachment);
+    event.dataTransfer.setData('text/plain', markdown);
+    event.dataTransfer.effectAllowed = 'copy';
+  }, [buildMarkdownLink]);
+
+  const insertMarkdownLink = useCallback((attachment: AttachmentMetadata) => {
+    if (!onInsertMarkdown) {
+      return;
+    }
+
+    onInsertMarkdown(buildMarkdownLink(attachment));
+  }, [buildMarkdownLink, onInsertMarkdown]);
+
   return (
-    <div className="bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col h-full">
+    <div className={`bg-white dark:bg-gray-800 flex flex-col h-full ${className || ''}`}>
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Attachments</h3>
         <button
@@ -224,6 +277,10 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Copy a markdown link or drag it into the editor.
+        </p>
+
         {isLoading && (
           <p className="text-sm text-gray-500 dark:text-gray-400">Loading attachments...</p>
         )}
@@ -287,6 +344,33 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                         >
                           Download
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => copyMarkdownToClipboard(attachment)}
+                          className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                        >
+                          Copy Markdown
+                        </button>
+
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(event) => handleDragStart(event, attachment)}
+                          className="text-xs text-gray-600 dark:text-gray-300 hover:underline cursor-grab active:cursor-grabbing"
+                        >
+                          Drag Link
+                        </button>
+
+                        {onInsertMarkdown && (
+                          <button
+                            type="button"
+                            onClick={() => insertMarkdownLink(attachment)}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Insert
+                          </button>
+                        )}
 
                         {canDelete && (
                           <button

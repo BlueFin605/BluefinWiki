@@ -4,6 +4,8 @@ import MarkdownPreview from './MarkdownPreview';
 import MarkdownToolbar, { ToolbarAction } from './MarkdownToolbar';
 import PagePropertiesPanel, { PageMetadata } from './PagePropertiesPanel';
 import { CreatePageFromLinkModal } from '../pages/CreatePageFromLinkModal';
+import { AttachmentManager } from './AttachmentManager';
+import { useAttachments } from '../../hooks/useAttachments';
 
 interface EditorPaneProps {
   initialContent?: string;
@@ -21,6 +23,9 @@ interface EditorPaneProps {
   pageGuid?: string;
   /** Is the save operation in progress */
   isSaving?: boolean;
+  currentUserId?: string;
+  currentUserRole?: 'Admin' | 'Standard';
+  pageAuthorId?: string;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -45,6 +50,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   showPropertiesPanel = false,
   pageGuid,
   isSaving = false,
+  currentUserId,
+  currentUserRole,
+  pageAuthorId,
 }) => {
   const [content, setContent] = useState(initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
@@ -55,8 +63,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const editorRef = useRef<MarkdownEditorRef>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const lastLoadedPageGuidRef = useRef<string | undefined>(pageGuid);
   const savedContentRef = useRef<string>(initialContent);
+  const [attachmentActionError, setAttachmentActionError] = useState<string | null>(null);
+  const { uploadFiles } = useAttachments(pageGuid || '');
   
   // Track if content has changed
   const isDirty = content !== savedContentRef.current;
@@ -104,9 +115,65 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
   // Handle toolbar action
   const handleToolbarAction = useCallback((action: ToolbarAction) => {
+    if (action === 'attachment') {
+      if (!pageGuid) {
+        setAttachmentActionError('Save the page before uploading attachments.');
+        return;
+      }
+
+      setAttachmentActionError(null);
+      attachmentInputRef.current?.click();
+      return;
+    }
+
     if (editorRef.current) {
       editorRef.current.applyToolbarAction(action);
     }
+  }, [pageGuid]);
+
+  const buildMarkdownFromUpload = useCallback((filename: string, contentType: string, url: string) => {
+    const altText = filename.replace(/\.[^/.]+$/, '') || 'attachment';
+    const isImage = contentType.toLowerCase().startsWith('image/');
+
+    if (isImage) {
+      return `![${altText}](${url})`;
+    }
+
+    return `[${filename}](${url})`;
+  }, []);
+
+  const handleAttachmentFilesSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    if (files.length === 0 || !pageGuid) {
+      return;
+    }
+
+    setAttachmentActionError(null);
+
+    try {
+      const { successful, failed } = await uploadFiles(files);
+
+      if (successful.length > 0 && editorRef.current) {
+        const markdownBlock = successful
+          .map((upload) => buildMarkdownFromUpload(upload.filename, upload.contentType, upload.url))
+          .join('\n');
+
+        editorRef.current.insertMarkdown(`${markdownBlock}\n`);
+      }
+
+      if (failed.length > 0) {
+        setAttachmentActionError(failed[0].error);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Attachment upload failed';
+      setAttachmentActionError(message);
+    } finally {
+      event.target.value = '';
+    }
+  }, [buildMarkdownFromUpload, pageGuid, uploadFiles]);
+
+  const handleAttachmentInsert = useCallback((markdown: string) => {
+    editorRef.current?.insertMarkdown(`${markdown}\n`);
   }, []);
 
   // Handle broken link click - open modal to create page
@@ -272,6 +339,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
       {/* Main Editor Area */}
       <div className="flex-1 flex flex-col">
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          className="hidden"
+          multiple
+          onChange={handleAttachmentFilesSelected}
+          aria-label="Upload attachments"
+        />
+
         {/* Top toolbar with view mode toggle and save status */}
         <div className="flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -305,6 +381,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         {/* Markdown formatting toolbar */}
         {editable && (viewMode === 'edit' || viewMode === 'split') && (
           <MarkdownToolbar onAction={handleToolbarAction} disabled={!editable} />
+        )}
+
+        {attachmentActionError && (
+          <div className="px-4 py-2 text-sm bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+            {attachmentActionError}
+          </div>
         )}
 
         {/* Editor and/or preview panes */}
@@ -352,6 +434,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             </div>
           )}
         </div>
+
+        {pageGuid && (
+          <div className="h-64 border-t border-gray-200 dark:border-gray-700 min-h-0">
+            <AttachmentManager
+              pageGuid={pageGuid}
+              currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
+              pageAuthorId={pageAuthorId}
+              onInsertMarkdown={handleAttachmentInsert}
+              className="border-0"
+            />
+          </div>
+        )}
       </div>
 
       {/* Create Page from Link Modal */}

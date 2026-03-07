@@ -16,6 +16,7 @@ interface MarkdownEditorProps {
 
 export interface MarkdownEditorRef {
   applyToolbarAction: (action: ToolbarAction) => void;
+  insertMarkdown: (markdown: string) => void;
   getView: () => EditorView | null;
 }
 
@@ -166,6 +167,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
           insert: `![${selectedText || 'alt text'}](image-url)`,
         };
         break;
+      case 'attachment':
+        return;
       case 'code':
         changes = {
           from,
@@ -191,9 +194,29 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     view.focus();
   };
 
+  const insertMarkdown = (markdown: string) => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const { state } = view;
+    const { from, to } = state.selection.main;
+
+    view.dispatch({
+      changes: {
+        from,
+        to,
+        insert: markdown,
+      },
+      selection: { anchor: from + markdown.length },
+    });
+
+    view.focus();
+  };
+
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     applyToolbarAction,
+    insertMarkdown,
     getView: () => viewRef.current,
   }));
 
