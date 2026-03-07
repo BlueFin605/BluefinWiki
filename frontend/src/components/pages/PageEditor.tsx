@@ -11,7 +11,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { EditorPane } from '../editor/EditorPane';
-import { AttachmentManager } from '../editor/AttachmentManager';
 import { PageMetadata } from '../editor/PagePropertiesPanel';
 import { usePageDetail, useUpdatePage, useBacklinks } from '../../hooks/usePages';
 import { UpdatePageRequest } from '../../types/page';
@@ -192,13 +191,16 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             showPropertiesPanel={true}
             pageGuid={pageGuid}
             isSaving={updatePage.isPending}
+            currentUserId={user?.userId}
+            currentUserRole={user?.role}
+            pageAuthorId={metadata?.createdBy}
           />
         </div>
       </div>
 
       {/* Linked Pages Sidebar */}
       <div className="w-80 flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700">
-        <div className="h-1/2 min-h-0">
+        <div className="h-full min-h-0">
           <LinkedPagesPanel
             pageGuid={pageGuid}
             backlinks={backlinksData?.backlinks || []}
@@ -208,15 +210,6 @@ export const PageEditor: React.FC<PageEditorProps> = ({
                 onNavigateToPage(guid);
               }
             }}
-          />
-        </div>
-
-        <div className="h-1/2 min-h-0 border-t border-gray-200 dark:border-gray-700">
-          <AttachmentManager
-            pageGuid={pageGuid}
-            currentUserId={user?.userId}
-            currentUserRole={user?.role}
-            pageAuthorId={metadata?.createdBy}
           />
         </div>
       </div>

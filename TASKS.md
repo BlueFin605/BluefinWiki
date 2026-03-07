@@ -719,14 +719,14 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Handle errors gracefully
 
 #### 7.5 Editor Integration
-- [ ] Add attachment button to editor toolbar
-  - [ ] Open file picker
-  - [ ] Upload and insert link
-  - [ ] Insert Markdown image syntax: `![alt](url)`
-- [ ] Display attachment panel below editor
-  - [ ] List all page attachments
-  - [ ] Quick-copy Markdown link
-  - [ ] Drag-and-drop link into editor
+- [X] Add attachment button to editor toolbar
+  - [X] Open file picker
+  - [X] Upload and insert link
+  - [X] Insert Markdown image syntax: `![alt](url)`
+- [X] Display attachment panel below editor
+  - [X] List all page attachments
+  - [X] Quick-copy Markdown link
+  - [X] Drag-and-drop link into editor
 
 ---
 
