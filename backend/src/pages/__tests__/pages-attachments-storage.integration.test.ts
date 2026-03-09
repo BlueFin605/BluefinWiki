@@ -57,9 +57,9 @@ describe('Attachment API - LocalStack Integration Tests', () => {
   describe('S3 Attachment Storage Verification', () => {
     it('should successfully save an attachment to S3', async () => {
       const pageGuid = uuidv4();
-      const attachmentGuid = uuidv4();
+      const filename = 'test-file.txt';
       const fileContent = 'This is a test attachment file';
-      const attachmentKey = `${pageGuid}/_attachments/${attachmentGuid}.txt`;
+      const attachmentKey = `${pageGuid}/_attachments/${filename}`;
 
       // Save attachment
       await s3Client.send(new PutObjectCommand({
@@ -82,9 +82,9 @@ describe('Attachment API - LocalStack Integration Tests', () => {
 
     it('should successfully read an attachment from S3', async () => {
       const pageGuid = uuidv4();
-      const attachmentGuid = uuidv4();
+      const filename = 'test-read.pdf';
       const fileContent = Buffer.from('Read test content');
-      const attachmentKey = `${pageGuid}/_attachments/${attachmentGuid}.pdf`;
+      const attachmentKey = `${pageGuid}/_attachments/${filename}`;
 
       // Save attachment
       await s3Client.send(new PutObjectCommand({
@@ -111,17 +111,15 @@ describe('Attachment API - LocalStack Integration Tests', () => {
 
     it('should save and retrieve attachment metadata sidecar', async () => {
       const pageGuid = uuidv4();
-      const attachmentGuid = uuidv4();
+      const filename = 'document.pdf';
       const metadata = {
-        attachmentId: attachmentGuid,
-        originalFilename: 'document.pdf',
+        filename: filename,
         contentType: 'application/pdf',
         size: 12345,
         uploadedAt: new Date().toISOString(),
         uploadedBy: 'test-user',
-        checksum: 'abc123def456',
       };
-      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
+      const metadataKey = `${pageGuid}/_attachments/${filename}.meta.json`;
 
       // Save metadata
       await s3Client.send(new PutObjectCommand({
@@ -141,39 +139,39 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       const data = await body.transformToString();
       const retrievedMetadata = JSON.parse(data);
 
-      expect(retrievedMetadata.attachmentId).toBe(attachmentGuid);
-      expect(retrievedMetadata.originalFilename).toBe('document.pdf');
+      expect(retrievedMetadata.filename).toBe(filename);
+      expect(retrievedMetadata.contentType).toBe('application/pdf');
       expect(retrievedMetadata.size).toBe(12345);
     });
 
     it('should list all attachments for a page', async () => {
       const pageGuid = uuidv4();
-      const attachment1 = uuidv4();
-      const attachment2 = uuidv4();
+      const attachment1 = 'file1.txt';
+      const attachment2 = 'file2.txt';
 
       // Save multiple attachments
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${pageGuid}/_attachments/${attachment1}.txt`,
+        Key: `${pageGuid}/_attachments/${attachment1}`,
         Body: 'File 1',
       }));
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
         Key: `${pageGuid}/_attachments/${attachment1}.meta.json`,
-        Body: JSON.stringify({ attachmentId: attachment1, originalFilename: 'file1.txt' }),
+        Body: JSON.stringify({ filename: attachment1, contentType: 'text/plain' }),
       }));
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${pageGuid}/_attachments/${attachment2}.txt`,
+        Key: `${pageGuid}/_attachments/${attachment2}`,
         Body: 'File 2',
       }));
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
         Key: `${pageGuid}/_attachments/${attachment2}.meta.json`,
-        Body: JSON.stringify({ attachmentId: attachment2, originalFilename: 'file2.txt' }),
+        Body: JSON.stringify({ filename: attachment2, contentType: 'text/plain' }),
       }));
 
       // List attachments
@@ -184,17 +182,17 @@ describe('Attachment API - LocalStack Integration Tests', () => {
 
       expect(list.Contents).toBeDefined();
       expect(list.Contents?.length).toBe(4); // 2 files + 2 metadata files
-      expect(list.Contents?.some(obj => obj.Key?.includes(`${attachment1}.txt`))).toBe(true);
-      expect(list.Contents?.some(obj => obj.Key?.includes(`${attachment2}.txt`))).toBe(true);
+      expect(list.Contents?.some(obj => obj.Key?.includes(`${attachment1}`))).toBe(true);
+      expect(list.Contents?.some(obj => obj.Key?.includes(`${attachment2}`))).toBe(true);
     });
 
     it('should delete attachments by removing both file and metadata', async () => {
       const pageGuid = uuidv4();
-      const attachmentGuid = uuidv4();
+      const filename = 'test-delete.pdf';
 
       // Save attachment and metadata
-      const attachmentKey = `${pageGuid}/_attachments/${attachmentGuid}.pdf`;
-      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
+      const attachmentKey = `${pageGuid}/_attachments/${filename}`;
+      const metadataKey = `${pageGuid}/_attachments/${filename}.meta.json`;
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
@@ -205,7 +203,7 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
         Key: metadataKey,
-        Body: JSON.stringify({ attachmentId: attachmentGuid }),
+        Body: JSON.stringify({ filename: filename }),
       }));
 
       // Verify both exist
@@ -230,20 +228,20 @@ describe('Attachment API - LocalStack Integration Tests', () => {
     it('should handle multiple pages with independent attachments', async () => {
       const page1 = uuidv4();
       const page2 = uuidv4();
-      const attach1 = uuidv4();
-      const attach2 = uuidv4();
+      const attach1 = 'doc1.txt';
+      const attach2 = 'doc2.txt';
 
       // Save attachments to page 1
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${page1}/_attachments/${attach1}.txt`,
+        Key: `${page1}/_attachments/${attach1}`,
         Body: 'Page 1 file',
       }));
 
       // Save attachments to page 2
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${page2}/_attachments/${attach2}.txt`,
+        Key: `${page2}/_attachments/${attach2}`,
         Body: 'Page 2 file',
       }));
 
@@ -272,8 +270,8 @@ describe('Attachment API - LocalStack Integration Tests', () => {
   describe('Attachment Storage Edge Cases', () => {
     it('should handle non-existent attachments gracefully', async () => {
       const pageGuid = uuidv4();
-      const attachmentGuid = uuidv4();
-      const key = `${pageGuid}/_attachments/${attachmentGuid}.txt`;
+      const filename = 'nonexistent.txt';
+      const key = `${pageGuid}/_attachments/${filename}`;
 
       // Try to get non-existent object
       try {
@@ -290,10 +288,10 @@ describe('Attachment API - LocalStack Integration Tests', () => {
 
     it('should handle large attachments', async () => {
       const pageGuid = uuidv4();
-      const attachmentGuid = uuidv4();
+      const filename = 'large-file.bin';
       // Create a 5MB file
       const largeContent = Buffer.alloc(5 * 1024 * 1024, 'x');
-      const key = `${pageGuid}/_attachments/${attachmentGuid}.bin`;
+      const key = `${pageGuid}/_attachments/${filename}`;
 
       // Save large file
       await s3Client.send(new PutObjectCommand({
