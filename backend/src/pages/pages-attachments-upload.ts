@@ -71,7 +71,9 @@ export const handler = withAuth(async (
     };
 
     await storagePlugin.saveAttachmentMetadata(pageGuid, uploaded.filename, metadata);
-    const url = await storagePlugin.getAttachmentUrl(pageGuid, uploaded.filename);
+    
+    // Return simple reference path for markdown (not presigned URL)
+    const url = `${pageGuid}/${uploaded.filename}`;
 
     return {
       statusCode: 201,

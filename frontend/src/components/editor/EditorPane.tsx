@@ -134,13 +134,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const buildMarkdownFromUpload = useCallback((filename: string, contentType: string, url: string) => {
     const altText = filename.replace(/\.[^/.]+$/, '') || 'attachment';
     const isImage = contentType.toLowerCase().startsWith('image/');
+    
+    // Use simple pageGuid/filename format for portability
+    const attachmentPath = pageGuid ? `${pageGuid}/${filename}` : filename;
 
     if (isImage) {
-      return `![${altText}](${url})`;
+      return `![${altText}](${attachmentPath})`;
     }
 
-    return `[${filename}](${url})`;
-  }, []);
+    return `[${filename}](${attachmentPath})`;
+  }, [pageGuid]);
 
   const handleAttachmentFilesSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
@@ -430,6 +433,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               <MarkdownPreview 
                 content={content} 
                 onBrokenLinkClick={handleBrokenLinkClick}
+                pageGuid={pageGuid}
               />
             </div>
           )}

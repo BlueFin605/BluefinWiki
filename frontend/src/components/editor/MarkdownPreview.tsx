@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -10,6 +10,8 @@ interface MarkdownPreviewProps {
   content: string;
   className?: string;
   onBrokenLinkClick?: (linkText: string, linkTarget: string) => void;
+  /** Page GUID for resolving attachment references */
+  pageGuid?: string;
 }
 
 // Type helper for react-markdown component props
@@ -32,13 +34,33 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
   className = '',
   onBrokenLinkClick,
+  pageGuid,
 }) => {
+  // Transform attachment URLs from pageGuid/filename format to full URLs
+  const transformAttachmentUri = useCallback((uri: string) => {
+    // Check if this is an attachment reference (matches GUID/filename pattern)
+    // GUID format: 8-4-4-4-12 hex characters
+    const attachmentPattern = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
+    const match = uri.match(attachmentPattern);
+    
+    if (match) {
+      const [, guid, filename] = match;
+      // Transform to full URL: /pages/{guid}/attachments/{filename}
+      return `/pages/${guid}/attachments/${encodeURIComponent(filename)}`;
+    }
+    
+    // Not an attachment reference, return as-is
+    return uri;
+  }, []);
+
   // Memoize the markdown rendering to avoid unnecessary re-renders
   const renderedContent = useMemo(() => {
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks]}
         rehypePlugins={[rehypeHighlight]}
+        transformImageUri={transformAttachmentUri}
+        transformLinkUri={transformAttachmentUri}
         components={{
           // Customize link rendering to handle both wiki links and external links
           a: ({ children, href, ...props }: MarkdownComponentProps<'a'>) => {
@@ -238,7 +260,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         {content || '*No content yet. Start writing...*'}
       </ReactMarkdown>
     );
-  }, [content]);
+  }, [content, transformAttachmentUri, onBrokenLinkClick]);
 
   return (
     <div
