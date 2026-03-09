@@ -4,7 +4,7 @@
  * Provides API methods for uploading and managing page attachments
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import apiClient from '../config/api';
 import { 
   AttachmentUploadResponse, 
@@ -147,18 +147,18 @@ export function useAttachments(pageGuid: string) {
    * List all attachments for the page
    * @returns Promise with array of attachment metadata
    */
-  const listAttachments = async () => {
+  const listAttachments = useCallback(async () => {
     const response = await apiClient.get(`/pages/${pageGuid}/attachments`);
     return response.data.attachments;
-  };
+  }, [pageGuid]);
 
   /**
    * Delete an attachment
    * @param attachmentGuid GUID of attachment to delete
    */
-  const deleteAttachment = async (attachmentGuid: string) => {
+  const deleteAttachment = useCallback(async (attachmentGuid: string) => {
     await apiClient.delete(`/pages/${pageGuid}/attachments/${attachmentGuid}`);
-  };
+  }, [pageGuid]);
 
   /**
    * Clear completed uploads from progress tracking
