@@ -36,16 +36,16 @@ describe('pages-attachments-delete', () => {
   describe('Parameter Validation', () => {
     it('should return 400 if pageGuid is missing', async () => {
       const event: APIGatewayProxyEvent = {
-        pathParameters: { attachmentGuid: '650e8400-e29b-41d4-a716-446655440001' },
+        pathParameters: { filename: 'test-file.pdf' },
       } as any;
 
       const result = await handler(event);
 
       expect(result.statusCode).toBe(400);
-      expect(JSON.parse(result.body).error).toContain('Page GUID and attachment GUID are required');
+      expect(JSON.parse(result.body).error).toContain('Page GUID and filename are required');
     });
 
-    it('should return 400 if attachmentGuid is missing', async () => {
+    it('should return 400 if filename is missing', async () => {
       const event: APIGatewayProxyEvent = {
         pathParameters: { pageGuid: '550e8400-e29b-41d4-a716-446655440000' },
       } as any;
@@ -53,10 +53,10 @@ describe('pages-attachments-delete', () => {
       const result = await handler(event);
 
       expect(result.statusCode).toBe(400);
-      expect(JSON.parse(result.body).error).toContain('Page GUID and attachment GUID are required');
+      expect(JSON.parse(result.body).error).toContain('Page GUID and filename are required');
     });
 
-    it('should return 400 if both GUIDs are missing', async () => {
+    it('should return 400 if both are missing', async () => {
       const event: APIGatewayProxyEvent = {
         pathParameters: null,
       } as any;
@@ -64,14 +64,14 @@ describe('pages-attachments-delete', () => {
       const result = await handler(event);
 
       expect(result.statusCode).toBe(400);
-      expect(JSON.parse(result.body).error).toContain('Page GUID and attachment GUID are required');
+      expect(JSON.parse(result.body).error).toContain('Page GUID and filename are required');
     });
 
     it('should return 400 if pageGuid has invalid format', async () => {
       const event: APIGatewayProxyEvent = {
         pathParameters: {
           pageGuid: 'invalid-guid',
-          attachmentGuid: '650e8400-e29b-41d4-a716-446655440001',
+          filename: 'test-file.pdf',
         },
       } as any;
 
@@ -81,42 +81,28 @@ describe('pages-attachments-delete', () => {
       expect(JSON.parse(result.body).error).toContain('Invalid GUID format');
     });
 
-    it('should return 400 if attachmentGuid has invalid format', async () => {
-      const event: APIGatewayProxyEvent = {
-        pathParameters: {
-          pageGuid: '550e8400-e29b-41d4-a716-446655440000',
-          attachmentGuid: 'not-a-guid',
-        },
-      } as any;
-
-      const result = await handler(event);
-
-      expect(result.statusCode).toBe(400);
-      expect(JSON.parse(result.body).error).toContain('Invalid GUID format');
-    });
-
-    it('should accept pageGuid parameter', async () => {
+    it('should accept pageGuid parameter with filename', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-file.pdf';
       (mockPlugin.deleteAttachment as any).mockResolvedValue(undefined);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
 
       expect(result.statusCode).toBe(200);
-      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, attachmentGuid);
+      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
     });
 
     it('should accept guid parameter as fallback for pageGuid', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-file.pdf';
       (mockPlugin.deleteAttachment as any).mockResolvedValue(undefined);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { guid: pageGuid, attachmentGuid },
+        pathParameters: { guid: pageGuid, filename },
       } as any;
 
       const result = await handler(event);

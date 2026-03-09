@@ -970,7 +970,6 @@ Test content`;
           contentType: 'application/pdf',
           size: fileData.length,
         });
-        expect(result.attachmentGuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
         expect(result.attachmentKey).toContain(`${pageGuid}/_attachments/`);
 
         // Verify S3 PutObject was called
@@ -1057,53 +1056,46 @@ Test content`;
     describe('deleteAttachment', () => {
       it('should delete attachment file and metadata sidecar from S3', async () => {
         const pageGuid = uuidv4();
-        const attachmentGuid = uuidv4();
+        const filename = 'test-document.pdf';
 
         // Mock finding the attachment key
         s3Mock.on(ListObjectsV2Command).resolves({
           Contents: [
-            { Key: `${pageGuid}/_attachments/${attachmentGuid}.pdf` },
+            { Key: `${pageGuid}/_attachments/${filename}` },
           ],
         });
 
         s3Mock.on(DeleteObjectsCommand).resolves({});
 
-        await plugin.deleteAttachment(pageGuid, attachmentGuid);
+        await plugin.deleteAttachment(pageGuid, filename);
 
         // Verify both file and metadata delete were requested
         const deleteCalls = s3Mock.commandCalls(DeleteObjectsCommand);
         expect(deleteCalls.length).toBeGreaterThan(0);
         const lastCall = deleteCalls[deleteCalls.length - 1];
         expect(lastCall.args[0].input.Delete?.Objects).toEqual([
-          { Key: `${pageGuid}/_attachments/${attachmentGuid}.pdf` },
-          { Key: `${pageGuid}/_attachments/${attachmentGuid}.meta.json` },
+          { Key: `${pageGuid}/_attachments/${filename}` },
+          { Key: `${pageGuid}/_attachments/${filename}.meta.json` },
         ]);
       });
 
       it('should reject invalid page GUID', async () => {
-        const attachmentGuid = uuidv4();
+        const filename = 'test.pdf';
         await expect(
-          plugin.deleteAttachment('invalid-guid', attachmentGuid)
+          plugin.deleteAttachment('invalid-guid', filename)
         ).rejects.toThrow(/Invalid GUID format/i);
       });
 
-      it('should reject invalid attachment GUID', async () => {
+      it('should reject if attachment not found', async () => {
         const pageGuid = uuidv4();
-        await expect(
-          plugin.deleteAttachment(pageGuid, 'invalid-guid')
-        ).rejects.toThrow(/Invalid GUID format/i);
-      });
-
-      it('should throw error if attachment not found', async () => {
-        const pageGuid = uuidv4();
-        const attachmentGuid = uuidv4();
+        const filename = 'nonexistent.pdf';
 
         s3Mock.on(ListObjectsV2Command).resolves({
           Contents: [],
         });
 
         await expect(
-          plugin.deleteAttachment(pageGuid, attachmentGuid)
+          plugin.deleteAttachment(pageGuid, filename)
         ).rejects.toThrow(/Attachment not found/i);
       });
     });
@@ -1111,36 +1103,34 @@ Test content`;
     describe('saveAttachmentMetadata', () => {
       it('should save metadata as .meta.json sidecar file', async () => {
         const pageGuid = uuidv4();
-        const attachmentGuid = uuidv4();
+        const filename = 'test-document.pdf';
         const metadata = {
-          attachmentId: attachmentGuid,
-          originalFilename: 'test-document.pdf',
+          filename: filename,
           contentType: 'application/pdf',
           size: 12345,
           uploadedAt: '2026-03-07T12:00:00Z',
           uploadedBy: 'user-123',
-          checksum: 'abc123def456',
         };
 
         s3Mock.on(PutObjectCommand).resolves({});
 
-        await plugin.saveAttachmentMetadata(pageGuid, attachmentGuid, metadata);
+        await plugin.saveAttachmentMetadata(pageGuid, filename, metadata);
 
         // Verify metadata was saved
         const putCalls = s3Mock.commandCalls(PutObjectCommand);
         expect(putCalls.length).toBeGreaterThan(0);
         const lastCall = putCalls[putCalls.length - 1];
-        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/_attachments/${attachmentGuid}.meta.json`);
+        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/_attachments/${filename}.meta.json`);
         expect(lastCall.args[0].input.ContentType).toBe('application/json');
 
         const savedBody = JSON.parse(lastCall.args[0].input.Body as string);
         expect(savedBody).toEqual(metadata);
       });
 
-      it('should reject invalid GUIDs', async () => {
-        const attachmentGuid = uuidv4();
+      it('should reject invalid page GUID', async () => {
+        const filename = 'test.pdf';
         await expect(
-          plugin.saveAttachmentMetadata('invalid-guid', attachmentGuid, {} as any)
+          plugin.saveAttachmentMetadata('invalid-guid', filename, {} as any)
         ).rejects.toThrow(/Invalid GUID format/i);
       });
     });
@@ -1148,16 +1138,9 @@ Test content`;
     describe('getAttachmentUrl', () => {
       it('should generate a presigned URL for the attachment', async () => {
         const pageGuid = uuidv4();
-        const attachmentGuid = uuidv4();
+        const filename = 'test-document.pdf';
 
-        // Mock finding the attachment key
-        s3Mock.on(ListObjectsV2Command).resolves({
-          Contents: [
-            { Key: `${pageGuid}/_attachments/${attachmentGuid}.pdf` },
-          ],
-        });
-
-        const url = await plugin.getAttachmentUrl(pageGuid, attachmentGuid);
+        const url = await plugin.getAttachmentUrl(pageGuid, filename);
 
         expect(url).toBeTruthy();
         expect(typeof url).toBe('string');
@@ -1167,21 +1150,19 @@ Test content`;
 
       it('should throw error if attachment not found', async () => {
         const pageGuid = uuidv4();
-        const attachmentGuid = uuidv4();
+        const filename = 'nonexistent.pdf';
 
-        s3Mock.on(ListObjectsV2Command).resolves({
-          Contents: [],
-        });
+        s3Mock.on(GetObjectCommand).rejects({ name: 'NoSuchKey' });
 
         await expect(
-          plugin.getAttachmentUrl(pageGuid, attachmentGuid)
-        ).rejects.toThrow(/Attachment not found/i);
+          plugin.getAttachmentUrl(pageGuid, filename)
+        ).rejects.toThrow();
       });
 
-      it('should reject invalid GUIDs', async () => {
-        const attachmentGuid = uuidv4();
+      it('should reject invalid page GUID', async () => {
+        const filename = 'test.pdf';
         await expect(
-          plugin.getAttachmentUrl('invalid-guid', attachmentGuid)
+          plugin.getAttachmentUrl('invalid-guid', filename)
         ).rejects.toThrow(/Invalid GUID format/i);
       });
     });
