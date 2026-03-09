@@ -90,7 +90,7 @@ export interface StoragePlugin {
    *
    * @param pageGuid - Page GUID to attach to
    * @param file - Attachment file details
-   * @returns Upload result with attachment GUID and storage key
+   * @returns Upload result with filename and storage key
    */
   uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult>;
 
@@ -98,27 +98,27 @@ export interface StoragePlugin {
    * Delete an attachment from a page
    *
    * @param pageGuid - Page GUID
-   * @param attachmentGuid - Attachment GUID
+   * @param filename - Attachment filename
    */
-  deleteAttachment(pageGuid: string, attachmentGuid: string): Promise<void>;
+  deleteAttachment(pageGuid: string, filename: string): Promise<void>;
 
   /**
    * Save sidecar metadata for an attachment
    *
    * @param pageGuid - Page GUID
-   * @param attachmentGuid - Attachment GUID
+   * @param filename - Attachment filename
    * @param metadata - Attachment metadata payload
    */
-  saveAttachmentMetadata(pageGuid: string, attachmentGuid: string, metadata: AttachmentMetadata): Promise<void>;
+  saveAttachmentMetadata(pageGuid: string, filename: string, metadata: AttachmentMetadata): Promise<void>;
 
   /**
    * Get sidecar metadata for an attachment
    *
    * @param pageGuid - Page GUID
-   * @param attachmentGuid - Attachment GUID
+   * @param filename - Attachment filename
    * @returns Attachment metadata
    */
-  getAttachmentMetadata(pageGuid: string, attachmentGuid: string): Promise<AttachmentMetadata>;
+  getAttachmentMetadata(pageGuid: string, filename: string): Promise<AttachmentMetadata>;
 
   /**
    * List all attachments for a page
@@ -132,10 +132,10 @@ export interface StoragePlugin {
    * Get a temporary URL for attachment download
    *
    * @param pageGuid - Page GUID
-   * @param attachmentGuid - Attachment GUID
+   * @param filename - Attachment filename
    * @returns Temporary URL
    */
-  getAttachmentUrl(pageGuid: string, attachmentGuid: string): Promise<string>;
+  getAttachmentUrl(pageGuid: string, filename: string): Promise<string>;
 
   /**
    * Get ancestors of a page (for breadcrumbs)

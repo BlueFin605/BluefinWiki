@@ -12,8 +12,8 @@ import { useAttachments } from '../../hooks/useAttachments';
 
 interface AttachmentUploaderProps {
   pageGuid: string;
-  onUploadComplete?: (attachmentGuid: string, filename: string, url: string) => void;
-  onInsertMarkdown?: (attachmentGuid: string, filename: string, isImage: boolean) => void;
+  onUploadComplete?: (filename: string, url: string) => void;
+  onInsertMarkdown?: (filename: string, isImage: boolean) => void;
   className?: string;
 }
 
@@ -43,7 +43,7 @@ export default function AttachmentUploader({
       // Notify parent of successful uploads
       if (onUploadComplete) {
         successful.forEach(upload => {
-          onUploadComplete(upload.attachmentGuid, upload.filename, upload.url);
+          onUploadComplete(upload.filename, upload.url);
         });
       }
 

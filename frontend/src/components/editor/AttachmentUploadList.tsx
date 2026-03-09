@@ -9,7 +9,7 @@ import { AttachmentUploadProgress, formatFileSize, isImageFile } from '../../typ
 interface AttachmentUploadListProps {
   uploads: AttachmentUploadProgress[];
   onClearCompleted?: () => void;
-  onInsertMarkdown?: (attachmentGuid: string, filename: string, isImage: boolean) => void;
+  onInsertMarkdown?: (filename: string, isImage: boolean) => void;
 }
 
 export default function AttachmentUploadList({
@@ -56,11 +56,11 @@ export default function AttachmentUploadList({
 
 interface AttachmentUploadItemProps {
   upload: AttachmentUploadProgress;
-  onInsertMarkdown?: (attachmentGuid: string, filename: string, isImage: boolean) => void;
+  onInsertMarkdown?: (filename: string, isImage: boolean) => void;
 }
 
 function AttachmentUploadItem({ upload, onInsertMarkdown }: AttachmentUploadItemProps) {
-  const { file, progress, status, error, attachmentGuid } = upload;
+  const { file, progress, status, error, filename } = upload;
 
   // Status icon and color
   const getStatusIcon = () => {
@@ -94,8 +94,8 @@ function AttachmentUploadItem({ upload, onInsertMarkdown }: AttachmentUploadItem
   };
 
   const handleInsertMarkdown = () => {
-    if (attachmentGuid && onInsertMarkdown) {
-      onInsertMarkdown(attachmentGuid, file.name, isImageFile(file));
+    if (filename && onInsertMarkdown) {
+      onInsertMarkdown(filename, isImageFile(file));
     }
   };
 
@@ -122,7 +122,7 @@ function AttachmentUploadItem({ upload, onInsertMarkdown }: AttachmentUploadItem
             </div>
 
             {/* Insert Markdown Button (for completed uploads) */}
-            {status === 'completed' && onInsertMarkdown && attachmentGuid && (
+            {status === 'completed' && onInsertMarkdown && filename && (
               <button
                 onClick={handleInsertMarkdown}
                 className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 whitespace-nowrap"

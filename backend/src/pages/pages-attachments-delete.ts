@@ -6,25 +6,25 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 /**
  * Lambda: pages-attachments-delete
- * DELETE /pages/{pageGuid}/attachments/{attachmentGuid}
+ * DELETE /pages/{pageGuid}/attachments/{filename}
  */
 export const handler = withAuth(async (
   event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
     const pageGuid = event.pathParameters?.pageGuid || event.pathParameters?.guid;
-    const attachmentGuid = event.pathParameters?.attachmentGuid;
+    const filename = event.pathParameters?.filename;
 
-    if (!pageGuid || !attachmentGuid) {
-      return badRequest('Page GUID and attachment GUID are required');
+    if (!pageGuid || !filename) {
+      return badRequest('Page GUID and filename are required');
     }
 
-    if (!UUID_REGEX.test(pageGuid) || !UUID_REGEX.test(attachmentGuid)) {
+    if (!UUID_REGEX.test(pageGuid)) {
       return badRequest('Invalid GUID format');
     }
 
     const storagePlugin = getStoragePlugin();
-    await storagePlugin.deleteAttachment(pageGuid, attachmentGuid);
+    await storagePlugin.deleteAttachment(pageGuid, filename);
 
     return {
       statusCode: 200,

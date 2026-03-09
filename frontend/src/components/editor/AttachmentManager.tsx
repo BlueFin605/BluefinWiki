@@ -76,12 +76,12 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     return isAdmin || isPageAuthor || isAttachmentAuthor;
   }, [currentUserId, currentUserRole, pageAuthorId]);
 
-  const downloadPathFor = useCallback((attachmentId: string) => {
-    return `/pages/${pageGuid}/attachments/${attachmentId}`;
+  const downloadPathFor = useCallback((filename: string) => {
+    return `/pages/${pageGuid}/attachments/${encodeURIComponent(filename)}`;
   }, [pageGuid]);
 
-  const fetchAttachmentBlobUrl = useCallback(async (attachmentId: string): Promise<string> => {
-    const response = await apiClient.get(downloadPathFor(attachmentId), {
+  const fetchAttachmentBlobUrl = useCallback(async (filename: string): Promise<string> => {
+    const response = await apiClient.get(downloadPathFor(filename), {
       responseType: 'blob',
     });
 
@@ -154,26 +154,26 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
 
   useEffect(() => {
     const imageAttachments = attachments.filter((attachment) => isImageContentType(attachment.contentType));
-    const missingImageIds = imageAttachments
-      .map((attachment) => attachment.attachmentId)
-      .filter((attachmentId) => !imageUrls[attachmentId]);
+    const missingImageFilenames = imageAttachments
+      .map((attachment) => attachment.filename)
+      .filter((filename) => !imageUrls[filename]);
 
-    if (missingImageIds.length === 0) {
+    if (missingImageFilenames.length === 0) {
       return;
     }
 
     let cancelled = false;
 
     const fetchMissingImages = async () => {
-      for (const attachmentId of missingImageIds) {
+      for (const filename of missingImageFilenames) {
         try {
-          const url = await fetchAttachmentBlobUrl(attachmentId);
+          const url = await fetchAttachmentBlobUrl(filename);
           if (!cancelled) {
-            setImageUrls((prev) => ({ ...prev, [attachmentId]: url }));
+            setImageUrls((prev) => ({ ...prev, [filename]: url }));
           }
         } catch {
           if (!cancelled) {
-            setImageUrls((prev) => ({ ...prev, [attachmentId]: '' }));
+            setImageUrls((prev) => ({ ...prev, [filename]: '' }));
           }
         }
       }
@@ -205,7 +205,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     setActionError(null);
 
     try {
-      const response = await apiClient.get(downloadPathFor(attachment.attachmentId), {
+      const response = await apiClient.get(downloadPathFor(attachment.filename), {
         responseType: 'blob',
       });
 
@@ -214,7 +214,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
 
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = attachment.originalFilename;
+      link.download = attachment.filename;
       link.click();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to download attachment';
@@ -228,19 +228,19 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
       return;
     }
 
-    const confirmed = window.confirm(`Delete attachment "${attachment.originalFilename}"?`);
+    const confirmed = window.confirm(`Delete attachment "${attachment.filename}"?`);
     if (!confirmed) {
       return;
     }
 
     setActionError(null);
-    setDeletingId(attachment.attachmentId);
+    setDeletingId(attachment.filename);
 
     try {
-      await deleteAttachment(attachment.attachmentId);
-      setAttachments((prev) => prev.filter((item) => item.attachmentId !== attachment.attachmentId));
+      await deleteAttachment(attachment.filename);
+      setAttachments((prev) => prev.filter((item) => item.filename !== attachment.filename));
 
-      if (previewAttachment?.attachmentId === attachment.attachmentId) {
+      if (previewAttachment?.filename === attachment.filename) {
         setPreviewAttachment(null);
       }
     } catch (err: unknown) {
@@ -259,15 +259,15 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   }, []);
 
   const buildMarkdownLink = useCallback((attachment: AttachmentMetadata) => {
-    const attachmentUrl = `/pages/${pageGuid}/attachments/${attachment.attachmentId}`;
+    const attachmentUrl = `/pages/${pageGuid}/attachments/${encodeURIComponent(attachment.filename)}`;
     const isImage = isImageContentType(attachment.contentType);
-    const altText = attachment.originalFilename.replace(/\.[^/.]+$/, '') || 'attachment';
+    const altText = attachment.filename.replace(/\.[^/.]+$/, '') || 'attachment';
 
     if (isImage) {
       return `![${altText}](${attachmentUrl})`;
     }
 
-    return `[${attachment.originalFilename}](${attachmentUrl})`;
+    return `[${attachment.filename}](${attachmentUrl})`;
   }, [pageGuid]);
 
   const copyMarkdownToClipboard = useCallback(async (attachment: AttachmentMetadata) => {
@@ -354,12 +354,12 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
           <ul className="space-y-3">
             {sortedAttachments.map((attachment) => {
               const canDelete = canDeleteAttachment(attachment);
-              const previewUrl = imageUrls[attachment.attachmentId];
+              const previewUrl = imageUrls[attachment.filename];
               const isImage = isImageContentType(attachment.contentType);
 
               return (
                 <li
-                  key={attachment.attachmentId}
+                  key={attachment.filename}
                   className="border border-gray-200 dark:border-gray-700 rounded-md p-3"
                 >
                   <div className="flex items-start gap-3">
@@ -369,7 +369,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
 
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                        {attachment.originalFilename}
+                        {attachment.filename}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         {formatFileSize(attachment.size)} • {formatUploadedDate(attachment.uploadedAt)}
@@ -384,7 +384,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                         >
                           <img
                             src={previewUrl}
-                            alt={attachment.originalFilename}
+                            alt={attachment.filename}
                             className="h-16 w-16 rounded object-cover border border-gray-200 dark:border-gray-700"
                           />
                         </button>
@@ -395,7 +395,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                           type="button"
                           onClick={() => handleDownload(attachment)}
                           className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                          title={downloadPathFor(attachment.attachmentId)}
+                          title={downloadPathFor(attachment.filename)}
                         >
                           Download
                         </button>
@@ -431,10 +431,10 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleDelete(attachment)}
-                            disabled={deletingId === attachment.attachmentId}
+                            disabled={deletingId === attachment.filename}
                             className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
                           >
-                            {deletingId === attachment.attachmentId ? 'Deleting...' : 'Delete'}
+                            {deletingId === attachment.filename ? 'Deleting...' : 'Delete'}
                           </button>
                         )}
                       </div>
@@ -463,10 +463,10 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
             >
               Close
             </button>
-            {imageUrls[previewAttachment.attachmentId] && (
+            {imageUrls[previewAttachment.filename] && (
               <img
-                src={imageUrls[previewAttachment.attachmentId]}
-                alt={previewAttachment.originalFilename}
+                src={imageUrls[previewAttachment.filename]}
+                alt={previewAttachment.filename}
                 className="max-h-[85vh] max-w-full object-contain rounded"
               />
             )}

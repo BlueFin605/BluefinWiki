@@ -898,7 +898,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Upload attachment to page-specific attachments folder
-   * Path: {pageGuid}/_attachments/{attachmentGuid}.{ext}
+   * Path: {pageGuid}/_attachments/{sanitizedFilename}
    */
   async uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult> {
     try {
@@ -909,9 +909,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       // Ensure page exists
       await this.loadPage(pageGuid);
 
-      const extension = this.extractSafeExtension(file.originalFilename);
-      const attachmentGuid = this.generateGuid();
-      const attachmentKey = `${pageGuid}/_attachments/${attachmentGuid}${extension}`;
+      // Sanitize filename to make it safe for S3 storage
+      const sanitizedFilename = this.sanitizeFilename(file.originalFilename);
+      const attachmentKey = `${pageGuid}/_attachments/${sanitizedFilename}`;
 
       await this.s3Client.send(new PutObjectCommand({
         Bucket: this.bucketName,
@@ -919,16 +919,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         Body: file.data,
         ContentType: file.contentType,
         Metadata: {
-          attachmentguid: attachmentGuid,
-          originalfilename: encodeURIComponent(file.originalFilename),
+          filename: encodeURIComponent(sanitizedFilename),
           uploadedby: file.uploadedBy,
         },
       }));
 
       return {
-        attachmentGuid,
+        filename: sanitizedFilename,
         attachmentKey,
-        filename: file.originalFilename,
         contentType: file.contentType,
         size: file.data.length,
       };
@@ -949,22 +947,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Delete an attachment file from page attachments folder
    */
-  async deleteAttachment(pageGuid: string, attachmentGuid: string): Promise<void> {
+  async deleteAttachment(pageGuid: string, filename: string): Promise<void> {
     try {
-      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+      if (!this.validateGuid(pageGuid)) {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      const attachmentKey = await this.findAttachmentKey(pageGuid, attachmentGuid);
-      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
-
-      if (!attachmentKey) {
-        throw this.createError(
-          `Attachment not found: ${attachmentGuid}`,
-          'ATTACHMENT_NOT_FOUND',
-          404
-        );
-      }
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const attachmentKey = `${pageGuid}/_attachments/${sanitizedFilename}`;
+      const metadataKey = `${pageGuid}/_attachments/${sanitizedFilename}.meta.json`;
 
       await this.s3Client.send(new DeleteObjectsCommand({
         Bucket: this.bucketName,
@@ -992,19 +983,20 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Save attachment metadata sidecar JSON
-   * Path: {pageGuid}/_attachments/{attachmentGuid}.meta.json
+   * Path: {pageGuid}/_attachments/{filename}.meta.json
    */
   async saveAttachmentMetadata(
     pageGuid: string,
-    attachmentGuid: string,
+    filename: string,
     metadata: AttachmentMetadata
   ): Promise<void> {
     try {
-      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+      if (!this.validateGuid(pageGuid)) {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const metadataKey = `${pageGuid}/_attachments/${sanitizedFilename}.meta.json`;
 
       await this.s3Client.send(new PutObjectCommand({
         Bucket: this.bucketName,
@@ -1029,13 +1021,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Get sidecar metadata JSON for an attachment
    */
-  async getAttachmentMetadata(pageGuid: string, attachmentGuid: string): Promise<AttachmentMetadata> {
+  async getAttachmentMetadata(pageGuid: string, filename: string): Promise<AttachmentMetadata> {
     try {
-      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+      if (!this.validateGuid(pageGuid)) {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      const metadataKey = `${pageGuid}/_attachments/${attachmentGuid}.meta.json`;
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const metadataKey = `${pageGuid}/_attachments/${sanitizedFilename}.meta.json`;
       const response = await this.s3Client.send(new GetObjectCommand({
         Bucket: this.bucketName,
         Key: metadataKey,
@@ -1053,7 +1046,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       if (error.name === 'NoSuchKey') {
         throw this.createError(
-          `Attachment metadata not found: ${attachmentGuid}`,
+          `Attachment metadata not found: ${filename}`,
           'ATTACHMENT_METADATA_NOT_FOUND',
           404
         );
@@ -1131,20 +1124,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Generate temporary download URL for an attachment
    */
-  async getAttachmentUrl(pageGuid: string, attachmentGuid: string): Promise<string> {
+  async getAttachmentUrl(pageGuid: string, filename: string): Promise<string> {
     try {
-      if (!this.validateGuid(pageGuid) || !this.validateGuid(attachmentGuid)) {
+      if (!this.validateGuid(pageGuid)) {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      const attachmentKey = await this.findAttachmentKey(pageGuid, attachmentGuid);
-      if (!attachmentKey) {
-        throw this.createError(
-          `Attachment not found: ${attachmentGuid}`,
-          'ATTACHMENT_NOT_FOUND',
-          404
-        );
-      }
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const attachmentKey = `${pageGuid}/_attachments/${sanitizedFilename}`;
 
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
@@ -1166,36 +1153,39 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     }
   }
 
-  private extractSafeExtension(filename: string): string {
-    const lastDotIndex = filename.lastIndexOf('.');
-    if (lastDotIndex === -1) {
-      return '';
+  /**
+   * Sanitize filename for safe S3 storage
+   * Preserves extension, removes/replaces unsafe characters
+   */
+  private sanitizeFilename(filename: string): string {
+    // Remove path components
+    const basename = filename.split(/[\\/]/).pop() || 'attachment';
+    
+    // Replace spaces with underscores
+    // Remove or replace special characters that could cause issues
+    // Keep alphanumeric, underscores, hyphens, dots
+    let sanitized = basename
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9._-]/g, '');
+    
+    // Ensure we still have a valid filename
+    if (!sanitized || sanitized === '.') {
+      sanitized = 'attachment';
     }
-
-    const rawExtension = filename.substring(lastDotIndex).toLowerCase();
-    const safeExtension = rawExtension.replace(/[^.a-z0-9]/g, '');
-    return safeExtension.length > 10 ? safeExtension.substring(0, 10) : safeExtension;
-  }
-
-  private async findAttachmentKey(pageGuid: string, attachmentGuid: string): Promise<string | null> {
-    const prefix = `${pageGuid}/_attachments/${attachmentGuid}`;
-    const response = await this.s3Client.send(new ListObjectsV2Command({
-      Bucket: this.bucketName,
-      Prefix: prefix,
-      MaxKeys: 25,
-    }));
-
-    const candidates = (response.Contents || [])
-      .map(item => item.Key)
-      .filter((key): key is string => Boolean(key))
-      .filter(key => key.startsWith(`${pageGuid}/_attachments/${attachmentGuid}.`))
-      .filter(key => !key.endsWith('.meta.json'));
-
-    if (candidates.length === 0) {
-      return null;
+    
+    // Limit filename length to 255 characters (S3 supports up to 1024, but being conservative)
+    if (sanitized.length > 255) {
+      const lastDotIndex = sanitized.lastIndexOf('.');
+      if (lastDotIndex > 0) {
+        const ext = sanitized.substring(lastDotIndex);
+        const name = sanitized.substring(0, 255 - ext.length);
+        sanitized = name + ext;
+      } else {
+        sanitized = sanitized.substring(0, 255);
+      }
     }
-
-    return candidates[0];
+    
+    return sanitized;
   }
 
   private async readBodyAsString(body: unknown): Promise<string> {

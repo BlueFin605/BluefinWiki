@@ -29,11 +29,17 @@
 **ANSWERED**: Attachments keep original filename
 
 **Implementation**:
-- Files stored with their original filename
-- No GUID renaming
-- Filenames may be sanitized for special characters if needed
-- Users can easily identify files in file manager
-- Duplicate filenames in same folder may need handling (auto-rename or replace prompt)
+- Files stored with their original filename (sanitized for safety)
+- No GUID renaming - filenames are used as identifiers
+- Filenames sanitized to remove unsafe characters (spaces → underscores, remove special chars)
+- Users can easily identify files in file manager and URLs
+- Duplicate filenames in same folder automatically handled by overwriting (user should be warned)
+- Easier debugging: URLs like `/pages/{pageGuid}/attachments/report.pdf` instead of `/pages/{pageGuid}/attachments/{guid}`
+
+**Benefits**:
+- Duplicate detection: Same filename = same file, easy to detect
+- Debugging: Human-readable URLs and storage paths
+- User-friendly: Clear what each attachment is without looking up metadata
 
 ---
 
