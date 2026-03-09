@@ -622,7 +622,7 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Update `ComputeStack.cs`: Remove references to `AttachmentsBucket`
   - [X] Update environment configs: Remove `S3_ATTACHMENTS_BUCKET` / `ATTACHMENTS_BUCKET` variables
   - [X] Update local Aspire setup: Remove attachments bucket from LocalStack
-  - [X] Update documentation: Note attachments stored in pages bucket at `{pageGuid}/_attachments/`
+  - [X] Update documentation: Note attachments stored in pages bucket at `{pageGuid}/{pageGuid}/_attachments/` (same folder as .md file)
 - [X] Remove DynamoDB attachments table (metadata in sidecar .meta.json files instead)
   - [X] Update `DatabaseStack.cs`: Remove attachments table definition
   - [X] Update `DATABASE-SCHEMA.md`: Document that attachments use sidecar JSON, not DynamoDB
@@ -630,8 +630,8 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 
 #### 7.1 Upload Infrastructure (using Pages Bucket)
 - [X] Implement storage plugin attachment methods
-  - [X] Storage path: `page-guid/_attachments/` within pages bucket
-  - [X] `uploadAttachment(pageGuid, file)`: Upload to S3 at `{pageGuid}/_attachments/{attachmentGuid}.{ext}`
+  - [X] Storage path: `{pageGuid}/{pageGuid}/_attachments/` within pages bucket (same folder as .md file)
+  - [X] `uploadAttachment(pageGuid, file)`: Upload to S3 at `{pageGuid}/{pageGuid}/_attachments/{attachmentGuid}.{ext}`
   - [X] `deleteAttachment(pageGuid, attachmentGuid)`: Remove file from S3
   - [X] `getAttachmentUrl(pageGuid, attachmentGuid)`: Generate temporary download URL
   - [X] Generate unique attachment GUIDs to avoid collisions
@@ -668,13 +668,13 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 
 #### 7.2 Attachment Metadata & Listing (Sidecar JSON Files)
 - [X] Metadata file creation (part of upload endpoint above)
-  - [X] Storage path: `{pageGuid}/_attachments/{attachmentGuid}.meta.json`
+  - [X] Storage path: `{pageGuid}/{pageGuid}/_attachments/{attachmentGuid}.meta.json`
   - [X] Metadata structure: `{ attachmentId, originalFilename, contentType, size, uploadedAt, uploadedBy, dimensions?, duration?, checksum }`
   - [X] Create metadata file atomically with attachment upload
   - [X] Extract image dimensions during upload if applicable
 - [X] Implement list attachments endpoint
   - [X] API: `GET /pages/{pageGuid}/attachments`
-  - [X] List S3 objects in `{pageGuid}/_attachments/` folder
+  - [X] List S3 objects in `{pageGuid}/{pageGuid}/_attachments/` folder
   - [X] Read `.meta.json` files for each attachment
   - [X] Return sorted list (newest first by uploadedAt)
 - [X] Implement delete attachment endpoint

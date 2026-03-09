@@ -108,18 +108,18 @@ describe('pages-attachments-delete', () => {
       const result = await handler(event);
 
       expect(result.statusCode).toBe(200);
-      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, attachmentGuid);
+      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
     });
   });
 
   describe('Successful Deletion', () => {
     it('should delete attachment and return success response', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       (mockPlugin.deleteAttachment as any).mockResolvedValue(undefined);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
@@ -133,28 +133,28 @@ describe('pages-attachments-delete', () => {
 
     it('should call deleteAttachment with correct parameters', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       (mockPlugin.deleteAttachment as any).mockResolvedValue(undefined);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       await handler(event);
 
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledTimes(1);
-      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, attachmentGuid);
+      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
     });
   });
 
   describe('Error Handling', () => {
     it('should return 500 when storage plugin throws error', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       (mockPlugin.deleteAttachment as any).mockRejectedValue(new Error('S3 deletion failed'));
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
@@ -166,7 +166,7 @@ describe('pages-attachments-delete', () => {
 
     it('should handle attachment not found error', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       const notFoundError: any = new Error('Attachment not found');
       notFoundError.code = 'ATTACHMENT_NOT_FOUND';
       notFoundError.statusCode = 404;
@@ -174,7 +174,7 @@ describe('pages-attachments-delete', () => {
       (mockPlugin.deleteAttachment as any).mockRejectedValue(notFoundError);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
@@ -187,7 +187,7 @@ describe('pages-attachments-delete', () => {
 
     it('should handle page not found error', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       const pageNotFoundError: any = new Error('Page not found');
       pageNotFoundError.code = 'PAGE_NOT_FOUND';
       pageNotFoundError.statusCode = 404;
@@ -195,7 +195,7 @@ describe('pages-attachments-delete', () => {
       (mockPlugin.deleteAttachment as any).mockRejectedValue(pageNotFoundError);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
@@ -208,7 +208,7 @@ describe('pages-attachments-delete', () => {
 
     it('should handle errors with custom status codes', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       const customError: any = new Error('Permission denied');
       customError.code = 'PERMISSION_DENIED';
       customError.statusCode = 403;
@@ -216,7 +216,7 @@ describe('pages-attachments-delete', () => {
       (mockPlugin.deleteAttachment as any).mockRejectedValue(customError);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
@@ -229,11 +229,11 @@ describe('pages-attachments-delete', () => {
 
     it('should handle non-Error objects', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       (mockPlugin.deleteAttachment as any).mockRejectedValue('String error');
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
@@ -261,39 +261,27 @@ describe('pages-attachments-delete', () => {
     ];
 
     validGuids.forEach((guid) => {
-      it(`should accept valid pageGuid and attachmentGuid: ${guid}`, async () => {
+      it(`should accept valid pageGuid: ${guid}`, async () => {
         (mockPlugin.deleteAttachment as any).mockResolvedValue(undefined);
+        const filename = 'test-document.pdf';
 
         const event: APIGatewayProxyEvent = {
-          pathParameters: { pageGuid: guid, attachmentGuid: guid },
+          pathParameters: { pageGuid: guid, filename },
         } as any;
 
         const result = await handler(event);
 
         expect(result.statusCode).toBe(200);
-        expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(guid, guid);
+        expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(guid, filename);
       });
     });
 
     invalidGuids.forEach((guid) => {
       it(`should reject invalid pageGuid: ${guid}`, async () => {
-        const validAttachmentGuid = '550e8400-e29b-41d4-a716-446655440000';
+        const filename = 'test-document.pdf';
 
         const event: APIGatewayProxyEvent = {
-          pathParameters: { pageGuid: guid, attachmentGuid: validAttachmentGuid },
-        } as any;
-
-        const result = await handler(event);
-
-        expect(result.statusCode).toBe(400);
-        expect(mockPlugin.deleteAttachment).not.toHaveBeenCalled();
-      });
-
-      it(`should reject invalid attachmentGuid: ${guid}`, async () => {
-        const validPageGuid = '550e8400-e29b-41d4-a716-446655440000';
-
-        const event: APIGatewayProxyEvent = {
-          pathParameters: { pageGuid: validPageGuid, attachmentGuid: guid },
+          pathParameters: { pageGuid: guid, filename },
         } as any;
 
         const result = await handler(event);
@@ -307,7 +295,7 @@ describe('pages-attachments-delete', () => {
   describe('Edge Cases', () => {
     it('should handle deletion of already deleted attachment', async () => {
       const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
-      const attachmentGuid = '650e8400-e29b-41d4-a716-446655440001';
+      const filename = 'test-document.pdf';
       const error: any = new Error('Attachment not found');
       error.code = 'ATTACHMENT_NOT_FOUND';
       error.statusCode = 404;
@@ -315,7 +303,7 @@ describe('pages-attachments-delete', () => {
       (mockPlugin.deleteAttachment as any).mockRejectedValue(error);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
@@ -325,17 +313,17 @@ describe('pages-attachments-delete', () => {
 
     it('should handle deletion with special characters in GUID (uppercase)', async () => {
       const pageGuid = '550E8400-E29B-41D4-A716-446655440000';
-      const attachmentGuid = '650E8400-E29B-41D4-A716-446655440001';
+      const filename = 'test-document.pdf';
       (mockPlugin.deleteAttachment as any).mockResolvedValue(undefined);
 
       const event: APIGatewayProxyEvent = {
-        pathParameters: { pageGuid, attachmentGuid },
+        pathParameters: { pageGuid, filename },
       } as any;
 
       const result = await handler(event);
 
       expect(result.statusCode).toBe(200);
-      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, attachmentGuid);
+      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
     });
   });
 });

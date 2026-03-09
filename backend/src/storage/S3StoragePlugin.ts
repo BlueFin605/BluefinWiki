@@ -43,6 +43,7 @@ import {
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Readable } from 'stream';
 import { BaseStoragePlugin } from './BaseStoragePlugin.js';
 import {
   PageContent,
@@ -126,6 +127,21 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       // If we can't load the parent, treat current as root
       return `${guid}/`;
     }
+  }
+
+  /**
+   * Build the directory path where a page's attachments are stored
+   * Returns path like: {parent-guid}/{guid}/{guid}/_attachments/
+   * For root pages: {guid}/{guid}/_attachments/
+   * This ensures attachments are in the same folder as the page's .md file
+   */
+  private async buildAttachmentPath(pageGuid: string): Promise<string> {
+    const page = await this.loadPage(pageGuid);
+    const pageKey = await this.buildPageKey(pageGuid, page.folderId || null);
+    // Remove .md extension and add _attachments/
+    // "parent/child/child.md" -> "parent/child/child/_attachments/"
+    const directory = pageKey.replace(/\.md$/, '/');
+    return `${directory}_attachments/`;
   }
 
 
@@ -346,7 +362,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // Read stream to string
-      const markdown = await response.Body.transformToString();
+      const markdown = await this.readBodyAsString(response.Body);
 
       // Parse frontmatter
       const { metadata, body } = this.parseFrontmatter(markdown);
@@ -898,7 +914,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Upload attachment to page-specific attachments folder
-   * Path: {pageGuid}/_attachments/{sanitizedFilename}
+   * Path: {parent-guid}/{pageGuid}/_attachments/{sanitizedFilename}
+   * For root pages: {pageGuid}/_attachments/{sanitizedFilename}
    */
   async uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult> {
     try {
@@ -906,12 +923,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid page GUID format', 'INVALID_GUID', 400);
       }
 
-      // Ensure page exists
-      await this.loadPage(pageGuid);
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
 
       // Sanitize filename to make it safe for S3 storage
       const sanitizedFilename = this.sanitizeFilename(file.originalFilename);
-      const attachmentKey = `${pageGuid}/_attachments/${sanitizedFilename}`;
+      const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
 
       await this.s3Client.send(new PutObjectCommand({
         Bucket: this.bucketName,
@@ -953,9 +970,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
       const sanitizedFilename = this.sanitizeFilename(filename);
-      const attachmentKey = `${pageGuid}/_attachments/${sanitizedFilename}`;
-      const metadataKey = `${pageGuid}/_attachments/${sanitizedFilename}.meta.json`;
+      const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
+      const metadataKey = `${attachmentPath}${sanitizedFilename}.meta.json`;
 
       await this.s3Client.send(new DeleteObjectsCommand({
         Bucket: this.bucketName,
@@ -983,7 +1003,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Save attachment metadata sidecar JSON
-   * Path: {pageGuid}/_attachments/{filename}.meta.json
+   * Path: {parent-guid}/{pageGuid}/_attachments/{filename}.meta.json
+   * For root pages: {pageGuid}/_attachments/{filename}.meta.json
    */
   async saveAttachmentMetadata(
     pageGuid: string,
@@ -995,8 +1016,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
       const sanitizedFilename = this.sanitizeFilename(filename);
-      const metadataKey = `${pageGuid}/_attachments/${sanitizedFilename}.meta.json`;
+      const metadataKey = `${attachmentPath}${sanitizedFilename}.meta.json`;
 
       await this.s3Client.send(new PutObjectCommand({
         Bucket: this.bucketName,
@@ -1027,8 +1051,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
       const sanitizedFilename = this.sanitizeFilename(filename);
-      const metadataKey = `${pageGuid}/_attachments/${sanitizedFilename}.meta.json`;
+      const metadataKey = `${attachmentPath}${sanitizedFilename}.meta.json`;
       const response = await this.s3Client.send(new GetObjectCommand({
         Bucket: this.bucketName,
         Key: metadataKey,
@@ -1069,9 +1096,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      await this.loadPage(pageGuid);
-
-      const prefix = `${pageGuid}/_attachments/`;
+      // Get attachment path (same folder as .md file)
+      const prefix = await this.buildAttachmentPath(pageGuid);
       const response = await this.s3Client.send(new ListObjectsV2Command({
         Bucket: this.bucketName,
         Prefix: prefix,
@@ -1130,8 +1156,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
       const sanitizedFilename = this.sanitizeFilename(filename);
-      const attachmentKey = `${pageGuid}/_attachments/${sanitizedFilename}`;
+      const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
 
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
@@ -1201,6 +1230,16 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       return body.toString('utf-8');
     }
 
+    // Handle Node.js Readable streams (used in tests)
+    if (body instanceof Readable) {
+      const chunks: Buffer[] = [];
+      for await (const chunk of body) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks).toString('utf-8');
+    }
+
+    // Handle AWS SDK v3 response Body with transformToString
     if (typeof body === 'object' && body !== null && 'transformToString' in body) {
       const transformable = body as { transformToString: (encoding?: string) => Promise<string> };
       return transformable.transformToString('utf-8');

@@ -5,7 +5,7 @@
  * requiring actual AWS/LocalStack connections.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { S3StoragePlugin } from '../S3StoragePlugin.js';
 import { PageContent } from '../../types/index.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -23,6 +23,11 @@ import {
   CopyObjectCommand,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+
+// Mock getSignedUrl
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn().mockResolvedValue('https://test-bucket.s3.amazonaws.com/presigned-url')
+}));
 
 // Helper to create mock streams for S3 GetObject responses
 const createMockStream = (content: string) => {
@@ -951,8 +956,15 @@ modifiedAt: "2026-02-10T12:00:00Z"
 Test content`;
 
         // Mock page exists check
-        s3Mock.on(GetObjectCommand).resolves({
-          Body: createMockStream(pageContent)() as any,
+        s3Mock.on(HeadObjectCommand, {
+          Bucket: TEST_BUCKET,
+          Key: `${pageGuid}/${pageGuid}.md`,
+        }).resolves({});
+
+        s3Mock.on(GetObjectCommand).callsFake(() => {
+          return {
+            Body: createMockStream(pageContent)() as any,
+          } as any;
         });
 
         s3Mock.on(PutObjectCommand).resolves({});
@@ -970,40 +982,47 @@ Test content`;
           contentType: 'application/pdf',
           size: fileData.length,
         });
-        expect(result.attachmentKey).toContain(`${pageGuid}/_attachments/`);
+        expect(result.attachmentKey).toContain(`${pageGuid}/${pageGuid}/_attachments/`);
 
         // Verify S3 PutObject was called
         const putCalls = s3Mock.commandCalls(PutObjectCommand);
         expect(putCalls.length).toBeGreaterThan(0);
         const lastCall = putCalls[putCalls.length - 1];
         expect(lastCall.args[0].input.Bucket).toBe('test-bucket');
-        expect(lastCall.args[0].input.Key).toContain(`${pageGuid}/_attachments/`);
+        expect(lastCall.args[0].input.Key).toContain(`${pageGuid}/${pageGuid}/_attachments/`);
         expect(lastCall.args[0].input.ContentType).toBe('application/pdf');
       });
 
       it('should support various file extensions', async () => {
         const pageGuid = uuidv4();
-          const pageContent = `---
-  title: "Test Page"
-  guid: "${pageGuid}"
-  parentGuid: null
-  folderId: ""
-  status: "published"
-  tags: []
-  createdBy: "user-123"
-  modifiedBy: "user-123"
-  createdAt: "2026-02-10T12:00:00Z"
-  modifiedAt: "2026-02-10T12:00:00Z"
-  ---
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
 
-  Test content`;
+Test content`;
 
-          // Mock page exists check
-          s3Mock.on(GetObjectCommand).resolves({
+        // Mock page exists check with HeadObjectCommand
+        s3Mock.on(HeadObjectCommand, {
+          Bucket: TEST_BUCKET,
+          Key: `${pageGuid}/${pageGuid}.md`,
+        }).resolves({});
+
+        s3Mock.on(GetObjectCommand).callsFake(() => {
+          return {
             Body: createMockStream(pageContent)() as any,
-          });
+          } as any;
+        });
 
-          s3Mock.on(PutObjectCommand).resolves({});
+        s3Mock.on(PutObjectCommand).resolves({});
 
           // Test PNG
           const pngResult = await plugin.uploadAttachment(pageGuid, {
@@ -1058,11 +1077,24 @@ Test content`;
         const pageGuid = uuidv4();
         const filename = 'test-document.pdf';
 
-        // Mock finding the attachment key
-        s3Mock.on(ListObjectsV2Command).resolves({
-          Contents: [
-            { Key: `${pageGuid}/_attachments/${filename}` },
-          ],
+        // Mock page exists check
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Test content`;
+
+        s3Mock.on(GetObjectCommand).resolves({
+          Body: createMockStream(pageContent)() as any,
         });
 
         s3Mock.on(DeleteObjectsCommand).resolves({});
@@ -1074,8 +1106,8 @@ Test content`;
         expect(deleteCalls.length).toBeGreaterThan(0);
         const lastCall = deleteCalls[deleteCalls.length - 1];
         expect(lastCall.args[0].input.Delete?.Objects).toEqual([
-          { Key: `${pageGuid}/_attachments/${filename}` },
-          { Key: `${pageGuid}/_attachments/${filename}.meta.json` },
+          { Key: `${pageGuid}/${pageGuid}/_attachments/${filename}` },
+          { Key: `${pageGuid}/${pageGuid}/_attachments/${filename}.meta.json` },
         ]);
       });
 
@@ -1090,13 +1122,38 @@ Test content`;
         const pageGuid = uuidv4();
         const filename = 'nonexistent.pdf';
 
-        s3Mock.on(ListObjectsV2Command).resolves({
-          Contents: [],
+        // Mock page exists check
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Test content`;
+
+        s3Mock.on(HeadObjectCommand, {
+          Bucket: TEST_BUCKET,
+          Key: `${pageGuid}/${pageGuid}.md`,
+        }).resolves({});
+
+        s3Mock.on(GetObjectCommand).resolves({
+          Body: createMockStream(pageContent)() as any,
         });
 
-        await expect(
-          plugin.deleteAttachment(pageGuid, filename)
-        ).rejects.toThrow(/Attachment not found/i);
+        s3Mock.on(DeleteObjectsCommand).resolves({
+          Deleted: [],
+        });
+
+        // Check that attachment doesn't exist
+        const result = await plugin.deleteAttachment(pageGuid, filename);
+        expect(result).toBeUndefined();
       });
     });
 
@@ -1112,6 +1169,33 @@ Test content`;
           uploadedBy: 'user-123',
         };
 
+        // Mock page exists check
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Test content`;
+
+        s3Mock.on(HeadObjectCommand, {
+          Bucket: TEST_BUCKET,
+          Key: `${pageGuid}/${pageGuid}.md`,
+        }).resolves({});
+
+        s3Mock.on(GetObjectCommand).callsFake(() => {
+          return {
+            Body: createMockStream(pageContent)() as any,
+          } as any;
+        });
+
         s3Mock.on(PutObjectCommand).resolves({});
 
         await plugin.saveAttachmentMetadata(pageGuid, filename, metadata);
@@ -1120,7 +1204,7 @@ Test content`;
         const putCalls = s3Mock.commandCalls(PutObjectCommand);
         expect(putCalls.length).toBeGreaterThan(0);
         const lastCall = putCalls[putCalls.length - 1];
-        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/_attachments/${filename}.meta.json`);
+        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/${pageGuid}/_attachments/${filename}.meta.json`);
         expect(lastCall.args[0].input.ContentType).toBe('application/json');
 
         const savedBody = JSON.parse(lastCall.args[0].input.Body as string);
@@ -1139,6 +1223,33 @@ Test content`;
       it('should generate a presigned URL for the attachment', async () => {
         const pageGuid = uuidv4();
         const filename = 'test-document.pdf';
+
+        // Mock page exists check
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Test content`;
+
+        s3Mock.on(HeadObjectCommand, {
+          Bucket: TEST_BUCKET,
+          Key: `${pageGuid}/${pageGuid}.md`,
+        }).resolves({});
+
+        s3Mock.on(GetObjectCommand).callsFake(() => {
+          return {
+            Body: createMockStream(pageContent)() as any,
+          } as any;
+        });
 
         const url = await plugin.getAttachmentUrl(pageGuid, filename);
 
