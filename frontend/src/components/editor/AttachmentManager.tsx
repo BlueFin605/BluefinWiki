@@ -259,15 +259,17 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   }, []);
 
   const buildMarkdownLink = useCallback((attachment: AttachmentMetadata) => {
-    const attachmentUrl = `/pages/${pageGuid}/attachments/${encodeURIComponent(attachment.filename)}`;
+    // Use simple pageGuid/filename format for portability
+    // This will be resolved to full URL when rendering
+    const attachmentPath = `${pageGuid}/${attachment.filename}`;
     const isImage = isImageContentType(attachment.contentType);
     const altText = attachment.filename.replace(/\.[^/.]+$/, '') || 'attachment';
 
     if (isImage) {
-      return `![${altText}](${attachmentUrl})`;
+      return `![${altText}](${attachmentPath})`;
     }
 
-    return `[${attachment.filename}](${attachmentUrl})`;
+    return `[${attachment.filename}](${attachmentPath})`;
   }, [pageGuid]);
 
   const copyMarkdownToClipboard = useCallback(async (attachment: AttachmentMetadata) => {
