@@ -131,17 +131,60 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Build the directory path where a page's attachments are stored
-   * Returns path like: {parent-guid}/{guid}/{guid}/_attachments/
-   * For root pages: {guid}/{guid}/_attachments/
+   * Returns path like: {parent-guid}/{guid}/_attachments/
+   * For root pages: {guid}/_attachments/
    * This ensures attachments are in the same folder as the page's .md file
    */
   private async buildAttachmentPath(pageGuid: string): Promise<string> {
-    const page = await this.loadPage(pageGuid);
-    const pageKey = await this.buildPageKey(pageGuid, page.folderId || null);
-    // Remove .md extension and add _attachments/
-    // "parent/child/child.md" -> "parent/child/child/_attachments/"
-    const directory = pageKey.replace(/\.md$/, '/');
-    return `${directory}_attachments/`;
+    // Always derive from the actual page key in S3 so malformed frontmatter
+    // (for example folderId = pageGuid) cannot produce duplicated segments.
+    const pageKey = await this.findPageKey(pageGuid);
+    if (!pageKey) {
+      throw this.createError(
+        `Page not found: ${pageGuid}`,
+        'PAGE_NOT_FOUND',
+        404
+      );
+    }
+
+    // Remove trailing filename and add _attachments/
+    // "parent/child/child.md" -> "parent/child/_attachments/"
+    // "root/root.md" -> "root/_attachments/"
+    const lastSlashIndex = pageKey.lastIndexOf('/');
+    const directory = lastSlashIndex === -1 ? '' : pageKey.substring(0, lastSlashIndex + 1);
+
+    const pathSegments = directory.split('/').filter(Boolean);
+    while (
+      pathSegments.length >= 2 &&
+      pathSegments[pathSegments.length - 1] === pageGuid &&
+      pathSegments[pathSegments.length - 2] === pageGuid
+    ) {
+      pathSegments.pop();
+    }
+
+    const normalizedDirectory = pathSegments.length > 0 ? `${pathSegments.join('/')}/` : '';
+    return `${normalizedDirectory}_attachments/`;
+  }
+
+  private inferParentGuidFromPageKey(pageKey: string, pageGuid: string): string {
+    const keySegments = pageKey.split('/').filter(Boolean);
+    if (keySegments.length < 2) {
+      return '';
+    }
+
+    const filename = keySegments[keySegments.length - 1];
+    if (filename !== `${pageGuid}.md`) {
+      return '';
+    }
+
+    const directorySegments = keySegments.slice(0, -1);
+    let parentIndex = directorySegments.length - 2;
+
+    while (parentIndex >= 0 && directorySegments[parentIndex] === pageGuid) {
+      parentIndex -= 1;
+    }
+
+    return parentIndex >= 0 ? directorySegments[parentIndex] : '';
   }
 
 
@@ -371,12 +414,18 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const folderId = Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId;
       const parentGuid = Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid;
       const effectiveFolderId = folderId || parentGuid || '';
+      const pageGuid = Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid;
+      const inferredParentGuid = this.inferParentGuidFromPageKey(key, pageGuid);
+      const normalizedFolderId =
+        (effectiveFolderId === null || effectiveFolderId === 'null')
+          ? ''
+          : (effectiveFolderId === pageGuid ? inferredParentGuid : effectiveFolderId);
       
       const pageContent: PageContent = {
-        guid: Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid,
+        guid: pageGuid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
         content: body,
-        folderId: (effectiveFolderId === null || effectiveFolderId === 'null') ? '' : effectiveFolderId,
+        folderId: normalizedFolderId,
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
