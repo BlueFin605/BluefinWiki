@@ -111,7 +111,7 @@ describe('Page Attachments Integration Tests', () => {
       expect(result.filename).toBe('test-document.pdf');
       expect(result.contentType).toBe('application/pdf');
       expect(result.size).toBe(fileContent.length);
-      expect(result.attachmentKey).toContain(`${testPageGuid}/_attachments/`);
+      expect(result.attachmentKey).toContain(`${testPageGuid}/${testPageGuid}/_attachments/`);
       expect(result.attachmentKey).toContain('.pdf');
     });
 
@@ -150,8 +150,8 @@ describe('Page Attachments Integration Tests', () => {
       });
 
       expect(result1.filename).not.toBe(result2.filename);
-      expect(result1.attachmentKey).toContain(`${testPageGuid}/_attachments/`);
-      expect(result2.attachmentKey).toContain(`${testPageGuid}/_attachments/`);
+      expect(result1.attachmentKey).toContain(`${testPageGuid}/${testPageGuid}/_attachments/`);
+      expect(result2.attachmentKey).toContain(`${testPageGuid}/${testPageGuid}/_attachments/`);
     });
 
     it('should reject upload for non-existent page', async () => {

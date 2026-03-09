@@ -59,7 +59,7 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       const pageGuid = uuidv4();
       const filename = 'test-file.txt';
       const fileContent = 'This is a test attachment file';
-      const attachmentKey = `${pageGuid}/_attachments/${filename}`;
+      const attachmentKey = `${pageGuid}/${pageGuid}/_attachments/${filename}`;
 
       // Save attachment
       await s3Client.send(new PutObjectCommand({
@@ -72,7 +72,7 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       // Verify it was saved by listing  
       const list = await s3Client.send(new ListObjectsV2Command({
         Bucket: TEST_BUCKET,
-        Prefix: `${pageGuid}/_attachments/`,
+        Prefix: `${pageGuid}/${pageGuid}/_attachments/`,
       }));
 
       expect(list.Contents).toBeDefined();
@@ -84,7 +84,7 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       const pageGuid = uuidv4();
       const filename = 'test-read.pdf';
       const fileContent = Buffer.from('Read test content');
-      const attachmentKey = `${pageGuid}/_attachments/${filename}`;
+      const attachmentKey = `${pageGuid}/${pageGuid}/_attachments/${filename}`;
 
       // Save attachment
       await s3Client.send(new PutObjectCommand({
@@ -119,7 +119,7 @@ describe('Attachment API - LocalStack Integration Tests', () => {
         uploadedAt: new Date().toISOString(),
         uploadedBy: 'test-user',
       };
-      const metadataKey = `${pageGuid}/_attachments/${filename}.meta.json`;
+      const metadataKey = `${pageGuid}/${pageGuid}/_attachments/${filename}.meta.json`;
 
       // Save metadata
       await s3Client.send(new PutObjectCommand({
@@ -152,32 +152,32 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       // Save multiple attachments
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${pageGuid}/_attachments/${attachment1}`,
+        Key: `${pageGuid}/${pageGuid}/_attachments/${attachment1}`,
         Body: 'File 1',
       }));
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${pageGuid}/_attachments/${attachment1}.meta.json`,
+        Key: `${pageGuid}/${pageGuid}/_attachments/${attachment1}.meta.json`,
         Body: JSON.stringify({ filename: attachment1, contentType: 'text/plain' }),
       }));
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${pageGuid}/_attachments/${attachment2}`,
+        Key: `${pageGuid}/${pageGuid}/_attachments/${attachment2}`,
         Body: 'File 2',
       }));
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
-        Key: `${pageGuid}/_attachments/${attachment2}.meta.json`,
+        Key: `${pageGuid}/${pageGuid}/_attachments/${attachment2}.meta.json`,
         Body: JSON.stringify({ filename: attachment2, contentType: 'text/plain' }),
       }));
 
       // List attachments
       const list = await s3Client.send(new ListObjectsV2Command({
         Bucket: TEST_BUCKET,
-        Prefix: `${pageGuid}/_attachments/`,
+        Prefix: `${pageGuid}/${pageGuid}/_attachments/`,
       }));
 
       expect(list.Contents).toBeDefined();
@@ -191,8 +191,8 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       const filename = 'test-delete.pdf';
 
       // Save attachment and metadata
-      const attachmentKey = `${pageGuid}/_attachments/${filename}`;
-      const metadataKey = `${pageGuid}/_attachments/${filename}.meta.json`;
+      const attachmentKey = `${pageGuid}/${pageGuid}/_attachments/${filename}`;
+      const metadataKey = `${pageGuid}/${pageGuid}/_attachments/${filename}.meta.json`;
 
       await s3Client.send(new PutObjectCommand({
         Bucket: TEST_BUCKET,
@@ -209,7 +209,7 @@ describe('Attachment API - LocalStack Integration Tests', () => {
       // Verify both exist
       let list = await s3Client.send(new ListObjectsV2Command({
         Bucket: TEST_BUCKET,
-        Prefix: `${pageGuid}/_attachments/`,
+        Prefix: `${pageGuid}/${pageGuid}/_attachments/`,
       }));
       expect(list.Contents?.length).toBe(2);
 

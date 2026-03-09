@@ -202,12 +202,13 @@ interface PageLinkRecord {
 ```
 bluefinwiki-pages-{environment}/
   {pageGuid}/
-    page.json                    # Page content
-    _attachments/
-      photo.jpg                  # Actual attachment file
-      photo.jpg.meta.json        # Metadata sidecar file
-      document.pdf
-      document.pdf.meta.json
+    {pageGuid}.md                # Page content (inside its own folder)
+    {pageGuid}/
+      _attachments/
+        photo.jpg                # Actual attachment file
+        photo.jpg.meta.json      # Metadata sidecar file
+        document.pdf
+        document.pdf.meta.json
 ```
 
 **Metadata Schema** (in `.meta.json` files):
@@ -225,8 +226,8 @@ interface AttachmentMetadata {
 ```
 
 **Access Patterns**:
-- Get attachment metadata: Read `{pageGuid}/_attachments/{filename}.meta.json` from S3
-- List attachments for page: List objects with prefix `{pageGuid}/_attachments/` and filter `.meta.json` files
+- Get attachment metadata: Read `{pageGuid}/{pageGuid}/_attachments/{filename}.meta.json` from S3
+- List attachments for page: List objects with prefix `{pageGuid}/{pageGuid}/_attachments/` and filter `.meta.json` files
 - Delete attachment: Delete both the file and its `.meta.json` sidecar
 
 **Benefits**:
@@ -234,6 +235,7 @@ interface AttachmentMetadata {
 - Metadata stays with the file - easier to manage and backup
 - Atomic operations - file and metadata are together
 - Simple cleanup - deleting a page deletes all attachments automatically
+- Attachments are in the same folder as the page's .md file for better organization
 
 **Note**: Previous versions used a DynamoDB table. If already deployed, the table can remain for backwards compatibility but should not be used in new code.
 
@@ -453,7 +455,7 @@ interface SiteConfigRecord {
 - Example: `pages/{guid}.json`, `folders/{guid}.json`
 
 ❌ **File Attachments**
-- Stored in S3 at {pageGuid}/_attachments/
+- Stored in S3 at {pageGuid}/{pageGuid}/_attachments/
 - Metadata in sidecar .meta.json files (not DynamoDB)
 
 ❌ **Search Index**
