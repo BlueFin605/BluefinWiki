@@ -60,6 +60,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [previewAttachment, setPreviewAttachment] = useState<AttachmentMetadata | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const objectUrlRegistry = useRef<Set<string>>(new Set());
 
@@ -89,24 +90,67 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     return url;
   }, [downloadPathFor]);
 
-  const loadAttachments = useCallback(async () => {
+  const loadAttachments = useCallback(async (retryAttempt = 0) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const data: AttachmentMetadata[] = await listAttachments();
       setAttachments(data);
+      setRetryCount(0); // Reset retry count on success
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load attachments';
       setError(message);
+      setRetryCount(retryAttempt + 1);
+      
+      // Log the error with retry information
+      console.error(`Failed to load attachments (attempt ${retryAttempt + 1}):`, message);
     } finally {
       setIsLoading(false);
     }
   }, [listAttachments]);
 
   useEffect(() => {
-    loadAttachments();
-  }, [loadAttachments]);
+    let timeoutId: NodeJS.Timeout | null = null;
+    let mounted = true;
+
+    const loadWithBackoff = async () => {
+      // Maximum retry attempts before giving up (10 retries = ~17 minutes total)
+      const maxRetries = 10;
+      
+      if (retryCount >= maxRetries) {
+        console.error(`Max retry attempts (${maxRetries}) reached. Stopping automatic retries.`);
+        return;
+      }
+
+      // Calculate exponential backoff delay: 1s, 2s, 4s, 8s, 16s, max 30s
+      const baseDelay = 1000; // 1 second
+      const maxDelay = 30000; // 30 seconds
+      const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay);
+
+      // If this is a retry, wait before loading
+      if (retryCount > 0) {
+        console.log(`Retrying attachment load in ${delay / 1000}s (attempt ${retryCount + 1}/${maxRetries})...`);
+        timeoutId = setTimeout(() => {
+          if (mounted) {
+            loadAttachments(retryCount);
+          }
+        }, delay);
+      } else {
+        // First load, no delay
+        loadAttachments(0);
+      }
+    };
+
+    loadWithBackoff();
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [loadAttachments, retryCount]);
 
   useEffect(() => {
     const imageAttachments = attachments.filter((attachment) => isImageContentType(attachment.contentType));
@@ -263,12 +307,17 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     onInsertMarkdown(buildMarkdownLink(attachment));
   }, [buildMarkdownLink, onInsertMarkdown]);
 
+  const handleManualRefresh = useCallback(() => {
+    setRetryCount(0); // Reset retry count for manual refresh
+    loadAttachments(0);
+  }, [loadAttachments]);
+
   return (
     <div className={`bg-white dark:bg-gray-800 flex flex-col h-full ${className || ''}`}>
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Attachments</h3>
         <button
-          onClick={loadAttachments}
+          onClick={handleManualRefresh}
           className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
           type="button"
         >
@@ -287,7 +336,13 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
 
         {!isLoading && error && (
           <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2">
-            {error}
+            <p className="font-medium">{error}</p>
+            {retryCount > 0 && retryCount < 10 && (
+              <p className="mt-1 text-xs">Retrying automatically (attempt {retryCount}/10)...</p>
+            )}
+            {retryCount >= 10 && (
+              <p className="mt-1 text-xs">Max retry attempts reached. Click "Refresh" to try again manually.</p>
+            )}
           </div>
         )}
 
