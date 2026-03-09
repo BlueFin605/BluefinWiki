@@ -61,8 +61,7 @@ export const handler = withAuth(async (
     });
 
     const metadata: AttachmentMetadata = {
-      attachmentId: uploaded.attachmentGuid,
-      originalFilename: uploaded.filename,
+      filename: uploaded.filename,
       contentType: uploaded.contentType,
       size: uploaded.size,
       uploadedAt: new Date().toISOString(),
@@ -71,14 +70,13 @@ export const handler = withAuth(async (
       checksum: createHash('sha256').update(parsedFile.data).digest('hex'),
     };
 
-    await storagePlugin.saveAttachmentMetadata(pageGuid, uploaded.attachmentGuid, metadata);
-    const url = await storagePlugin.getAttachmentUrl(pageGuid, uploaded.attachmentGuid);
+    await storagePlugin.saveAttachmentMetadata(pageGuid, uploaded.filename, metadata);
+    const url = await storagePlugin.getAttachmentUrl(pageGuid, uploaded.filename);
 
     return {
       statusCode: 201,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        attachmentGuid: uploaded.attachmentGuid,
         filename: uploaded.filename,
         contentType: uploaded.contentType,
         size: uploaded.size,

@@ -1,28 +1,27 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent } from '../middleware/auth.js';
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 /**
  * Lambda: pages-attachments-download
- * GET /pages/{pageGuid}/attachments/{attachmentGuid}
+ * GET /pages/{pageGuid}/attachments/{filename}
  */
 export const handler = withAuth(async (
   event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
     const pageGuid = event.pathParameters?.pageGuid || event.pathParameters?.guid;
-    const attachmentGuid = event.pathParameters?.attachmentGuid;
+    const filename = event.pathParameters?.filename;
 
-    if (!pageGuid || !attachmentGuid) {
+    if (!pageGuid || !filename) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Page GUID and attachment GUID are required' }),
+        body: JSON.stringify({ error: 'Page GUID and filename are required' }),
       };
     }
 
-    if (!UUID_REGEX.test(pageGuid) || !UUID_REGEX.test(attachmentGuid)) {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(pageGuid)) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -32,7 +31,7 @@ export const handler = withAuth(async (
 
     const { getStoragePlugin } = await import('../storage/StoragePluginRegistry.js');
     const storagePlugin = getStoragePlugin();
-    const downloadUrl = await storagePlugin.getAttachmentUrl(pageGuid, attachmentGuid);
+    const downloadUrl = await storagePlugin.getAttachmentUrl(pageGuid, filename);
 
     const response = await fetch(downloadUrl);
 
@@ -51,7 +50,7 @@ export const handler = withAuth(async (
     const contentDispositionHeader = response.headers.get('content-disposition');
     const filenameMatch = contentDispositionHeader?.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
     const rawFilename = filenameMatch?.[1]?.replace(/"/g, '')?.trim();
-    const filename = rawFilename && rawFilename.length > 0 ? decodeURIComponent(rawFilename) : `${attachmentGuid}`;
+    const responseFilename = rawFilename && rawFilename.length > 0 ? decodeURIComponent(rawFilename) : filename;
 
     const isInline = contentType.startsWith('image/') || contentType === 'application/pdf';
 
@@ -60,7 +59,7 @@ export const handler = withAuth(async (
       isBase64Encoded: true,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="${filename}"`,
+        'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="${responseFilename}"`,
       },
       body: buffer.toString('base64'),
     };

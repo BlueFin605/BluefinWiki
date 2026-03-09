@@ -117,16 +117,14 @@ export interface AttachmentUploadInput {
 }
 
 export interface AttachmentUploadResult {
-  attachmentGuid: string;
-  attachmentKey: string;
   filename: string;
+  attachmentKey: string;
   contentType: string;
   size: number;
 }
 
 export interface AttachmentMetadata {
-  attachmentId: string;
-  originalFilename: string;
+  filename: string;
   contentType: string;
   size: number;
   uploadedAt: string;

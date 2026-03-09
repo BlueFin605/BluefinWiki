@@ -88,7 +88,7 @@ export function useAttachments(pageGuid: string) {
           file,
           progress: 100,
           status: 'completed',
-          attachmentGuid: response.data.attachmentGuid,
+          filename: response.data.filename,
           url: response.data.url,
         });
         return next;
@@ -154,10 +154,10 @@ export function useAttachments(pageGuid: string) {
 
   /**
    * Delete an attachment
-   * @param attachmentGuid GUID of attachment to delete
+   * @param filename Filename of attachment to delete
    */
-  const deleteAttachment = useCallback(async (attachmentGuid: string) => {
-    await apiClient.delete(`/pages/${pageGuid}/attachments/${attachmentGuid}`);
+  const deleteAttachment = useCallback(async (filename: string) => {
+    await apiClient.delete(`/pages/${pageGuid}/attachments/${encodeURIComponent(filename)}`);
   }, [pageGuid]);
 
   /**
