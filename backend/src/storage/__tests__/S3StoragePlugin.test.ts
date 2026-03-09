@@ -982,15 +982,36 @@ Test content`;
           contentType: 'application/pdf',
           size: fileData.length,
         });
-        expect(result.attachmentKey).toContain(`${pageGuid}/${pageGuid}/_attachments/`);
+        expect(result.attachmentKey).toContain(`${pageGuid}/_attachments/`);
 
         // Verify S3 PutObject was called
         const putCalls = s3Mock.commandCalls(PutObjectCommand);
         expect(putCalls.length).toBeGreaterThan(0);
         const lastCall = putCalls[putCalls.length - 1];
         expect(lastCall.args[0].input.Bucket).toBe('test-bucket');
-        expect(lastCall.args[0].input.Key).toContain(`${pageGuid}/${pageGuid}/_attachments/`);
+        expect(lastCall.args[0].input.Key).toContain(`${pageGuid}/_attachments/`);
         expect(lastCall.args[0].input.ContentType).toBe('application/pdf');
+      });
+
+      it('should collapse duplicate trailing page folders in attachment path', async () => {
+        const parentGuid = uuidv4();
+        const pageGuid = uuidv4();
+
+        s3Mock.on(HeadObjectCommand).rejects({ name: 'NotFound' });
+        s3Mock.on(ListObjectsV2Command).resolves({
+          Contents: [{ Key: `${parentGuid}/${pageGuid}/${pageGuid}/${pageGuid}.md` }],
+        });
+        s3Mock.on(PutObjectCommand).resolves({});
+
+        const result = await plugin.uploadAttachment(pageGuid, {
+          originalFilename: 'test.pdf',
+          contentType: 'application/pdf',
+          data: Buffer.from('test'),
+          uploadedBy: 'user-123',
+        });
+
+        expect(result.attachmentKey).toContain(`${parentGuid}/${pageGuid}/_attachments/`);
+        expect(result.attachmentKey).not.toContain(`${pageGuid}/${pageGuid}/_attachments/`);
       });
 
       it('should support various file extensions', async () => {
@@ -1059,7 +1080,8 @@ Test content`;
       it('should reject upload if page does not exist', async () => {
         const pageGuid = uuidv4();
 
-        s3Mock.on(GetObjectCommand).rejects({ name: 'NoSuchKey' });
+        s3Mock.on(HeadObjectCommand).rejects({ name: 'NotFound' });
+        s3Mock.on(ListObjectsV2Command).resolves({ Contents: [] });
 
         await expect(
           plugin.uploadAttachment(pageGuid, {
@@ -1106,8 +1128,8 @@ Test content`;
         expect(deleteCalls.length).toBeGreaterThan(0);
         const lastCall = deleteCalls[deleteCalls.length - 1];
         expect(lastCall.args[0].input.Delete?.Objects).toEqual([
-          { Key: `${pageGuid}/${pageGuid}/_attachments/${filename}` },
-          { Key: `${pageGuid}/${pageGuid}/_attachments/${filename}.meta.json` },
+          { Key: `${pageGuid}/_attachments/${filename}` },
+          { Key: `${pageGuid}/_attachments/${filename}.meta.json` },
         ]);
       });
 
@@ -1204,7 +1226,7 @@ Test content`;
         const putCalls = s3Mock.commandCalls(PutObjectCommand);
         expect(putCalls.length).toBeGreaterThan(0);
         const lastCall = putCalls[putCalls.length - 1];
-        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/${pageGuid}/_attachments/${filename}.meta.json`);
+        expect(lastCall.args[0].input.Key).toBe(`${pageGuid}/_attachments/${filename}.meta.json`);
         expect(lastCall.args[0].input.ContentType).toBe('application/json');
 
         const savedBody = JSON.parse(lastCall.args[0].input.Body as string);
