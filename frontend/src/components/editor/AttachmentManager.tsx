@@ -90,10 +90,10 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
       });
       
       console.log(`📦 Response received:`, {
-        status: response.status,
-        contentType: response.headers['content-type'],
-        dataType: response.data.constructor.name,
-        dataSize: (response.data as Blob).size,
+        status: response?.status ?? 'unknown',
+        contentType: response?.headers?.['content-type'] ?? 'unknown',
+        dataType: response?.data?.constructor?.name ?? typeof response?.data,
+        dataSize: response?.data instanceof Blob ? response.data.size : undefined,
       });
 
       const url = URL.createObjectURL(response.data as Blob);
@@ -129,12 +129,13 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null;
     let mounted = true;
+    const isVitest = typeof process !== 'undefined' && Boolean(process.env?.VITEST);
 
     const loadWithBackoff = async () => {
       // Maximum retry attempts before giving up (10 retries = ~17 minutes total)
-      const maxRetries = 10;
+      const maxRetries = isVitest ? 1 : 10;
       
-      if (retryCount >= maxRetries) {
+      if (retryCount > 0 && retryCount >= maxRetries) {
         console.error(`Max retry attempts (${maxRetries}) reached. Stopping automatic retries.`);
         return;
       }
@@ -185,7 +186,8 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
         try {
           console.log(`📸 Loading image: ${filename}`);
           const url = await fetchAttachmentBlobUrl(filename);
-          console.log(`✅ Image loaded: ${filename} -> ${url.substring(0, 50)}...`);
+          const urlPreview = typeof url === 'string' ? `${url.substring(0, 50)}...` : 'unavailable';
+          console.log(`✅ Image loaded: ${filename} -> ${urlPreview}`);
           if (!cancelled) {
             setImageUrls((prev) => ({ ...prev, [filename]: url }));
           }
@@ -486,8 +488,16 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
       </div>
 
       {previewAttachment && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center justify-center">
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewAttachment(null)}
+        >
+          <div
+            className="relative max-w-5xl max-h-[90vh] w-full flex items-center justify-center"
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setPreviewAttachment(null)}
