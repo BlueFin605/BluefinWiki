@@ -14,9 +14,11 @@ interface AttachmentManagerProps {
 
 const IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
+  'image/jpg', // Non-standard but sometimes used for JPEG
   'image/png',
   'image/gif',
   'image/webp',
+  'image/svg+xml',
 ]);
 
 function isImageContentType(contentType: string): boolean {
@@ -81,13 +83,27 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   }, [pageGuid]);
 
   const fetchAttachmentBlobUrl = useCallback(async (filename: string): Promise<string> => {
-    const response = await apiClient.get(downloadPathFor(filename), {
-      responseType: 'blob',
-    });
+    console.log(`🔄 Fetching blob for: ${filename}`);
+    try {
+      const response = await apiClient.get(downloadPathFor(filename), {
+        responseType: 'blob',
+      });
+      
+      console.log(`📦 Response received:`, {
+        status: response.status,
+        contentType: response.headers['content-type'],
+        dataType: response.data.constructor.name,
+        dataSize: (response.data as Blob).size,
+      });
 
-    const url = URL.createObjectURL(response.data as Blob);
-    objectUrlRegistry.current.add(url);
-    return url;
+      const url = URL.createObjectURL(response.data as Blob);
+      console.log(`🔗 Created blob URL: ${url}`);
+      objectUrlRegistry.current.add(url);
+      return url;
+    } catch (err) {
+      console.error(`💥 Failed to fetch blob for ${filename}:`, err);
+      throw err;
+    }
   }, [downloadPathFor]);
 
   const loadAttachments = useCallback(async (retryAttempt = 0) => {
@@ -167,11 +183,14 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     const fetchMissingImages = async () => {
       for (const filename of missingImageFilenames) {
         try {
+          console.log(`📸 Loading image: ${filename}`);
           const url = await fetchAttachmentBlobUrl(filename);
+          console.log(`✅ Image loaded: ${filename} -> ${url.substring(0, 50)}...`);
           if (!cancelled) {
             setImageUrls((prev) => ({ ...prev, [filename]: url }));
           }
-        } catch {
+        } catch (err) {
+          console.error(`❌ Error loading image ${filename}:`, err);
           if (!cancelled) {
             setImageUrls((prev) => ({ ...prev, [filename]: '' }));
           }
@@ -377,20 +396,32 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                         {formatFileSize(attachment.size)} • {formatUploadedDate(attachment.uploadedAt)}
                       </p>
 
-                      {isImage && previewUrl && (
-                        <button
-                          type="button"
-                          className="mt-2 block"
-                          onClick={() => openPreview(attachment)}
-                          title="Open full-size preview"
-                        >
-                          <img
-                            src={previewUrl}
-                            alt={attachment.filename}
-                            className="h-16 w-16 rounded object-cover border border-gray-200 dark:border-gray-700"
-                          />
-                        </button>
-                      )}
+                      {(() => {
+                        const shouldShowPreview = isImage && previewUrl;
+                        if (!shouldShowPreview) {
+                          console.log(`🖼️ Not showing thumbnail for ${attachment.filename}:`, {
+                            isImage,
+                            previewUrl,
+                            contentType: attachment.contentType,
+                          });
+                        }
+                        return shouldShowPreview && (
+                          <button
+                            type="button"
+                            className="mt-2 block"
+                            onClick={() => openPreview(attachment)}
+                            title="Open full-size preview"
+                          >
+                            <img
+                              src={previewUrl}
+                              alt={attachment.filename}
+                              className="h-16 w-16 rounded object-cover border border-gray-200 dark:border-gray-700"
+                              onError={(e) => console.error('❌ Thumbnail failed to load:', attachment.filename, e)}
+                              onLoad={() => console.log('✅ Thumbnail rendered:', attachment.filename)}
+                            />
+                          </button>
+                        );
+                      })()}
 
                       <div className="mt-2 flex items-center gap-3">
                         <button
@@ -465,13 +496,31 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
             >
               Close
             </button>
-            {imageUrls[previewAttachment.filename] && (
-              <img
-                src={imageUrls[previewAttachment.filename]}
-                alt={previewAttachment.filename}
-                className="max-h-[85vh] max-w-full object-contain rounded"
-              />
-            )}
+            {(() => {
+              const url = imageUrls[previewAttachment.filename];
+              console.log(`🖼️ Preview rendering for ${previewAttachment.filename}:`, {
+                hasUrl: !!url,
+                url: url?.substring(0, 50) + '...',
+                availableUrls: Object.keys(imageUrls),
+              });
+              if (!url) {
+                return (
+                  <div className="text-white text-center">
+                    <p>Loading image...</p>
+                    <p className="text-sm text-gray-300 mt-2">{previewAttachment.filename}</p>
+                  </div>
+                );
+              }
+              return (
+                <img
+                  src={url}
+                  alt={previewAttachment.filename}
+                  className="max-h-[85vh] max-w-full object-contain rounded"
+                  onError={(e) => console.error('❌ Image failed to load:', e)}
+                  onLoad={() => console.log('✅ Image loaded successfully')}
+                />
+              );
+            })()}
           </div>
         </div>
       )}

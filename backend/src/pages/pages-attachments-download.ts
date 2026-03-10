@@ -31,8 +31,17 @@ export const handler = withAuth(async (
 
     const { getStoragePlugin } = await import('../storage/StoragePluginRegistry.js');
     const storagePlugin = getStoragePlugin();
-    const downloadUrl = await storagePlugin.getAttachmentUrl(pageGuid, filename);
+    
+    // Get metadata to retrieve the original content type
+    let contentType = 'application/octet-stream';
+    try {
+      const metadata = await storagePlugin.getAttachmentMetadata(pageGuid, filename);
+      contentType = metadata.contentType;
+    } catch (err: unknown) {
+      console.warn('Could not retrieve attachment metadata, will use response headers:', err);
+    }
 
+    const downloadUrl = await storagePlugin.getAttachmentUrl(pageGuid, filename);
     const response = await fetch(downloadUrl);
 
     if (!response.ok) {
@@ -45,7 +54,14 @@ export const handler = withAuth(async (
 
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    
+    // Fall back to response headers if metadata content-type is still the default
+    if (contentType === 'application/octet-stream') {
+      const responseContentType = response.headers.get('content-type');
+      if (responseContentType) {
+        contentType = responseContentType;
+      }
+    }
 
     const contentDispositionHeader = response.headers.get('content-disposition');
     const filenameMatch = contentDispositionHeader?.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
