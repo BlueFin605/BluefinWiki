@@ -33,8 +33,8 @@ namespace Infrastructure
                 Description = $"BlueFinWiki Authentication resources for {envConfig.Name} environment",
                 Tags = new Dictionary<string, string>
                 {
-                    { "Project", "BlueFinWiki" },
-                    { "Environment", envConfig.Name }
+                    { "Project", "IsoChess" },
+                    { "Environment", "Prod" }
                 }
             }, envConfig);
             
@@ -45,8 +45,8 @@ namespace Infrastructure
                 Description = $"BlueFinWiki Storage resources for {envConfig.Name} environment",
                 Tags = new Dictionary<string, string>
                 {
-                    { "Project", "BlueFinWiki" },
-                    { "Environment", envConfig.Name }
+                    { "Project", "IsoChess" },
+                    { "Environment", "Prod" }
                 }
             }, envConfig);
             
@@ -57,8 +57,8 @@ namespace Infrastructure
                 Description = $"BlueFinWiki Database resources for {envConfig.Name} environment",
                 Tags = new Dictionary<string, string>
                 {
-                    { "Project", "BlueFinWiki" },
-                    { "Environment", envConfig.Name }
+                    { "Project", "IsoChess" },
+                    { "Environment", "Prod" }
                 }
             }, envConfig);
             
@@ -69,8 +69,8 @@ namespace Infrastructure
                 Description = $"BlueFinWiki Compute resources for {envConfig.Name} environment",
                 Tags = new Dictionary<string, string>
                 {
-                    { "Project", "BlueFinWiki" },
-                    { "Environment", envConfig.Name }
+                    { "Project", "IsoChess" },
+                    { "Environment", "Prod" }
                 }
             }, envConfig, storageStack, databaseStack, authStack);
             
@@ -81,8 +81,8 @@ namespace Infrastructure
                 Description = $"BlueFinWiki CDN resources for {envConfig.Name} environment",
                 Tags = new Dictionary<string, string>
                 {
-                    { "Project", "BlueFinWiki" },
-                    { "Environment", envConfig.Name }
+                    { "Project", "IsoChess" },
+                    { "Environment", "Prod" }
                 }
             }, envConfig);
             
