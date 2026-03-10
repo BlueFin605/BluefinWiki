@@ -11,6 +11,9 @@ using Amazon.CDK.AWS.S3;
 using Amazon.CDK.AWS.SecretsManager;
 using Constructs;
 using System.Collections.Generic;
+using LambdaFunction = Amazon.CDK.AWS.Lambda.Function;
+using LambdaFunctionProps = Amazon.CDK.AWS.Lambda.FunctionProps;
+using CloudFrontDistribution = Amazon.CDK.AWS.CloudFront.Distribution;
 
 namespace Infrastructure.Stacks
 {
@@ -28,17 +31,13 @@ namespace Infrastructure.Stacks
         
         // Storage resources
         public IBucket PagesBucket { get; private set; }
-        public IBucket ExportsBucket { get; private set; }
         public IBucket FrontendBucket { get; private set; }
         
         // Database resources
         public Table UserProfilesTable { get; private set; }
         public Table InvitationsTable { get; private set; }
         public Table PageLinksTable { get; private set; }
-        public Table CommentsTable { get; private set; }
         public Table ActivityLogTable { get; private set; }
-        public Table UserPreferencesTable { get; private set; }
-        public Table SiteConfigTable { get; private set; }
         
         // Compute resources
         public RestApi Api { get; private set; }
@@ -384,39 +383,12 @@ namespace Infrastructure.Stacks
                 }
             });
             
-            // S3 Bucket for exports (PDFs, HTML bundles)
-            ExportsBucket = new Bucket(this, "ExportsBucket", new BucketProps
-            {
-                BucketName = $"bluefinwiki-exports-{config.Name}",
-                Versioned = false,
-                Encryption = BucketEncryption.S3_MANAGED,
-                BlockPublicAccess = BlockPublicAccess.BLOCK_ALL,
-                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
-                AutoDeleteObjects = !config.IsProd,
-                LifecycleRules = new[]
-                {
-                    new LifecycleRule
-                    {
-                        Id = "DeleteOldExports",
-                        Expiration = Duration.Days(7), // Auto-cleanup after 7 days
-                        Enabled = true
-                    }
-                }
-            });
-            
             // Storage Stack outputs
             new CfnOutput(this, "PagesBucketName", new CfnOutputProps
             {
                 Value = PagesBucket.BucketName,
                 Description = "S3 bucket for page storage (includes attachments at {pageGuid}/_attachments/)",
                 ExportName = $"{config.Name}-pages-bucket"
-            });
-            
-            new CfnOutput(this, "ExportsBucketName", new CfnOutputProps
-            {
-                Value = ExportsBucket.BucketName,
-                Description = "S3 bucket for exports",
-                ExportName = $"{config.Name}-exports-bucket"
             });
         }
         
@@ -481,24 +453,6 @@ namespace Infrastructure.Stacks
                 ProjectionType = ProjectionType.ALL
             });
             
-            // Comments table - page discussions
-            CommentsTable = new Table(this, "CommentsTable", new TableProps
-            {
-                TableName = $"bluefinwiki-comments-{config.Name}",
-                PartitionKey = new Attribute { Name = "guid", Type = AttributeType.STRING },
-                BillingMode = BillingMode.PAY_PER_REQUEST,
-                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
-            });
-            
-            // GSI for querying comments by page
-            CommentsTable.AddGlobalSecondaryIndex(new GlobalSecondaryIndexProps
-            {
-                IndexName = "pageGuid-createdAt-index",
-                PartitionKey = new Attribute { Name = "pageGuid", Type = AttributeType.STRING },
-                SortKey = new Attribute { Name = "createdAt", Type = AttributeType.STRING },
-                ProjectionType = ProjectionType.ALL
-            });
-            
             // Activity Log table - audit trail
             // PK: userId (Cognito sub), SK: timestamp
             // Note: userId references Cognito sub (UUID from Cognito tokens)
@@ -510,25 +464,6 @@ namespace Infrastructure.Stacks
                 BillingMode = BillingMode.PAY_PER_REQUEST,
                 RemovalPolicy = RemovalPolicy.DESTROY,
                 TimeToLiveAttribute = "expiresAt" // Auto-delete old logs (90 days, Unix timestamp)
-            });
-            
-            // User Preferences table - dashboard customization, favorites
-            UserPreferencesTable = new Table(this, "UserPreferencesTable", new TableProps
-            {
-                TableName = $"bluefinwiki-user-preferences-{config.Name}",
-                PartitionKey = new Attribute { Name = "userId", Type = AttributeType.STRING },
-                SortKey = new Attribute { Name = "preferenceKey", Type = AttributeType.STRING },
-                BillingMode = BillingMode.PAY_PER_REQUEST,
-                RemovalPolicy = RemovalPolicy.DESTROY
-            });
-            
-            // Site Config table - global settings
-            SiteConfigTable = new Table(this, "SiteConfigTable", new TableProps
-            {
-                TableName = $"bluefinwiki-site-config-{config.Name}",
-                PartitionKey = new Attribute { Name = "configKey", Type = AttributeType.STRING },
-                BillingMode = BillingMode.PAY_PER_REQUEST,
-                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
             });
             
             // Database Stack outputs
@@ -604,18 +539,14 @@ namespace Infrastructure.Stacks
                 }
             });
             
-            // Grant Lambda access to S3 buckets
+            // Grant Lambda access to S3 bucket
             PagesBucket.GrantReadWrite(lambdaRole);
-            ExportsBucket.GrantReadWrite(lambdaRole);
             
             // Grant Lambda access to DynamoDB tables
             UserProfilesTable.GrantReadWriteData(lambdaRole);
             InvitationsTable.GrantReadWriteData(lambdaRole);
             PageLinksTable.GrantReadWriteData(lambdaRole);
-            CommentsTable.GrantReadWriteData(lambdaRole);
             ActivityLogTable.GrantReadWriteData(lambdaRole);
-            UserPreferencesTable.GrantReadWriteData(lambdaRole);
-            SiteConfigTable.GrantReadWriteData(lambdaRole);
             
             // Grant Lambda access to JWT secret
             JwtSecret.GrantRead(lambdaRole);
@@ -624,20 +555,16 @@ namespace Infrastructure.Stacks
             var commonEnvVars = new Dictionary<string, string>
             {
                 { "PAGES_BUCKET", PagesBucket.BucketName },
-                { "EXPORTS_BUCKET", ExportsBucket.BucketName },
                 { "USER_PROFILES_TABLE", UserProfilesTable.TableName },
                 { "INVITATIONS_TABLE", InvitationsTable.TableName },
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
-                { "COMMENTS_TABLE", CommentsTable.TableName },
                 { "ACTIVITY_LOG_TABLE", ActivityLogTable.TableName },
-                { "USER_PREFERENCES_TABLE", UserPreferencesTable.TableName },
-                { "SITE_CONFIG_TABLE", SiteConfigTable.TableName },
                 { "JWT_SECRET_ARN", JwtSecret.SecretArn },
                 { "ENVIRONMENT", config.Name }
             };
             
             // Lambda function base configuration
-            var lambdaProps = new FunctionProps
+            var lambdaProps = new LambdaFunctionProps
             {
                 Runtime = Runtime.NODEJS_20_X,
                 Code = Code.FromAsset("../backend/dist"), // Build output directory
@@ -653,7 +580,7 @@ namespace Infrastructure.Stacks
             // Pages Lambda Functions (Task 3.3)
             // =============================================================================
             
-            var pagesCreateFunction = new Function(this, "PagesCreateFunction", new FunctionProps
+            var pagesCreateFunction = new LambdaFunction(this, "PagesCreateFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-create.handler",
@@ -667,7 +594,7 @@ namespace Infrastructure.Stacks
                 Description = "Create new page"
             });
             
-            var pagesGetFunction = new Function(this, "PagesGetFunction", new FunctionProps
+            var pagesGetFunction = new LambdaFunction(this, "PagesGetFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-get.handler",
@@ -681,7 +608,7 @@ namespace Infrastructure.Stacks
                 Description = "Get page by GUID"
             });
             
-            var pagesUpdateFunction = new Function(this, "PagesUpdateFunction", new FunctionProps
+            var pagesUpdateFunction = new LambdaFunction(this, "PagesUpdateFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-update.handler",
@@ -695,7 +622,7 @@ namespace Infrastructure.Stacks
                 Description = "Update page content and metadata"
             });
             
-            var pagesDeleteFunction = new Function(this, "PagesDeleteFunction", new FunctionProps
+            var pagesDeleteFunction = new LambdaFunction(this, "PagesDeleteFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-delete.handler",
@@ -709,7 +636,7 @@ namespace Infrastructure.Stacks
                 Description = "Delete page (with optional recursive deletion)"
             });
             
-            var pagesListChildrenFunction = new Function(this, "PagesListChildrenFunction", new FunctionProps
+            var pagesListChildrenFunction = new LambdaFunction(this, "PagesListChildrenFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-list-children.handler",
@@ -723,7 +650,7 @@ namespace Infrastructure.Stacks
                 Description = "List child pages of a parent"
             });
             
-            var pagesMoveFunction = new Function(this, "PagesMoveFunction", new FunctionProps
+            var pagesMoveFunction = new LambdaFunction(this, "PagesMoveFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-move.handler",
@@ -737,7 +664,7 @@ namespace Infrastructure.Stacks
                 Description = "Move page to new parent location"
             });
             
-            var pagesSearchFunction = new Function(this, "PagesSearchFunction", new FunctionProps
+            var pagesSearchFunction = new LambdaFunction(this, "PagesSearchFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-search.handler",
@@ -751,7 +678,7 @@ namespace Infrastructure.Stacks
                 Description = "Search pages by title (for link autocomplete)"
             });
 
-            var pagesAttachmentsUploadFunction = new Function(this, "PagesAttachmentsUploadFunction", new FunctionProps
+            var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-upload.handler",
@@ -765,7 +692,7 @@ namespace Infrastructure.Stacks
                 Description = "Upload page attachment"
             });
 
-            var pagesAttachmentsDownloadFunction = new Function(this, "PagesAttachmentsDownloadFunction", new FunctionProps
+            var pagesAttachmentsDownloadFunction = new LambdaFunction(this, "PagesAttachmentsDownloadFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-download.handler",
@@ -779,7 +706,7 @@ namespace Infrastructure.Stacks
                 Description = "Download page attachment"
             });
 
-            var pagesAttachmentsListFunction = new Function(this, "PagesAttachmentsListFunction", new FunctionProps
+            var pagesAttachmentsListFunction = new LambdaFunction(this, "PagesAttachmentsListFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-list.handler",
@@ -793,7 +720,7 @@ namespace Infrastructure.Stacks
                 Description = "List page attachments"
             });
 
-            var pagesAttachmentsDeleteFunction = new Function(this, "PagesAttachmentsDeleteFunction", new FunctionProps
+            var pagesAttachmentsDeleteFunction = new LambdaFunction(this, "PagesAttachmentsDeleteFunction", new LambdaFunctionProps
             {
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-delete.handler",
@@ -979,7 +906,7 @@ namespace Infrastructure.Stacks
             });
             
             // CloudFront distribution
-            Distribution = new Distribution(this, "FrontendDistribution", new DistributionProps
+            Distribution = new CloudFrontDistribution(this, "FrontendDistribution", new DistributionProps
             {
                 Comment = $"BlueFinWiki frontend distribution for {config.Name}",
                 DefaultRootObject = "index.html",
