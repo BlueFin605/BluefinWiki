@@ -40,7 +40,7 @@ describe('pages-attachments-list', () => {
         pathParameters: null,
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(400);
       expect(JSON.parse(result.body).error).toContain('Page GUID is required');
@@ -51,7 +51,7 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: 'invalid-guid-123' },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(400);
       expect(JSON.parse(result.body).error).toContain('Invalid page GUID format');
@@ -65,7 +65,7 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(mockPlugin.listAttachments).toHaveBeenCalledWith(validGuid);
@@ -79,7 +79,7 @@ describe('pages-attachments-list', () => {
         pathParameters: { guid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(mockPlugin.listAttachments).toHaveBeenCalledWith(validGuid);
@@ -95,7 +95,7 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(result.headers?.['Content-Type']).toBe('application/json');
@@ -107,8 +107,7 @@ describe('pages-attachments-list', () => {
       const validGuid = '550e8400-e29b-41d4-a716-446655440000';
       const mockAttachments: AttachmentMetadata[] = [
         {
-          attachmentId: '650e8400-e29b-41d4-a716-446655440001',
-          originalFilename: 'document.pdf',
+          filename: '650e8400-e29b-41d4-a716-446655440001',
           contentType: 'application/pdf',
           size: 12345,
           uploadedAt: '2026-03-07T10:00:00.000Z',
@@ -116,8 +115,7 @@ describe('pages-attachments-list', () => {
           checksum: 'abc123',
         },
         {
-          attachmentId: '650e8400-e29b-41d4-a716-446655440002',
-          originalFilename: 'image.png',
+          filename: '650e8400-e29b-41d4-a716-446655440002',
           contentType: 'image/png',
           size: 54321,
           uploadedAt: '2026-03-07T09:00:00.000Z',
@@ -133,13 +131,13 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
       expect(body.attachments).toHaveLength(2);
-      expect(body.attachments[0].originalFilename).toBe('document.pdf');
-      expect(body.attachments[1].originalFilename).toBe('image.png');
+      expect(body.attachments[0].filename).toBe('document.pdf');
+      expect(body.attachments[1].filename).toBe('image.png');
       expect(body.attachments[1].dimensions).toEqual({ width: 1920, height: 1080 });
     });
 
@@ -147,8 +145,7 @@ describe('pages-attachments-list', () => {
       const validGuid = '550e8400-e29b-41d4-a716-446655440000';
       const mockAttachments: AttachmentMetadata[] = [
         {
-          attachmentId: '650e8400-e29b-41d4-a716-446655440001',
-          originalFilename: 'newest.pdf',
+          filename: '650e8400-e29b-41d4-a716-446655440001',
           contentType: 'application/pdf',
           size: 100,
           uploadedAt: '2026-03-07T12:00:00.000Z',
@@ -156,8 +153,7 @@ describe('pages-attachments-list', () => {
           checksum: 'abc',
         },
         {
-          attachmentId: '650e8400-e29b-41d4-a716-446655440002',
-          originalFilename: 'older.pdf',
+          filename: '650e8400-e29b-41d4-a716-446655440002',
           contentType: 'application/pdf',
           size: 100,
           uploadedAt: '2026-03-07T10:00:00.000Z',
@@ -172,12 +168,12 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       const body = JSON.parse(result.body);
-      expect(body.attachments[0].originalFilename).toBe('newest.pdf');
-      expect(body.attachments[1].originalFilename).toBe('older.pdf');
+      expect(body.attachments[0].filename).toBe('newest.pdf');
+      expect(body.attachments[1].filename).toBe('older.pdf');
     });
   });
 
@@ -190,7 +186,7 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(500);
       const body = JSON.parse(result.body);
@@ -209,7 +205,7 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(404);
       const body = JSON.parse(result.body);
@@ -225,7 +221,7 @@ describe('pages-attachments-list', () => {
         pathParameters: { pageGuid: validGuid },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(500);
       const body = JSON.parse(result.body);
@@ -256,7 +252,7 @@ describe('pages-attachments-list', () => {
           pathParameters: { pageGuid: guid },
         } as any;
 
-        const result = await handler(event);
+        const result = await handler(event, {} as any);
 
         expect(result.statusCode).toBe(200);
         expect(mockPlugin.listAttachments).toHaveBeenCalledWith(guid);
@@ -269,7 +265,7 @@ describe('pages-attachments-list', () => {
           pathParameters: { pageGuid: guid },
         } as any;
 
-        const result = await handler(event);
+        const result = await handler(event, {} as any);
 
         expect(result.statusCode).toBe(400);
         expect(mockPlugin.listAttachments).not.toHaveBeenCalled();
