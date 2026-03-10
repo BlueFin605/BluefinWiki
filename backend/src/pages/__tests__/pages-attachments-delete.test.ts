@@ -110,6 +110,21 @@ describe('pages-attachments-delete', () => {
       expect(result.statusCode).toBe(200);
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
     });
+
+    it('should accept attachmentGuid parameter as fallback for filename', async () => {
+      const pageGuid = '550e8400-e29b-41d4-a716-446655440000';
+      const filename = 'test-file.pdf';
+      (mockPlugin.deleteAttachment as any).mockResolvedValue(undefined);
+
+      const event: APIGatewayProxyEvent = {
+        pathParameters: { pageGuid, attachmentGuid: filename },
+      } as any;
+
+      const result = await handler(event);
+
+      expect(result.statusCode).toBe(200);
+      expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
+    });
   });
 
   describe('Successful Deletion', () => {

@@ -194,8 +194,8 @@ app.post(
   wrapLambdaHandler(pagesAttachmentsUpload)
 );
 app.get('/pages/:pageGuid/attachments', wrapLambdaHandler(pagesAttachmentsList));
-app.get('/pages/:pageGuid/attachments/:attachmentGuid', wrapLambdaHandler(pagesAttachmentsDownload));
-app.delete('/pages/:pageGuid/attachments/:attachmentGuid', wrapLambdaHandler(pagesAttachmentsDelete));
+app.get('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDownload));
+app.delete('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDelete));
 
 // ============================================================================
 // API Routes - Authentication
