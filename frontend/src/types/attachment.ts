@@ -17,6 +17,7 @@ export interface AttachmentMetadata {
 }
 
 export interface AttachmentUploadResponse {
+  attachmentGuid: string;
   filename: string;
   contentType: string;
   size: number;
@@ -28,6 +29,7 @@ export interface AttachmentUploadProgress {
   progress: number; // 0-100
   status: 'pending' | 'uploading' | 'completed' | 'failed';
   error?: string;
+  attachmentGuid?: string;
   filename?: string;
   url?: string;
 }

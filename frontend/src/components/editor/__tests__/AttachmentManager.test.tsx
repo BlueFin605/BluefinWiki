@@ -78,7 +78,7 @@ describe('AttachmentManager Component', () => {
       uploadProgress: [],
       clearCompletedUploads: vi.fn(),
       clearAllUploads: vi.fn(),
-    } as any);
+    } as unknown as ReturnType<typeof useAttachmentsModule.useAttachments>);
 
     vi.mocked(apiClient.get).mockResolvedValue({
       data: new Blob(['mock image data']),
@@ -112,7 +112,7 @@ describe('AttachmentManager Component', () => {
         uploadProgress: [],
         clearCompletedUploads: vi.fn(),
         clearAllUploads: vi.fn(),
-      } as any);
+      } as unknown as ReturnType<typeof useAttachmentsModule.useAttachments>);
 
       render(
         <AttachmentManager
@@ -243,7 +243,7 @@ describe('AttachmentManager Component', () => {
     });
 
     it('should refresh attachments when Refresh button is clicked', async () => {
-      const { rerender } = render(
+      render(
         <AttachmentManager
           pageGuid={testPageGuid}
           currentUserId="user-123"
