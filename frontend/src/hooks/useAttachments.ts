@@ -88,6 +88,7 @@ export function useAttachments(pageGuid: string) {
           file,
           progress: 100,
           status: 'completed',
+          attachmentGuid: response.data.attachmentGuid,
           filename: response.data.filename,
           url: response.data.url,
         });

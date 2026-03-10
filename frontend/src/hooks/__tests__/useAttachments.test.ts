@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import { AxiosProgressEvent } from 'axios';
 import { useAttachments } from '../useAttachments';
 import apiClient from '../../config/api';
 
@@ -86,8 +87,8 @@ describe('useAttachments Hook', () => {
     });
 
     it('should track upload progress', async () => {
-      let progressCallback: ((event: any) => void) | undefined;
-      let resolveUpload: (value: any) => void;
+      let progressCallback: ((event: AxiosProgressEvent) => void) | undefined;
+      let resolveUpload: (value: unknown) => void;
 
       const uploadPromise = new Promise((resolve) => {
         resolveUpload = resolve;
@@ -99,13 +100,13 @@ describe('useAttachments Hook', () => {
         // Simulate progress events
         setTimeout(() => {
           if (progressCallback) {
-            progressCallback({ loaded: 50, total: 100 });
+            progressCallback({ loaded: 50, total: 100 } as AxiosProgressEvent);
           }
         }, 50);
 
         setTimeout(() => {
           if (progressCallback) {
-            progressCallback({ loaded: 100, total: 100 });
+            progressCallback({ loaded: 100, total: 100 } as AxiosProgressEvent);
           }
           resolveUpload!({
             data: {
@@ -118,7 +119,7 @@ describe('useAttachments Hook', () => {
           });
         }, 100);
 
-        return uploadPromise as any;
+        return uploadPromise as Promise<unknown>;
       });
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
@@ -550,8 +551,8 @@ describe('useAttachments Hook', () => {
     });
 
     it('should track multiple concurrent uploads independently', async () => {
-      let resolveFirst: (value: any) => void;
-      let resolveSecond: (value: any) => void;
+      let resolveFirst: (value: unknown) => void;
+      let resolveSecond: (value: unknown) => void;
 
       const firstPromise = new Promise((resolve) => {
         resolveFirst = resolve;
@@ -561,8 +562,8 @@ describe('useAttachments Hook', () => {
       });
 
       vi.mocked(apiClient.post)
-        .mockReturnValueOnce(firstPromise as any)
-        .mockReturnValueOnce(secondPromise as any);
+        .mockReturnValueOnce(firstPromise as Promise<unknown>)
+        .mockReturnValueOnce(secondPromise as Promise<unknown>);
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
