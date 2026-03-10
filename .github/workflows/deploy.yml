@@ -1,0 +1,190 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-2
+  DEPLOY_ENVIRONMENT: production
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: backend/dist
+          retention-days: 7
+
+  build-frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+          retention-days: 7
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: backend/dist
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install AWS CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy infrastructure
+        working-directory: infrastructure
+        env:
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          cdk deploy --context environment=${{ env.DEPLOY_ENVIRONMENT }} --all --require-approval never --region ${{ env.AWS_REGION }}
+
+      - name: Get CloudFront Distribution ID
+        id: distribution
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
+            --output text)
+
+          echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
+          echo "bucket_name=bluefinwiki-frontend-${{ env.DEPLOY_ENVIRONMENT }}" >> $GITHUB_OUTPUT
+
+      - name: Deploy frontend to S3
+        env:
+          S3_BUCKET: ${{ steps.distribution.outputs.bucket_name }}
+        run: |
+          aws s3 sync frontend/dist/ "s3://${S3_BUCKET}/" \
+            --delete \
+            --cache-control "public, max-age=3600" \
+            --exclude "*.html" \
+            --exclude "*.js.map" \
+            --exclude "*.css.map"
+
+          aws s3 sync frontend/dist/ "s3://${S3_BUCKET}/" \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html; charset=utf-8"
+
+      - name: Invalidate CloudFront cache
+        env:
+          DISTRIBUTION_ID: ${{ steps.distribution.outputs.distribution_id }}
+        run: |
+          if [ -z "${DISTRIBUTION_ID}" ] || [ "${DISTRIBUTION_ID}" = "None" ]; then
+            echo "CloudFront Distribution ID not found. Skipping cache invalidation."
+            exit 0
+          fi
+
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/*"
+
+      - name: Output deployment info
+        run: |
+          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ env.DEPLOY_ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket:** ${{ steps.distribution.outputs.bucket_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Distribution ID:** ${{ steps.distribution.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
