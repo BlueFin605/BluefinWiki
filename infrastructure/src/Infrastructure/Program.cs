@@ -10,6 +10,7 @@ namespace Infrastructure
         public static void Main(string[] args)
         {
             var app = new App();
+            const string defaultRegion = "ap-southeast-2";
             
             // Get environment from context or default to dev
             var environmentName = app.Node.TryGetContext("environment")?.ToString() ?? "dev";
@@ -20,69 +21,19 @@ namespace Infrastructure
             var env = new Amazon.CDK.Environment
             {
                 Account = System.Environment.GetEnvironmentVariable("CDK_DEFAULT_ACCOUNT"),
-                Region = System.Environment.GetEnvironmentVariable("CDK_DEFAULT_REGION") ?? "us-east-1"
+                Region = defaultRegion
             };
             
-            // Create stacks for the specified environment
-            var stackPrefix = $"BlueFinWiki-{envConfig.Name}";
-            
-            // Auth Stack (Cognito User Pool and Identity Pool)
-            var authStack = new AuthStack(app, $"{stackPrefix}-Auth", new StackProps
+            // Create unified stack for the specified environment
+            // This single stack contains all Auth, Storage, Database, Compute, and CDN resources
+            var unifiedStack = new UnifiedStack(app, $"BlueFinWiki-{envConfig.Name}", new StackProps
             {
                 Env = env,
-                Description = $"BlueFinWiki Authentication resources for {envConfig.Name} environment",
+                Description = $"BlueFinWiki infrastructure for {envConfig.Name} environment (all resources in single stack)",
                 Tags = new Dictionary<string, string>
                 {
-                    { "Project", "IsoChess" },
-                    { "Environment", "Prod" }
-                }
-            }, envConfig);
-            
-            // Storage Stack (S3 buckets)
-            var storageStack = new StorageStack(app, $"{stackPrefix}-Storage", new StackProps
-            {
-                Env = env,
-                Description = $"BlueFinWiki Storage resources for {envConfig.Name} environment",
-                Tags = new Dictionary<string, string>
-                {
-                    { "Project", "IsoChess" },
-                    { "Environment", "Prod" }
-                }
-            }, envConfig);
-            
-            // Database Stack (DynamoDB tables)
-            var databaseStack = new DatabaseStack(app, $"{stackPrefix}-Database", new StackProps
-            {
-                Env = env,
-                Description = $"BlueFinWiki Database resources for {envConfig.Name} environment",
-                Tags = new Dictionary<string, string>
-                {
-                    { "Project", "IsoChess" },
-                    { "Environment", "Prod" }
-                }
-            }, envConfig);
-            
-            // Compute Stack (Lambda functions, API Gateway)
-            var computeStack = new ComputeStack(app, $"{stackPrefix}-Compute", new StackProps
-            {
-                Env = env,
-                Description = $"BlueFinWiki Compute resources for {envConfig.Name} environment",
-                Tags = new Dictionary<string, string>
-                {
-                    { "Project", "IsoChess" },
-                    { "Environment", "Prod" }
-                }
-            }, envConfig, storageStack, databaseStack, authStack);
-            
-            // CDN Stack (CloudFront distribution) - includes FrontendBucket to avoid circular dependency
-            var cdnStack = new CdnStack(app, $"{stackPrefix}-CDN", new StackProps
-            {
-                Env = env,
-                Description = $"BlueFinWiki CDN resources for {envConfig.Name} environment",
-                Tags = new Dictionary<string, string>
-                {
-                    { "Project", "IsoChess" },
-                    { "Environment", "Prod" }
+                    { "Project", "BlueFinWiki" },
+                    { "Environment", envConfig.Name }
                 }
             }, envConfig);
             

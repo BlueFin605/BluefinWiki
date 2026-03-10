@@ -61,9 +61,7 @@ namespace Infrastructure.Stacks
                 Comment = "No cache policy for SPA routing",
                 DefaultTtl = Duration.Seconds(0),
                 MinTtl = Duration.Seconds(0),
-                MaxTtl = Duration.Seconds(0),
-                EnableAcceptEncodingBrotli = true,
-                EnableAcceptEncodingGzip = true
+                MaxTtl = Duration.Seconds(0)
             });
             
             // CloudFront distribution

@@ -40,7 +40,7 @@ namespace Infrastructure.Stacks
                     Email = new StandardAttribute
                     {
                         Required = true,
-                        Mutable = false
+                        Mutable = true
                     },
                     GivenName = new StandardAttribute
                     {
@@ -176,23 +176,7 @@ namespace Infrastructure.Stacks
                 // Enable token revocation
                 EnableTokenRevocation = true,
                 
-                // Read/write attributes
-                ReadAttributes = new ClientAttributes()
-                    .WithStandardAttributes(new StandardAttributesMask
-                    {
-                        Email = true,
-                        EmailVerified = true,
-                        GivenName = true,
-                        FamilyName = true
-                    })
-                    .WithCustomAttributes("role"),
-                
-                WriteAttributes = new ClientAttributes()
-                    .WithStandardAttributes(new StandardAttributesMask
-                    {
-                        GivenName = true,
-                        FamilyName = true
-                    })
+                // Use Cognito defaults for readable/writable attributes
             });
             
             // Create Native Client (for future mobile apps)
