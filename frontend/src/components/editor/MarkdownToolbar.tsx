@@ -20,6 +20,7 @@ export type ToolbarAction =
   | 'task'
   | 'link'
   | 'image'
+  | 'attachment'
   | 'code'
   | 'codeblock';
 
@@ -200,6 +201,18 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
         >
           <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </button>
+
+        <button
+          onClick={() => onAction('attachment')}
+          disabled={disabled}
+          className={buttonClass}
+          title="Upload attachment"
+          aria-label="Upload attachment"
+        >
+          <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21.44 11.05l-8.49 8.49a5 5 0 11-7.07-7.07l8.49-8.49a3 3 0 114.24 4.24l-8.49 8.49a1 1 0 11-1.41-1.41l7.78-7.78" />
           </svg>
         </button>
       </div>

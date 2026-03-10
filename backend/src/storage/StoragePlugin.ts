@@ -13,7 +13,14 @@
  * - This enables hierarchical organization without a separate folder concept
  */
 
-import { PageContent, Version, PageSummary } from '../types/index.js';
+import {
+  PageContent,
+  Version,
+  PageSummary,
+  AttachmentUploadInput,
+  AttachmentUploadResult,
+  AttachmentMetadata,
+} from '../types/index.js';
 
 export interface StoragePlugin {
   /**
@@ -77,6 +84,58 @@ export interface StoragePlugin {
    * @throws StoragePluginError if circular reference detected or move fails
    */
   movePage(guid: string, newParentGuid: string | null): Promise<void>;
+
+  /**
+   * Upload an attachment for a page
+   *
+   * @param pageGuid - Page GUID to attach to
+   * @param file - Attachment file details
+   * @returns Upload result with filename and storage key
+   */
+  uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult>;
+
+  /**
+   * Delete an attachment from a page
+   *
+   * @param pageGuid - Page GUID
+   * @param filename - Attachment filename
+   */
+  deleteAttachment(pageGuid: string, filename: string): Promise<void>;
+
+  /**
+   * Save sidecar metadata for an attachment
+   *
+   * @param pageGuid - Page GUID
+   * @param filename - Attachment filename
+   * @param metadata - Attachment metadata payload
+   */
+  saveAttachmentMetadata(pageGuid: string, filename: string, metadata: AttachmentMetadata): Promise<void>;
+
+  /**
+   * Get sidecar metadata for an attachment
+   *
+   * @param pageGuid - Page GUID
+   * @param filename - Attachment filename
+   * @returns Attachment metadata
+   */
+  getAttachmentMetadata(pageGuid: string, filename: string): Promise<AttachmentMetadata>;
+
+  /**
+   * List all attachments for a page
+   *
+   * @param pageGuid - Page GUID
+   * @returns Sorted attachment metadata (newest first)
+   */
+  listAttachments(pageGuid: string): Promise<AttachmentMetadata[]>;
+
+  /**
+   * Get a temporary URL for attachment download
+   *
+   * @param pageGuid - Page GUID
+   * @param filename - Attachment filename
+   * @returns Temporary URL
+   */
+  getAttachmentUrl(pageGuid: string, filename: string): Promise<string>;
 
   /**
    * Get ancestors of a page (for breadcrumbs)

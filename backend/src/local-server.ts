@@ -27,6 +27,12 @@ import { handler as pagesListChildren } from './pages/pages-list-children.js';
 import { handler as pagesMove } from './pages/pages-move.js';
 import { handler as pagesSearch } from './pages/pages-search.js';
 import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
+import {
+  pagesAttachmentsUpload,
+  pagesAttachmentsDownload,
+  pagesAttachmentsList,
+  pagesAttachmentsDelete,
+} from './pages/index.js';
 import { handler as linksResolve } from './pages/links-resolve.js';
 import { handler as authRegister } from './auth/auth-register.js';
 import { handler as authMe } from './auth/auth-me.js';
@@ -44,6 +50,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Disable ETag for attachment downloads to prevent 304 responses
+app.set('etag', false);
 
 // Request logging
 app.use((req, _res, next) => {
@@ -65,11 +74,17 @@ function toLambdaEvent(req: Request): APIGatewayProxyEvent {
   });
 
   const event: APIGatewayProxyEvent = {
-    body: req.body ? JSON.stringify(req.body) : null,
+    body: req.body
+      ? Buffer.isBuffer(req.body)
+        ? req.body.toString('base64')
+        : typeof req.body === 'string'
+          ? req.body
+          : JSON.stringify(req.body)
+      : null,
     headers,
     multiValueHeaders: {},
     httpMethod: req.method,
-    isBase64Encoded: false,
+    isBase64Encoded: Buffer.isBuffer(req.body),
     path: req.path,
     pathParameters: req.params as { [name: string]: string } | null,
     queryStringParameters: req.query as { [name: string]: string } | null,
@@ -146,6 +161,14 @@ function wrapLambdaHandler(handler: (event: APIGatewayProxyEvent, context: Conte
         });
       }
 
+      // Ensure Content-Type is set for attachment downloads
+      if (req.path.includes('/attachments/') && req.method === 'GET') {
+        const contentType = res.getHeader('Content-Type');
+        if (!contentType) {
+          res.setHeader('Content-Type', 'application/octet-stream');
+        }
+      }
+
       // Send response
       const body = result.isBase64Encoded 
         ? Buffer.from(result.body || '', 'base64')
@@ -176,6 +199,14 @@ app.post('/pages/:guid/move', wrapLambdaHandler(pagesMove));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
 app.get('/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
+app.post(
+  '/pages/:pageGuid/attachments',
+  express.raw({ type: () => true, limit: '60mb' }),
+  wrapLambdaHandler(pagesAttachmentsUpload)
+);
+app.get('/pages/:pageGuid/attachments', wrapLambdaHandler(pagesAttachmentsList));
+app.get('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDownload));
+app.delete('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDelete));
 
 // ============================================================================
 // API Routes - Authentication

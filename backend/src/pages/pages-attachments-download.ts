@@ -1,0 +1,103 @@
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { withAuth, AuthenticatedEvent } from '../middleware/auth.js';
+
+/**
+ * Lambda: pages-attachments-download
+ * GET /pages/{pageGuid}/attachments/{filename}
+ */
+export const handler = withAuth(async (
+  event: AuthenticatedEvent
+): Promise<APIGatewayProxyResult> => {
+  try {
+    const pageGuid = event.pathParameters?.pageGuid || event.pathParameters?.guid;
+    const filename = event.pathParameters?.filename || event.pathParameters?.attachmentGuid;
+
+    if (!pageGuid || !filename) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Page GUID and filename are required' }),
+      };
+    }
+
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(pageGuid)) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid GUID format' }),
+      };
+    }
+
+    const { getStoragePlugin } = await import('../storage/StoragePluginRegistry.js');
+    const storagePlugin = getStoragePlugin();
+    
+    // Get metadata to retrieve the original content type
+    let contentType = 'application/octet-stream';
+    try {
+      const metadata = await storagePlugin.getAttachmentMetadata(pageGuid, filename);
+      contentType = metadata.contentType;
+    } catch (err: unknown) {
+      console.warn('Could not retrieve attachment metadata, will use response headers:', err);
+    }
+
+    const downloadUrl = await storagePlugin.getAttachmentUrl(pageGuid, filename);
+    const response = await fetch(downloadUrl);
+
+    if (!response.ok) {
+      return {
+        statusCode: response.status,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Attachment not found' }),
+      };
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Fall back to response headers if metadata content-type is still the default
+    if (contentType === 'application/octet-stream') {
+      const responseContentType = response.headers.get('content-type');
+      if (responseContentType) {
+        contentType = responseContentType;
+      }
+    }
+
+    const contentDispositionHeader = response.headers.get('content-disposition');
+    const filenameMatch = contentDispositionHeader?.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
+    const rawFilename = filenameMatch?.[1]?.replace(/"/g, '')?.trim();
+    const responseFilename = rawFilename && rawFilename.length > 0 ? decodeURIComponent(rawFilename) : filename;
+
+    const isInline = contentType.startsWith('image/') || contentType === 'application/pdf';
+
+    return {
+      statusCode: 200,
+      isBase64Encoded: true,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="${responseFilename}"`,
+      },
+      body: buffer.toString('base64'),
+    };
+  } catch (err: unknown) {
+    console.error('Error downloading attachment:', err);
+    const error = err as { code?: string; statusCode?: number; message?: string };
+
+    if (error.code) {
+      return {
+        statusCode: error.statusCode || 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: error.message,
+          code: error.code,
+        }),
+      };
+    }
+
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to download attachment' }),
+    };
+  }
+});
