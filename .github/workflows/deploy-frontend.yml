@@ -1,0 +1,142 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [master, develop, main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+
+env:
+  AWS_REGION: ap-southeast-2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    # Determine environment based on branch or manually selected
+    environment:
+      name: ${{ inputs.environment || (github.ref == 'refs/heads/master' && 'production') || (github.ref == 'refs/heads/develop' && 'staging') || 'dev' }}
+    
+    defaults:
+      run:
+        working-directory: frontend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint
+        run: npm run lint
+      
+      - name: Type check
+        run: npm run type-check
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Determine deployment details
+        id: deployment
+        env:
+          ENVIRONMENT: ${{ inputs.environment || (github.ref == 'refs/heads/master' && 'production') || (github.ref == 'refs/heads/develop' && 'staging') || 'dev' }}
+        run: |
+          echo "environment=${ENVIRONMENT}" >> $GITHUB_OUTPUT
+          echo "Deploying to ${ENVIRONMENT} environment"
+      
+      - name: Get CloudFront Distribution ID
+        id: distribution
+        env:
+          ENVIRONMENT: ${{ steps.deployment.outputs.environment }}
+        run: |
+          BUCKET_NAME="bluefinwiki-frontend-${ENVIRONMENT}"
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${ENVIRONMENT}" \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
+            --output text)
+          
+          echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
+          echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
+          echo "Distribution ID: ${DISTRIBUTION_ID}"
+          echo "S3 Bucket: ${BUCKET_NAME}"
+      
+      - name: Deploy frontend to S3
+        env:
+          S3_BUCKET: ${{ steps.distribution.outputs.bucket_name }}
+        run: |
+          aws s3 sync dist/ "s3://${S3_BUCKET}/" \
+            --delete \
+            --cache-control "public, max-age=3600" \
+            --exclude "*.html" \
+            --exclude "*.js.map" \
+            --exclude "*.css.map"
+          
+          # Index and HTML files with no-cache
+          aws s3 sync dist/ "s3://${S3_BUCKET}/" \
+            --include "*.html" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html; charset=utf-8"
+      
+      - name: Invalidate CloudFront cache
+        env:
+          DISTRIBUTION_ID: ${{ steps.distribution.outputs.distribution_id }}
+        run: |
+          if [ -z "${DISTRIBUTION_ID}" ] || [ "${DISTRIBUTION_ID}" = "None" ]; then
+            echo "⚠️  CloudFront Distribution ID not found. Skipping cache invalidation."
+            exit 0
+          fi
+          
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/*"
+          
+          echo "✅ CloudFront cache invalidated"
+      
+      - name: Output deployment info
+        env:
+          ENVIRONMENT: ${{ steps.deployment.outputs.environment }}
+        run: |
+          BUCKET_NAME="bluefinwiki-frontend-${ENVIRONMENT}"
+          echo "## ✅ Frontend Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${ENVIRONMENT}" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket:** ${BUCKET_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "**Distribution ID:** ${{ steps.distribution.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Artifacts:** dist/" >> $GITHUB_STEP_SUMMARY
+
+  notify-success:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+    steps:
+      - name: Notify deployment success
+        run: echo "Frontend deployment completed successfully!"
