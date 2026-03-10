@@ -39,7 +39,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { filename: 'test-file.pdf' },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(400);
       expect(JSON.parse(result.body).error).toContain('Page GUID and filename are required');
@@ -50,7 +50,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid: '550e8400-e29b-41d4-a716-446655440000' },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(400);
       expect(JSON.parse(result.body).error).toContain('Page GUID and filename are required');
@@ -61,7 +61,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: null,
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(400);
       expect(JSON.parse(result.body).error).toContain('Page GUID and filename are required');
@@ -75,7 +75,7 @@ describe('pages-attachments-delete', () => {
         },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(400);
       expect(JSON.parse(result.body).error).toContain('Invalid GUID format');
@@ -90,7 +90,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
@@ -105,7 +105,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { guid: pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
@@ -120,7 +120,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, attachmentGuid: filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
@@ -137,7 +137,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(result.headers?.['Content-Type']).toBe('application/json');
@@ -155,7 +155,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      await handler(event);
+      await handler(event, {} as any);
 
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledTimes(1);
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
@@ -172,7 +172,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(500);
       const body = JSON.parse(result.body);
@@ -192,7 +192,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(404);
       const body = JSON.parse(result.body);
@@ -213,7 +213,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(404);
       const body = JSON.parse(result.body);
@@ -234,7 +234,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(403);
       const body = JSON.parse(result.body);
@@ -251,7 +251,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(500);
       const body = JSON.parse(result.body);
@@ -284,7 +284,7 @@ describe('pages-attachments-delete', () => {
           pathParameters: { pageGuid: guid, filename },
         } as any;
 
-        const result = await handler(event);
+        const result = await handler(event, {} as any);
 
         expect(result.statusCode).toBe(200);
         expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(guid, filename);
@@ -299,7 +299,7 @@ describe('pages-attachments-delete', () => {
           pathParameters: { pageGuid: guid, filename },
         } as any;
 
-        const result = await handler(event);
+        const result = await handler(event, {} as any);
 
         expect(result.statusCode).toBe(400);
         expect(mockPlugin.deleteAttachment).not.toHaveBeenCalled();
@@ -321,7 +321,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(404);
     });
@@ -335,7 +335,7 @@ describe('pages-attachments-delete', () => {
         pathParameters: { pageGuid, filename },
       } as any;
 
-      const result = await handler(event);
+      const result = await handler(event, {} as any);
 
       expect(result.statusCode).toBe(200);
       expect(mockPlugin.deleteAttachment).toHaveBeenCalledWith(pageGuid, filename);
