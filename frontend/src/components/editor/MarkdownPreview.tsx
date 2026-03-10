@@ -126,25 +126,37 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       throw err;
     }
   }, [imageBlobUrls]);
-  // Transform attachment URLs from pageGuid/filename format to full URLs
+  // Transform attachment URLs from filename or pageGuid/filename format to full URLs
   const transformAttachmentUri = useCallback((uri: string) => {
-    // Check if this is an attachment reference (matches GUID/filename pattern)
+    // Skip transformation for absolute URLs (http://, https://, etc.)
+    if (/^[a-z][a-z0-9+.-]*:/i.test(uri)) {
+      return uri;
+    }
+
+    // Check if this is a bare filename (no slashes or protocol)
+    // Use current pageGuid from context
+    if (!uri.includes('/') && pageGuid) {
+      const transformed = `/pages/${pageGuid}/attachments/${encodeURIComponent(uri)}`;
+      console.log(`🔄 Transformed bare filename:`, { original: uri, transformed });
+      return transformed;
+    }
+
+    // Check if this is legacy pageGuid/filename format (backward compatibility)
     // GUID format: 8-4-4-4-12 hex characters
-    const attachmentPattern = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
-    const match = uri.match(attachmentPattern);
+    const legacyPattern = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
+    const match = uri.match(legacyPattern);
     
     if (match) {
       const [, guid, filename] = match;
-      // Transform to full URL: /pages/{guid}/attachments/{filename}
       const transformed = `/pages/${guid}/attachments/${encodeURIComponent(filename)}`;
-      console.log(`🔄 Transformed attachment URI:`, { original: uri, transformed });
+      console.log(`🔄 Transformed legacy attachment URI:`, { original: uri, transformed });
       return transformed;
     }
     
     // Not an attachment reference, return as-is
     console.log(`⏭️ URI not an attachment:`, uri);
     return uri;
-  }, []);
+  }, [pageGuid]);
 
   // Memoize the markdown rendering to avoid unnecessary re-renders
   const renderedContent = useMemo(() => {

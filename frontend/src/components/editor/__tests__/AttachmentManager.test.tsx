@@ -929,7 +929,7 @@ describe('AttachmentManager Component', () => {
 
       await waitFor(() => {
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-          '[document.pdf](test-page-guid-123/attach-1)'
+          '[document.pdf](attach-1)'
         );
       });
     });
@@ -959,7 +959,7 @@ describe('AttachmentManager Component', () => {
 
       await waitFor(() => {
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-          '![family-photo.jpg](test-page-guid-123/attach-2)'
+          '![family-photo.jpg](attach-2)'
         );
       });
     });
@@ -1077,7 +1077,7 @@ describe('AttachmentManager Component', () => {
       await user.click(insertButton);
 
       expect(onInsertMarkdown).toHaveBeenCalledWith(
-        '[document.pdf](test-page-guid-123/attach-1)'
+        '[document.pdf](attach-1)'
       );
     });
 
@@ -1106,7 +1106,7 @@ describe('AttachmentManager Component', () => {
       await user.click(insertButton);
 
       expect(onInsertMarkdown).toHaveBeenCalledWith(
-        '![family-photo.jpg](test-page-guid-123/attach-2)'
+        '![family-photo.jpg](attach-2)'
       );
     });
   });
@@ -1139,7 +1139,7 @@ describe('AttachmentManager Component', () => {
       const markdown = onInsertMarkdown.mock.calls[0][0];
       expect(markdown).toMatch(/^!\[.*\]\(.*\)$/);
       expect(markdown).toContain('![family-photo.jpg]');
-      expect(markdown).toContain('test-page-guid-123/attach-2)');
+      expect(markdown).toContain('attach-2)');
     });
 
     it('should use correct markdown syntax for non-image files', async () => {
@@ -1170,10 +1170,10 @@ describe('AttachmentManager Component', () => {
       expect(markdown).toMatch(/^\[.*\]\(.*\)$/);
       expect(markdown).not.toMatch(/^!/);
       expect(markdown).toContain('[document.pdf]');
-      expect(markdown).toContain('test-page-guid-123/attach-1)');
+      expect(markdown).toContain('attach-1)');
     });
 
-    it('should include page GUID in attachment URL', async () => {
+    it('should use filename-only format (pageGuid inferred from context)', async () => {
       const onInsertMarkdown = vi.fn();
 
       render(
@@ -1197,7 +1197,9 @@ describe('AttachmentManager Component', () => {
       await userEvent.click(insertButton);
 
       const markdown = onInsertMarkdown.mock.calls[0][0];
-      expect(markdown).toContain(`${testPageGuid}/`);
+      // Should NOT contain pageGuid - it's inferred from context
+      expect(markdown).not.toContain(`${testPageGuid}/`);
+      expect(markdown).toContain('attach-1)');
     });
 
     it('should include attachment ID in URL', async () => {

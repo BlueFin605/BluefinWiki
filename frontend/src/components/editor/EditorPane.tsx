@@ -131,19 +131,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   }, [pageGuid]);
 
-  const buildMarkdownFromUpload = useCallback((filename: string, contentType: string, url: string) => {
+  const buildMarkdownFromUpload = useCallback((filename: string, contentType: string) => {
     const altText = filename.replace(/\.[^/.]+$/, '') || 'attachment';
     const isImage = contentType.toLowerCase().startsWith('image/');
     
-    // Use simple pageGuid/filename format for portability
-    const attachmentPath = pageGuid ? `${pageGuid}/${filename}` : filename;
+    // Use simple filename format - pageGuid is inferred from context when rendering
+    const attachmentPath = filename;
 
     if (isImage) {
       return `![${altText}](${attachmentPath})`;
     }
 
     return `[${filename}](${attachmentPath})`;
-  }, [pageGuid]);
+  }, []);
 
   const handleAttachmentFilesSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
@@ -158,7 +158,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
       if (successful.length > 0 && editorRef.current) {
         const markdownBlock = successful
-          .map((upload) => buildMarkdownFromUpload(upload.filename, upload.contentType, upload.url))
+          .map((upload) => buildMarkdownFromUpload(upload.filename, upload.contentType))
           .join('\n');
 
         editorRef.current.insertMarkdown(`${markdownBlock}\n`);
