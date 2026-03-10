@@ -278,9 +278,8 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   }, []);
 
   const buildMarkdownLink = useCallback((attachment: AttachmentMetadata) => {
-    // Use simple pageGuid/filename format for portability
-    // This will be resolved to full URL when rendering
-    const attachmentPath = `${pageGuid}/${attachment.filename}`;
+    // Use simple filename format - pageGuid is inferred from context when rendering
+    const attachmentPath = attachment.filename;
     const isImage = isImageContentType(attachment.contentType);
     const altText = attachment.filename.replace(/\.[^/.]+$/, '') || 'attachment';
 
@@ -289,7 +288,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     }
 
     return `[${attachment.filename}](${attachmentPath})`;
-  }, [pageGuid]);
+  }, []);
 
   const copyMarkdownToClipboard = useCallback(async (attachment: AttachmentMetadata) => {
     const markdown = buildMarkdownLink(attachment);
