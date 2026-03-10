@@ -51,6 +51,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Disable ETag for attachment downloads to prevent 304 responses
+app.set('etag', false);
+
 // Request logging
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
@@ -156,6 +159,14 @@ function wrapLambdaHandler(handler: (event: APIGatewayProxyEvent, context: Conte
         Object.entries(result.headers).forEach(([key, value]) => {
           res.setHeader(key, String(value));
         });
+      }
+
+      // Ensure Content-Type is set for attachment downloads
+      if (req.path.includes('/attachments/') && req.method === 'GET') {
+        const contentType = res.getHeader('Content-Type');
+        if (!contentType) {
+          res.setHeader('Content-Type', 'application/octet-stream');
+        }
       }
 
       // Send response
