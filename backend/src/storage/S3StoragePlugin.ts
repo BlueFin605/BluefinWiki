@@ -1211,6 +1211,20 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const sanitizedFilename = this.sanitizeFilename(filename);
       const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
 
+      // Check if attachment exists
+      try {
+        await this.s3Client.send(new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: attachmentKey,
+        }));
+      } catch (headError: unknown) {
+        const error = headError as { name?: string };
+        if (error.name === 'NotFound' || error.name === 'NoSuchKey') {
+          throw this.createError('Attachment not found', 'ATTACHMENT_NOT_FOUND', 404);
+        }
+        throw headError;
+      }
+
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
         Key: attachmentKey,

@@ -107,7 +107,7 @@ describe('pages-attachments-list', () => {
       const validGuid = '550e8400-e29b-41d4-a716-446655440000';
       const mockAttachments: AttachmentMetadata[] = [
         {
-          filename: '650e8400-e29b-41d4-a716-446655440001',
+          filename: 'document.pdf',
           contentType: 'application/pdf',
           size: 12345,
           uploadedAt: '2026-03-07T10:00:00.000Z',
@@ -115,7 +115,7 @@ describe('pages-attachments-list', () => {
           checksum: 'abc123',
         },
         {
-          filename: '650e8400-e29b-41d4-a716-446655440002',
+          filename: 'image.png',
           contentType: 'image/png',
           size: 54321,
           uploadedAt: '2026-03-07T09:00:00.000Z',
@@ -145,7 +145,7 @@ describe('pages-attachments-list', () => {
       const validGuid = '550e8400-e29b-41d4-a716-446655440000';
       const mockAttachments: AttachmentMetadata[] = [
         {
-          filename: '650e8400-e29b-41d4-a716-446655440001',
+          filename: 'newest.pdf',
           contentType: 'application/pdf',
           size: 100,
           uploadedAt: '2026-03-07T12:00:00.000Z',
@@ -153,7 +153,7 @@ describe('pages-attachments-list', () => {
           checksum: 'abc',
         },
         {
-          filename: '650e8400-e29b-41d4-a716-446655440002',
+          filename: 'older.pdf',
           contentType: 'application/pdf',
           size: 100,
           uploadedAt: '2026-03-07T10:00:00.000Z',

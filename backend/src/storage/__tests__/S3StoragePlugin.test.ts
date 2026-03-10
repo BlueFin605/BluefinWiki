@@ -1273,6 +1273,12 @@ Test content`;
           } as any;
         });
 
+        // Mock attachment exists check
+        s3Mock.on(HeadObjectCommand, {
+          Bucket: TEST_BUCKET,
+          Key: `${pageGuid}/${filename}`,
+        }).resolves({});
+
         const url = await plugin.getAttachmentUrl(pageGuid, filename);
 
         expect(url).toBeTruthy();
@@ -1285,7 +1291,40 @@ Test content`;
         const pageGuid = uuidv4();
         const filename = 'nonexistent.pdf';
 
-        s3Mock.on(GetObjectCommand).rejects({ name: 'NoSuchKey' });
+        // Mock page exists check
+        const pageContent = `---
+title: "Test Page"
+guid: "${pageGuid}"
+parentGuid: null
+folderId: ""
+status: "published"
+tags: []
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Test content`;
+
+        // Mock HeadObjectCommand to check which key is being requested
+        s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+          const key = input.Key as string;
+          if (key.endsWith('.md')) {
+            // Page exists
+            return {};
+          } else if (key.endsWith(filename)) {
+            // Attachment not found
+            throw { name: 'NoSuchKey' };
+          }
+          return {};
+        });
+
+        s3Mock.on(GetObjectCommand).callsFake(() => {
+          return {
+            Body: createMockStream(pageContent)() as any,
+          } as any;
+        });
 
         await expect(
           plugin.getAttachmentUrl(pageGuid, filename)
