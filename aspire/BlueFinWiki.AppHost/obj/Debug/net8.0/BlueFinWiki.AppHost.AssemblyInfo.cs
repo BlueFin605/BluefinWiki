@@ -23,7 +23,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BlueFinWiki.AppHost")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f8ed6e262b15c95895533e4423b3e40685484214")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+454a2565faa5211e917c15f7c711366379b877cd")]
 [assembly: System.Reflection.AssemblyProductAttribute("BlueFinWiki.AppHost")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BlueFinWiki.AppHost")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

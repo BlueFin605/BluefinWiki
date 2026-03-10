@@ -59,8 +59,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks]}
         rehypePlugins={[rehypeHighlight]}
-        transformImageUri={transformAttachmentUri}
-        transformLinkUri={transformAttachmentUri}
+        urlTransform={transformAttachmentUri}
         components={{
           // Customize link rendering to handle both wiki links and external links
           a: ({ children, href, ...props }: MarkdownComponentProps<'a'>) => {
