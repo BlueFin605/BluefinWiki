@@ -13,7 +13,7 @@ export const handler = withAuth(async (
 ): Promise<APIGatewayProxyResult> => {
   try {
     const pageGuid = event.pathParameters?.pageGuid || event.pathParameters?.guid;
-    const filename = event.pathParameters?.filename;
+    const filename = event.pathParameters?.filename || event.pathParameters?.attachmentGuid;
 
     if (!pageGuid || !filename) {
       return badRequest('Page GUID and filename are required');
