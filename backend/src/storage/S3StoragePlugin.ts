@@ -42,8 +42,17 @@ import {
   CopyObjectCommand,
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Readable } from 'stream';
 import { BaseStoragePlugin } from './BaseStoragePlugin.js';
-import { PageContent, Version, PageSummary } from '../types/index.js';
+import {
+  PageContent,
+  Version,
+  PageSummary,
+  AttachmentUploadInput,
+  AttachmentUploadResult,
+  AttachmentMetadata,
+} from '../types/index.js';
 
 interface S3StorageConfig {
   type?: 's3';
@@ -118,6 +127,64 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       // If we can't load the parent, treat current as root
       return `${guid}/`;
     }
+  }
+
+  /**
+   * Build the directory path where a page's attachments are stored
+   * Returns path like: {parent-guid}/{guid}/_attachments/
+   * For root pages: {guid}/_attachments/
+   * This ensures attachments are in the same folder as the page's .md file
+   */
+  private async buildAttachmentPath(pageGuid: string): Promise<string> {
+    // Always derive from the actual page key in S3 so malformed frontmatter
+    // (for example folderId = pageGuid) cannot produce duplicated segments.
+    const pageKey = await this.findPageKey(pageGuid);
+    if (!pageKey) {
+      throw this.createError(
+        `Page not found: ${pageGuid}`,
+        'PAGE_NOT_FOUND',
+        404
+      );
+    }
+
+    // Remove trailing filename and add _attachments/
+    // "parent/child/child.md" -> "parent/child/_attachments/"
+    // "root/root.md" -> "root/_attachments/"
+    const lastSlashIndex = pageKey.lastIndexOf('/');
+    const directory = lastSlashIndex === -1 ? '' : pageKey.substring(0, lastSlashIndex + 1);
+
+    const pathSegments = directory.split('/').filter(Boolean);
+    while (
+      pathSegments.length >= 2 &&
+      pathSegments[pathSegments.length - 1] === pageGuid &&
+      pathSegments[pathSegments.length - 2] === pageGuid
+    ) {
+      pathSegments.pop();
+    }
+
+    const normalizedDirectory = pathSegments.length > 0 ? `${pathSegments.join('/')}/` : '';
+    return `${normalizedDirectory}_attachments/`;
+  }
+
+  private inferParentGuidFromPageKey(pageKey: string, pageGuid: string): string {
+    const keySegments = pageKey.split('/').filter(Boolean);
+    if (keySegments.length < 2) {
+      return '';
+    }
+
+    const filename = keySegments[keySegments.length - 1];
+    if (filename !== `${pageGuid}.md`) {
+      return '';
+    }
+
+    const directorySegments = keySegments.slice(0, -1);
+    let parentIndex = directorySegments.length - 2;
+
+    while (parentIndex >= 0 && directorySegments[parentIndex] === pageGuid) {
+      parentIndex -= 1;
+    }
+
+    return parentIndex >= 0 ? directorySegments[parentIndex] : '';
   }
 
 
@@ -338,7 +405,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // Read stream to string
-      const markdown = await response.Body.transformToString();
+      const markdown = await this.readBodyAsString(response.Body);
 
       // Parse frontmatter
       const { metadata, body } = this.parseFrontmatter(markdown);
@@ -347,12 +414,18 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const folderId = Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId;
       const parentGuid = Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid;
       const effectiveFolderId = folderId || parentGuid || '';
+      const pageGuid = Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid;
+      const inferredParentGuid = this.inferParentGuidFromPageKey(key, pageGuid);
+      const normalizedFolderId =
+        (effectiveFolderId === null || effectiveFolderId === 'null')
+          ? ''
+          : (effectiveFolderId === pageGuid ? inferredParentGuid : effectiveFolderId);
       
       const pageContent: PageContent = {
-        guid: Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid,
+        guid: pageGuid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
         content: body,
-        folderId: (effectiveFolderId === null || effectiveFolderId === 'null') ? '' : effectiveFolderId,
+        folderId: normalizedFolderId,
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
@@ -886,6 +959,356 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         500
       );
     }
+  }
+
+  /**
+   * Upload attachment to page-specific attachments folder
+   * Path: {parent-guid}/{pageGuid}/_attachments/{sanitizedFilename}
+   * For root pages: {pageGuid}/_attachments/{sanitizedFilename}
+   */
+  async uploadAttachment(pageGuid: string, file: AttachmentUploadInput): Promise<AttachmentUploadResult> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid page GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
+      // Sanitize filename to make it safe for S3 storage
+      const sanitizedFilename = this.sanitizeFilename(file.originalFilename);
+      const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
+
+      await this.s3Client.send(new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: attachmentKey,
+        Body: file.data,
+        ContentType: file.contentType,
+        Metadata: {
+          filename: encodeURIComponent(sanitizedFilename),
+          uploadedby: file.uploadedBy,
+        },
+      }));
+
+      return {
+        filename: sanitizedFilename,
+        attachmentKey,
+        contentType: file.contentType,
+        size: file.data.length,
+      };
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to upload attachment: ${error.message}`,
+        'ATTACHMENT_UPLOAD_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Delete an attachment file from page attachments folder
+   */
+  async deleteAttachment(pageGuid: string, filename: string): Promise<void> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
+      const metadataKey = `${attachmentPath}${sanitizedFilename}.meta.json`;
+
+      await this.s3Client.send(new DeleteObjectsCommand({
+        Bucket: this.bucketName,
+        Delete: {
+          Objects: [
+            { Key: attachmentKey },
+            { Key: metadataKey },
+          ],
+          Quiet: true,
+        },
+      }));
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to delete attachment: ${error.message}`,
+        'ATTACHMENT_DELETE_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Save attachment metadata sidecar JSON
+   * Path: {parent-guid}/{pageGuid}/_attachments/{filename}.meta.json
+   * For root pages: {pageGuid}/_attachments/{filename}.meta.json
+   */
+  async saveAttachmentMetadata(
+    pageGuid: string,
+    filename: string,
+    metadata: AttachmentMetadata
+  ): Promise<void> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const metadataKey = `${attachmentPath}${sanitizedFilename}.meta.json`;
+
+      await this.s3Client.send(new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: metadataKey,
+        Body: JSON.stringify(metadata),
+        ContentType: 'application/json',
+      }));
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code === 'INVALID_GUID') {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to save attachment metadata: ${error.message}`,
+        'ATTACHMENT_METADATA_SAVE_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Get sidecar metadata JSON for an attachment
+   */
+  async getAttachmentMetadata(pageGuid: string, filename: string): Promise<AttachmentMetadata> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const metadataKey = `${attachmentPath}${sanitizedFilename}.meta.json`;
+      const response = await this.s3Client.send(new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: metadataKey,
+      }));
+
+      const metadataBody = await this.readBodyAsString(response.Body);
+      const metadata = JSON.parse(metadataBody) as AttachmentMetadata;
+      return metadata;
+    } catch (err: unknown) {
+      const error = err as { code?: string; name?: string; message?: string };
+
+      if (error.code === 'INVALID_GUID') {
+        throw err;
+      }
+
+      if (error.name === 'NoSuchKey') {
+        throw this.createError(
+          `Attachment metadata not found: ${filename}`,
+          'ATTACHMENT_METADATA_NOT_FOUND',
+          404
+        );
+      }
+
+      throw this.createError(
+        `Failed to load attachment metadata: ${error.message}`,
+        'ATTACHMENT_METADATA_LOAD_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * List attachments for a page (newest first)
+   */
+  async listAttachments(pageGuid: string): Promise<AttachmentMetadata[]> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Get attachment path (same folder as .md file)
+      const prefix = await this.buildAttachmentPath(pageGuid);
+      const response = await this.s3Client.send(new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: prefix,
+        MaxKeys: 1000,
+      }));
+
+      const metadataKeys = (response.Contents || [])
+        .map(item => item.Key)
+        .filter((key): key is string => Boolean(key))
+        .filter(key => key.endsWith('.meta.json'));
+
+      if (metadataKeys.length === 0) {
+        return [];
+      }
+
+      const metadataEntries = await Promise.all(
+        metadataKeys.map(async (metadataKey) => {
+          try {
+            const getResult = await this.s3Client.send(new GetObjectCommand({
+              Bucket: this.bucketName,
+              Key: metadataKey,
+            }));
+            const metadataBody = await this.readBodyAsString(getResult.Body);
+            return JSON.parse(metadataBody) as AttachmentMetadata;
+          } catch (err: unknown) {
+            const error = err as { message?: string };
+            console.warn(`Skipping invalid attachment metadata at ${metadataKey}: ${error.message}`);
+            return null;
+          }
+        })
+      );
+
+      return metadataEntries
+        .filter((entry): entry is AttachmentMetadata => entry !== null)
+        .sort((left, right) => Date.parse(right.uploadedAt) - Date.parse(left.uploadedAt));
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to list attachments: ${error.message}`,
+        'ATTACHMENT_LIST_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Generate temporary download URL for an attachment
+   */
+  async getAttachmentUrl(pageGuid: string, filename: string): Promise<string> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      // Get attachment path (same folder as .md file)
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
+
+      // Check if attachment exists
+      try {
+        await this.s3Client.send(new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: attachmentKey,
+        }));
+      } catch (headError: unknown) {
+        const error = headError as { name?: string };
+        if (error.name === 'NotFound' || error.name === 'NoSuchKey') {
+          throw this.createError('Attachment not found', 'ATTACHMENT_NOT_FOUND', 404);
+        }
+        throw headError;
+      }
+
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: attachmentKey,
+      });
+
+      return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to generate attachment URL: ${error.message}`,
+        'ATTACHMENT_URL_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Sanitize filename for safe S3 storage
+   * Preserves extension, removes/replaces unsafe characters
+   */
+  private sanitizeFilename(filename: string): string {
+    // Remove path components
+    const basename = filename.split(/[\\/]/).pop() || 'attachment';
+    
+    // Replace spaces with underscores
+    // Remove or replace special characters that could cause issues
+    // Keep alphanumeric, underscores, hyphens, dots
+    let sanitized = basename
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9._-]/g, '');
+    
+    // Ensure we still have a valid filename
+    if (!sanitized || sanitized === '.') {
+      sanitized = 'attachment';
+    }
+    
+    // Limit filename length to 255 characters (S3 supports up to 1024, but being conservative)
+    if (sanitized.length > 255) {
+      const lastDotIndex = sanitized.lastIndexOf('.');
+      if (lastDotIndex > 0) {
+        const ext = sanitized.substring(lastDotIndex);
+        const name = sanitized.substring(0, 255 - ext.length);
+        sanitized = name + ext;
+      } else {
+        sanitized = sanitized.substring(0, 255);
+      }
+    }
+    
+    return sanitized;
+  }
+
+  private async readBodyAsString(body: unknown): Promise<string> {
+    if (!body) {
+      return '';
+    }
+
+    if (typeof body === 'string') {
+      return body;
+    }
+
+    if (Buffer.isBuffer(body)) {
+      return body.toString('utf-8');
+    }
+
+    // Handle Node.js Readable streams (used in tests)
+    if (body instanceof Readable) {
+      const chunks: Buffer[] = [];
+      for await (const chunk of body) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks).toString('utf-8');
+    }
+
+    // Handle AWS SDK v3 response Body with transformToString
+    if (typeof body === 'object' && body !== null && 'transformToString' in body) {
+      const transformable = body as { transformToString: (encoding?: string) => Promise<string> };
+      return transformable.transformToString('utf-8');
+    }
+
+    return String(body);
   }
 
   /**

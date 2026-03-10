@@ -109,6 +109,34 @@ export interface PageSummary {
   hasChildren: boolean;
 }
 
+export interface AttachmentUploadInput {
+  originalFilename: string;
+  contentType: string;
+  data: Buffer;
+  uploadedBy: string;
+}
+
+export interface AttachmentUploadResult {
+  filename: string;
+  attachmentKey: string;
+  contentType: string;
+  size: number;
+}
+
+export interface AttachmentMetadata {
+  filename: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+  uploadedBy: string;
+  dimensions?: {
+    width: number;
+    height: number;
+  };
+  duration?: number;
+  checksum?: string;
+}
+
 export interface StoragePluginConfig {
   type: 's3' | 'github' | 'local';
   [key: string]: string | number | boolean | undefined; // Plugin-specific config

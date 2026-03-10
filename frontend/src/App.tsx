@@ -15,7 +15,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 0,      // Data is immediately stale
-      cacheTime: 0,      // Don't cache data at all
+      gcTime: 0,         // Don't cache data at all
       refetchOnMount: true,
       refetchOnWindowFocus: false,
     },

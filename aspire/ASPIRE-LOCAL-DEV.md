@@ -121,8 +121,7 @@ All AWS services point to LocalStack:
 
 ### S3 Buckets (Local)
 
-- `S3_PAGES_BUCKET`: bluefinwiki-pages-local
-- `S3_ATTACHMENTS_BUCKET`: bluefinwiki-attachments-local
+- `S3_PAGES_BUCKET`: bluefinwiki-pages-local (includes attachments at {pageGuid}/_attachments/)
 - `S3_EXPORTS_BUCKET`: bluefinwiki-exports-local
 
 ### DynamoDB Tables (Local)

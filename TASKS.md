@@ -84,7 +84,7 @@
 - [X] Define three environments: dev, staging, production
 - [X] Create CloudFormation stacks:
   - [X] Network stack (VPC, subnets - if needed)
-  - [X] Storage stack (S3 buckets: pages, attachments, exports)
+  - [X] Storage stack (S3 buckets: pages, exports) ⚠️ Remove attachments bucket - per spec #6, attachments stored in pages bucket
   - [X] Database stack (DynamoDB tables)
   - [ ] Auth stack (Cognito User Pool, User Pool Client, Identity Pool if needed)
   - [X] Compute stack (Lambda functions, API Gateway)
@@ -616,76 +616,117 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 
 **Goal**: Enable file uploads and management
 
-#### 7.1 Upload Infrastructure
-- [ ] Configure S3 bucket for attachments
-  - [ ] Separate bucket or prefix: `attachments/`
-  - [ ] Enable CORS for direct uploads
-  - [ ] Set lifecycle policy (delete after 90 days for orphans)
-- [ ] Implement presigned URL generation
-  - [ ] Lambda: `attachments-get-upload-url` (POST /attachments/upload-url)
-  - [ ] Input: filename, mimeType, pageGuid
-  - [ ] Validate file type (whitelist: images, PDFs, docs)
-  - [ ] Enforce size limit (50MB for MVP)
-  - [ ] Return presigned PUT URL (15-minute expiry)
+#### 7.0 Infrastructure Cleanup (Align with Spec)
+- [X] Remove separate attachments bucket from infrastructure
+  - [X] Update `StorageStack.cs`: Remove `AttachmentsBucket` property and creation
+  - [X] Update `ComputeStack.cs`: Remove references to `AttachmentsBucket`
+  - [X] Update environment configs: Remove `S3_ATTACHMENTS_BUCKET` / `ATTACHMENTS_BUCKET` variables
+  - [X] Update local Aspire setup: Remove attachments bucket from LocalStack
+  - [X] Update documentation: Note attachments stored in pages bucket at `{pageGuid}/{pageGuid}/_attachments/` (same folder as .md file)
+- [X] Remove DynamoDB attachments table (metadata in sidecar .meta.json files instead)
+  - [X] Update `DatabaseStack.cs`: Remove attachments table definition
+  - [X] Update `DATABASE-SCHEMA.md`: Document that attachments use sidecar JSON, not DynamoDB
+  - [X] Note: Keep table if already deployed for now; just don't use it in new code
 
-#### 7.2 Attachment Metadata
-- [ ] Create DynamoDB table: `attachments`
-  - [ ] PK: `guid`, GSI: `pageGuid-index`
-  - [ ] Attributes: filename, size, mimeType, uploadedBy, uploadedAt, s3Key
-- [ ] Implement Lambda: `attachments-create` (POST /attachments)
-  - [ ] Called after S3 upload completes
-  - [ ] Store attachment metadata in DynamoDB
-  - [ ] Link attachment to page
-- [ ] Implement Lambda: `attachments-list` (GET /pages/{pageGuid}/attachments)
-  - [ ] Query attachments by pageGuid
-  - [ ] Return sorted list (newest first)
+#### 7.1 Upload Infrastructure (using Pages Bucket)
+- [X] Implement storage plugin attachment methods
+  - [X] Storage path: `{pageGuid}/{pageGuid}/_attachments/` within pages bucket (same folder as .md file)
+  - [X] `uploadAttachment(pageGuid, file)`: Upload to S3 at `{pageGuid}/{pageGuid}/_attachments/{attachmentGuid}.{ext}`
+  - [X] `deleteAttachment(pageGuid, attachmentGuid)`: Remove file from S3
+  - [X] `getAttachmentUrl(pageGuid, attachmentGuid)`: Generate temporary download URL
+  - [X] Generate unique attachment GUIDs to avoid collisions
+  - [X] API: `POST /pages/{pageGuid}/attachments` (multipart upload)
+  - [X] Accept file via multipart/form-data streaming
+  - [X] Validate file type during upload (whitelist: images, PDFs, docs per FR-003, FR-004)
+  - [X] Enforce size limits: 10MB images, 50MB documents (FR-007)
+  - [X] Stream to storage plugin's `uploadAttachment()` method
+  - [X] Create .meta.json sidecar file with metadata
+  - [X] Return: attachmentGuid, filename, size, url
+  - [X] API: `GET /pages/{pageGuid}/attachments/{attachmentGuid}`
+  - [X] Proxy download from storage plugin
+  - [X] Set proper Content-Type and Content-Disposition headers
+  - [X] Stream file to client (don't load fully into memory)
+  - [X] Write unit tests for attachment utilities
+    - [X] Test multipart file parsing (various formats, boundaries, encodings)
+    - [X] Test file validation (type whitelist, size limits)
+    - [X] Test header extraction and body decoding
+    - [X] Test error cases (missing boundary, unsupported types, oversized files)
+  - [X] Write unit tests for S3StoragePlugin attachment methods
+    - [X] Test uploadAttachment with various file types and extensions
+    - [X] Test deleteAttachment with valid and invalid GUIDs
+    - [X] Test getAttachmentUrl presigned URL generation
+    - [X] Test saveAttachmentMetadata and getAttachmentMetadata
+    - [X] Test listAttachments with sorting and filtering
+    - [X] Test error scenarios (invalid GUIDs, missing pages, missing attachments)
+  - [X] Write integration tests for complete attachment lifecycle
+    - [X] Test upload → save metadata → list → download → delete flow
+    - [X] Test multiple attachments per page
+    - [X] Test various file types (images, PDFs, Office docs)
+    - [X] Test size validation at 10MB/50MB boundaries
+    - [X] Test error handling (non-existent pages, invalid GUIDs)
+    - [X] Test metadata persistence and retrieval
+
+#### 7.2 Attachment Metadata & Listing (Sidecar JSON Files)
+- [X] Metadata file creation (part of upload endpoint above)
+  - [X] Storage path: `{pageGuid}/{pageGuid}/_attachments/{attachmentGuid}.meta.json`
+  - [X] Metadata structure: `{ attachmentId, originalFilename, contentType, size, uploadedAt, uploadedBy, dimensions?, duration?, checksum }`
+  - [X] Create metadata file atomically with attachment upload
+  - [X] Extract image dimensions during upload if applicable
+- [X] Implement list attachments endpoint
+  - [X] API: `GET /pages/{pageGuid}/attachments`
+  - [X] List S3 objects in `{pageGuid}/{pageGuid}/_attachments/` folder
+  - [X] Read `.meta.json` files for each attachment
+  - [X] Return sorted list (newest first by uploadedAt)
+- [X] Implement delete attachment endpoint
+  - [X] API: `DELETE /pages/{pageGuid}/attachments/{attachmentGuid}`
+  - [X] Use storage plugin's `deleteAttachment()` method
+  - [X] Remove both attachment file and .meta.json file
+  - [X] Return success/error status
 
 #### 7.3 Frontend Upload UI
-- [ ] Build file upload component
-  - [ ] Drag-and-drop zone
-  - [ ] File picker button (fallback)
-  - [ ] Multi-file upload support
-  - [ ] Progress bar per file
-- [ ] Implement upload flow
-  - [ ] 1. Request presigned URL
-  - [ ] 2. Upload file directly to S3 (XMLHttpRequest/fetch)
-  - [ ] 3. Track upload progress
-  - [ ] 4. Call metadata API on completion
-  - [ ] 5. Display attachment in list
-- [ ] Add upload validation
-  - [ ] Check file size before upload
-  - [ ] Validate MIME type
-  - [ ] Show error messages for invalid files
+- [X] Build file upload component
+  - [X] Drag-and-drop zone
+  - [X] File picker button (fallback)
+  - [X] Multi-file upload support
+  - [X] Progress bar per file
+- [X] Implement upload flow (multipart/form-data to REST API)
+  - [X] 1. Create FormData with file
+  - [X] 2. POST to `/pages/{pageGuid}/attachments` with file
+  - [X] 3. Track upload progress with XMLHttpRequest progress events
+  - [X] 4. Receive response with attachmentGuid and metadata
+  - [X] 5. Insert markdown reference and display in list
+- [X] Add upload validation
+  - [X] Check file size before upload (client-side, 10MB images / 50MB docs)
+  - [X] Validate MIME type client-side
+  - [X] Show error messages for invalid files
+  - [X] Handle server-side validation errors
 
 #### 7.4 Attachment Display & Management
-- [ ] Build attachment list component
-  - [ ] Show filename, size, upload date
-  - [ ] Display file type icon
-  - [ ] Download button (presigned GET URL)
-  - [ ] Delete button (admin + author only)
-- [ ] Implement image preview
-  - [ ] Inline thumbnail for images
-  - [ ] Lightbox/modal for full-size view
-  - [ ] Support for common formats (JPEG, PNG, GIF, WebP)
-- [ ] Implement Lambda: `attachments-download` (GET /attachments/{guid}/download)
-  - [ ] Generate presigned S3 GET URL
-  - [ ] Set Content-Disposition header (download vs. inline)
-  - [ ] Return redirect or presigned URL
-- [ ] Implement Lambda: `attachments-delete` (DELETE /attachments/{guid})
-  - [ ] Verify permissions (author or admin)
-  - [ ] Delete S3 object
-  - [ ] Remove DynamoDB record
-  - [ ] Return confirmation
+- [X] Build attachment list component
+  - [X] Show filename, size, upload date
+  - [X] Display file type icon
+  - [X] Download link to `/pages/{pageGuid}/attachments/{attachmentGuid}` (proxied through API)
+  - [X] Delete button (admin + author only)
+- [X] Implement image preview
+  - [X] Inline thumbnail for images
+  - [X] Lightbox/modal for full-size view
+  - [X] Support for common formats (JPEG, PNG, GIF, WebP)
+  - [X] Image URLs use API endpoint: `/pages/{pageGuid}/attachments/{attachmentGuid}`
+- [X] Implement delete attachment UI
+  - [X] Verify permissions client-side (author or admin)
+  - [X] Call DELETE endpoint via API
+  - [X] Update UI to remove deleted attachment
+  - [X] Handle errors gracefully
 
 #### 7.5 Editor Integration
-- [ ] Add attachment button to editor toolbar
-  - [ ] Open file picker
-  - [ ] Upload and insert link
-  - [ ] Insert Markdown image syntax: `![alt](url)`
-- [ ] Display attachment panel below editor
-  - [ ] List all page attachments
-  - [ ] Quick-copy Markdown link
-  - [ ] Drag-and-drop link into editor
+- [X] Add attachment button to editor toolbar
+  - [X] Open file picker
+  - [X] Upload and insert link
+  - [X] Insert Markdown image syntax: `![alt](url)`
+- [X] Display attachment panel below editor
+  - [X] List all page attachments
+  - [X] Quick-copy Markdown link
+  - [X] Drag-and-drop link into editor
 
 ---
 

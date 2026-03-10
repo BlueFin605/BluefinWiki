@@ -1,20 +1,90 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
 import remarkWikiLinks from '../../plugins/remarkWikiLinks';
+import apiClient from '../../config/api';
 import './markdown-preview.css';
 
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
   onBrokenLinkClick?: (linkText: string, linkTarget: string) => void;
+  /** Page GUID for resolving attachment references */
+  pageGuid?: string;
 }
 
 // Type helper for react-markdown component props
 type MarkdownComponentProps<T extends keyof JSX.IntrinsicElements> = React.ComponentPropsWithoutRef<T> & {
   node?: unknown;
+};
+
+/**
+ * Component for rendering images from API endpoints
+ * Fetches the image via axios (with auth) and converts to blob URL
+ */
+const AsyncImage: React.FC<{
+  apiUrl: string;
+  alt?: string;
+  fetchImageBlobUrl: (url: string) => Promise<string>;
+  [key: string]: unknown;
+}> = ({ apiUrl, alt, fetchImageBlobUrl, ...props }) => {
+  const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadImage = async () => {
+      try {
+        const url = await fetchImageBlobUrl(apiUrl);
+        if (!cancelled) {
+          setBlobUrl(url);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(true);
+        }
+      }
+    };
+
+    loadImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, fetchImageBlobUrl]);
+
+  if (error) {
+    return (
+      <div className="max-w-full h-24 rounded-md shadow-md my-4 bg-gray-200 dark:bg-gray-700 flex items-center justify-center border border-red-400">
+        <span className="text-sm text-red-600 dark:text-red-400">Failed to load image</span>
+      </div>
+    );
+  }
+
+  if (!blobUrl) {
+    return (
+      <div className="max-w-full h-24 rounded-md shadow-md my-4 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+        <span className="text-sm text-gray-500 dark:text-gray-400">Loading image...</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      {...props}
+      src={blobUrl}
+      alt={alt}
+      className="max-w-full h-auto rounded-md shadow-md my-4"
+      onError={() => {
+        setError(true);
+        console.error('❌ Image blob failed to render:', apiUrl);
+      }}
+      onLoad={() => console.log('✅ Image blob loaded:', apiUrl)}
+    />
+  );
 };
 
 /**
@@ -32,13 +102,69 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
   className = '',
   onBrokenLinkClick,
+  pageGuid,
 }) => {
+  const [imageBlobUrls, setImageBlobUrls] = useState<Record<string, string>>({});
+  const blobUrlRegistry = useRef<Set<string>>(new Set());
+
+  // Fetch image via axios and convert to blob URL
+  const fetchImageBlobUrl = useCallback(async (apiUrl: string): Promise<string> => {
+    if (imageBlobUrls[apiUrl]) {
+      return imageBlobUrls[apiUrl];
+    }
+
+    try {
+      console.log(`🔄 Fetching image blob: ${apiUrl}`);
+      const response = await apiClient.get(apiUrl, { responseType: 'blob' });
+      const blobUrl = URL.createObjectURL(response.data);
+      blobUrlRegistry.current.add(blobUrl);
+      console.log(`✅ Created blob URL: ${blobUrl.substring(0, 50)}...`);
+      setImageBlobUrls((prev) => ({ ...prev, [apiUrl]: blobUrl }));
+      return blobUrl;
+    } catch (err) {
+      console.error(`❌ Failed to fetch image: ${apiUrl}`, err);
+      throw err;
+    }
+  }, [imageBlobUrls]);
+  // Transform attachment URLs from filename or pageGuid/filename format to full URLs
+  const transformAttachmentUri = useCallback((uri: string) => {
+    // Skip transformation for absolute URLs (http://, https://, etc.)
+    if (/^[a-z][a-z0-9+.-]*:/i.test(uri)) {
+      return uri;
+    }
+
+    // Check if this is a bare filename (no slashes or protocol)
+    // Use current pageGuid from context
+    if (!uri.includes('/') && pageGuid) {
+      const transformed = `/pages/${pageGuid}/attachments/${encodeURIComponent(uri)}`;
+      console.log(`🔄 Transformed bare filename:`, { original: uri, transformed });
+      return transformed;
+    }
+
+    // Check if this is legacy pageGuid/filename format (backward compatibility)
+    // GUID format: 8-4-4-4-12 hex characters
+    const legacyPattern = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
+    const match = uri.match(legacyPattern);
+    
+    if (match) {
+      const [, guid, filename] = match;
+      const transformed = `/pages/${guid}/attachments/${encodeURIComponent(filename)}`;
+      console.log(`🔄 Transformed legacy attachment URI:`, { original: uri, transformed });
+      return transformed;
+    }
+    
+    // Not an attachment reference, return as-is
+    console.log(`⏭️ URI not an attachment:`, uri);
+    return uri;
+  }, [pageGuid]);
+
   // Memoize the markdown rendering to avoid unnecessary re-renders
   const renderedContent = useMemo(() => {
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks]}
         rehypePlugins={[rehypeHighlight]}
+        urlTransform={transformAttachmentUri}
         components={{
           // Customize link rendering to handle both wiki links and external links
           a: ({ children, href, ...props }: MarkdownComponentProps<'a'>) => {
@@ -225,20 +351,44 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             <hr {...props} className="my-6 border-t-2 border-gray-300 dark:border-gray-600" />
           ),
           // Style images
-          img: ({ src, alt, ...props }: MarkdownComponentProps<'img'>) => (
-            <img
-              {...props}
-              src={src}
-              alt={alt}
-              className="max-w-full h-auto rounded-md shadow-md my-4"
-            />
-          ),
+          img: ({ src, alt, ...props }: MarkdownComponentProps<'img'>) => {
+            // Check if this is an API URL (starts with /pages/)
+            const isApiUrl = src?.startsWith('/pages/');
+            
+            if (isApiUrl && src) {
+              // Return a component that fetches the image via axios
+              return <AsyncImage apiUrl={src} alt={alt} fetchImageBlobUrl={fetchImageBlobUrl} {...props} />;
+            }
+            
+            // For external URLs, render directly
+            console.log(`🖼️ Rendering external image:`, { src, alt });
+            return (
+              <img
+                {...props}
+                src={src}
+                alt={alt}
+                className="max-w-full h-auto rounded-md shadow-md my-4"
+                onError={(e) => console.error('❌ External image failed to load:', src, e)}
+                onLoad={() => console.log('✅ External image loaded:', src)}
+              />
+            );
+          },
         }}
       >
         {content || '*No content yet. Start writing...*'}
       </ReactMarkdown>
     );
-  }, [content]);
+  }, [content, transformAttachmentUri, onBrokenLinkClick, fetchImageBlobUrl]);
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      for (const url of blobUrlRegistry.current) {
+        URL.revokeObjectURL(url);
+      }
+      blobUrlRegistry.current.clear();
+    };
+  }, []);
 
   return (
     <div

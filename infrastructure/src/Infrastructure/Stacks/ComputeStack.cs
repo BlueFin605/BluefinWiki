@@ -71,14 +71,12 @@ namespace Infrastructure.Stacks
             
             // Grant Lambda access to S3 buckets
             storageStack.PagesBucket.GrantReadWrite(lambdaRole);
-            storageStack.AttachmentsBucket.GrantReadWrite(lambdaRole);
             storageStack.ExportsBucket.GrantReadWrite(lambdaRole);
             
             // Grant Lambda access to DynamoDB tables
             databaseStack.UserProfilesTable.GrantReadWriteData(lambdaRole);
             databaseStack.InvitationsTable.GrantReadWriteData(lambdaRole);
             databaseStack.PageLinksTable.GrantReadWriteData(lambdaRole);
-            databaseStack.AttachmentsTable.GrantReadWriteData(lambdaRole);
             databaseStack.CommentsTable.GrantReadWriteData(lambdaRole);
             databaseStack.ActivityLogTable.GrantReadWriteData(lambdaRole);
             databaseStack.UserPreferencesTable.GrantReadWriteData(lambdaRole);
@@ -91,12 +89,10 @@ namespace Infrastructure.Stacks
             var commonEnvVars = new Dictionary<string, string>
             {
                 { "PAGES_BUCKET", storageStack.PagesBucket.BucketName },
-                { "ATTACHMENTS_BUCKET", storageStack.AttachmentsBucket.BucketName },
                 { "EXPORTS_BUCKET", storageStack.ExportsBucket.BucketName },
                 { "USER_PROFILES_TABLE", databaseStack.UserProfilesTable.TableName },
                 { "INVITATIONS_TABLE", databaseStack.InvitationsTable.TableName },
                 { "PAGE_LINKS_TABLE", databaseStack.PageLinksTable.TableName },
-                { "ATTACHMENTS_TABLE", databaseStack.AttachmentsTable.TableName },
                 { "COMMENTS_TABLE", databaseStack.CommentsTable.TableName },
                 { "ACTIVITY_LOG_TABLE", databaseStack.ActivityLogTable.TableName },
                 { "USER_PREFERENCES_TABLE", databaseStack.UserPreferencesTable.TableName },
@@ -219,6 +215,62 @@ namespace Infrastructure.Stacks
                 LogRetention = lambdaProps.LogRetention,
                 Description = "Search pages by title (for link autocomplete)"
             });
+
+            var pagesAttachmentsUploadFunction = new Function(this, "PagesAttachmentsUploadFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-upload.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Upload page attachment"
+            });
+
+            var pagesAttachmentsDownloadFunction = new Function(this, "PagesAttachmentsDownloadFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-download.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Download page attachment"
+            });
+
+            var pagesAttachmentsListFunction = new Function(this, "PagesAttachmentsListFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-list.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List page attachments"
+            });
+
+            var pagesAttachmentsDeleteFunction = new Function(this, "PagesAttachmentsDeleteFunction", new FunctionProps
+            {
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-delete.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Delete page attachment"
+            });
             
             // =============================================================================
             // API Gateway Routes - /pages
@@ -286,6 +338,36 @@ namespace Infrastructure.Stacks
             // GET /pages/search - Search pages by title
             var searchResource = pagesResource.AddResource("search");
             searchResource.AddMethod("GET", new LambdaIntegration(pagesSearchFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /pages/{guid}/attachments - Upload attachment
+            var attachmentsResource = pageGuidResource.AddResource("attachments");
+            attachmentsResource.AddMethod("POST", new LambdaIntegration(pagesAttachmentsUploadFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // GET /pages/{guid}/attachments - List attachments
+            attachmentsResource.AddMethod("GET", new LambdaIntegration(pagesAttachmentsListFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // GET /pages/{guid}/attachments/{attachmentGuid} - Download attachment
+            var attachmentGuidResource = attachmentsResource.AddResource("{attachmentGuid}");
+            attachmentGuidResource.AddMethod("GET", new LambdaIntegration(pagesAttachmentsDownloadFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // DELETE /pages/{guid}/attachments/{attachmentGuid} - Delete attachment
+            attachmentGuidResource.AddMethod("DELETE", new LambdaIntegration(pagesAttachmentsDeleteFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
