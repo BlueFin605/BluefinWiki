@@ -11,6 +11,26 @@ import * as usePages from '../../../hooks/usePages';
 // Mock the hooks
 vi.mock('../../../hooks/usePages');
 
+// Mock auth context hook used by PageEditor
+vi.mock('../../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: {
+      id: 'user1',
+      email: 'user1@example.com',
+      role: 'Standard',
+    },
+    isAuthenticated: true,
+    isLoading: false,
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    refreshAuth: vi.fn(),
+    canEditPages: true,
+    canDeletePages: false,
+    canManageUsers: false,
+    isAdmin: false,
+  }),
+}));
+
 // Mock the EditorPane component
 vi.mock('../../editor/EditorPane', () => ({
   EditorPane: ({ onContentChange, onSave, metadata }: { onContentChange?: (content: string) => void; onSave?: () => void; metadata?: Record<string, unknown> }) => (
