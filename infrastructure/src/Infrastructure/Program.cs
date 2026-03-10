@@ -12,8 +12,8 @@ namespace Infrastructure
             var app = new App();
             const string defaultRegion = "ap-southeast-2";
             
-            // Get environment from context or default to dev
-            var environmentName = app.Node.TryGetContext("environment")?.ToString() ?? "dev";
+            // Get environment from context or default to production
+            var environmentName = app.Node.TryGetContext("environment")?.ToString() ?? "production";
             
             // Configure environment-specific settings
             var envConfig = GetEnvironmentConfig(environmentName);
@@ -33,7 +33,7 @@ namespace Infrastructure
                 Tags = new Dictionary<string, string>
                 {
                     { "Project", "BlueFinWiki" },
-                    { "Environment", envConfig.Name }
+                    { "Environment", envConfig.DisplayName }
                 }
             }, envConfig);
             
@@ -47,6 +47,7 @@ namespace Infrastructure
                 "dev" => new EnvironmentConfig
                 {
                     Name = "dev",
+                    DisplayName = "Development",
                     IsProd = false,
                     EnableVersioning = true,
                     EnableBackups = false,
@@ -57,6 +58,7 @@ namespace Infrastructure
                 "staging" => new EnvironmentConfig
                 {
                     Name = "staging",
+                    DisplayName = "Test",
                     IsProd = false,
                     EnableVersioning = true,
                     EnableBackups = true,
@@ -67,6 +69,7 @@ namespace Infrastructure
                 "production" => new EnvironmentConfig
                 {
                     Name = "production",
+                    DisplayName = "Production",
                     IsProd = true,
                     EnableVersioning = true,
                     EnableBackups = true,
@@ -82,6 +85,7 @@ namespace Infrastructure
     public class EnvironmentConfig
     {
         public string Name { get; set; }
+        public string DisplayName { get; set; }
         public bool IsProd { get; set; }
         public bool EnableVersioning { get; set; }
         public bool EnableBackups { get; set; }

@@ -582,6 +582,7 @@ namespace Infrastructure.Stacks
             
             var pagesCreateFunction = new LambdaFunction(this, "PagesCreateFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-create",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-create.handler",
                 Code = lambdaProps.Code,
@@ -596,6 +597,7 @@ namespace Infrastructure.Stacks
             
             var pagesGetFunction = new LambdaFunction(this, "PagesGetFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-get",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-get.handler",
                 Code = lambdaProps.Code,
@@ -610,6 +612,7 @@ namespace Infrastructure.Stacks
             
             var pagesUpdateFunction = new LambdaFunction(this, "PagesUpdateFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-update",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-update.handler",
                 Code = lambdaProps.Code,
@@ -624,6 +627,7 @@ namespace Infrastructure.Stacks
             
             var pagesDeleteFunction = new LambdaFunction(this, "PagesDeleteFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-delete",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-delete.handler",
                 Code = lambdaProps.Code,
@@ -638,6 +642,7 @@ namespace Infrastructure.Stacks
             
             var pagesListChildrenFunction = new LambdaFunction(this, "PagesListChildrenFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-list-children",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-list-children.handler",
                 Code = lambdaProps.Code,
@@ -652,6 +657,7 @@ namespace Infrastructure.Stacks
             
             var pagesMoveFunction = new LambdaFunction(this, "PagesMoveFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-move",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-move.handler",
                 Code = lambdaProps.Code,
@@ -666,6 +672,7 @@ namespace Infrastructure.Stacks
             
             var pagesSearchFunction = new LambdaFunction(this, "PagesSearchFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-search",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-search.handler",
                 Code = lambdaProps.Code,
@@ -680,6 +687,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-upload",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-upload.handler",
                 Code = lambdaProps.Code,
@@ -694,6 +702,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsDownloadFunction = new LambdaFunction(this, "PagesAttachmentsDownloadFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-download",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-download.handler",
                 Code = lambdaProps.Code,
@@ -708,6 +717,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsListFunction = new LambdaFunction(this, "PagesAttachmentsListFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-list",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-list.handler",
                 Code = lambdaProps.Code,
@@ -722,6 +732,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsDeleteFunction = new LambdaFunction(this, "PagesAttachmentsDeleteFunction", new LambdaFunctionProps
             {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-delete",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-delete.handler",
                 Code = lambdaProps.Code,
