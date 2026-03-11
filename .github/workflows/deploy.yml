@@ -40,34 +40,12 @@ jobs:
           path: frontend/dist
           if_no_artifact_found: fail
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Install AWS CDK CLI
-        run: npm install -g aws-cdk
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Deploy infrastructure
-        working-directory: infrastructure
-        env:
-          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
-        run: |
-          cdk deploy --context environment=${{ env.DEPLOY_ENVIRONMENT }} --all --require-approval never --region ${{ env.AWS_REGION }}
 
       - name: Get CloudFront Distribution ID
         id: distribution
