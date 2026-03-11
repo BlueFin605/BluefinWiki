@@ -35,3 +35,10 @@ Password: Test123!
 Standard User Account:
 Email: user@bluefinwiki.local
 Password: Test123!
+
+
+
+### Seed database
+cd aspire\scripts
+node import-seed-data.js --source ./seed-snapshots/2026-03-03
+.\manage-seed-data.ps1 -Action import -Source "seed-snaps
