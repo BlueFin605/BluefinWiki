@@ -24,5 +24,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
+    env: {
+      // Valid placeholder values so Cognito modules load without error during tests.
+      // Real values are required at build/deploy time via CI environment variables.
+      VITE_COGNITO_USER_POOL_ID: 'us-east-1_testPoolId0',
+      VITE_COGNITO_CLIENT_ID: 'testclientid1234567890ab',
+    },
   },
 });
