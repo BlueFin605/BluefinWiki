@@ -29,17 +29,6 @@ jobs:
           path: backend/dist
           if_no_artifact_found: fail
 
-      - name: Download frontend artifact from Frontend CI
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: frontend.yml
-          workflow_conclusion: success
-          branch: ${{ github.ref_name }}
-          name: frontend-build
-          path: frontend/dist
-          if_no_artifact_found: fail
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -57,6 +46,63 @@ jobs:
 
           echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
           echo "bucket_name=bluefinwiki-frontend-${{ env.DEPLOY_ENVIRONMENT }}" >> $GITHUB_OUTPUT
+
+      - name: Get frontend build configuration
+        id: frontend_config
+        run: |
+          API_BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text)
+
+          COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+            --output text)
+
+          COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebClientId'].OutputValue" \
+            --output text)
+
+          if [ -z "${API_BASE_URL}" ] || [ "${API_BASE_URL}" = "None" ]; then
+            echo "ApiUrl output not found" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_USER_POOL_ID}" ] || [ "${COGNITO_USER_POOL_ID}" = "None" ]; then
+            echo "UserPoolId output not found" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_CLIENT_ID}" ] || [ "${COGNITO_CLIENT_ID}" = "None" ]; then
+            echo "WebClientId output not found" >&2
+            exit 1
+          fi
+
+          echo "api_base_url=${API_BASE_URL}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=${COGNITO_USER_POOL_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_client_id=${COGNITO_CLIENT_ID}" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ steps.frontend_config.outputs.api_base_url }}
+          VITE_COGNITO_REGION: ${{ env.AWS_REGION }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.frontend_config.outputs.cognito_user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.frontend_config.outputs.cognito_client_id }}
+        run: npm run build
 
       - name: Deploy frontend to S3
         env:
