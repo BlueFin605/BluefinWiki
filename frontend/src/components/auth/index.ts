@@ -11,3 +11,4 @@ export { default as ForgotPasswordPage } from './ForgotPasswordPage';
 export { default as ResetPassword } from './ResetPassword';
 export { default as ResetPasswordPage } from './ResetPasswordPage';
 export { default as ProtectedRoute } from './ProtectedRoute';
+export { default as OAuthCallback } from './OAuthCallback';

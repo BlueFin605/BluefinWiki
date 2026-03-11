@@ -7,6 +7,7 @@ import {
   ForgotPasswordPage,
   ResetPasswordPage,
   ProtectedRoute,
+  OAuthCallback,
 } from './components/auth';
 import { PagesView } from './components/pages/PagesView';
 
@@ -44,6 +45,7 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<OAuthCallback />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />

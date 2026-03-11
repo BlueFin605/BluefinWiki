@@ -1,8 +1,11 @@
 /**
  * Custom Cognito Authentication Utilities
  * 
- * Provides authentication helpers that work with both AWS Cognito and cognito-local.
- * Uses USER_PASSWORD_AUTH flow which is supported by cognito-local.
+ * Supports two flows:
+ * 1. Direct authentication (USER_PASSWORD_AUTH) - for cognito-local in development
+ * 2. Cognito Hosted UI (Authorization Code flow) - for production
+ * 
+ * Uses direct flow for local, Hosted UI for production based on environment.
  */
 
 import { 
@@ -11,6 +14,7 @@ import {
   InitiateAuthCommandInput,
   ListUserPoolsCommand,
   ListUserPoolClientsCommand,
+  InitiateAuthCommand as CognitoInitiateAuthCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoUserSession, CognitoIdToken, CognitoAccessToken, CognitoRefreshToken } from 'amazon-cognito-identity-js';
 
@@ -18,6 +22,8 @@ const cognitoEndpoint = import.meta.env.VITE_COGNITO_ENDPOINT;
 const region = import.meta.env.VITE_COGNITO_REGION || 'us-east-1';
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
 const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+const cognitoDomain = import.meta.env.VITE_COGNITO_DOMAIN;
+const redirectUri = import.meta.env.VITE_COGNITO_REDIRECT_URI;
 
 // Create Cognito client with optional local endpoint
 const cognitoClient = new CognitoIdentityProviderClient({
@@ -185,4 +191,119 @@ async function listClientIdsForPool(poolId: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Cognito Hosted UI Authentication Flow
+ * 
+ * For production: redirects to Cognito Hosted UI login page.
+ * User logs in there, then is redirected back to your app with auth code.
+ * Must be configured in Cognito App Client:
+ * - Callback URLs: https://yourdomain.com/auth/callback
+ * - Allowed OAuth Flows: Authorization code grant
+ * - Allowed OAuth Scopes: openid, email, profile
+ */
+
+/**
+ * Redirect user to Cognito Hosted UI login page
+ */
+export function redirectToLogin(): void {
+  if (!cognitoDomain || !clientId || !redirectUri) {
+    throw new Error(
+      'Cognito Hosted UI is not configured. Set VITE_COGNITO_DOMAIN, ' +
+      'VITE_COGNITO_CLIENT_ID, and VITE_COGNITO_REDIRECT_URI environment variables.'
+    );
+  }
+
+  // Generate a random state to prevent CSRF attacks
+  const state = generateRandomString(32);
+  sessionStorage.setItem('oauth_state', state);
+
+  // Build the authorization request URL
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    redirect_uri: redirectUri,
+    state: state,
+    scope: 'openid email profile',
+  });
+
+  const loginUrl = `https://${cognitoDomain}/oauth2/authorize?${params.toString()}`;
+  window.location.href = loginUrl;
+}
+
+/**
+ * Handle the OAuth callback from Cognito
+ * Exchanges the authorization code for tokens
+ */
+export async function handleOAuthCallback(code: string, state: string): Promise<AuthResult> {
+  // Verify state to prevent CSRF
+  const savedState = sessionStorage.getItem('oauth_state');
+  if (state !== savedState) {
+    throw new Error('State mismatch. Possible CSRF attack.');
+  }
+  sessionStorage.removeItem('oauth_state');
+
+  if (!cognitoDomain || !clientId || !redirectUri) {
+    throw new Error('Cognito Hosted UI is not configured.');
+  }
+
+  // Exchange authorization code for tokens
+  const tokenUrl = `https://${cognitoDomain}/oauth2/token`;
+  
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      code: code,
+      redirect_uri: redirectUri,
+    }).toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to exchange authorization code for tokens');
+  }
+
+  const tokenResponse = await response.json();
+  const { id_token, access_token, refresh_token } = tokenResponse;
+
+  if (!id_token || !access_token) {
+    throw new Error('Missing tokens in OAuth response');
+  }
+
+  // Create CognitoUserSession from tokens
+  const idToken = new CognitoIdToken({ IdToken: id_token });
+  const accessToken = new CognitoAccessToken({ AccessToken: access_token });
+  const refreshToken = new CognitoRefreshToken({ 
+    RefreshToken: refresh_token || 'no-refresh-token' 
+  });
+
+  const session = new CognitoUserSession({
+    IdToken: idToken,
+    AccessToken: accessToken,
+    RefreshToken: refreshToken,
+  });
+
+  return {
+    session,
+    idToken: id_token,
+    accessToken: access_token,
+    refreshToken: refresh_token || '',
+  };
+}
+
+/**
+ * Generate a random string for OAuth state parameter
+ */
+function generateRandomString(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
