@@ -7,10 +7,26 @@
 
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 
+const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
+const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+const cognitoEndpoint = import.meta.env.VITE_COGNITO_ENDPOINT;
+
+const missingVars = [
+  !userPoolId ? 'VITE_COGNITO_USER_POOL_ID' : null,
+  !clientId ? 'VITE_COGNITO_CLIENT_ID' : null,
+].filter((value): value is string => Boolean(value));
+
+if (missingVars.length > 0) {
+  throw new Error(
+    `Missing required Cognito environment variable(s): ${missingVars.join(', ')}. ` +
+      'Set these values during frontend build/deploy.'
+  );
+}
+
 const poolData = {
-  UserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || 'local_abc123',
-  ClientId: import.meta.env.VITE_COGNITO_CLIENT_ID || 'local-client-id',
-  endpoint: import.meta.env.VITE_COGNITO_ENDPOINT || undefined,
+  UserPoolId: userPoolId,
+  ClientId: clientId,
+  endpoint: cognitoEndpoint || undefined,
 };
 
 // Create and export the user pool instance

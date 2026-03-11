@@ -349,6 +349,8 @@ npm run deploy:prod
 
 Commits to `main` branch automatically deploy to the dev environment via GitHub Actions.
 
+If deploys fail during frontend auth configuration validation, see [GITHUB-ENVIRONMENTS-SETUP.md](./GITHUB-ENVIRONMENTS-SETUP.md#frontend-auth-env-validation-failed).
+
 ## 🧪 Testing Strategy
 
 - **Unit Tests**: Vitest for both frontend and backend
