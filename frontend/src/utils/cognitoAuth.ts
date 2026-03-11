@@ -17,7 +17,7 @@ import { CognitoUserSession, CognitoIdToken, CognitoAccessToken, CognitoRefreshT
 const cognitoEndpoint = import.meta.env.VITE_COGNITO_ENDPOINT;
 const region = import.meta.env.VITE_COGNITO_REGION || 'us-east-1';
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
-const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID || 'local-client-id';
+const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
 
 // Create Cognito client with optional local endpoint
 const cognitoClient = new CognitoIdentityProviderClient({
@@ -46,15 +46,29 @@ export async function authenticateWithPassword(
   username: string,
   password: string
 ): Promise<AuthResult> {
+  const isLocalEndpoint = Boolean(cognitoEndpoint);
+
+  if (!clientId && !isLocalEndpoint) {
+    throw new Error('Missing required Cognito environment variable: VITE_COGNITO_CLIENT_ID');
+  }
+
+  if (!userPoolId && !isLocalEndpoint) {
+    throw new Error('Missing required Cognito environment variable: VITE_COGNITO_USER_POOL_ID');
+  }
+
   let response;
 
-  try {
-    response = await initiateAuth(clientId, username, password);
-  } catch (error) {
-    if (!isAppClientNotFound(error) || !cognitoEndpoint) {
-      throw error;
-    }
+  if (clientId) {
+    try {
+      response = await initiateAuth(clientId, username, password);
+    } catch (error) {
+      if (!isAppClientNotFound(error) || !cognitoEndpoint) {
+        throw error;
+      }
 
+      response = await discoverAndAuthenticate(username, password);
+    }
+  } else {
     response = await discoverAndAuthenticate(username, password);
   }
 

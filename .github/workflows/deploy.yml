@@ -84,6 +84,27 @@ jobs:
           echo "cognito_user_pool_id=${COGNITO_USER_POOL_ID}" >> $GITHUB_OUTPUT
           echo "cognito_client_id=${COGNITO_CLIENT_ID}" >> $GITHUB_OUTPUT
 
+      - name: Validate frontend auth env values
+        run: |
+          API_BASE_URL="${{ steps.frontend_config.outputs.api_base_url }}"
+          COGNITO_USER_POOL_ID="${{ steps.frontend_config.outputs.cognito_user_pool_id }}"
+          COGNITO_CLIENT_ID="${{ steps.frontend_config.outputs.cognito_client_id }}"
+
+          if [ -z "${API_BASE_URL}" ] || [ "${API_BASE_URL}" = "None" ]; then
+            echo "Invalid VITE_API_BASE_URL from stack outputs" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_USER_POOL_ID}" ] || [ "${COGNITO_USER_POOL_ID}" = "None" ] || [ "${COGNITO_USER_POOL_ID}" = "local_abc123" ]; then
+            echo "Invalid VITE_COGNITO_USER_POOL_ID from stack outputs" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_CLIENT_ID}" ] || [ "${COGNITO_CLIENT_ID}" = "None" ] || [ "${COGNITO_CLIENT_ID}" = "local-client-id" ]; then
+            echo "Invalid VITE_COGNITO_CLIENT_ID from stack outputs" >&2
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
