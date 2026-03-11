@@ -3,16 +3,29 @@
  * 
  * Provides authentication state and methods throughout the application.
  * Uses AWS Cognito for user authentication and session management.
+ * 
+ * For local development, set VITE_DISABLE_AUTH=true to bypass authentication
+ * and gain immediate access to the app.
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   CognitoUser,
   CognitoUserSession,
+  CognitoIdToken,
+  CognitoAccessToken,
+  CognitoRefreshToken,
 } from 'amazon-cognito-identity-js';
 import userPool from '../config/cognitoConfig';
 import { User, AuthState, LoginCredentials } from '../types/auth';
 import { authenticateWithPassword } from '../utils/cognitoAuth';
+
+// Check if auth bypass is enabled (local dev only)
+const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
+
+if (DISABLE_AUTH) {
+  console.warn('⚠️  Authentication bypass enabled. This should only be used for local development.');
+}
 
 interface AuthContextType extends AuthState {
   signIn: (credentials: LoginCredentials) => Promise<void>;
@@ -25,6 +38,33 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
+}
+
+/**
+ * Creates a mock CognitoUserSession for local development when auth is disabled
+ */
+function createMockSession(email: string): CognitoUserSession {
+  const mockIdToken = {
+    jwtToken: 'mock-jwt-token',
+    payload: {
+      sub: 'local-dev-user-id',
+      email: email,
+      email_verified: true,
+      name: 'Local Dev User',
+      'cognito:username': email,
+      'custom:role': 'Admin',
+    },
+  };
+
+  const idToken = new CognitoIdToken(mockIdToken);
+  const accessToken = new CognitoAccessToken({ AccessToken: 'mock-access-token' });
+  const refreshToken = new CognitoRefreshToken({ RefreshToken: 'mock-refresh-token' });
+
+  return new CognitoUserSession({
+    IdToken: idToken,
+    AccessToken: accessToken,
+    RefreshToken: refreshToken,
+  });
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -53,6 +93,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        // Local development: automatically authenticate
+        if (DISABLE_AUTH) {
+          const mockSession = createMockSession('dev@example.com');
+          const cognitoUser = new CognitoUser({
+            Username: 'dev@example.com',
+            Pool: userPool,
+          });
+          cognitoUser.setSignInUserSession(mockSession);
+
+          const user = extractUserFromSession(mockSession, cognitoUser);
+          localStorage.setItem('idToken', 'mock-jwt-token');
+
+          setAuthState({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+          return;
+        }
+
         const cognitoUser = userPool.getCurrentUser();
         
         if (!cognitoUser) {
@@ -118,6 +179,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
+      // Local development: bypass authentication
+      if (DISABLE_AUTH) {
+        const mockSession = createMockSession(credentials.email);
+        
+        const cognitoUser = new CognitoUser({
+          Username: credentials.email,
+          Pool: userPool,
+        });
+
+        cognitoUser.setSignInUserSession(mockSession);
+
+        const user = extractUserFromSession(mockSession, cognitoUser);
+        
+        // Store mock token for API requests
+        localStorage.setItem('idToken', 'mock-jwt-token');
+
+        setAuthState({
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
+
       // Use USER_PASSWORD_AUTH flow which is compatible with cognito-local
       const authResult = await authenticateWithPassword(
         credentials.email,
