@@ -1,14 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
-import {
-  Login,
-  Register,
-  ForgotPasswordPage,
-  ResetPasswordPage,
-  ProtectedRoute,
-  OAuthCallback,
-} from './components/auth';
 import { PagesView } from './components/pages/PagesView';
 
 // Query client with NO caching - always fetch fresh data
@@ -43,33 +35,12 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/auth/callback" element={<OAuthCallback />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-            {/* Protected routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/pages"
-              element={
-                <ProtectedRoute>
-                  <PagesView />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/pages" element={<PagesView />} />
+            <Route path="/pages/*" element={<PagesView />} />
 
             {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/pages" replace />} />
 
             {/* 404 - Not Found */}
             <Route

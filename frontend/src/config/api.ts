@@ -42,10 +42,7 @@ apiClient.interceptors.response.use(
     console.error('❌ API Error:', error.response?.status, error.config?.url);
     console.error('❌ Error details:', error.response?.data);
     if (error.response?.status === 401) {
-      // Token expired or invalid - redirect to login
-      console.error('❌ 401 Unauthorized - redirecting to login');
-      localStorage.removeItem('idToken');
-      window.location.href = '/login';
+      console.error('❌ 401 Unauthorized');
     }
     return Promise.reject(error);
   }

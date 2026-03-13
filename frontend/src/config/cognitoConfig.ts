@@ -25,12 +25,13 @@ if (missingVars.length > 0 && !disableAuth) {
 }
 
 const poolData = {
-  UserPoolId: userPoolId,
-  ClientId: clientId,
+  UserPoolId: userPoolId || 'us-east-1_placeholder',
+  ClientId: clientId || 'placeholder',
   endpoint: cognitoEndpoint || undefined,
 };
 
-// Create and export the user pool instance
+// Create and export the user pool instance.
+// When auth is disabled, use safe placeholder values so the SDK constructor doesn't throw.
 const userPool = new CognitoUserPool(poolData);
 
 export default userPool;

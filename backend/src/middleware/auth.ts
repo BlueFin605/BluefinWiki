@@ -76,10 +76,19 @@ export function withAuth(
       let payload;
       try {
         if (IS_LOCAL) {
-          // For local development, decode JWT without verification
-          // cognito-local generates valid JWTs but with non-standard pool IDs
-          console.log('🔓 Local mode: Decoding JWT without verification');
-          payload = decodeJWT(token);
+          // For local development, accept mock token or decode real local JWTs
+          console.log('🔓 Local mode: Bypassing JWT verification');
+          if (token === 'mock-jwt-token') {
+            payload = {
+              sub: 'local-dev-user-id',
+              email: 'dev@example.com',
+              'cognito:username': 'dev@example.com',
+              'custom:role': 'Admin',
+              'custom:displayName': 'Local Dev User',
+            };
+          } else {
+            payload = decodeJWT(token);
+          }
         } else {
           if (!verifier) {
             throw new Error('Cognito verifier not initialized');
