@@ -93,20 +93,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Local development: automatically authenticate
+        // Local development: automatically authenticate without touching the Cognito SDK
         if (DISABLE_AUTH) {
-          const mockSession = createMockSession('dev@example.com');
-          const cognitoUser = new CognitoUser({
-            Username: 'dev@example.com',
-            Pool: userPool,
-          });
-          cognitoUser.setSignInUserSession(mockSession);
-
-          const user = extractUserFromSession(mockSession, cognitoUser);
+          const mockUser: User = {
+            userId: 'local-dev-user-id',
+            email: 'dev@example.com',
+            displayName: 'Local Dev User',
+            role: 'Admin',
+            emailVerified: true,
+          };
           localStorage.setItem('idToken', 'mock-jwt-token');
-
           setAuthState({
-            user,
+            user: mockUser,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -179,24 +177,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // Local development: bypass authentication
+      // Local development: bypass authentication without touching the Cognito SDK
       if (DISABLE_AUTH) {
-        const mockSession = createMockSession(credentials.email);
-        
-        const cognitoUser = new CognitoUser({
-          Username: credentials.email,
-          Pool: userPool,
-        });
-
-        cognitoUser.setSignInUserSession(mockSession);
-
-        const user = extractUserFromSession(mockSession, cognitoUser);
-        
-        // Store mock token for API requests
+        const mockUser: User = {
+          userId: 'local-dev-user-id',
+          email: credentials.email || 'dev@example.com',
+          displayName: 'Local Dev User',
+          role: 'Admin',
+          emailVerified: true,
+        };
         localStorage.setItem('idToken', 'mock-jwt-token');
-
         setAuthState({
-          user,
+          user: mockUser,
           isAuthenticated: true,
           isLoading: false,
           error: null,

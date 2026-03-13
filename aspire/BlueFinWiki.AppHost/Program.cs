@@ -45,6 +45,7 @@ var backend = builder.AddNpmApp("backend", "../../backend", "dev")
 
 // Frontend (Vite/React)
 var frontend = builder.AddNpmApp("frontend", "../../frontend", "dev")
+    .WithEnvironment("VITE_DISABLE_AUTH", "true")
     .WithEnvironment("VITE_API_BASE_URL", "http://localhost:3000")
     .WithEnvironment("VITE_AWS_REGION", "us-east-1")
     .WithEnvironment("VITE_COGNITO_USER_POOL_ID", "local_abc123")
