@@ -198,7 +198,7 @@ async function listClientIdsForPool(poolId: string): Promise<string[]> {
  * For production: redirects to Cognito Hosted UI login page.
  * User logs in there, then is redirected back to your app with auth code.
  * Must be configured in Cognito App Client:
- * - Callback URLs: https://yourdomain.com/auth/callback
+ * - Callback URLs: https://yourdomain.com/callback
  * - Allowed OAuth Flows: Authorization code grant
  * - Allowed OAuth Scopes: openid, email, profile
  */
