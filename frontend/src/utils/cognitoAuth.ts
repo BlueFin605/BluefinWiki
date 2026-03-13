@@ -14,7 +14,6 @@ import {
   InitiateAuthCommandInput,
   ListUserPoolsCommand,
   ListUserPoolClientsCommand,
-  InitiateAuthCommand as CognitoInitiateAuthCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoUserSession, CognitoIdToken, CognitoAccessToken, CognitoRefreshToken } from 'amazon-cognito-identity-js';
 

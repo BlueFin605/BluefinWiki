@@ -12,9 +12,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import {
   CognitoUser,
   CognitoUserSession,
-  CognitoIdToken,
-  CognitoAccessToken,
-  CognitoRefreshToken,
 } from 'amazon-cognito-identity-js';
 import userPool from '../config/cognitoConfig';
 import { User, AuthState, LoginCredentials } from '../types/auth';
@@ -38,33 +35,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
-}
-
-/**
- * Creates a mock CognitoUserSession for local development when auth is disabled
- */
-function createMockSession(email: string): CognitoUserSession {
-  const mockIdToken = {
-    jwtToken: 'mock-jwt-token',
-    payload: {
-      sub: 'local-dev-user-id',
-      email: email,
-      email_verified: true,
-      name: 'Local Dev User',
-      'cognito:username': email,
-      'custom:role': 'Admin',
-    },
-  };
-
-  const idToken = new CognitoIdToken(mockIdToken);
-  const accessToken = new CognitoAccessToken({ AccessToken: 'mock-access-token' });
-  const refreshToken = new CognitoRefreshToken({ RefreshToken: 'mock-refresh-token' });
-
-  return new CognitoUserSession({
-    IdToken: idToken,
-    AccessToken: accessToken,
-    RefreshToken: refreshToken,
-  });
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
