@@ -1010,22 +1010,10 @@ namespace Infrastructure.Stacks
         {
             return config.Name switch
             {
-                "dev" => new[] 
-                { 
-                    "http://localhost:5173",
-                    "http://localhost:5173/callback" 
-                },
-                "staging" => new[] 
-                { 
-                    "https://staging.bluefinwiki.com",
-                    "https://staging.bluefinwiki.com/callback" 
-                },
-                "production" => new[] 
-                { 
-                    "https://bluefinwiki.com",
-                    "https://bluefinwiki.com/callback" 
-                },
-                _ => new[] { "http://localhost:5173" }
+                "dev" => new[] { "http://localhost:5173/callback" },
+                "staging" => new[] { "https://staging.bluefinwiki.com/callback" },
+                "production" => new[] { "https://bluefinwiki.com/callback" },
+                _ => new[] { "http://localhost:5173/callback" }
             };
         }
         

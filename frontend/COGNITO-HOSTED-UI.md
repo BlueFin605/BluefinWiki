@@ -33,8 +33,8 @@ The application supports two authentication modes:
 1. Go to "App Integration" → "App Client Settings"
 2. Set **Callback URLs**:
    ```
-   https://yourdomain.com/auth/callback
-   https://localhost:3000/auth/callback  (for local testing with real Cognito)
+   https://yourdomain.com/callback
+   https://localhost:3000/callback  (for local testing with real Cognito)
    ```
 3. Set **Sign out URLs** (optional):
    ```
@@ -58,7 +58,7 @@ VITE_COGNITO_USER_POOL_ID=us-east-1_abc123def
 VITE_COGNITO_CLIENT_ID=your_client_id_here
 VITE_COGNITO_REGION=us-east-1
 VITE_COGNITO_DOMAIN=bluefinwiki-prod.auth.us-east-1.amazoncognito.com
-VITE_COGNITO_REDIRECT_URI=https://yourdomain.com/auth/callback
+VITE_COGNITO_REDIRECT_URI=https://yourdomain.com/callback
 VITE_DISABLE_AUTH=false
 ```
 
@@ -68,7 +68,7 @@ VITE_DISABLE_AUTH=false
 
 1. User clicks "Sign in" on your login page → redirects to Cognito
 2. User logs in at Cognito Hosted UI
-3. Cognito redirects back to `/auth/callback` with authorization code
+3. Cognito redirects back to `/callback` with authorization code
 4. Your app exchanges the code for tokens
 5. User is logged in and redirected to dashboard
 
@@ -88,7 +88,7 @@ When you use Cognito Hosted UI, these features work out of the box:
 
 ### "Invalid redirect URI"
 - Check that your callback URL exactly matches what's configured in Cognito App Client
-- Include the protocol (https://) and exact path (/auth/callback)
+- Include the protocol (https://) and exact path (/callback)
 
 ### "The authorization code is invalid"
 - Code may have expired (valid for ~10 minutes)
@@ -103,7 +103,7 @@ When you use Cognito Hosted UI, these features work out of the box:
 To test with the local Cognito server, create a temporary env:
 ```bash
 VITE_COGNITO_DOMAIN=localhost:9229
-VITE_COGNITO_REDIRECT_URI=http://localhost:3000/auth/callback  
+VITE_COGNITO_REDIRECT_URI=http://localhost:3000/callback  
 VITE_COGNITO_ENDPOINT=http://localhost:9228
 VITE_DISABLE_AUTH=false
 ```
@@ -128,7 +128,7 @@ When moving to production:
 
 If you want to test the real Cognito flow locally:
 
-1. Configure Cognito callback URL to include `http://localhost:3000/auth/callback`
+1. Configure Cognito callback URL to include `http://localhost:3000/callback`
 2. Set environment variables pointing to real Cognito (no `VITE_DISABLE_AUTH`)
 3. Run your frontend locally
 4. Cognito will now handle login instead of the mock auth
