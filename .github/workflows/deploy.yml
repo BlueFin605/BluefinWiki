@@ -80,15 +80,66 @@ jobs:
             exit 1
           fi
 
+          COGNITO_DOMAIN_VALUE=$(aws cognito-idp describe-user-pool \
+            --user-pool-id "${COGNITO_USER_POOL_ID}" \
+            --query "UserPool.Domain" \
+            --output text)
+
+          if [ -z "${COGNITO_DOMAIN_VALUE}" ] || [ "${COGNITO_DOMAIN_VALUE}" = "None" ]; then
+            echo "Cognito Hosted UI domain is not configured on the user pool" >&2
+            exit 1
+          fi
+
+          case "${COGNITO_DOMAIN_VALUE}" in
+            *.*)
+              COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}"
+              ;;
+            *)
+              COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}.auth.${{ env.AWS_REGION }}.amazoncognito.com"
+              ;;
+          esac
+
+          CALLBACK_URLS=$(aws cognito-idp describe-user-pool-client \
+            --user-pool-id "${COGNITO_USER_POOL_ID}" \
+            --client-id "${COGNITO_CLIENT_ID}" \
+            --query "UserPoolClient.CallbackURLs" \
+            --output text)
+
+          if [ -z "${CALLBACK_URLS}" ] || [ "${CALLBACK_URLS}" = "None" ]; then
+            echo "No callback URLs configured on Cognito web app client" >&2
+            exit 1
+          fi
+
+          COGNITO_REDIRECT_URI=""
+          for url in ${CALLBACK_URLS}; do
+            if [[ "${url}" == *"/callback"* ]]; then
+              COGNITO_REDIRECT_URI="${url}"
+              break
+            fi
+          done
+
+          if [ -z "${COGNITO_REDIRECT_URI}" ]; then
+            COGNITO_REDIRECT_URI=$(echo "${CALLBACK_URLS}" | awk '{print $1}')
+          fi
+
+          if [ -z "${COGNITO_REDIRECT_URI}" ] || [ "${COGNITO_REDIRECT_URI}" = "None" ]; then
+            echo "Unable to resolve VITE_COGNITO_REDIRECT_URI from Cognito app client callback URLs" >&2
+            exit 1
+          fi
+
           echo "api_base_url=${API_BASE_URL}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=${COGNITO_USER_POOL_ID}" >> $GITHUB_OUTPUT
           echo "cognito_client_id=${COGNITO_CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_domain=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
+          echo "cognito_redirect_uri=${COGNITO_REDIRECT_URI}" >> $GITHUB_OUTPUT
 
       - name: Validate frontend auth env values
         run: |
           API_BASE_URL="${{ steps.frontend_config.outputs.api_base_url }}"
           COGNITO_USER_POOL_ID="${{ steps.frontend_config.outputs.cognito_user_pool_id }}"
           COGNITO_CLIENT_ID="${{ steps.frontend_config.outputs.cognito_client_id }}"
+          COGNITO_DOMAIN="${{ steps.frontend_config.outputs.cognito_domain }}"
+          COGNITO_REDIRECT_URI="${{ steps.frontend_config.outputs.cognito_redirect_uri }}"
 
           if [ -z "${API_BASE_URL}" ] || [ "${API_BASE_URL}" = "None" ]; then
             echo "Invalid VITE_API_BASE_URL from stack outputs" >&2
@@ -102,6 +153,16 @@ jobs:
 
           if [ -z "${COGNITO_CLIENT_ID}" ] || [ "${COGNITO_CLIENT_ID}" = "None" ] || [ "${COGNITO_CLIENT_ID}" = "local-client-id" ]; then
             echo "Invalid VITE_COGNITO_CLIENT_ID from stack outputs" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_DOMAIN}" ] || [ "${COGNITO_DOMAIN}" = "None" ] || [ "${COGNITO_DOMAIN}" = "localhost:9229" ]; then
+            echo "Invalid VITE_COGNITO_DOMAIN from secrets" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_REDIRECT_URI}" ] || [ "${COGNITO_REDIRECT_URI}" = "None" ] || [ "${COGNITO_REDIRECT_URI}" = "http://localhost:5173/callback" ]; then
+            echo "Invalid VITE_COGNITO_REDIRECT_URI from secrets" >&2
             exit 1
           fi
 
@@ -123,6 +184,8 @@ jobs:
           VITE_COGNITO_REGION: ${{ env.AWS_REGION }}
           VITE_COGNITO_USER_POOL_ID: ${{ steps.frontend_config.outputs.cognito_user_pool_id }}
           VITE_COGNITO_CLIENT_ID: ${{ steps.frontend_config.outputs.cognito_client_id }}
+          VITE_COGNITO_DOMAIN: ${{ steps.frontend_config.outputs.cognito_domain }}
+          VITE_COGNITO_REDIRECT_URI: ${{ steps.frontend_config.outputs.cognito_redirect_uri }}
         run: npm run build
 
       - name: Deploy frontend to S3
