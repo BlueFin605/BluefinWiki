@@ -192,7 +192,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Parse YAML frontmatter from markdown content
    */
-  private parseFrontmatter(content: string): { metadata: Record<string, string | string[] | undefined>; body: string } {
+  private parseFrontmatter(rawContent: string): { metadata: Record<string, string | string[] | undefined>; body: string } {
+    // Normalize Windows CRLF to LF so regex matching works regardless of line endings
+    const content = rawContent.replace(/\r\n/g, '\n');
     const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
     const match = content.match(frontmatterRegex);
 
