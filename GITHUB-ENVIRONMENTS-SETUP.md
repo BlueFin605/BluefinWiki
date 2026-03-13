@@ -99,6 +99,8 @@ Each environment can have its own AWS credentials (optional but recommended for 
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
 
+The deploy workflow now discovers Cognito Hosted UI domain and callback URL automatically from the deployed user pool and app client.
+
 **Note**: If not defined per-environment, the workflow will use repository-level secrets.
 
 ### Step 4: Verify Your Branch Protection Rules
