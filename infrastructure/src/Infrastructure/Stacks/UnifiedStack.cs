@@ -569,6 +569,8 @@ namespace Infrastructure.Stacks
             var commonEnvVars = new Dictionary<string, string>
             {
                 { "PAGES_BUCKET", PagesBucket.BucketName },
+                { "COGNITO_USER_POOL_ID", UserPool.UserPoolId },
+                { "COGNITO_CLIENT_ID", WebClient.UserPoolClientId },
                 { "USER_PROFILES_TABLE", UserProfilesTable.TableName },
                 { "INVITATIONS_TABLE", InvitationsTable.TableName },
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
