@@ -267,7 +267,7 @@ describe('EditorPane', () => {
       
       renderWithRouter(
         <EditorPane
-          showPropertiesPanel={true}
+          pageGuid="test-guid"
           metadata={metadata}
         />
       );
@@ -291,7 +291,7 @@ describe('EditorPane', () => {
       
       renderWithRouter(
         <EditorPane
-          showPropertiesPanel={true}
+          pageGuid="test-guid"
           metadata={metadata}
           onMetadataChange={onMetadataChange}
         />
