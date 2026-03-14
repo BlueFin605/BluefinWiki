@@ -84,6 +84,7 @@ const OAuthCallbackPage = () => {
 
         cognitoUser.setSignInUserSession(authResult.session);
         localStorage.setItem('idToken', authResult.idToken);
+        localStorage.setItem('accessToken', authResult.accessToken);
 
         navigate('/pages', { replace: true });
       } catch (err) {
