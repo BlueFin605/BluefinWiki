@@ -99,6 +99,8 @@ Each environment can have its own AWS credentials (optional but recommended for 
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
 
+The deploy workflow now discovers Cognito Hosted UI domain and callback URL automatically from the deployed user pool and app client.
+
 **Note**: If not defined per-environment, the workflow will use repository-level secrets.
 
 ### Step 4: Verify Your Branch Protection Rules
@@ -235,6 +237,23 @@ Regularly check:
    ```yaml
    inputs.environment || (github.ref == 'refs/heads/master' && 'production')
    ```
+
+### Frontend Auth Env Validation Failed
+
+**Problem**: Deploy fails at `Validate frontend auth env values` with an invalid/missing `VITE_*` value.
+
+**Why this happens**:
+- The deploy workflow now validates frontend auth build values before `npm run build`
+- Values are pulled from CloudFormation outputs on `BlueFinWiki-production`
+- Placeholder/local values are rejected (for example `local-client-id`, `local_abc123`)
+
+**Solution**:
+1. Verify stack outputs exist and are non-empty:
+   - `ApiUrl`
+   - `UserPoolId`
+   - `WebClientId`
+2. Confirm Cognito app client exists in the target AWS region and matches `WebClientId`
+3. Re-run the deploy workflow after fixing stack outputs or Cognito configuration
 
 ### Production Approval Won't Appear
 

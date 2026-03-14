@@ -49,7 +49,7 @@ export const usePageChildren = (parentGuid: string | null) => {
   return useQuery({
     queryKey: ['pages', 'children', parentGuid],
     queryFn: async (): Promise<PageSummary[]> => {
-      const path = parentGuid ? `/pages/${parentGuid}/children` : '/pages/children';
+      const path = parentGuid ? `/pages/${parentGuid}/children` : '/pages/root/children';
       const response = await apiClient.get(path);
       return response.data.children || [];
     },

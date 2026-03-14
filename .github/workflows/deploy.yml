@@ -1,8 +1,6 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
 
 env:
@@ -10,118 +8,26 @@ env:
   DEPLOY_ENVIRONMENT: production
 
 jobs:
-  build-backend:
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: backend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Type check
-        run: npm run type-check
-
-      - name: Run tests
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload backend artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-build
-          path: backend/dist
-          retention-days: 7
-
-  build-frontend:
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: frontend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Type check
-        run: npm run type-check
-
-      - name: Run tests
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload frontend artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: frontend/dist
-          retention-days: 7
-
   deploy:
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
+    permissions:
+      contents: read
+      actions: read
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download backend artifact
-        uses: actions/download-artifact@v4
+      - name: Download backend artifact from Backend CI
+        uses: dawidd6/action-download-artifact@v6
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: backend.yml
+          workflow_conclusion: success
+          branch: ${{ github.ref_name }}
           name: backend-build
           path: backend/dist
-
-      - name: Download frontend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: frontend/dist
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Install AWS CDK CLI
-        run: npm install -g aws-cdk
+          if_no_artifact_found: fail
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -129,15 +35,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Deploy infrastructure
-        working-directory: infrastructure
-        env:
-          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
-        run: |
-          cdk deploy --context environment=${{ env.DEPLOY_ENVIRONMENT }} --all --require-approval never --region ${{ env.AWS_REGION }}
 
       - name: Get CloudFront Distribution ID
         id: distribution
@@ -149,6 +46,147 @@ jobs:
 
           echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
           echo "bucket_name=bluefinwiki-frontend-${{ env.DEPLOY_ENVIRONMENT }}" >> $GITHUB_OUTPUT
+
+      - name: Get frontend build configuration
+        id: frontend_config
+        run: |
+          API_BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text)
+
+          COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+            --output text)
+
+          COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebClientId'].OutputValue" \
+            --output text)
+
+          if [ -z "${API_BASE_URL}" ] || [ "${API_BASE_URL}" = "None" ]; then
+            echo "ApiUrl output not found" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_USER_POOL_ID}" ] || [ "${COGNITO_USER_POOL_ID}" = "None" ]; then
+            echo "UserPoolId output not found" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_CLIENT_ID}" ] || [ "${COGNITO_CLIENT_ID}" = "None" ]; then
+            echo "WebClientId output not found" >&2
+            exit 1
+          fi
+
+          COGNITO_DOMAIN_VALUE=$(aws cognito-idp describe-user-pool \
+            --user-pool-id "${COGNITO_USER_POOL_ID}" \
+            --query "UserPool.Domain" \
+            --output text)
+
+          if [ -z "${COGNITO_DOMAIN_VALUE}" ] || [ "${COGNITO_DOMAIN_VALUE}" = "None" ]; then
+            echo "Cognito Hosted UI domain is not configured on the user pool" >&2
+            exit 1
+          fi
+
+          case "${COGNITO_DOMAIN_VALUE}" in
+            *.*)
+              COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}"
+              ;;
+            *)
+              COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}.auth.${{ env.AWS_REGION }}.amazoncognito.com"
+              ;;
+          esac
+
+          CALLBACK_URLS=$(aws cognito-idp describe-user-pool-client \
+            --user-pool-id "${COGNITO_USER_POOL_ID}" \
+            --client-id "${COGNITO_CLIENT_ID}" \
+            --query "UserPoolClient.CallbackURLs" \
+            --output text)
+
+          if [ -z "${CALLBACK_URLS}" ] || [ "${CALLBACK_URLS}" = "None" ]; then
+            echo "No callback URLs configured on Cognito web app client" >&2
+            exit 1
+          fi
+
+          COGNITO_REDIRECT_URI=""
+          for url in ${CALLBACK_URLS}; do
+            if [[ "${url}" == *"/callback"* ]]; then
+              COGNITO_REDIRECT_URI="${url}"
+              break
+            fi
+          done
+
+          if [ -z "${COGNITO_REDIRECT_URI}" ]; then
+            COGNITO_REDIRECT_URI=$(echo "${CALLBACK_URLS}" | awk '{print $1}')
+          fi
+
+          if [ -z "${COGNITO_REDIRECT_URI}" ] || [ "${COGNITO_REDIRECT_URI}" = "None" ]; then
+            echo "Unable to resolve VITE_COGNITO_REDIRECT_URI from Cognito app client callback URLs" >&2
+            exit 1
+          fi
+
+          echo "api_base_url=${API_BASE_URL}" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=${COGNITO_USER_POOL_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_client_id=${COGNITO_CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "cognito_domain=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
+          echo "cognito_redirect_uri=${COGNITO_REDIRECT_URI}" >> $GITHUB_OUTPUT
+
+      - name: Validate frontend auth env values
+        run: |
+          API_BASE_URL="${{ steps.frontend_config.outputs.api_base_url }}"
+          COGNITO_USER_POOL_ID="${{ steps.frontend_config.outputs.cognito_user_pool_id }}"
+          COGNITO_CLIENT_ID="${{ steps.frontend_config.outputs.cognito_client_id }}"
+          COGNITO_DOMAIN="${{ steps.frontend_config.outputs.cognito_domain }}"
+          COGNITO_REDIRECT_URI="${{ steps.frontend_config.outputs.cognito_redirect_uri }}"
+
+          if [ -z "${API_BASE_URL}" ] || [ "${API_BASE_URL}" = "None" ]; then
+            echo "Invalid VITE_API_BASE_URL from stack outputs" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_USER_POOL_ID}" ] || [ "${COGNITO_USER_POOL_ID}" = "None" ] || [ "${COGNITO_USER_POOL_ID}" = "local_abc123" ]; then
+            echo "Invalid VITE_COGNITO_USER_POOL_ID from stack outputs" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_CLIENT_ID}" ] || [ "${COGNITO_CLIENT_ID}" = "None" ] || [ "${COGNITO_CLIENT_ID}" = "local-client-id" ]; then
+            echo "Invalid VITE_COGNITO_CLIENT_ID from stack outputs" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_DOMAIN}" ] || [ "${COGNITO_DOMAIN}" = "None" ] || [ "${COGNITO_DOMAIN}" = "localhost:9229" ]; then
+            echo "Invalid VITE_COGNITO_DOMAIN from secrets" >&2
+            exit 1
+          fi
+
+          if [ -z "${COGNITO_REDIRECT_URI}" ] || [ "${COGNITO_REDIRECT_URI}" = "None" ] || [ "${COGNITO_REDIRECT_URI}" = "http://localhost:5173/callback" ]; then
+            echo "Invalid VITE_COGNITO_REDIRECT_URI from secrets" >&2
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ steps.frontend_config.outputs.api_base_url }}
+          VITE_COGNITO_REGION: ${{ env.AWS_REGION }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.frontend_config.outputs.cognito_user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.frontend_config.outputs.cognito_client_id }}
+          VITE_COGNITO_DOMAIN: ${{ steps.frontend_config.outputs.cognito_domain }}
+          VITE_COGNITO_REDIRECT_URI: ${{ steps.frontend_config.outputs.cognito_redirect_uri }}
+        run: npm run build
 
       - name: Deploy frontend to S3
         env:

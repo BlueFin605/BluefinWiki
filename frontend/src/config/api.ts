@@ -6,8 +6,24 @@
 
 import axios from 'axios';
 
-// API Base URL from environment or default to local
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const isLocalApiUrl = configuredApiBaseUrl
+  ? /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(configuredApiBaseUrl)
+  : false;
+const allowLocalApiInProd = import.meta.env.VITE_ALLOW_LOCAL_API_IN_PROD === 'true';
+
+if (import.meta.env.PROD) {
+  if (!configuredApiBaseUrl) {
+    throw new Error('Missing VITE_API_BASE_URL for production build.');
+  }
+
+  if (isLocalApiUrl && !allowLocalApiInProd) {
+    throw new Error(`Invalid VITE_API_BASE_URL for production build: ${configuredApiBaseUrl}`);
+  }
+}
+
+// API Base URL from environment or development fallback
+export const API_BASE_URL = configuredApiBaseUrl || 'http://localhost:3000';
 
 // Create axios instance with default config
 export const apiClient = axios.create({
@@ -20,8 +36,7 @@ export const apiClient = axios.create({
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
-    // Get token from localStorage (set by AuthContext)
-    const token = localStorage.getItem('idToken');
+    const token = localStorage.getItem('idToken') || localStorage.getItem('accessToken');
     console.log('🔑 API Request:', config.method?.toUpperCase(), config.url);
     console.log('🔑 Token present:', !!token);
     console.log('🔑 Token value:', token?.substring(0, 50) + '...');
@@ -42,10 +57,7 @@ apiClient.interceptors.response.use(
     console.error('❌ API Error:', error.response?.status, error.config?.url);
     console.error('❌ Error details:', error.response?.data);
     if (error.response?.status === 401) {
-      // Token expired or invalid - redirect to login
-      console.error('❌ 401 Unauthorized - redirecting to login');
-      localStorage.removeItem('idToken');
-      window.location.href = '/login';
+      console.error('❌ 401 Unauthorized');
     }
     return Promise.reject(error);
   }

@@ -1,14 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './contexts/AuthContext';
-import {
-  Login,
-  Register,
-  ForgotPasswordPage,
-  ResetPasswordPage,
-  ProtectedRoute,
-} from './components/auth';
+import { CognitoUser } from 'amazon-cognito-identity-js';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PagesView } from './components/pages/PagesView';
+import userPool from './config/cognitoConfig';
+import { handleOAuthCallback, redirectToLogin } from './utils/cognitoAuth';
 
 // Query client with NO caching - always fetch fresh data
 const queryClient = new QueryClient({
@@ -36,38 +33,108 @@ const Dashboard = () => (
   </div>
 );
 
+const DISABLE_AUTH = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH === 'true';
+
+const AuthGate = ({ children }: { children: JSX.Element }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (DISABLE_AUTH || isLoading || isAuthenticated) {
+      return;
+    }
+
+    redirectToLogin();
+  }, [isAuthenticated, isLoading, location.pathname]);
+
+  if (DISABLE_AUTH || isAuthenticated) {
+    return children;
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <p className="text-gray-600">Redirecting to sign in...</p>
+    </div>
+  );
+};
+
+const OAuthCallbackPage = () => {
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const completeSignIn = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+
+        if (!code || !state) {
+          throw new Error('Missing authorization code or state in callback URL.');
+        }
+
+        const authResult = await handleOAuthCallback(code, state);
+        const payload = authResult.session.getIdToken().payload;
+        const username = payload['cognito:username'] || payload.email || payload.sub;
+
+        const cognitoUser = new CognitoUser({
+          Username: username,
+          Pool: userPool,
+        });
+
+        cognitoUser.setSignInUserSession(authResult.session);
+        localStorage.setItem('idToken', authResult.idToken);
+        localStorage.setItem('accessToken', authResult.accessToken);
+
+        navigate('/pages', { replace: true });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Authentication callback failed.';
+        setError(message);
+      }
+    };
+
+    completeSignIn();
+  }, [navigate]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Sign in failed</h1>
+          <p className="mt-3 text-gray-600">{error}</p>
+          <button
+            type="button"
+            onClick={() => redirectToLogin()}
+            className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <p className="text-gray-600">Completing sign in...</p>
+    </div>
+  );
+};
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/callback" element={<OAuthCallbackPage />} />
 
-            {/* Protected routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/pages"
-              element={
-                <ProtectedRoute>
-                  <PagesView />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/dashboard" element={<AuthGate><Dashboard /></AuthGate>} />
+            <Route path="/pages" element={<AuthGate><PagesView /></AuthGate>} />
+            <Route path="/pages/*" element={<AuthGate><PagesView /></AuthGate>} />
 
             {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/pages" replace />} />
 
             {/* 404 - Not Found */}
             <Route
