@@ -5,6 +5,7 @@ import MarkdownToolbar, { ToolbarAction } from './MarkdownToolbar';
 import { PageMetadata } from './PagePropertiesPanel';
 import { CreatePageFromLinkModal } from '../pages/CreatePageFromLinkModal';
 import { InspectorPanel } from './InspectorPanel';
+import { ResizeDivider } from './ResizeDivider';
 import { useAttachments } from '../../hooks/useAttachments';
 import { Backlink } from '../../hooks/usePages';
 
@@ -65,10 +66,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
   const [dividerPosition, setDividerPosition] = useState(50); // percentage
   const [showInspector, setShowInspector] = useState(false);
+  const [inspectorWidth, setInspectorWidth] = useState(320);
   const [showCreatePageModal, setShowCreatePageModal] = useState(false);
   const [brokenLinkData, setBrokenLinkData] = useState<{ text: string; target: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
   const editorRef = useRef<MarkdownEditorRef>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   // Server baseline for dirty detection (initialContent = server content)
@@ -212,38 +213,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     setBrokenLinkData(null);
   }, [brokenLinkData, content, handleContentChange]);
 
-  // Handle divider drag
-  const handleMouseDown = useCallback(() => {
-    isDraggingRef.current = true;
+  const handleEditorPreviewResize = useCallback((px: number) => {
+    if (!containerRef.current) return;
+    const containerWidth = containerRef.current.getBoundingClientRect().width;
+    const pct = (px / containerWidth) * 100;
+    setDividerPosition(Math.min(Math.max(pct, 20), 80));
   }, []);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDraggingRef.current || !containerRef.current) return;
-
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const newPosition = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-    
-    // Constrain between 20% and 80%
-    const clampedPosition = Math.min(Math.max(newPosition, 20), 80);
-    setDividerPosition(clampedPosition);
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    isDraggingRef.current = false;
-  }, []);
-
-  // Add and remove mouse event listeners
-  React.useEffect(() => {
-    if (viewMode !== 'split') return;
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [viewMode, handleMouseMove, handleMouseUp]);
 
   const renderViewModeButtons = () => (
     <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded">
@@ -320,6 +295,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     );
   };
 
+  const mainAreaRef = useRef<HTMLDivElement>(null);
+
+  const handleInspectorResize = useCallback((px: number) => {
+    if (!mainAreaRef.current) return;
+    const totalWidth = mainAreaRef.current.getBoundingClientRect().width;
+    const newWidth = totalWidth - px;
+    setInspectorWidth(Math.min(Math.max(newWidth, 250), 600));
+  }, []);
+
   const handleTitleChange = useCallback((newTitle: string) => {
     // Update H1 in content if present
     const lines = content.split('\n');
@@ -386,66 +370,67 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         </div>
       )}
 
-      {/* Editor and/or preview panes */}
-      <div ref={containerRef} className="flex-1 flex overflow-hidden min-h-0">
-        {(viewMode === 'edit' || viewMode === 'split') && (
-          <div
-            className="overflow-hidden"
-            style={{ width: viewMode === 'split' ? `${dividerPosition}%` : '100%' }}
-          >
-            <MarkdownEditor
-              ref={editorRef}
-              initialValue={content}
-              onChange={handleContentChange}
-              onSave={handleManualSave}
+      {/* Main content: editor + inspector side by side */}
+      <div ref={mainAreaRef} className="flex-1 flex overflow-hidden min-h-0">
+        {/* Editor and/or preview panes */}
+        <div ref={containerRef} className="flex-1 flex overflow-hidden min-w-0">
+          {(viewMode === 'edit' || viewMode === 'split') && (
+            <div
+              className="overflow-hidden"
+              style={{ width: viewMode === 'split' ? `${dividerPosition}%` : '100%' }}
+            >
+              <MarkdownEditor
+                ref={editorRef}
+                initialValue={content}
+                onChange={handleContentChange}
+                onSave={handleManualSave}
+                editable={editable}
+              />
+            </div>
+          )}
+
+          {viewMode === 'split' && (
+            <ResizeDivider orientation="vertical" onResize={handleEditorPreviewResize} />
+          )}
+
+          {(viewMode === 'preview' || viewMode === 'split') && (
+            <div
+              className="overflow-hidden"
+              style={{ width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%' }}
+            >
+              <MarkdownPreview
+                content={content}
+                onBrokenLinkClick={handleBrokenLinkClick}
+                pageGuid={pageGuid}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Inspector panel (right side) */}
+        {showInspector && pageGuid && (
+          <>
+          <ResizeDivider orientation="vertical" onResize={handleInspectorResize} />
+          <div className="shrink-0 overflow-hidden" style={{ width: `${inspectorWidth}px` }}>
+            <InspectorPanel
+              metadata={metadata}
+              onMetadataChange={onMetadataChange}
               editable={editable}
-            />
-          </div>
-        )}
-
-        {viewMode === 'split' && (
-          <div
-            className="w-1 bg-gray-300 dark:bg-gray-600 cursor-col-resize hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors"
-            onMouseDown={handleMouseDown}
-            role="separator"
-            aria-label="Resize editor and preview"
-          />
-        )}
-
-        {(viewMode === 'preview' || viewMode === 'split') && (
-          <div
-            className="overflow-hidden"
-            style={{ width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%' }}
-          >
-            <MarkdownPreview
-              content={content}
-              onBrokenLinkClick={handleBrokenLinkClick}
+              onTitleChange={handleTitleChange}
               pageGuid={pageGuid}
+              currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
+              pageAuthorId={pageAuthorId}
+              onInsertMarkdown={handleAttachmentInsert}
+              attachmentRefreshKey={attachmentRefreshKey}
+              backlinks={backlinks}
+              backlinksLoading={backlinksLoading}
+              onPageClick={onPageClick}
             />
           </div>
+          </>
         )}
       </div>
-
-      {/* Inspector panel (bottom, like DevTools) */}
-      {showInspector && pageGuid && (
-        <div className="h-72 border-t border-gray-200 dark:border-gray-700 shrink-0">
-          <InspectorPanel
-            metadata={metadata}
-            onMetadataChange={onMetadataChange}
-            editable={editable}
-            onTitleChange={handleTitleChange}
-            pageGuid={pageGuid}
-            currentUserId={currentUserId}
-            currentUserRole={currentUserRole}
-            pageAuthorId={pageAuthorId}
-            onInsertMarkdown={handleAttachmentInsert}
-            attachmentRefreshKey={attachmentRefreshKey}
-            backlinks={backlinks}
-            backlinksLoading={backlinksLoading}
-            onPageClick={onPageClick}
-          />
-        </div>
-      )}
 
       <CreatePageFromLinkModal
         isOpen={showCreatePageModal}

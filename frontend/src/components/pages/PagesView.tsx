@@ -9,7 +9,8 @@
  * - Inline rename
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { ResizeDivider } from '../editor/ResizeDivider';
 import { PageTree } from './PageTree';
 import { PageContextMenu } from './PageContextMenu';
 import { NewPageModal } from './NewPageModal';
@@ -36,6 +37,11 @@ export const PagesView: React.FC = () => {
     page: PageTreeNode | null;
   }>({ isOpen: false, page: null });
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
+  const [treeWidth, setTreeWidth] = useState(320);
+
+  const handleTreeResize = useCallback((px: number) => {
+    setTreeWidth(Math.min(Math.max(px, 200), 600));
+  }, []);
 
   const deletePage = useDeletePage();
 
@@ -110,7 +116,7 @@ export const PagesView: React.FC = () => {
   return (
       <div className="flex h-screen bg-gray-50">
         {/* Sidebar with page tree */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <div className="bg-white flex flex-col shrink-0" style={{ width: `${treeWidth}px` }}>
           {/* Header */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-2">
@@ -146,8 +152,10 @@ export const PagesView: React.FC = () => {
           </div>
         </div>
 
+        <ResizeDivider orientation="vertical" onResize={handleTreeResize} />
+
         {/* Main content area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-w-0">
           {activePageGuid ? (
             <EditorErrorBoundary
               onReset={() => {
