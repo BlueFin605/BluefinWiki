@@ -76,6 +76,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const savedContentRef = useRef<string>(initialContent);
   const savedMetadataRef = useRef<PageMetadata | undefined>(serverMetadata ?? metadata);
   const [attachmentActionError, setAttachmentActionError] = useState<string | null>(null);
+  const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0);
   const { uploadFiles } = useAttachments(pageGuid || '');
 
   // Track if content or metadata has changed vs server baseline
@@ -158,12 +159,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     try {
       const { successful, failed } = await uploadFiles(files);
 
-      if (successful.length > 0 && editorRef.current) {
-        const markdownBlock = successful
-          .map((upload) => buildMarkdownFromUpload(upload.filename, upload.contentType))
-          .join('\n');
+      if (successful.length > 0) {
+        if (editorRef.current) {
+          const markdownBlock = successful
+            .map((upload) => buildMarkdownFromUpload(upload.filename, upload.contentType))
+            .join('\n');
 
-        editorRef.current.insertMarkdown(`${markdownBlock}\n`);
+          editorRef.current.insertMarkdown(`${markdownBlock}\n`);
+        }
+        setAttachmentRefreshKey(prev => prev + 1);
       }
 
       if (failed.length > 0) {
@@ -450,6 +454,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               pageAuthorId={pageAuthorId}
               onInsertMarkdown={handleAttachmentInsert}
               className="border-0"
+              refreshKey={attachmentRefreshKey}
             />
           </div>
         )}
