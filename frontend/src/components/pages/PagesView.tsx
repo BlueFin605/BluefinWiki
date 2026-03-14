@@ -11,6 +11,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { ResizeDivider } from '../editor/ResizeDivider';
+import { getLayout, setLayout } from '../../stores/layoutStore';
 import { PageTree } from './PageTree';
 import { PageContextMenu } from './PageContextMenu';
 import { NewPageModal } from './NewPageModal';
@@ -37,10 +38,12 @@ export const PagesView: React.FC = () => {
     page: PageTreeNode | null;
   }>({ isOpen: false, page: null });
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
-  const [treeWidth, setTreeWidth] = useState(320);
+  const [treeWidth, setTreeWidth] = useState(() => getLayout().treeWidth);
 
   const handleTreeResize = useCallback((px: number) => {
-    setTreeWidth(Math.min(Math.max(px, 200), 600));
+    const w = Math.min(Math.max(px, 200), 600);
+    setTreeWidth(w);
+    setLayout({ treeWidth: w });
   }, []);
 
   const deletePage = useDeletePage();
