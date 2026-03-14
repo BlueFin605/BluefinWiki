@@ -20,7 +20,8 @@
       "Bash(powershell.exe -Command \"Compress-Archive -Path ''C:\\\\Users\\\\mitch\\\\Development\\\\Projects\\\\SpecKit\\\\projects\\\\BlueFinWiki\\\\backend\\\\dist\\\\*'' -DestinationPath ''C:\\\\Users\\\\mitch\\\\AppData\\\\Local\\\\Temp\\\\lambda-code.zip'' -Force\")",
       "Read(//c/Users/mitch/AppData/Local/Temp/**)",
       "Bash(cd:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }

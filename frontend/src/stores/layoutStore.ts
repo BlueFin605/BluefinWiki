@@ -40,6 +40,11 @@ export function getLayout(): LayoutPreferences {
   return cached;
 }
 
+/** Reset cached state (for testing) */
+export function resetLayoutCache(): void {
+  cached = null;
+}
+
 export function setLayout(changes: Partial<LayoutPreferences>): void {
   cached = { ...getLayout(), ...changes };
   try {
