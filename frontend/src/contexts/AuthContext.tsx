@@ -18,7 +18,7 @@ import { User, AuthState, LoginCredentials } from '../types/auth';
 import { authenticateWithPassword } from '../utils/cognitoAuth';
 
 // Check if auth bypass is enabled (local dev only)
-const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
+const DISABLE_AUTH = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH === 'true';
 
 if (DISABLE_AUTH) {
   console.warn('⚠️  Authentication bypass enabled. This should only be used for local development.');

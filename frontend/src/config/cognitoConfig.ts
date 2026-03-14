@@ -7,7 +7,7 @@
 
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 
-const disableAuth = import.meta.env.VITE_DISABLE_AUTH === 'true';
+const disableAuth = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH === 'true';
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
 const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
 const cognitoEndpoint = import.meta.env.VITE_COGNITO_ENDPOINT;
