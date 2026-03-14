@@ -541,7 +541,7 @@ namespace Infrastructure.Stacks
                     AllowCredentials = true
                 }
             });
-            
+
             // Create IAM role for Lambda functions
             var lambdaRole = new Role(this, "LambdaExecutionRole", new RoleProps
             {
@@ -783,6 +783,14 @@ namespace Infrastructure.Stacks
             var cognitoAuthorizer = new CognitoUserPoolsAuthorizer(this, "PagesAuthorizer", new CognitoUserPoolsAuthorizerProps
             {
                 CognitoUserPools = new[] { UserPool }
+            });
+
+            // GET /pages/children - List root pages (legacy alias)
+            var pagesChildrenResource = pagesResource.AddResource("children");
+            pagesChildrenResource.AddMethod("GET", new LambdaIntegration(pagesListChildrenFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
             });
             
             // GET /pages/{guid} - Get page by GUID
