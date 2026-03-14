@@ -10,13 +10,14 @@ const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 const isLocalApiUrl = configuredApiBaseUrl
   ? /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(configuredApiBaseUrl)
   : false;
+const allowLocalApiInProd = import.meta.env.VITE_ALLOW_LOCAL_API_IN_PROD === 'true';
 
 if (import.meta.env.PROD) {
   if (!configuredApiBaseUrl) {
     throw new Error('Missing VITE_API_BASE_URL for production build.');
   }
 
-  if (isLocalApiUrl) {
+  if (isLocalApiUrl && !allowLocalApiInProd) {
     throw new Error(`Invalid VITE_API_BASE_URL for production build: ${configuredApiBaseUrl}`);
   }
 }
