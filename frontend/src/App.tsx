@@ -33,7 +33,7 @@ const Dashboard = () => (
   </div>
 );
 
-const DISABLE_AUTH = import.meta.env.VITE_DISABLE_AUTH === 'true';
+const DISABLE_AUTH = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH === 'true';
 
 const AuthGate = ({ children }: { children: JSX.Element }) => {
   const { isAuthenticated, isLoading } = useAuth();
