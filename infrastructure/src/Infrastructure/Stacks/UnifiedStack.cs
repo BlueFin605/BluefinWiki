@@ -50,12 +50,6 @@ namespace Infrastructure.Stacks
             : base(scope, id, props)
         {
             // =============================================================================
-            // AUTH RESOURCES
-            // =============================================================================
-            
-            CreateAuthResources(config);
-            
-            // =============================================================================
             // STORAGE RESOURCES
             // =============================================================================
             
@@ -68,16 +62,22 @@ namespace Infrastructure.Stacks
             CreateDatabaseResources(config);
             
             // =============================================================================
-            // COMPUTE RESOURCES
-            // =============================================================================
-            
-            CreateComputeResources(config);
-            
-            // =============================================================================
             // CDN RESOURCES
             // =============================================================================
             
             CreateCdnResources(config);
+
+            // =============================================================================
+            // AUTH RESOURCES
+            // =============================================================================
+            
+            CreateAuthResources(config);
+
+            // =============================================================================
+            // COMPUTE RESOURCES
+            // =============================================================================
+            
+            CreateComputeResources(config);
         }
         
         private void CreateAuthResources(EnvironmentConfig config)
@@ -235,6 +235,13 @@ namespace Infrastructure.Stacks
                 // Enable token revocation
                 EnableTokenRevocation = true
             });
+
+            var hostedUiDomainPrefix = GetHostedUiDomainPrefix(config);
+            var userPoolDomain = new CfnUserPoolDomain(this, "UserPoolDomain", new CfnUserPoolDomainProps
+            {
+                UserPoolId = UserPool.UserPoolId,
+                Domain = hostedUiDomainPrefix
+            });
             
             // Create Native Client (for future mobile apps)
             NativeClient = new UserPoolClient(this, "NativeClient", new UserPoolClientProps
@@ -341,6 +348,13 @@ namespace Infrastructure.Stacks
                 Value = WebClient.UserPoolClientId,
                 Description = "Cognito Web Client ID",
                 ExportName = $"{config.Name}-web-client-id"
+            });
+
+            new CfnOutput(this, "CognitoDomainPrefix", new CfnOutputProps
+            {
+                Value = userPoolDomain.Domain,
+                Description = "Cognito Hosted UI domain prefix",
+                ExportName = $"{config.Name}-cognito-domain-prefix"
             });
             
             new CfnOutput(this, "IdentityPoolId", new CfnOutputProps
@@ -1008,24 +1022,51 @@ namespace Infrastructure.Stacks
         
         private string[] GetCallbackUrls(EnvironmentConfig config)
         {
+            var frontendBaseUrl = GetFrontendBaseUrl(config);
+
             return config.Name switch
             {
                 "dev" => new[] { "http://localhost:5173/callback" },
-                "staging" => new[] { "https://staging.bluefinwiki.com/callback" },
-                "production" => new[] { "https://bluefinwiki.com/callback" },
+                "staging" => new[] { $"{frontendBaseUrl}/callback" },
+                "production" => new[] { $"{frontendBaseUrl}/callback" },
                 _ => new[] { "http://localhost:5173/callback" }
             };
         }
         
         private string[] GetLogoutUrls(EnvironmentConfig config)
         {
+            var frontendBaseUrl = GetFrontendBaseUrl(config);
+
             return config.Name switch
             {
                 "dev" => new[] { "http://localhost:5173" },
-                "staging" => new[] { "https://staging.bluefinwiki.com" },
-                "production" => new[] { "https://bluefinwiki.com" },
+                "staging" => new[] { frontendBaseUrl },
+                "production" => new[] { frontendBaseUrl },
                 _ => new[] { "http://localhost:5173" }
             };
+        }
+
+        private string GetFrontendBaseUrl(EnvironmentConfig config)
+        {
+            if (!string.IsNullOrWhiteSpace(config.FrontendDomain))
+            {
+                var frontendDomain = config.FrontendDomain.Trim();
+
+                if (frontendDomain.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase) ||
+                    frontendDomain.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return frontendDomain.TrimEnd('/');
+                }
+
+                return $"https://{frontendDomain.TrimEnd('/')}";
+            }
+
+            return $"https://{Distribution.DistributionDomainName}";
+        }
+
+        private string GetHostedUiDomainPrefix(EnvironmentConfig config)
+        {
+            return $"bluefinwiki-{config.Name}-{Aws.ACCOUNT_ID}";
         }
     }
 }
