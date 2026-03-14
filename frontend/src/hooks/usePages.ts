@@ -3,7 +3,7 @@
  * Simple implementation without caching logic
  */
 
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../config/api';
 import {
   PageContent,
@@ -88,10 +88,14 @@ export const usePageAncestors = (guid: string) => {
  * Create a new page
  */
 export const useCreatePage = () => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (request: CreatePageRequest): Promise<PageContent> => {
       const response = await apiClient.post('/pages', request);
       return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
     },
   });
 };
@@ -100,10 +104,15 @@ export const useCreatePage = () => {
  * Update a page
  */
 export const useUpdatePage = (guid: string) => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (request: UpdatePageRequest): Promise<PageContent> => {
       const response = await apiClient.put(`/pages/${guid}`, request);
       return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pages', 'detail', guid] });
+      queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
     },
   });
 };
@@ -112,9 +121,13 @@ export const useUpdatePage = (guid: string) => {
  * Move a page to a new parent
  */
 export const useMovePage = (guid: string) => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (request: MovePageRequest): Promise<void> => {
       await apiClient.post(`/pages/${guid}/move`, request);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
     },
   });
 };
@@ -123,6 +136,7 @@ export const useMovePage = (guid: string) => {
  * Delete a page
  */
 export const useDeletePage = () => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       guid,
@@ -134,6 +148,9 @@ export const useDeletePage = () => {
       await apiClient.delete(`/pages/${guid}`, {
         data: { recursive },
       });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
     },
   });
 };

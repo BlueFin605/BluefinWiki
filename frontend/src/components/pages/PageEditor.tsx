@@ -64,16 +64,21 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   const resolvedMetadata = draft?.metadata ?? serverMeta;
   const serverContent = pageData?.content ?? '';
 
+  // Metadata state — needs to be state (not just a ref) so changes re-render
+  // EditorPane for dirty detection and property panel display.
+  const [metadata, setMetadata] = useState<PageMetadata | undefined>(resolvedMetadata);
+
   // Track current editing state via refs so the stash cleanup always has latest values
   const contentRef = useRef(resolvedContent);
-  const metadataRef = useRef(resolvedMetadata);
+  const metadataRef = useRef(metadata);
+  metadataRef.current = metadata;
 
   const handleContentChange = useCallback((newContent: string) => {
     contentRef.current = newContent;
   }, []);
 
   const handleMetadataChange = useCallback((changes: Partial<PageMetadata>) => {
-    metadataRef.current = metadataRef.current ? { ...metadataRef.current, ...changes } : undefined;
+    setMetadata(prev => prev ? { ...prev, ...changes } : undefined);
   }, []);
 
   // Stash edits when navigating away from a page
@@ -88,14 +93,14 @@ export const PageEditor: React.FC<PageEditorProps> = ({
     };
   }, [pageGuid]);
 
-  // Sync refs when a new page's data arrives (runs AFTER stash cleanup,
-  // so the old page's content is safely stashed before we overwrite the refs).
+  // Sync refs and metadata state when a new page's data arrives (runs AFTER
+  // stash cleanup, so the old page's content is safely stashed first).
   const syncedGuidRef = useRef<string>();
   useEffect(() => {
     if (syncedGuidRef.current === pageGuid) return;
     if (!pageData || pageData.guid !== pageGuid) return;
     contentRef.current = resolvedContent;
-    metadataRef.current = resolvedMetadata;
+    setMetadata(resolvedMetadata);
     syncedGuidRef.current = pageGuid;
   }, [pageGuid, pageData, resolvedContent, resolvedMetadata]);
 
@@ -191,7 +196,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             onSave={handleSave}
             editable={true}
             showPreview={true}
-            metadata={resolvedMetadata}
+            metadata={metadata}
             serverMetadata={serverMeta}
             onMetadataChange={handleMetadataChange}
             showPropertiesPanel={true}
@@ -199,7 +204,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             isSaving={updatePage.isPending}
             currentUserId={user?.userId}
             currentUserRole={user?.role}
-            pageAuthorId={resolvedMetadata?.createdBy}
+            pageAuthorId={metadata?.createdBy}
           />
         </div>
       </div>

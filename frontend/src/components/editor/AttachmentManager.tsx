@@ -10,6 +10,8 @@ interface AttachmentManagerProps {
   pageAuthorId?: string;
   onInsertMarkdown?: (markdown: string) => void;
   className?: string;
+  /** Increment to trigger a refresh of the attachment list */
+  refreshKey?: number;
 }
 
 const IMAGE_MIME_TYPES = new Set([
@@ -52,6 +54,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   pageAuthorId,
   onInsertMarkdown,
   className,
+  refreshKey,
 }) => {
   const { listAttachments, deleteAttachment } = useAttachments(pageGuid);
 
@@ -168,6 +171,13 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
       }
     };
   }, [loadAttachments, retryCount]);
+
+  // Reload when parent signals a refresh (e.g., after upload)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      loadAttachments(0);
+    }
+  }, [refreshKey, loadAttachments]);
 
   useEffect(() => {
     const imageAttachments = attachments.filter((attachment) => isImageContentType(attachment.contentType));
