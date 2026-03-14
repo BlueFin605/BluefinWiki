@@ -7,6 +7,7 @@ import { CreatePageFromLinkModal } from '../pages/CreatePageFromLinkModal';
 import { InspectorPanel } from './InspectorPanel';
 import { ResizeDivider } from './ResizeDivider';
 import { useAttachments } from '../../hooks/useAttachments';
+import { getLayout, setLayout } from '../../stores/layoutStore';
 import { Backlink } from '../../hooks/usePages';
 
 interface EditorPaneProps {
@@ -64,9 +65,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   // key={pageGuid} on this component ensures fresh state per page.
   const [content, setContent] = useState(draftContent ?? initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
-  const [dividerPosition, setDividerPosition] = useState(50); // percentage
-  const [showInspector, setShowInspector] = useState(false);
-  const [inspectorWidth, setInspectorWidth] = useState(320);
+  const [dividerPosition, setDividerPosition] = useState(() => getLayout().editorSplitPosition);
+  const [showInspector, setShowInspector] = useState(() => getLayout().inspectorVisible);
+  const [inspectorWidth, setInspectorWidth] = useState(() => getLayout().inspectorWidth);
   const [showCreatePageModal, setShowCreatePageModal] = useState(false);
   const [brokenLinkData, setBrokenLinkData] = useState<{ text: string; target: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -217,7 +218,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     if (!containerRef.current) return;
     const containerWidth = containerRef.current.getBoundingClientRect().width;
     const pct = (px / containerWidth) * 100;
-    setDividerPosition(Math.min(Math.max(pct, 20), 80));
+    const clamped = Math.min(Math.max(pct, 20), 80);
+    setDividerPosition(clamped);
+    setLayout({ editorSplitPosition: clamped });
   }, []);
 
   const renderViewModeButtons = () => (
@@ -301,7 +304,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     if (!mainAreaRef.current) return;
     const totalWidth = mainAreaRef.current.getBoundingClientRect().width;
     const newWidth = totalWidth - px;
-    setInspectorWidth(Math.min(Math.max(newWidth, 250), 600));
+    const clamped = Math.min(Math.max(newWidth, 250), 600);
+    setInspectorWidth(clamped);
+    setLayout({ inspectorWidth: clamped });
   }, []);
 
   const handleTitleChange = useCallback((newTitle: string) => {
@@ -345,7 +350,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowInspector(!showInspector)}
+            onClick={() => { const next = !showInspector; setShowInspector(next); setLayout({ inspectorVisible: next }); }}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               showInspector
                 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
