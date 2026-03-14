@@ -26,6 +26,10 @@ interface EditorPaneProps {
   currentUserId?: string;
   currentUserRole?: 'Admin' | 'Standard';
   pageAuthorId?: string;
+  /** Draft content to restore (unsaved edits from previous navigation) */
+  draftContent?: string;
+  /** Server-saved metadata baseline for dirty detection */
+  serverMetadata?: PageMetadata;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -53,8 +57,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   currentUserId,
   currentUserRole,
   pageAuthorId,
+  draftContent,
+  serverMetadata,
 }) => {
-  const [content, setContent] = useState(initialContent);
+  // Initialize with draft content if available, otherwise server content.
+  // key={pageGuid} on this component ensures fresh state per page.
+  const [content, setContent] = useState(draftContent ?? initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
   const [dividerPosition, setDividerPosition] = useState(50); // percentage
   const [showProperties, setShowProperties] = useState(showPropertiesPanel);
@@ -64,14 +72,21 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const isDraggingRef = useRef(false);
   const editorRef = useRef<MarkdownEditorRef>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const lastLoadedPageGuidRef = useRef<string | undefined>(pageGuid);
+  // Server baseline for dirty detection (initialContent = server content)
   const savedContentRef = useRef<string>(initialContent);
+  const savedMetadataRef = useRef<PageMetadata | undefined>(serverMetadata ?? metadata);
   const [attachmentActionError, setAttachmentActionError] = useState<string | null>(null);
   const { uploadFiles } = useAttachments(pageGuid || '');
-  
-  // Track if content has changed
-  const isDirty = content !== savedContentRef.current;
-  
+
+  // Track if content or metadata has changed vs server baseline
+  const isContentDirty = content !== savedContentRef.current;
+  const isMetadataDirty = metadata !== undefined && savedMetadataRef.current !== undefined && (
+    metadata.title !== savedMetadataRef.current.title ||
+    metadata.status !== savedMetadataRef.current.status ||
+    JSON.stringify(metadata.tags) !== JSON.stringify(savedMetadataRef.current.tags)
+  );
+  const isDirty = isContentDirty || isMetadataDirty;
+
   const handleContentChange = useCallback((newContent: string) => {
     setContent(newContent);
     if (onContentChange) {
@@ -83,35 +98,22 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const handleManualSave = useCallback(async () => {
     if (onSave && isDirty) {
       await onSave();
-      // Update saved content reference after successful save
+      // Update saved references after successful save
       savedContentRef.current = content;
+      savedMetadataRef.current = metadata;
     }
-  }, [onSave, isDirty, content]);
+  }, [onSave, isDirty, content, metadata]);
 
-  // Update content ONLY when navigating to a different page
-  // EditorPane owns the content state - PageEditor just provides initial content
+  // Update baseline when server content changes (e.g., after save + refetch)
   useEffect(() => {
-    const pageChanged = pageGuid !== lastLoadedPageGuidRef.current;
-    
-    // Update when:
-    // 1. Switching to a different page (pageChanged), OR
-    // 2. Fresh data arrived for current page (initialContent changed from what we loaded)
-    //    This happens when navigating back and API returns fresh data
-    // WARNING: When changing pages, all unsaved changes are lost
-    if (pageChanged) {
-      // New page - load it
-      setContent(initialContent);
-      savedContentRef.current = initialContent;
-      lastLoadedPageGuidRef.current = pageGuid;
-    } else if (initialContent !== savedContentRef.current) {
-      // Same page but fresh data from API (e.g., navigated back after saving)
-      // Only update if we haven't made local edits (content === savedContentRef)
+    if (initialContent !== savedContentRef.current) {
       if (content === savedContentRef.current) {
         setContent(initialContent);
-        savedContentRef.current = initialContent;
       }
+      savedContentRef.current = initialContent;
+      savedMetadataRef.current = serverMetadata ?? metadata;
     }
-  }, [pageGuid, initialContent, content]);
+  }, [initialContent, serverMetadata, metadata, content]);
 
   // Handle toolbar action
   const handleToolbarAction = useCallback((action: ToolbarAction) => {
