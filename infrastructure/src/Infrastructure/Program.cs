@@ -14,9 +14,10 @@ namespace Infrastructure
             
             // Get environment from context or default to production
             var environmentName = app.Node.TryGetContext("environment")?.ToString() ?? "production";
+            var frontendDomain = app.Node.TryGetContext("frontendDomain")?.ToString();
             
             // Configure environment-specific settings
-            var envConfig = GetEnvironmentConfig(environmentName);
+            var envConfig = GetEnvironmentConfig(environmentName, frontendDomain);
             
             var env = new Amazon.CDK.Environment
             {
@@ -40,7 +41,7 @@ namespace Infrastructure
             app.Synth();
         }
         
-        private static EnvironmentConfig GetEnvironmentConfig(string environmentName)
+        private static EnvironmentConfig GetEnvironmentConfig(string environmentName, string frontendDomain)
         {
             return environmentName.ToLower() switch
             {
@@ -53,7 +54,8 @@ namespace Infrastructure
                     EnableBackups = false,
                     DynamoDbBillingMode = "PAY_PER_REQUEST",
                     LogRetentionDays = 7,
-                    CloudFrontPriceClass = "PriceClass_100" // Cheapest
+                    CloudFrontPriceClass = "PriceClass_100", // Cheapest
+                    FrontendDomain = frontendDomain
                 },
                 "staging" => new EnvironmentConfig
                 {
@@ -64,7 +66,8 @@ namespace Infrastructure
                     EnableBackups = true,
                     DynamoDbBillingMode = "PAY_PER_REQUEST",
                     LogRetentionDays = 14,
-                    CloudFrontPriceClass = "PriceClass_100"
+                    CloudFrontPriceClass = "PriceClass_100",
+                    FrontendDomain = frontendDomain
                 },
                 "production" => new EnvironmentConfig
                 {
@@ -75,7 +78,8 @@ namespace Infrastructure
                     EnableBackups = true,
                     DynamoDbBillingMode = "PAY_PER_REQUEST",
                     LogRetentionDays = 90,
-                    CloudFrontPriceClass = "PriceClass_200" // Better global coverage
+                    CloudFrontPriceClass = "PriceClass_200", // Better global coverage
+                    FrontendDomain = frontendDomain
                 },
                 _ => throw new ArgumentException($"Unknown environment: {environmentName}. Valid values: dev, staging, production")
             };
@@ -92,5 +96,6 @@ namespace Infrastructure
         public string DynamoDbBillingMode { get; set; }
         public int LogRetentionDays { get; set; }
         public string CloudFrontPriceClass { get; set; }
+        public string FrontendDomain { get; set; }
     }
 }
