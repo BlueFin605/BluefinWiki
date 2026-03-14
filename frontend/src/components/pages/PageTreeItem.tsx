@@ -94,8 +94,8 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
         aria-selected={isActive}
         aria-expanded={page.hasChildren ? isExpanded : undefined}
       >
-        {/* Expand/Collapse Icon */}
-        {page.hasChildren && (
+        {/* Expand/Collapse Icon (or spacer to keep alignment) */}
+        {page.hasChildren ? (
           <button
             className="mr-1 p-1 hover:bg-gray-200 rounded"
             onClick={(e) => {
@@ -116,6 +116,8 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
               />
             </svg>
           </button>
+        ) : (
+          <span className="mr-1 w-6 h-6 inline-block shrink-0" />
         )}
 
         {/* Page Icon */}
