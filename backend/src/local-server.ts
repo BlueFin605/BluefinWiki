@@ -191,6 +191,7 @@ function wrapLambdaHandler(handler: (event: APIGatewayProxyEvent, context: Conte
 
 app.post('/pages', wrapLambdaHandler(pagesCreate));
 app.get('/pages/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages
+app.get('/pages/root/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages alias
 app.get('/pages/:guid', wrapLambdaHandler(pagesGet));
 app.put('/pages/:guid', wrapLambdaHandler(pagesUpdate));
 app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));

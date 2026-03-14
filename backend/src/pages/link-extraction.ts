@@ -21,7 +21,7 @@ const dynamoClient = new DynamoDBClient({
 
 // Helper function to get the table name dynamically (allows tests to override via env vars)
 function getPageLinksTable(): string {
-  return process.env.DYNAMODB_PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local';
+  return process.env.DYNAMODB_PAGE_LINKS_TABLE || process.env.PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local';
 }
 
 /**

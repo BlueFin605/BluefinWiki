@@ -7,6 +7,7 @@
 
 import { StoragePlugin } from './StoragePlugin.js';
 import { StoragePluginConfig } from '../types/index.js';
+import { S3StoragePlugin } from './S3StoragePlugin.js';
 
 type StoragePluginConstructor = new (config: Record<string, unknown>) => StoragePlugin;
 
@@ -175,9 +176,22 @@ let globalPluginInstance: StoragePlugin | null = null;
  */
 export function getStoragePlugin(): StoragePlugin {
   if (!globalPluginInstance) {
-    throw new Error(
-      'Storage plugin not initialized. Call initializeStoragePlugin() first.'
-    );
+    // Auto-initialize from environment variables in Lambda context
+    const bucketName = process.env.PAGES_BUCKET || process.env.S3_PAGES_BUCKET;
+    if (bucketName) {
+      if (!StoragePluginRegistry.has('s3')) {
+        StoragePluginRegistry.register('s3', S3StoragePlugin as never);
+      }
+      globalPluginInstance = StoragePluginFactory.create({
+        type: 's3',
+        bucketName,
+        region: process.env.AWS_REGION,
+      } as StoragePluginConfig);
+    } else {
+      throw new Error(
+        'Storage plugin not initialized and PAGES_BUCKET environment variable not set.'
+      );
+    }
   }
   return globalPluginInstance;
 }

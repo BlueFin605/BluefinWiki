@@ -3,6 +3,9 @@
  * 
  * Provides authentication state and methods throughout the application.
  * Uses AWS Cognito for user authentication and session management.
+ * 
+ * For local development, set VITE_DISABLE_AUTH=true to bypass authentication
+ * and gain immediate access to the app.
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -13,6 +16,13 @@ import {
 import userPool from '../config/cognitoConfig';
 import { User, AuthState, LoginCredentials } from '../types/auth';
 import { authenticateWithPassword } from '../utils/cognitoAuth';
+
+// Check if auth bypass is enabled (local dev only)
+const DISABLE_AUTH = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH === 'true';
+
+if (DISABLE_AUTH) {
+  console.warn('⚠️  Authentication bypass enabled. This should only be used for local development.');
+}
 
 interface AuthContextType extends AuthState {
   signIn: (credentials: LoginCredentials) => Promise<void>;
@@ -53,6 +63,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        // Local development: automatically authenticate without touching the Cognito SDK
+        if (DISABLE_AUTH) {
+          const mockUser: User = {
+            userId: 'local-dev-user-id',
+            email: 'dev@example.com',
+            displayName: 'Local Dev User',
+            role: 'Admin',
+            emailVerified: true,
+          };
+          localStorage.setItem('idToken', 'mock-jwt-token');
+          localStorage.setItem('accessToken', 'mock-jwt-token');
+          setAuthState({
+            user: mockUser,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+          return;
+        }
+
         const cognitoUser = userPool.getCurrentUser();
         
         if (!cognitoUser) {
@@ -80,9 +110,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (session.isValid()) {
           const user = extractUserFromSession(session, cognitoUser);
-          // Store idToken in localStorage for API requests
           const idToken = session.getIdToken().getJwtToken();
+          const accessToken = session.getAccessToken().getJwtToken();
           localStorage.setItem('idToken', idToken);
+          localStorage.setItem('accessToken', accessToken);
           
           setAuthState({
             user,
@@ -92,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           });
         } else {
           localStorage.removeItem('idToken');
+          localStorage.removeItem('accessToken');
           setAuthState({
             user: null,
             isAuthenticated: false,
@@ -118,6 +150,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
+      // Local development: bypass authentication without touching the Cognito SDK
+      if (DISABLE_AUTH) {
+        const mockUser: User = {
+          userId: 'local-dev-user-id',
+          email: credentials.email || 'dev@example.com',
+          displayName: 'Local Dev User',
+          role: 'Admin',
+          emailVerified: true,
+        };
+        localStorage.setItem('idToken', 'mock-jwt-token');
+        localStorage.setItem('accessToken', 'mock-jwt-token');
+        setAuthState({
+          user: mockUser,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
+
       // Use USER_PASSWORD_AUTH flow which is compatible with cognito-local
       const authResult = await authenticateWithPassword(
         credentials.email,
@@ -137,9 +189,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const user = extractUserFromSession(authResult.session, cognitoUser);
       
-      // Store idToken in localStorage for API requests
       const idToken = authResult.session.getIdToken().getJwtToken();
+      const accessToken = authResult.session.getAccessToken().getJwtToken();
       localStorage.setItem('idToken', idToken);
+      localStorage.setItem('accessToken', accessToken);
 
       setAuthState({
         user,
@@ -189,8 +242,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         cognitoUser.signOut();
       }
       
-      // Clear idToken from localStorage
+      // Clear auth tokens from localStorage
       localStorage.removeItem('idToken');
+      localStorage.removeItem('accessToken');
 
       setAuthState({
         user: null,
@@ -227,9 +281,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const user = extractUserFromSession(session, cognitoUser);
       
-      // Update idToken in localStorage
       const idToken = session.getIdToken().getJwtToken();
+      const accessToken = session.getAccessToken().getJwtToken();
       localStorage.setItem('idToken', idToken);
+      localStorage.setItem('accessToken', accessToken);
       
       setAuthState((prev) => ({
         ...prev,
