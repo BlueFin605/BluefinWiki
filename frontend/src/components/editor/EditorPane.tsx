@@ -2,10 +2,11 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 import MarkdownPreview from './MarkdownPreview';
 import MarkdownToolbar, { ToolbarAction } from './MarkdownToolbar';
-import PagePropertiesPanel, { PageMetadata } from './PagePropertiesPanel';
+import { PageMetadata } from './PagePropertiesPanel';
 import { CreatePageFromLinkModal } from '../pages/CreatePageFromLinkModal';
-import { AttachmentManager } from './AttachmentManager';
+import { InspectorPanel } from './InspectorPanel';
 import { useAttachments } from '../../hooks/useAttachments';
+import { Backlink } from '../../hooks/usePages';
 
 interface EditorPaneProps {
   initialContent?: string;
@@ -13,23 +14,19 @@ interface EditorPaneProps {
   onSave?: () => Promise<void> | void;
   editable?: boolean;
   showPreview?: boolean;
-  /** Page metadata for properties panel */
   metadata?: PageMetadata;
-  /** Callback when metadata changes */
   onMetadataChange?: (metadata: Partial<PageMetadata>) => void;
-  /** Show properties panel (default: false) */
-  showPropertiesPanel?: boolean;
-  /** Current page GUID for context when creating pages from links */
   pageGuid?: string;
-  /** Is the save operation in progress */
   isSaving?: boolean;
   currentUserId?: string;
   currentUserRole?: 'Admin' | 'Standard';
   pageAuthorId?: string;
-  /** Draft content to restore (unsaved edits from previous navigation) */
   draftContent?: string;
-  /** Server-saved metadata baseline for dirty detection */
   serverMetadata?: PageMetadata;
+  /** Backlinks for linked pages tab */
+  backlinks?: Backlink[];
+  backlinksLoading?: boolean;
+  onPageClick?: (guid: string) => void;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -51,7 +48,6 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   showPreview = true,
   metadata,
   onMetadataChange,
-  showPropertiesPanel = false,
   pageGuid,
   isSaving = false,
   currentUserId,
@@ -59,13 +55,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   pageAuthorId,
   draftContent,
   serverMetadata,
+  backlinks = [],
+  backlinksLoading = false,
+  onPageClick,
 }) => {
   // Initialize with draft content if available, otherwise server content.
   // key={pageGuid} on this component ensures fresh state per page.
   const [content, setContent] = useState(draftContent ?? initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
   const [dividerPosition, setDividerPosition] = useState(50); // percentage
-  const [showProperties, setShowProperties] = useState(showPropertiesPanel);
+  const [showInspector, setShowInspector] = useState(false);
   const [showCreatePageModal, setShowCreatePageModal] = useState(false);
   const [brokenLinkData, setBrokenLinkData] = useState<{ text: string; target: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -321,146 +320,133 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     );
   };
 
+  const handleTitleChange = useCallback((newTitle: string) => {
+    // Update H1 in content if present
+    const lines = content.split('\n');
+    if (lines[0]?.startsWith('# ')) {
+      const updatedContent = [`# ${newTitle}`, ...lines.slice(1)].join('\n');
+      setContent(updatedContent);
+      if (onContentChange) {
+        onContentChange(updatedContent);
+      }
+    }
+    onMetadataChange?.({ title: newTitle });
+  }, [content, onContentChange, onMetadataChange]);
+
   return (
-    <div className="flex h-full">
-      {/* Properties Panel Sidebar (optional) */}
-      {showProperties && metadata && (
-        <div className="w-80 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
-          <PagePropertiesPanel
-            metadata={metadata}
-            onMetadataChange={onMetadataChange || (() => {})}
-            editable={editable}
-            onTitleChange={(newTitle) => {
-              // Update H1 in content if present
-              const lines = content.split('\n');
-              if (lines[0]?.startsWith('# ')) {
-                const updatedContent = [`# ${newTitle}`, ...lines.slice(1)].join('\n');
-                setContent(updatedContent);
-                if (onContentChange) {
-                  onContentChange(updatedContent);
-                }
-              }
-              onMetadataChange?.({ title: newTitle });
-            }}
-          />
+    <div className="flex flex-col h-full">
+      <input
+        ref={attachmentInputRef}
+        type="file"
+        className="hidden"
+        multiple
+        onChange={handleAttachmentFilesSelected}
+        aria-label="Upload attachments"
+      />
+
+      {/* Top toolbar */}
+      <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 gap-4 flex-wrap shrink-0">
+        <div className="flex items-center gap-3">
+          {renderSaveStatus()}
+          {editable && (
+            <button
+              onClick={handleManualSave}
+              disabled={!isDirty || isSaving}
+              className="px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              title={isDirty ? 'Save changes (Ctrl+S)' : 'No changes to save'}
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowInspector(!showInspector)}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              showInspector
+                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+            title={showInspector ? 'Hide inspector' : 'Show inspector'}
+          >
+            {showInspector ? 'Hide Inspector' : 'Inspector'}
+          </button>
+          {renderViewModeButtons()}
+        </div>
+      </div>
+
+      {/* Markdown formatting toolbar */}
+      {editable && (viewMode === 'edit' || viewMode === 'split') && (
+        <MarkdownToolbar onAction={handleToolbarAction} disabled={!editable} />
+      )}
+
+      {attachmentActionError && (
+        <div className="px-4 py-2 text-sm bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 shrink-0">
+          {attachmentActionError}
         </div>
       )}
 
-      {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col">
-        <input
-          ref={attachmentInputRef}
-          type="file"
-          className="hidden"
-          multiple
-          onChange={handleAttachmentFilesSelected}
-          aria-label="Upload attachments"
-        />
-
-        {/* Top toolbar with view mode toggle and save status */}
-        <div className="flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            {renderSaveStatus()}
-            {editable && (
-              <button
-                onClick={handleManualSave}
-                disabled={!isDirty || isSaving}
-                className="px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title={isDirty ? 'Save changes (Ctrl+S)' : 'No changes to save'}
-              >
-                {isSaving ? 'Saving...' : 'Save'}
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {metadata && (
-              <button
-                onClick={() => setShowProperties(!showProperties)}
-                className="px-3 py-1 text-sm rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                title={showProperties ? 'Hide properties' : 'Show properties'}
-                aria-label={showProperties ? 'Hide properties panel' : 'Show properties panel'}
-              >
-                {showProperties ? '◀ Hide' : '▶ Properties'}
-              </button>
-            )}
-            {renderViewModeButtons()}
-          </div>
-        </div>
-
-        {/* Markdown formatting toolbar */}
-        {editable && (viewMode === 'edit' || viewMode === 'split') && (
-          <MarkdownToolbar onAction={handleToolbarAction} disabled={!editable} />
-        )}
-
-        {attachmentActionError && (
-          <div className="px-4 py-2 text-sm bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
-            {attachmentActionError}
-          </div>
-        )}
-
-        {/* Editor and/or preview panes */}
-        <div ref={containerRef} className="flex-1 flex overflow-hidden">
-          {/* Editor pane */}
-          {(viewMode === 'edit' || viewMode === 'split') && (
-            <div
-              className="overflow-hidden"
-              style={{
-                width: viewMode === 'split' ? `${dividerPosition}%` : '100%',
-              }}
-            >
-              <MarkdownEditor
-                ref={editorRef}
-                initialValue={content}
-                onChange={handleContentChange}
-                onSave={handleManualSave}
-                editable={editable}
-              />
-            </div>
-          )}
-
-          {/* Resizable divider */}
-          {viewMode === 'split' && (
-            <div
-              className="w-1 bg-gray-300 dark:bg-gray-600 cursor-col-resize hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors"
-              onMouseDown={handleMouseDown}
-              role="separator"
-              aria-label="Resize editor and preview"
+      {/* Editor and/or preview panes */}
+      <div ref={containerRef} className="flex-1 flex overflow-hidden min-h-0">
+        {(viewMode === 'edit' || viewMode === 'split') && (
+          <div
+            className="overflow-hidden"
+            style={{ width: viewMode === 'split' ? `${dividerPosition}%` : '100%' }}
+          >
+            <MarkdownEditor
+              ref={editorRef}
+              initialValue={content}
+              onChange={handleContentChange}
+              onSave={handleManualSave}
+              editable={editable}
             />
-          )}
+          </div>
+        )}
 
-          {/* Preview pane */}
-          {(viewMode === 'preview' || viewMode === 'split') && (
-            <div
-              className="overflow-hidden"
-              style={{
-                width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%',
-              }}
-            >
-              <MarkdownPreview 
-                content={content} 
-                onBrokenLinkClick={handleBrokenLinkClick}
-                pageGuid={pageGuid}
-              />
-            </div>
-          )}
-        </div>
+        {viewMode === 'split' && (
+          <div
+            className="w-1 bg-gray-300 dark:bg-gray-600 cursor-col-resize hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors"
+            onMouseDown={handleMouseDown}
+            role="separator"
+            aria-label="Resize editor and preview"
+          />
+        )}
 
-        {pageGuid && (
-          <div className="h-64 border-t border-gray-200 dark:border-gray-700 min-h-0">
-            <AttachmentManager
+        {(viewMode === 'preview' || viewMode === 'split') && (
+          <div
+            className="overflow-hidden"
+            style={{ width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%' }}
+          >
+            <MarkdownPreview
+              content={content}
+              onBrokenLinkClick={handleBrokenLinkClick}
               pageGuid={pageGuid}
-              currentUserId={currentUserId}
-              currentUserRole={currentUserRole}
-              pageAuthorId={pageAuthorId}
-              onInsertMarkdown={handleAttachmentInsert}
-              className="border-0"
-              refreshKey={attachmentRefreshKey}
             />
           </div>
         )}
       </div>
 
-      {/* Create Page from Link Modal */}
+      {/* Inspector panel (bottom, like DevTools) */}
+      {showInspector && pageGuid && (
+        <div className="h-72 border-t border-gray-200 dark:border-gray-700 shrink-0">
+          <InspectorPanel
+            metadata={metadata}
+            onMetadataChange={onMetadataChange}
+            editable={editable}
+            onTitleChange={handleTitleChange}
+            pageGuid={pageGuid}
+            currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
+            pageAuthorId={pageAuthorId}
+            onInsertMarkdown={handleAttachmentInsert}
+            attachmentRefreshKey={attachmentRefreshKey}
+            backlinks={backlinks}
+            backlinksLoading={backlinksLoading}
+            onPageClick={onPageClick}
+          />
+        </div>
+      )}
+
       <CreatePageFromLinkModal
         isOpen={showCreatePageModal}
         onClose={() => {

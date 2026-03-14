@@ -10,7 +10,6 @@ import { EditorPane } from '../editor/EditorPane';
 import { PageMetadata } from '../editor/PagePropertiesPanel';
 import { usePageDetail, useUpdatePage, useBacklinks } from '../../hooks/usePages';
 import { UpdatePageRequest } from '../../types/page';
-import { LinkedPagesPanel } from './LinkedPagesPanel';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDraft, saveDraft, clearDraft } from '../../stores/draftsStore';
 
@@ -163,65 +162,50 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   }
 
   return (
-    <div className="h-full flex">
-      <div className="flex-1 flex flex-col">
-        {saveError && (
-          <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm font-medium text-red-800 dark:text-red-200">{saveError}</span>
-              </div>
-              <button
-                onClick={() => setSaveError(null)}
-                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
-                aria-label="Dismiss"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
+    <div className="h-full flex flex-col">
+      {saveError && (
+        <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm font-medium text-red-800 dark:text-red-200">{saveError}</span>
             </div>
+            <button
+              onClick={() => setSaveError(null)}
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
           </div>
-        )}
-
-        <div className="flex-1 overflow-hidden">
-          <EditorPane
-            key={pageGuid}
-            initialContent={serverContent}
-            draftContent={draft ? draft.content : undefined}
-            onContentChange={handleContentChange}
-            onSave={handleSave}
-            editable={true}
-            showPreview={true}
-            metadata={metadata}
-            serverMetadata={serverMeta}
-            onMetadataChange={handleMetadataChange}
-            showPropertiesPanel={true}
-            pageGuid={pageGuid}
-            isSaving={updatePage.isPending}
-            currentUserId={user?.userId}
-            currentUserRole={user?.role}
-            pageAuthorId={metadata?.createdBy}
-          />
         </div>
-      </div>
+      )}
 
-      <div className="w-80 flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700">
-        <div className="h-full min-h-0">
-          <LinkedPagesPanel
-            pageGuid={pageGuid}
-            backlinks={backlinksData?.backlinks || []}
-            isLoading={backlinksLoading}
-            onPageClick={(guid) => {
-              if (onNavigateToPage) {
-                onNavigateToPage(guid);
-              }
-            }}
-          />
-        </div>
+      <div className="flex-1 overflow-hidden">
+        <EditorPane
+          key={pageGuid}
+          initialContent={serverContent}
+          draftContent={draft ? draft.content : undefined}
+          onContentChange={handleContentChange}
+          onSave={handleSave}
+          editable={true}
+          showPreview={true}
+          metadata={metadata}
+          serverMetadata={serverMeta}
+          onMetadataChange={handleMetadataChange}
+          pageGuid={pageGuid}
+          isSaving={updatePage.isPending}
+          currentUserId={user?.userId}
+          currentUserRole={user?.role}
+          pageAuthorId={metadata?.createdBy}
+          backlinks={backlinksData?.backlinks || []}
+          backlinksLoading={backlinksLoading}
+          onPageClick={onNavigateToPage}
+        />
       </div>
     </div>
   );
