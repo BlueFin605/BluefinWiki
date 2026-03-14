@@ -73,6 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             emailVerified: true,
           };
           localStorage.setItem('idToken', 'mock-jwt-token');
+          localStorage.setItem('accessToken', 'mock-jwt-token');
           setAuthState({
             user: mockUser,
             isAuthenticated: true,
@@ -109,9 +110,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (session.isValid()) {
           const user = extractUserFromSession(session, cognitoUser);
-          // Store idToken in localStorage for API requests
           const idToken = session.getIdToken().getJwtToken();
+          const accessToken = session.getAccessToken().getJwtToken();
           localStorage.setItem('idToken', idToken);
+          localStorage.setItem('accessToken', accessToken);
           
           setAuthState({
             user,
@@ -121,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           });
         } else {
           localStorage.removeItem('idToken');
+          localStorage.removeItem('accessToken');
           setAuthState({
             user: null,
             isAuthenticated: false,
@@ -157,6 +160,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           emailVerified: true,
         };
         localStorage.setItem('idToken', 'mock-jwt-token');
+        localStorage.setItem('accessToken', 'mock-jwt-token');
         setAuthState({
           user: mockUser,
           isAuthenticated: true,
@@ -185,9 +189,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const user = extractUserFromSession(authResult.session, cognitoUser);
       
-      // Store idToken in localStorage for API requests
       const idToken = authResult.session.getIdToken().getJwtToken();
+      const accessToken = authResult.session.getAccessToken().getJwtToken();
       localStorage.setItem('idToken', idToken);
+      localStorage.setItem('accessToken', accessToken);
 
       setAuthState({
         user,
@@ -237,8 +242,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         cognitoUser.signOut();
       }
       
-      // Clear idToken from localStorage
+      // Clear auth tokens from localStorage
       localStorage.removeItem('idToken');
+      localStorage.removeItem('accessToken');
 
       setAuthState({
         user: null,
@@ -275,9 +281,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const user = extractUserFromSession(session, cognitoUser);
       
-      // Update idToken in localStorage
       const idToken = session.getIdToken().getJwtToken();
+      const accessToken = session.getAccessToken().getJwtToken();
       localStorage.setItem('idToken', idToken);
+      localStorage.setItem('accessToken', accessToken);
       
       setAuthState((prev) => ({
         ...prev,

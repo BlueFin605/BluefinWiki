@@ -11,7 +11,7 @@ let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 if (!IS_LOCAL) {
   verifier = CognitoJwtVerifier.create({
     userPoolId: USER_POOL_ID,
-    tokenUse: 'access',
+    tokenUse: 'id',
     clientId: CLIENT_ID,
   });
 }

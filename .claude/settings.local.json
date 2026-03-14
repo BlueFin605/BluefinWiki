@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki -type d -name \"infra*\" -o -name \"*cdk*\" -o -name \"*infrastructure*\" 2>/dev/null | head -20)",
+      "Bash(find /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki/infrastructure -type f -name \"*.cs\" 2>/dev/null | head -20)",
+      "Bash(ls -la /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki/infrastructure/cdk.out/asset.*/pages/pages-create.js 2>/dev/null | head -5)",
+      "Bash(find /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki -name \"esbuild*\" -o -name \"webpack*\" -o -name \"*bundle*\" -type f 2>/dev/null | grep -v node_modules | head -10)",
+      "Bash(grep -r \"Cognito\\\\|cognito\" /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki/infrastructure/src --include=\"*.cs\" 2>/dev/null | head -30)",
+      "Bash(grep -r \"lambda-authorizer\\\\|LambdaAuthorizer\\\\|TokenAuthorizer\" /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki --include=\"*.ts\" --include=\"*.js\" --include=\"*.cs\" 2>/dev/null | head -20)"
+    ]
+  }
+}

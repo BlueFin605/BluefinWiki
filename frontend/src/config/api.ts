@@ -36,8 +36,7 @@ export const apiClient = axios.create({
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
-    // Get token from localStorage (set by AuthContext)
-    const token = localStorage.getItem('idToken');
+    const token = localStorage.getItem('idToken') || localStorage.getItem('accessToken');
     console.log('🔑 API Request:', config.method?.toUpperCase(), config.url);
     console.log('🔑 Token present:', !!token);
     console.log('🔑 Token value:', token?.substring(0, 50) + '...');
