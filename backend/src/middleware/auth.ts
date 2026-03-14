@@ -65,11 +65,11 @@ export function withAuth(
       const token = extractToken(event);
 
       if (!token) {
-        return {
+        return withCorsHeaders(event, {
           statusCode: 401,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ error: 'Missing authorization token' }),
-        };
+        });
       }
 
       // Verify JWT token using Cognito JWKS (or decode for local development)
@@ -97,11 +97,11 @@ export function withAuth(
         }
       } catch (error) {
         console.error('JWT verification failed:', error);
-        return {
+        return withCorsHeaders(event, {
           statusCode: 401,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ error: 'Invalid or expired token' }),
-        };
+        });
       }
 
       // Attach user context to event
@@ -111,14 +111,15 @@ export function withAuth(
       };
 
       // Call the wrapped handler with authenticated event
-      return await handler(authenticatedEvent, context);
+      const handlerResponse = await handler(authenticatedEvent, context);
+      return withCorsHeaders(event, handlerResponse);
     } catch (error) {
       console.error('Authentication middleware error:', error);
-      return {
+      return withCorsHeaders(event, {
         statusCode: 500,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Internal server error' }),
-      };
+      });
     }
   };
 }
@@ -143,17 +144,37 @@ export function withRole(
     const user = getUserContext(event);
 
     if (!allowedRoles.includes(user.role)) {
-      return {
+      return withCorsHeaders(event, {
         statusCode: 403,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           error: 'Forbidden',
           message: `This action requires one of the following roles: ${allowedRoles.join(', ')}`,
         }),
-      };
+      });
     }
 
-    return await handler(event, context);
+    const handlerResponse = await handler(event, context);
+    return withCorsHeaders(event, handlerResponse);
+  };
+}
+
+function withCorsHeaders(
+  event: Pick<APIGatewayProxyEvent, 'headers'>,
+  response: APIGatewayProxyResult
+): APIGatewayProxyResult {
+  const requestOrigin = event.headers?.origin || event.headers?.Origin;
+  const allowOrigin = requestOrigin && requestOrigin.length > 0 ? requestOrigin : '*';
+
+  return {
+    ...response,
+    headers: {
+      ...response.headers,
+      'Access-Control-Allow-Origin': allowOrigin,
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+      'Vary': 'Origin',
+    },
   };
 }
 
