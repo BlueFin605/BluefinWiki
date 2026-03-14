@@ -61,7 +61,17 @@ export function withAuth(
 ) {
   return async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
     try {
-      // Extract JWT token from Authorization header
+      // In production, API Gateway's Cognito authorizer has already validated the
+      // token and placed claims in event.requestContext.authorizer.claims.
+      // Use those directly instead of re-verifying.
+      const existingClaims = event.requestContext.authorizer?.claims;
+      if (existingClaims && !IS_LOCAL) {
+        const authenticatedEvent = event as AuthenticatedEvent;
+        const handlerResponse = await handler(authenticatedEvent, context);
+        return withCorsHeaders(event, handlerResponse);
+      }
+
+      // For local development (no API Gateway authorizer), verify the token ourselves
       const token = extractToken(event);
 
       if (!token) {
@@ -72,11 +82,9 @@ export function withAuth(
         });
       }
 
-      // Verify JWT token using Cognito JWKS (or decode for local development)
       let payload;
       try {
         if (IS_LOCAL) {
-          // For local development, accept mock token or decode real local JWTs
           console.log('🔓 Local mode: Bypassing JWT verification');
           if (token === 'mock-jwt-token') {
             payload = {
@@ -90,6 +98,7 @@ export function withAuth(
             payload = decodeJWT(token);
           }
         } else {
+          // Fallback: verify token if no API Gateway claims present
           if (!verifier) {
             throw new Error('Cognito verifier not initialized');
           }
