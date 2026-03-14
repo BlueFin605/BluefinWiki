@@ -8,7 +8,18 @@
       "Bash(grep -r \"Cognito\\\\|cognito\" /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki/infrastructure/src --include=\"*.cs\" 2>/dev/null | head -30)",
       "Bash(grep -r \"lambda-authorizer\\\\|LambdaAuthorizer\\\\|TokenAuthorizer\" /c/Users/mitch/Development/Projects/SpecKit/projects/BlueFinWiki --include=\"*.ts\" --include=\"*.js\" --include=\"*.cs\" 2>/dev/null | head -20)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(echo:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(aws lambda:*)",
+      "Bash(cd backend:*)",
+      "Bash(rm -f /tmp/lambda-code.zip)",
+      "Bash(powershell.exe -Command \"Compress-Archive -Path ''.'' -DestinationPath ''C:\\\\Users\\\\mitch\\\\AppData\\\\Local\\\\Temp\\\\lambda-code.zip'' -Force\")",
+      "Read(//tmp/**)",
+      "Bash(powershell.exe -Command \"Compress-Archive -Path ''C:\\\\Users\\\\mitch\\\\Development\\\\Projects\\\\SpecKit\\\\projects\\\\BlueFinWiki\\\\backend\\\\dist\\\\*'' -DestinationPath ''C:\\\\Users\\\\mitch\\\\AppData\\\\Local\\\\Temp\\\\lambda-code.zip'' -Force\")",
+      "Read(//c/Users/mitch/AppData/Local/Temp/**)",
+      "Bash(cd:*)"
     ]
   }
 }
