@@ -54,7 +54,7 @@ jobs:
         run: |
           # Copy package files but remove "type": "module" so Lambda loads .js as CommonJS
           node -e "const p=require('./package.json'); delete p.type; delete p.scripts; delete p.devDependencies; require('fs').writeFileSync('dist/package.json', JSON.stringify(p, null, 2))"
-          cp package-lock.json dist/
+          cp ../package-lock.json dist/
           cd dist && npm ci --omit=dev
 
       - name: Upload build artifacts
