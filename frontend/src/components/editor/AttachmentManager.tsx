@@ -86,25 +86,21 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   }, [pageGuid]);
 
   const fetchAttachmentBlobUrl = useCallback(async (filename: string): Promise<string> => {
-    console.log(`🔄 Fetching blob for: ${filename}`);
     try {
-      const response = await apiClient.get(downloadPathFor(filename), {
-        responseType: 'blob',
-      });
-      
-      console.log(`📦 Response received:`, {
-        status: response?.status ?? 'unknown',
-        contentType: response?.headers?.['content-type'] ?? 'unknown',
-        dataType: response?.data?.constructor?.name ?? typeof response?.data,
-        dataSize: response?.data instanceof Blob ? response.data.size : undefined,
-      });
+      const response = await apiClient.get(downloadPathFor(filename));
+      const { data: base64Data, contentType } = response.data;
 
-      const url = URL.createObjectURL(response.data as Blob);
-      console.log(`🔗 Created blob URL: ${url}`);
+      const byteChars = atob(base64Data);
+      const byteArray = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteArray[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], { type: contentType });
+      const url = URL.createObjectURL(blob);
       objectUrlRegistry.current.add(url);
       return url;
     } catch (err) {
-      console.error(`💥 Failed to fetch blob for ${filename}:`, err);
+      console.error(`Failed to fetch attachment ${filename}:`, err);
       throw err;
     }
   }, [downloadPathFor]);
@@ -236,16 +232,21 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     setActionError(null);
 
     try {
-      const response = await apiClient.get(downloadPathFor(attachment.filename), {
-        responseType: 'blob',
-      });
+      const response = await apiClient.get(downloadPathFor(attachment.filename));
+      const { data: base64Data, contentType, filename: serverFilename } = response.data;
 
-      const blobUrl = URL.createObjectURL(response.data as Blob);
+      const byteChars = atob(base64Data);
+      const byteArray = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteArray[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], { type: contentType });
+      const blobUrl = URL.createObjectURL(blob);
       objectUrlRegistry.current.add(blobUrl);
 
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = attachment.filename;
+      link.download = serverFilename || attachment.filename;
       link.click();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to download attachment';
