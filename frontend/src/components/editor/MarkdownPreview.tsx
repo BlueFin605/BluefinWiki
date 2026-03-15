@@ -80,6 +80,29 @@ const MermaidDiagram: React.FC<{ chart: string }> = ({ chart }) => {
   );
 };
 
+/** Convert heading text to a URL-friendly slug (matches GitHub/GFM behaviour) */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')  // remove non-word chars (except spaces & hyphens)
+    .replace(/\s+/g, '-');      // spaces → hyphens
+}
+
+/** Extract plain text from React children (handles nested elements) */
+function childrenToText(children: React.ReactNode): string {
+  return React.Children.toArray(children)
+    .map((child) => {
+      if (typeof child === 'string') return child;
+      if (typeof child === 'number') return String(child);
+      if (React.isValidElement(child) && child.props) {
+        return childrenToText((child.props as { children?: React.ReactNode }).children);
+      }
+      return '';
+    })
+    .join('');
+}
+
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
@@ -194,6 +217,11 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       return uri;
     }
 
+    // Skip transformation for anchor links (e.g. #heading-slug)
+    if (uri.startsWith('#')) {
+      return uri;
+    }
+
     // Check if this is a bare filename (no slashes or protocol)
     // Use current pageGuid from context
     if (!uri.includes('/') && pageGuid) {
@@ -270,6 +298,27 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               );
             }
             
+            // Anchor link — scroll to heading within the preview
+            if (href?.startsWith('#')) {
+              return (
+                <a
+                  {...props}
+                  href={href}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const targetId = href.slice(1);
+                    const el = document.getElementById(targetId);
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
+                >
+                  {children}
+                </a>
+              );
+            }
+
             // External link styling
             return (
               <a
@@ -287,34 +336,34 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               </a>
             );
           },
-          // Style headings
+          // Style headings (with id slugs for anchor links)
           h1: ({ children, ...props }: MarkdownComponentProps<'h1'>) => (
-            <h1 {...props} className="text-3xl font-bold mt-6 mb-4 text-gray-900 dark:text-gray-100">
+            <h1 {...props} id={slugify(childrenToText(children))} className="text-3xl font-bold mt-6 mb-4 text-gray-900 dark:text-gray-100">
               {children}
             </h1>
           ),
           h2: ({ children, ...props }: MarkdownComponentProps<'h2'>) => (
-            <h2 {...props} className="text-2xl font-bold mt-5 mb-3 text-gray-900 dark:text-gray-100">
+            <h2 {...props} id={slugify(childrenToText(children))} className="text-2xl font-bold mt-5 mb-3 text-gray-900 dark:text-gray-100">
               {children}
             </h2>
           ),
           h3: ({ children, ...props }: MarkdownComponentProps<'h3'>) => (
-            <h3 {...props} className="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">
+            <h3 {...props} id={slugify(childrenToText(children))} className="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">
               {children}
             </h3>
           ),
           h4: ({ children, ...props }: MarkdownComponentProps<'h4'>) => (
-            <h4 {...props} className="text-lg font-semibold mt-3 mb-2 text-gray-900 dark:text-gray-100">
+            <h4 {...props} id={slugify(childrenToText(children))} className="text-lg font-semibold mt-3 mb-2 text-gray-900 dark:text-gray-100">
               {children}
             </h4>
           ),
           h5: ({ children, ...props }: MarkdownComponentProps<'h5'>) => (
-            <h5 {...props} className="text-base font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
+            <h5 {...props} id={slugify(childrenToText(children))} className="text-base font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
               {children}
             </h5>
           ),
           h6: ({ children, ...props }: MarkdownComponentProps<'h6'>) => (
-            <h6 {...props} className="text-sm font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
+            <h6 {...props} id={slugify(childrenToText(children))} className="text-sm font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
               {children}
             </h6>
           ),
