@@ -115,7 +115,10 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
     try {
       console.log(`🔄 Fetching image blob: ${apiUrl}`);
-      const response = await apiClient.get(apiUrl, { responseType: 'blob' });
+      const response = await apiClient.get(apiUrl, {
+        responseType: 'blob',
+        headers: { 'Accept': 'image/*' },
+      });
       const blobUrl = URL.createObjectURL(response.data);
       blobUrlRegistry.current.add(blobUrl);
       console.log(`✅ Created blob URL: ${blobUrl.substring(0, 50)}...`);
