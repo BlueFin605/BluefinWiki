@@ -199,7 +199,6 @@ jobs:
             "${LAMBDA_PREFIX}-list-children"
             "${LAMBDA_PREFIX}-move"
             "${LAMBDA_PREFIX}-search"
-            "${LAMBDA_PREFIX}-backlinks"
             "${LAMBDA_PREFIX}-attachments-upload"
             "${LAMBDA_PREFIX}-attachments-download"
             "${LAMBDA_PREFIX}-attachments-list"
@@ -214,15 +213,16 @@ jobs:
           FAILED=0
           for FUNC in "${FUNCTIONS[@]}"; do
             echo "Deploying ${FUNC}..."
-            if aws lambda update-function-code \
+            OUTPUT=$(aws lambda update-function-code \
               --function-name "${FUNC}" \
               --zip-file fileb://backend-lambda.zip \
-              --publish > /dev/null 2>&1; then
+              --publish 2>&1) && {
               echo "  ✓ ${FUNC}"
-            else
+            } || {
               echo "  ✗ ${FUNC} - FAILED"
+              echo "    ${OUTPUT}"
               FAILED=1
-            fi
+            }
           done
 
           rm backend-lambda.zip
