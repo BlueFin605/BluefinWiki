@@ -88,17 +88,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   const fetchAttachmentBlobUrl = useCallback(async (filename: string): Promise<string> => {
     try {
       const response = await apiClient.get(downloadPathFor(filename));
-      const { data: base64Data, contentType } = response.data;
-
-      const byteChars = atob(base64Data);
-      const byteArray = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteArray[i] = byteChars.charCodeAt(i);
-      }
-      const blob = new Blob([byteArray], { type: contentType });
-      const url = URL.createObjectURL(blob);
-      objectUrlRegistry.current.add(url);
-      return url;
+      return response.data.url;
     } catch (err) {
       console.error(`Failed to fetch attachment ${filename}:`, err);
       throw err;
@@ -233,20 +223,12 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
 
     try {
       const response = await apiClient.get(downloadPathFor(attachment.filename));
-      const { data: base64Data, contentType, filename: serverFilename } = response.data;
-
-      const byteChars = atob(base64Data);
-      const byteArray = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteArray[i] = byteChars.charCodeAt(i);
-      }
-      const blob = new Blob([byteArray], { type: contentType });
-      const blobUrl = URL.createObjectURL(blob);
-      objectUrlRegistry.current.add(blobUrl);
+      const { url } = response.data;
 
       const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = serverFilename || attachment.filename;
+      link.href = url;
+      link.download = attachment.filename;
+      link.target = '_blank';
       link.click();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to download attachment';
