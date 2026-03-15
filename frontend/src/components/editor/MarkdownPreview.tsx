@@ -29,7 +29,7 @@ const AsyncImage: React.FC<{
   alt?: string;
   fetchImageBlobUrl: (url: string) => Promise<string>;
   [key: string]: unknown;
-}> = ({ apiUrl, alt, fetchImageBlobUrl, ...props }) => {
+}> = ({ apiUrl, alt, fetchImageBlobUrl }) => {
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
   const [error, setError] = React.useState<boolean>(false);
 
