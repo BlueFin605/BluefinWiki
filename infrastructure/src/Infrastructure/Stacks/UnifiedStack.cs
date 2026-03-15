@@ -524,12 +524,6 @@ namespace Infrastructure.Stacks
             {
                 RestApiName = $"bluefinwiki-api-{config.Name}",
                 Description = $"BlueFinWiki API for {config.Name} environment",
-                BinaryMediaTypes = new[]
-                {
-                    "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
-                    "application/octet-stream", "application/pdf",
-                    "audio/*", "video/*",
-                },
                 DeployOptions = new StageOptions
                 {
                     StageName = config.Name,

@@ -107,25 +107,30 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   const [imageBlobUrls, setImageBlobUrls] = useState<Record<string, string>>({});
   const blobUrlRegistry = useRef<Set<string>>(new Set());
 
-  // Fetch image via axios and convert to blob URL
+  // Fetch attachment as JSON (base64 encoded) and convert to blob URL
   const fetchImageBlobUrl = useCallback(async (apiUrl: string): Promise<string> => {
     if (imageBlobUrls[apiUrl]) {
       return imageBlobUrls[apiUrl];
     }
 
     try {
-      console.log(`🔄 Fetching image blob: ${apiUrl}`);
-      const response = await apiClient.get(apiUrl, {
-        responseType: 'blob',
-        headers: { 'Accept': 'image/*' },
-      });
-      const blobUrl = URL.createObjectURL(response.data);
+      const response = await apiClient.get(apiUrl);
+      const { data: base64Data, contentType } = response.data;
+
+      // Decode base64 to binary and create a blob URL
+      const byteChars = atob(base64Data);
+      const byteArray = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteArray[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], { type: contentType });
+      const blobUrl = URL.createObjectURL(blob);
+
       blobUrlRegistry.current.add(blobUrl);
-      console.log(`✅ Created blob URL: ${blobUrl.substring(0, 50)}...`);
       setImageBlobUrls((prev) => ({ ...prev, [apiUrl]: blobUrl }));
       return blobUrl;
     } catch (err) {
-      console.error(`❌ Failed to fetch image: ${apiUrl}`, err);
+      console.error(`Failed to fetch attachment: ${apiUrl}`, err);
       throw err;
     }
   }, [imageBlobUrls]);
