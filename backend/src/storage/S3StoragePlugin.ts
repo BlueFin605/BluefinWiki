@@ -711,7 +711,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         const childFolders = response.CommonPrefixes.filter(p => {
           const pathParts = p.Prefix?.split('/').filter(part => part.length > 0) || [];
           const folderGuid = pathParts[pathParts.length - 1];
-          return folderGuid !== guid; // Exclude the page's own guid folder
+          return folderGuid !== guid && folderGuid !== '_attachments';
         });
         return childFolders.length > 0;
       }

@@ -189,7 +189,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
         <EditorPane
           key={pageGuid}
           initialContent={serverContent}
-          draftContent={draft ? draft.content : undefined}
+          draftContent={draft && draft.content !== serverContent ? draft.content : undefined}
           onContentChange={handleContentChange}
           onSave={handleSave}
           editable={true}
