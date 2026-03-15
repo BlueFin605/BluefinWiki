@@ -107,7 +107,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   const [imageBlobUrls, setImageBlobUrls] = useState<Record<string, string>>({});
   const blobUrlRegistry = useRef<Set<string>>(new Set());
 
-  // Fetch attachment as JSON (base64 encoded) and convert to blob URL
+  // Fetch a download URL for the attachment from the API
   const fetchImageBlobUrl = useCallback(async (apiUrl: string): Promise<string> => {
     if (imageBlobUrls[apiUrl]) {
       return imageBlobUrls[apiUrl];
@@ -115,22 +115,11 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
     try {
       const response = await apiClient.get(apiUrl);
-      const { data: base64Data, contentType } = response.data;
-
-      // Decode base64 to binary and create a blob URL
-      const byteChars = atob(base64Data);
-      const byteArray = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteArray[i] = byteChars.charCodeAt(i);
-      }
-      const blob = new Blob([byteArray], { type: contentType });
-      const blobUrl = URL.createObjectURL(blob);
-
-      blobUrlRegistry.current.add(blobUrl);
-      setImageBlobUrls((prev) => ({ ...prev, [apiUrl]: blobUrl }));
-      return blobUrl;
+      const downloadUrl = response.data.url;
+      setImageBlobUrls((prev) => ({ ...prev, [apiUrl]: downloadUrl }));
+      return downloadUrl;
     } catch (err) {
-      console.error(`Failed to fetch attachment: ${apiUrl}`, err);
+      console.error(`Failed to fetch attachment URL: ${apiUrl}`, err);
       throw err;
     }
   }, [imageBlobUrls]);

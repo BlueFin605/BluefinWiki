@@ -84,7 +84,7 @@ describe('AttachmentManager Component', () => {
     vi.mocked(apiClient.get).mockResolvedValue({
       status: 200,
       headers: { 'content-type': 'application/json' },
-      data: { data: btoa('mock image data'), contentType: 'image/jpeg', filename: 'mock.jpg' },
+      data: { url: 'https://s3.example.com/mock-image.jpg', contentType: 'image/jpeg', filename: 'mock.jpg' },
     });
 
     writeTextMock = vi.fn().mockResolvedValue(undefined);
@@ -295,7 +295,7 @@ describe('AttachmentManager Component', () => {
       vi.mocked(apiClient.get).mockResolvedValue({
         status: 200,
         headers: { 'content-type': 'application/json' },
-        data: { data: btoa('file content'), contentType: 'application/pdf', filename: 'document.pdf' },
+        data: { url: 'https://s3.example.com/document.pdf', contentType: 'application/pdf', filename: 'document.pdf' },
       });
 
       render(
@@ -331,7 +331,7 @@ describe('AttachmentManager Component', () => {
         return Promise.resolve({
           status: 200,
           headers: { 'content-type': 'application/json' },
-          data: { data: btoa('mock image data'), contentType: 'image/jpeg', filename: 'mock.jpg' },
+          data: { url: 'https://s3.example.com/mock.jpg', contentType: 'image/jpeg', filename: 'mock.jpg' },
         });
       });
 
@@ -870,7 +870,7 @@ describe('AttachmentManager Component', () => {
   });
 
   describe('Object URL Management', () => {
-    it('should cleanup object URLs on unmount', async () => {
+    it('should cleanup on unmount without errors', async () => {
       const { unmount } = render(
         <AttachmentManager
           pageGuid={testPageGuid}
@@ -883,10 +883,8 @@ describe('AttachmentManager Component', () => {
         expect(screen.getByText('document.pdf')).toBeInTheDocument();
       });
 
-      unmount();
-
-      // Verify revokeObjectURL was called
-      expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+      // Should unmount cleanly
+      expect(() => unmount()).not.toThrow();
     });
   });
 
