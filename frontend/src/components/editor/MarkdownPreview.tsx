@@ -1,11 +1,84 @@
-import React, { useMemo, useCallback, useRef } from 'react';
+import React, { useMemo, useCallback, useRef, useEffect, useState, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
+import mermaid from 'mermaid';
 import remarkWikiLinks from '../../plugins/remarkWikiLinks';
 import apiClient from '../../config/api';
 import './markdown-preview.css';
+
+// Initialize mermaid with default config
+mermaid.initialize({
+  startOnLoad: false,
+  securityLevel: 'strict',
+});
+
+/**
+ * Component that renders a Mermaid diagram from source text.
+ * Each instance gets a unique ID for mermaid's render call.
+ */
+const MermaidDiagram: React.FC<{ chart: string }> = ({ chart }) => {
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const id = useId().replace(/:/g, '_');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const renderChart = async () => {
+      try {
+        // Detect dark mode and set mermaid theme accordingly
+        const isDark = document.documentElement.classList.contains('dark');
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: isDark ? 'dark' : 'default',
+        });
+        const { svg: renderedSvg } = await mermaid.render(`mermaid-${id}`, chart);
+        if (!cancelled) {
+          setSvg(renderedSvg);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to render diagram');
+          setSvg('');
+        }
+      }
+    };
+
+    renderChart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chart, id]);
+
+  if (error) {
+    return (
+      <pre className="my-4 p-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm overflow-x-auto">
+        <code>{chart}</code>
+        <div className="mt-2 text-xs">Mermaid error: {error}</div>
+      </pre>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className="my-4 p-4 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-sm">
+        Rendering diagram...
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="my-4 flex justify-center overflow-x-auto"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+};
 
 interface MarkdownPreviewProps {
   content: string;
@@ -281,9 +354,26 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               </li>
             );
           },
+          // Skip <pre> wrapper for mermaid diagrams (MermaidDiagram handles its own container)
+          pre: ({ children }: MarkdownComponentProps<'pre'>) => {
+            // Check if the child is a mermaid code block
+            const child = React.Children.toArray(children)[0];
+            if (React.isValidElement(child) && (child.props as Record<string, unknown>).className?.toString().includes('language-mermaid')) {
+              return <>{children}</>;
+            }
+            return <>{children}</>;
+          },
           // Style code blocks (syntax highlighting handled by rehype-highlight)
+          // Mermaid code blocks are rendered as interactive diagrams
           code: ({ className, children, ...props }: MarkdownComponentProps<'code'>) => {
             const inline = !className;
+            const isMermaid = className?.includes('language-mermaid');
+
+            if (isMermaid) {
+              const chart = String(children).replace(/\n$/, '');
+              return <MermaidDiagram chart={chart} />;
+            }
+
             return inline ? (
               <code
                 {...props}
