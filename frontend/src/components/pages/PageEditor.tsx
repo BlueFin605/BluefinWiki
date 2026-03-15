@@ -1,12 +1,8 @@
 /**
  * PageEditor Component
- * 
+ *
  * Integrates the editor with backend APIs for loading and saving pages.
- * Features:
- * - Load page content on mount
- * - Manual save with simple error handling
- * - Loading states
- * - WARNING: Changing pages discards unsaved changes
+ * Preserves unsaved edits when navigating between pages (in-memory drafts).
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -14,8 +10,8 @@ import { EditorPane } from '../editor/EditorPane';
 import { PageMetadata } from '../editor/PagePropertiesPanel';
 import { usePageDetail, useUpdatePage, useBacklinks } from '../../hooks/usePages';
 import { UpdatePageRequest } from '../../types/page';
-import { LinkedPagesPanel } from './LinkedPagesPanel';
 import { useAuth } from '../../contexts/AuthContext';
+import { getDraft, saveDraft, clearDraft } from '../../stores/draftsStore';
 
 interface PageEditorProps {
   pageGuid: string;
@@ -23,15 +19,29 @@ interface PageEditorProps {
   onNavigateToPage?: (guid: string) => void;
 }
 
+function metadataFromPage(page: {
+  title: string; tags: string[]; status: 'draft' | 'published' | 'archived';
+  createdBy: string; modifiedBy: string;
+  createdAt: string; modifiedAt: string; guid: string;
+}): PageMetadata {
+  return {
+    title: page.title,
+    tags: page.tags,
+    status: page.status,
+    createdBy: page.createdBy,
+    modifiedBy: page.modifiedBy,
+    createdAt: page.createdAt,
+    modifiedAt: page.modifiedAt,
+    guid: page.guid,
+  };
+}
+
 export const PageEditor: React.FC<PageEditorProps> = ({
   pageGuid,
   onNavigateToPage,
 }) => {
   const { user } = useAuth();
-  const [content, setContent] = useState('');
-  const [metadata, setMetadata] = useState<PageMetadata | undefined>();
   const [saveError, setSaveError] = useState<string | null>(null);
-  const lastLoadedPageGuidRef = useRef<string | undefined>();
 
   // Fetch page details
   const { data: pageData, isLoading, error, refetch } = usePageDetail(pageGuid);
@@ -44,78 +54,80 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   // Update page mutation
   const updatePage = useUpdatePage(pageGuid);
 
-  // Load page content when data is fetched or page changes
-  useEffect(() => {
-    if (pageData && pageData.guid === pageGuid) {
-      // Always update content when pageData changes (including fresh data from API)
-      // WARNING: This discards any unsaved changes
-      setContent(pageData.content);
-      lastLoadedPageGuidRef.current = pageGuid;
-      
-      // Always update metadata
-      setMetadata({
-        title: pageData.title,
-        tags: pageData.tags,
-        status: pageData.status,
-        createdBy: pageData.createdBy,
-        modifiedBy: pageData.modifiedBy,
-        createdAt: pageData.createdAt,
-        modifiedAt: pageData.modifiedAt,
-        guid: pageData.guid,
-      });
-      setSaveError(null);
-    }
-  }, [pageData, pageGuid]);
+  // Resolve initial content: draft takes priority over server data.
+  // Computed synchronously during render — no effect timing issues.
+  const draft = pageData?.guid === pageGuid ? getDraft(pageGuid) : undefined;
+  const serverMeta = pageData?.guid === pageGuid ? metadataFromPage(pageData) : undefined;
 
-  // Handle content changes
+  const resolvedContent = draft?.content ?? pageData?.content ?? '';
+  const resolvedMetadata = draft?.metadata ?? serverMeta;
+  const serverContent = pageData?.content ?? '';
+
+  // Metadata state — needs to be state (not just a ref) so changes re-render
+  // EditorPane for dirty detection and property panel display.
+  const [metadata, setMetadata] = useState<PageMetadata | undefined>(resolvedMetadata);
+
+  // Track current editing state via refs so the stash cleanup always has latest values
+  const contentRef = useRef(resolvedContent);
+  const metadataRef = useRef(metadata);
+  metadataRef.current = metadata;
+
   const handleContentChange = useCallback((newContent: string) => {
-    setContent(newContent);
+    contentRef.current = newContent;
   }, []);
 
-  // Handle metadata changes
   const handleMetadataChange = useCallback((changes: Partial<PageMetadata>) => {
     setMetadata(prev => prev ? { ...prev, ...changes } : undefined);
   }, []);
 
-  // Simple save function
+  // Stash edits when navigating away from a page
+  useEffect(() => {
+    return () => {
+      if (pageGuid && metadataRef.current) {
+        saveDraft(pageGuid, {
+          content: contentRef.current,
+          metadata: metadataRef.current,
+        });
+      }
+    };
+  }, [pageGuid]);
+
+  // Sync refs and metadata state when a new page's data arrives (runs AFTER
+  // stash cleanup, so the old page's content is safely stashed first).
+  const syncedGuidRef = useRef<string>();
+  useEffect(() => {
+    if (syncedGuidRef.current === pageGuid) return;
+    if (!pageData || pageData.guid !== pageGuid) return;
+    contentRef.current = resolvedContent;
+    setMetadata(resolvedMetadata);
+    syncedGuidRef.current = pageGuid;
+  }, [pageGuid, pageData, resolvedContent, resolvedMetadata]);
+
+  // Save function
   const handleSave = useCallback(async () => {
-    if (!metadata) {
-      return;
-    }
+    const meta = metadataRef.current;
+    const content = contentRef.current;
+    if (!meta) return;
 
     const updateRequest: UpdatePageRequest = {
       content,
-      title: metadata.title,
-      tags: metadata.tags,
-      status: metadata.status,
+      title: meta.title,
+      tags: meta.tags,
+      status: meta.status,
     };
 
     try {
-      const updatedPage = await updatePage.mutateAsync(updateRequest);
-      
-      // Update metadata with server response
-      if (updatedPage) {
-        setMetadata({
-          title: updatedPage.title,
-          tags: updatedPage.tags,
-          status: updatedPage.status,
-          createdBy: updatedPage.createdBy,
-          modifiedBy: updatedPage.modifiedBy,
-          createdAt: updatedPage.createdAt,
-          modifiedAt: updatedPage.modifiedAt,
-          guid: updatedPage.guid,
-        });
-      }
-      
+      await updatePage.mutateAsync(updateRequest);
+      clearDraft(pageGuid);
       setSaveError(null);
+      // Refetch to get server-confirmed data
+      refetch();
     } catch (error: unknown) {
-      // Display error message
       const err = error as { response?: { data?: { message?: string } } };
       setSaveError(err.response?.data?.message || 'Failed to save page. Please try again.');
     }
-  }, [content, metadata, updatePage]);
+  }, [updatePage, pageGuid, refetch]);
 
-  // Render loading skeleton
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -127,7 +139,6 @@ export const PageEditor: React.FC<PageEditorProps> = ({
     );
   }
 
-  // Render error state
   if (error) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -150,68 +161,51 @@ export const PageEditor: React.FC<PageEditorProps> = ({
     );
   }
 
-  // Render editor
   return (
-    <div className="h-full flex">
-      {/* Main editor area */}
-      <div className="flex-1 flex flex-col">
-        {/* Error banner */}
-        {saveError && (
-          <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm font-medium text-red-800 dark:text-red-200">{saveError}</span>
-              </div>
-              <button
-                onClick={() => setSaveError(null)}
-                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
-                aria-label="Dismiss"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
+    <div className="h-full flex flex-col">
+      {saveError && (
+        <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm font-medium text-red-800 dark:text-red-200">{saveError}</span>
             </div>
+            <button
+              onClick={() => setSaveError(null)}
+              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
           </div>
-        )}
-
-        {/* Editor pane */}
-        <div className="flex-1 overflow-hidden">
-          <EditorPane
-            initialContent={content}
-            onContentChange={handleContentChange}
-            onSave={handleSave}
-            editable={true}
-            showPreview={true}
-            metadata={metadata}
-            onMetadataChange={handleMetadataChange}
-            showPropertiesPanel={true}
-            pageGuid={pageGuid}
-            isSaving={updatePage.isPending}
-            currentUserId={user?.userId}
-            currentUserRole={user?.role}
-            pageAuthorId={metadata?.createdBy}
-          />
         </div>
-      </div>
+      )}
 
-      {/* Linked Pages Sidebar */}
-      <div className="w-80 flex-shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-700">
-        <div className="h-full min-h-0">
-          <LinkedPagesPanel
-            pageGuid={pageGuid}
-            backlinks={backlinksData?.backlinks || []}
-            isLoading={backlinksLoading}
-            onPageClick={(guid) => {
-              if (onNavigateToPage) {
-                onNavigateToPage(guid);
-              }
-            }}
-          />
-        </div>
+      <div className="flex-1 overflow-hidden">
+        <EditorPane
+          key={pageGuid}
+          initialContent={serverContent}
+          draftContent={draft ? draft.content : undefined}
+          onContentChange={handleContentChange}
+          onSave={handleSave}
+          editable={true}
+          showPreview={true}
+          metadata={metadata}
+          serverMetadata={serverMeta}
+          onMetadataChange={handleMetadataChange}
+          pageGuid={pageGuid}
+          isSaving={updatePage.isPending}
+          currentUserId={user?.userId}
+          currentUserRole={user?.role}
+          pageAuthorId={metadata?.createdBy}
+          backlinks={backlinksData?.backlinks || []}
+          backlinksLoading={backlinksLoading}
+          onPageClick={onNavigateToPage}
+        />
       </div>
     </div>
   );

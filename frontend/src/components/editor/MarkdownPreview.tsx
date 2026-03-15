@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -29,7 +29,7 @@ const AsyncImage: React.FC<{
   alt?: string;
   fetchImageBlobUrl: (url: string) => Promise<string>;
   [key: string]: unknown;
-}> = ({ apiUrl, alt, fetchImageBlobUrl, ...props }) => {
+}> = ({ apiUrl, alt, fetchImageBlobUrl }) => {
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
   const [error, setError] = React.useState<boolean>(false);
 
@@ -74,15 +74,11 @@ const AsyncImage: React.FC<{
 
   return (
     <img
-      {...props}
       src={blobUrl}
       alt={alt}
       className="max-w-full h-auto rounded-md shadow-md my-4"
-      onError={() => {
-        setError(true);
-        console.error('❌ Image blob failed to render:', apiUrl);
-      }}
-      onLoad={() => console.log('✅ Image blob loaded:', apiUrl)}
+      onError={() => setError(true)}
+      onLoad={() => console.log('✅ Image loaded:', apiUrl)}
     />
   );
 };
@@ -104,28 +100,20 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   onBrokenLinkClick,
   pageGuid,
 }) => {
-  const [imageBlobUrls, setImageBlobUrls] = useState<Record<string, string>>({});
-  const blobUrlRegistry = useRef<Set<string>>(new Set());
+  // Use a ref for the URL cache so the callback reference stays stable
+  // and doesn't trigger useMemo/re-render cycles
+  const imageUrlCache = useRef<Record<string, string>>({});
 
-  // Fetch image via axios and convert to blob URL
   const fetchImageBlobUrl = useCallback(async (apiUrl: string): Promise<string> => {
-    if (imageBlobUrls[apiUrl]) {
-      return imageBlobUrls[apiUrl];
+    if (imageUrlCache.current[apiUrl]) {
+      return imageUrlCache.current[apiUrl];
     }
 
-    try {
-      console.log(`🔄 Fetching image blob: ${apiUrl}`);
-      const response = await apiClient.get(apiUrl, { responseType: 'blob' });
-      const blobUrl = URL.createObjectURL(response.data);
-      blobUrlRegistry.current.add(blobUrl);
-      console.log(`✅ Created blob URL: ${blobUrl.substring(0, 50)}...`);
-      setImageBlobUrls((prev) => ({ ...prev, [apiUrl]: blobUrl }));
-      return blobUrl;
-    } catch (err) {
-      console.error(`❌ Failed to fetch image: ${apiUrl}`, err);
-      throw err;
-    }
-  }, [imageBlobUrls]);
+    const response = await apiClient.get(apiUrl);
+    const downloadUrl = response.data.url;
+    imageUrlCache.current[apiUrl] = downloadUrl;
+    return downloadUrl;
+  }, []);
   // Transform attachment URLs from filename or pageGuid/filename format to full URLs
   const transformAttachmentUri = useCallback((uri: string) => {
     // Skip transformation for absolute URLs (http://, https://, etc.)
@@ -380,15 +368,6 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     );
   }, [content, transformAttachmentUri, onBrokenLinkClick, fetchImageBlobUrl]);
 
-  // Cleanup blob URLs on unmount
-  useEffect(() => {
-    return () => {
-      for (const url of blobUrlRegistry.current) {
-        URL.revokeObjectURL(url);
-      }
-      blobUrlRegistry.current.clear();
-    };
-  }, []);
 
   return (
     <div

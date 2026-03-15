@@ -83,8 +83,8 @@ describe('AttachmentManager Component', () => {
 
     vi.mocked(apiClient.get).mockResolvedValue({
       status: 200,
-      headers: { 'content-type': 'image/jpeg' },
-      data: new Blob(['mock image data']),
+      headers: { 'content-type': 'application/json' },
+      data: { url: 'https://s3.example.com/mock-image.jpg', contentType: 'image/jpeg', filename: 'mock.jpg' },
     });
 
     writeTextMock = vi.fn().mockResolvedValue(undefined);
@@ -291,12 +291,11 @@ describe('AttachmentManager Component', () => {
 
     it('should trigger download when download button is clicked', async () => {
       const user = userEvent.setup();
-      const mockBlob = new Blob(['file content']);
 
       vi.mocked(apiClient.get).mockResolvedValue({
         status: 200,
-        headers: { 'content-type': 'application/octet-stream' },
-        data: mockBlob,
+        headers: { 'content-type': 'application/json' },
+        data: { url: 'https://s3.example.com/document.pdf', contentType: 'application/pdf', filename: 'document.pdf' },
       });
 
       render(
@@ -316,8 +315,7 @@ describe('AttachmentManager Component', () => {
 
       await waitFor(() => {
         expect(apiClient.get).toHaveBeenCalledWith(
-          `/pages/${testPageGuid}/attachments/document.pdf`,
-          expect.objectContaining({ responseType: 'blob' })
+          `/pages/${testPageGuid}/attachments/document.pdf`
         );
       });
     });
@@ -332,8 +330,8 @@ describe('AttachmentManager Component', () => {
         }
         return Promise.resolve({
           status: 200,
-          headers: { 'content-type': 'image/jpeg' },
-          data: new Blob(['mock image data']),
+          headers: { 'content-type': 'application/json' },
+          data: { url: 'https://s3.example.com/mock.jpg', contentType: 'image/jpeg', filename: 'mock.jpg' },
         });
       });
 
@@ -375,8 +373,7 @@ describe('AttachmentManager Component', () => {
       // Wait for image to be loaded
       await waitFor(() => {
         expect(apiClient.get).toHaveBeenCalledWith(
-          expect.stringContaining('/attachments/family-photo.jpg'),
-          expect.any(Object)
+          expect.stringContaining('/attachments/family-photo.jpg')
         );
       });
     });
@@ -873,7 +870,7 @@ describe('AttachmentManager Component', () => {
   });
 
   describe('Object URL Management', () => {
-    it('should cleanup object URLs on unmount', async () => {
+    it('should cleanup on unmount without errors', async () => {
       const { unmount } = render(
         <AttachmentManager
           pageGuid={testPageGuid}
@@ -886,10 +883,8 @@ describe('AttachmentManager Component', () => {
         expect(screen.getByText('document.pdf')).toBeInTheDocument();
       });
 
-      unmount();
-
-      // Verify revokeObjectURL was called
-      expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+      // Should unmount cleanly
+      expect(() => unmount()).not.toThrow();
     });
   });
 

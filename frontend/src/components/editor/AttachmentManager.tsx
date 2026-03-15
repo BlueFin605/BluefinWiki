@@ -10,6 +10,8 @@ interface AttachmentManagerProps {
   pageAuthorId?: string;
   onInsertMarkdown?: (markdown: string) => void;
   className?: string;
+  /** Increment to trigger a refresh of the attachment list */
+  refreshKey?: number;
 }
 
 const IMAGE_MIME_TYPES = new Set([
@@ -52,6 +54,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   pageAuthorId,
   onInsertMarkdown,
   className,
+  refreshKey,
 }) => {
   const { listAttachments, deleteAttachment } = useAttachments(pageGuid);
 
@@ -83,25 +86,11 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   }, [pageGuid]);
 
   const fetchAttachmentBlobUrl = useCallback(async (filename: string): Promise<string> => {
-    console.log(`🔄 Fetching blob for: ${filename}`);
     try {
-      const response = await apiClient.get(downloadPathFor(filename), {
-        responseType: 'blob',
-      });
-      
-      console.log(`📦 Response received:`, {
-        status: response?.status ?? 'unknown',
-        contentType: response?.headers?.['content-type'] ?? 'unknown',
-        dataType: response?.data?.constructor?.name ?? typeof response?.data,
-        dataSize: response?.data instanceof Blob ? response.data.size : undefined,
-      });
-
-      const url = URL.createObjectURL(response.data as Blob);
-      console.log(`🔗 Created blob URL: ${url}`);
-      objectUrlRegistry.current.add(url);
-      return url;
+      const response = await apiClient.get(downloadPathFor(filename));
+      return response.data.url;
     } catch (err) {
-      console.error(`💥 Failed to fetch blob for ${filename}:`, err);
+      console.error(`Failed to fetch attachment ${filename}:`, err);
       throw err;
     }
   }, [downloadPathFor]);
@@ -169,6 +158,13 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     };
   }, [loadAttachments, retryCount]);
 
+  // Reload when parent signals a refresh (e.g., after upload)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      loadAttachments(0);
+    }
+  }, [refreshKey, loadAttachments]);
+
   useEffect(() => {
     const imageAttachments = attachments.filter((attachment) => isImageContentType(attachment.contentType));
     const missingImageFilenames = imageAttachments
@@ -226,16 +222,13 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     setActionError(null);
 
     try {
-      const response = await apiClient.get(downloadPathFor(attachment.filename), {
-        responseType: 'blob',
-      });
-
-      const blobUrl = URL.createObjectURL(response.data as Blob);
-      objectUrlRegistry.current.add(blobUrl);
+      const response = await apiClient.get(downloadPathFor(attachment.filename));
+      const { url } = response.data;
 
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = url;
       link.download = attachment.filename;
+      link.target = '_blank';
       link.click();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to download attachment';

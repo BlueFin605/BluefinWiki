@@ -524,6 +524,7 @@ namespace Infrastructure.Stacks
             {
                 RestApiName = $"bluefinwiki-api-{config.Name}",
                 Description = $"BlueFinWiki API for {config.Name} environment",
+                BinaryMediaTypes = new[] { "multipart/form-data" },
                 DeployOptions = new StageOptions
                 {
                     StageName = config.Name,
@@ -701,6 +702,21 @@ namespace Infrastructure.Stacks
                 Description = "Search pages by title (for link autocomplete)"
             });
 
+            var pagesBacklinksFunction = new LambdaFunction(this, "PagesBacklinksFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-backlinks",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-backlinks.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Get backlinks for a page"
+            });
+
             var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
             {
                 FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-upload",
@@ -831,7 +847,15 @@ namespace Infrastructure.Stacks
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
             });
-            
+
+            // GET /pages/{guid}/backlinks - Get pages that link to this page
+            var backlinksResource = pageGuidResource.AddResource("backlinks");
+            backlinksResource.AddMethod("GET", new LambdaIntegration(pagesBacklinksFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
             // GET /pages/search - Search pages by title
             var searchResource = pagesResource.AddResource("search");
             searchResource.AddMethod("GET", new LambdaIntegration(pagesSearchFunction), new MethodOptions
