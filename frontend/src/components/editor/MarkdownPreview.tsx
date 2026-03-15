@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -74,15 +74,11 @@ const AsyncImage: React.FC<{
 
   return (
     <img
-      {...props}
       src={blobUrl}
       alt={alt}
       className="max-w-full h-auto rounded-md shadow-md my-4"
-      onError={() => {
-        setError(true);
-        console.error('❌ Image blob failed to render:', apiUrl);
-      }}
-      onLoad={() => console.log('✅ Image blob loaded:', apiUrl)}
+      onError={() => setError(true)}
+      onLoad={() => console.log('✅ Image loaded:', apiUrl)}
     />
   );
 };
@@ -104,25 +100,20 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   onBrokenLinkClick,
   pageGuid,
 }) => {
-  const [imageBlobUrls, setImageBlobUrls] = useState<Record<string, string>>({});
-  const blobUrlRegistry = useRef<Set<string>>(new Set());
+  // Use a ref for the URL cache so the callback reference stays stable
+  // and doesn't trigger useMemo/re-render cycles
+  const imageUrlCache = useRef<Record<string, string>>({});
 
-  // Fetch a download URL for the attachment from the API
   const fetchImageBlobUrl = useCallback(async (apiUrl: string): Promise<string> => {
-    if (imageBlobUrls[apiUrl]) {
-      return imageBlobUrls[apiUrl];
+    if (imageUrlCache.current[apiUrl]) {
+      return imageUrlCache.current[apiUrl];
     }
 
-    try {
-      const response = await apiClient.get(apiUrl);
-      const downloadUrl = response.data.url;
-      setImageBlobUrls((prev) => ({ ...prev, [apiUrl]: downloadUrl }));
-      return downloadUrl;
-    } catch (err) {
-      console.error(`Failed to fetch attachment URL: ${apiUrl}`, err);
-      throw err;
-    }
-  }, [imageBlobUrls]);
+    const response = await apiClient.get(apiUrl);
+    const downloadUrl = response.data.url;
+    imageUrlCache.current[apiUrl] = downloadUrl;
+    return downloadUrl;
+  }, []);
   // Transform attachment URLs from filename or pageGuid/filename format to full URLs
   const transformAttachmentUri = useCallback((uri: string) => {
     // Skip transformation for absolute URLs (http://, https://, etc.)
@@ -377,15 +368,6 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     );
   }, [content, transformAttachmentUri, onBrokenLinkClick, fetchImageBlobUrl]);
 
-  // Cleanup blob URLs on unmount
-  useEffect(() => {
-    return () => {
-      for (const url of blobUrlRegistry.current) {
-        URL.revokeObjectURL(url);
-      }
-      blobUrlRegistry.current.clear();
-    };
-  }, []);
 
   return (
     <div

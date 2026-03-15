@@ -524,6 +524,7 @@ namespace Infrastructure.Stacks
             {
                 RestApiName = $"bluefinwiki-api-{config.Name}",
                 Description = $"BlueFinWiki API for {config.Name} environment",
+                BinaryMediaTypes = new[] { "multipart/form-data" },
                 DeployOptions = new StageOptions
                 {
                     StageName = config.Name,

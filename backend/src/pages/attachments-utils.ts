@@ -60,9 +60,15 @@ export function getBodyBuffer(event: APIGatewayProxyEvent): Buffer {
     throw new Error('Request body is required');
   }
 
-  return event.isBase64Encoded
-    ? Buffer.from(event.body, 'base64')
-    : Buffer.from(event.body, 'utf8');
+  if (event.isBase64Encoded) {
+    return Buffer.from(event.body, 'base64');
+  }
+
+  // API Gateway may pass binary data as a string without base64 encoding
+  // when BinaryMediaTypes is not configured. Using 'latin1' preserves all
+  // byte values (0x00-0xFF) whereas 'utf8' corrupts bytes > 0x7F by
+  // replacing them with the U+FFFD replacement character.
+  return Buffer.from(event.body, 'latin1');
 }
 
 export function parseSingleMultipartFile(bodyBuffer: Buffer, contentTypeHeader: string): ParsedMultipartFile {
