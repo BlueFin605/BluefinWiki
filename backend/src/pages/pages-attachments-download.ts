@@ -68,16 +68,14 @@ export const handler = withAuth(async (
     const rawFilename = filenameMatch?.[1]?.replace(/"/g, '')?.trim();
     const responseFilename = rawFilename && rawFilename.length > 0 ? decodeURIComponent(rawFilename) : filename;
 
-    const isInline = contentType.startsWith('image/') || contentType === 'application/pdf';
-
     return {
       statusCode: 200,
-      isBase64Encoded: true,
-      headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `${isInline ? 'inline' : 'attachment'}; filename="${responseFilename}"`,
-      },
-      body: buffer.toString('base64'),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: buffer.toString('base64'),
+        contentType,
+        filename: responseFilename,
+      }),
     };
   } catch (err: unknown) {
     console.error('Error downloading attachment:', err);
