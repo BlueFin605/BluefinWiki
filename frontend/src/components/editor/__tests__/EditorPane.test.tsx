@@ -170,7 +170,6 @@ describe('EditorPane', () => {
     });
 
     it('should switch to preview-only mode', async () => {
-      const user = userEvent.setup();
       renderWithRouter(<EditorPane showPreview={true} initialContent="# Test" />);
 
       // Already in preview mode by default, but verify
