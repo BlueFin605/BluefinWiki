@@ -19,7 +19,10 @@
       "Read(//tmp/**)",
       "Bash(powershell.exe -Command \"Compress-Archive -Path ''C:\\\\Users\\\\mitch\\\\Development\\\\Projects\\\\SpecKit\\\\projects\\\\BlueFinWiki\\\\backend\\\\dist\\\\*'' -DestinationPath ''C:\\\\Users\\\\mitch\\\\AppData\\\\Local\\\\Temp\\\\lambda-code.zip'' -Force\")",
       "Read(//c/Users/mitch/AppData/Local/Temp/**)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(MSYS_NO_PATHCONV=1 aws apigateway get-rest-apis --region ap-southeast-2 --query \"items[?name=='bluefinwiki-api-production'].id\" --output text 2>&1)"
     ]
   }
 }

@@ -60,17 +60,24 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
     }
   }, [editable]);
 
+  const handleTitleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setTitleValue(newValue);
+    if (newValue.trim()) {
+      onMetadataChange({ title: newValue.trim() });
+      if (onTitleChange) {
+        onTitleChange(newValue.trim());
+      }
+    }
+  }, [onMetadataChange, onTitleChange]);
+
   const handleTitleSave = useCallback(() => {
     setIsEditingTitle(false);
-    if (titleValue.trim() && titleValue !== metadata.title) {
-      if (onTitleChange) {
-        onTitleChange(titleValue.trim());
-      }
-      onMetadataChange({ title: titleValue.trim() });
-    } else {
+    if (!titleValue.trim()) {
       setTitleValue(metadata.title); // Reset if empty
+      onMetadataChange({ title: metadata.title });
     }
-  }, [titleValue, metadata.title, onTitleChange, onMetadataChange]);
+  }, [titleValue, metadata.title, onMetadataChange]);
 
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -160,7 +167,7 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
             id="page-title-input"
             type="text"
             value={titleValue}
-            onChange={(e) => setTitleValue(e.target.value)}
+            onChange={handleTitleInputChange}
             onBlur={handleTitleSave}
             onKeyDown={handleTitleKeyDown}
             className="w-full px-3 py-2 border border-blue-500 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"

@@ -25,7 +25,7 @@ export const LinkedPagesPanel: React.FC<LinkedPagesPanelProps> = ({
   onPageClick,
 }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col h-full">
+    <div className="bg-white dark:bg-gray-800 flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
