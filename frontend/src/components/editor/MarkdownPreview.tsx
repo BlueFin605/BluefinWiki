@@ -319,18 +319,14 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               );
             }
 
-            // External link styling
+            // External link — open in new tab
             return (
               <a
                 {...props}
                 href={href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  // In preview mode, links are disabled
-                  console.log('External link clicked (disabled in preview):', href);
-                }}
-                className="text-blue-600 dark:text-blue-400 underline cursor-not-allowed"
-                title="Links are disabled in preview mode"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
               >
                 {children}
               </a>
