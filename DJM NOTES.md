@@ -46,3 +46,9 @@ node import-seed-data.js --source ./seed-snapshots/2026-03-03
 ### deploy infrastrurcture
 cd infrastructure
 cdk deploy --context environment=production --all --require-approval never
+
+cdk deploy BlueFinWiki-production \
+    -c environment=production \
+    -c domainName=wiki.bluefin605.com \
+    -c certificateArnUsEast1=arn:aws:acm:us-east-1:ACCOUNT:certificate/XXXX \
+    -c certificateArnRegional=arn:aws:acm:ap-southeast-2:ACCOUNT:certificate/YYYY
