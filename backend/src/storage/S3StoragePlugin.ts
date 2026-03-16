@@ -541,7 +541,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       if (hasChildPages && !recursive) {
         throw this.createError(
-          'Cannot delete page with children. Use recursive=true to delete all children.',
+          'This page has child pages. Please delete or move the child pages first.',
           'HAS_CHILDREN',
           400
         );
