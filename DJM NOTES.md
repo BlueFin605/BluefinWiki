@@ -43,6 +43,39 @@ node import-seed-data.js --source ./seed-snapshots/2026-03-03
 -- .\manage-seed-data.ps1 -Action import -Source "seed-snaps
 
 
-### deploy infrastrurcture
+### Deploy Infrastructure
+
+All commands run from the `infrastructure` directory:
+```
 cd infrastructure
+```
+
+#### Preview changes first
+```
+cdk diff --context environment=production
+```
+
+#### Deploy (all stacks)
+```
 cdk deploy --context environment=production --all --require-approval never
+```
+
+#### Deploy production with custom domain (wiki.bluefin605.com)
+Option 1 - Use the deploy script (handles certificate lookup automatically):
+```powershell
+.\deploy-production.ps1
+```
+
+Option 2 - Manual deploy with cert ARNs:
+```
+cdk deploy BlueFinWiki-production \
+    -c environment=production \
+    -c domainName=wiki.bluefin605.com \
+    -c certificateArnUsEast1=arn:aws:acm:us-east-1:ACCOUNT:certificate/XXXX \
+    -c certificateArnRegional=arn:aws:acm:ap-southeast-2:ACCOUNT:certificate/YYYY
+```
+
+#### Deploy dev environment
+```
+cdk deploy --context environment=dev --all
+```

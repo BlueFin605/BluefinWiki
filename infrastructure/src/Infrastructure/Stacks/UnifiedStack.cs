@@ -1,4 +1,5 @@
 using Amazon.CDK;
+using Amazon.CDK.AWS.CertificateManager;
 using Amazon.CDK.AWS.Cognito;
 using Amazon.CDK.AWS.CloudFront;
 using Amazon.CDK.AWS.CloudFront.Origins;
@@ -191,12 +192,22 @@ namespace Infrastructure.Stacks
                 DeletionProtection = config.IsProd
             });
             
+            // Supported identity providers for the Web Client
+            var supportedProviders = new List<UserPoolClientIdentityProvider>
+            {
+                UserPoolClientIdentityProvider.COGNITO
+            };
+            if (config.EnableGoogleLogin)
+            {
+                supportedProviders.Add(UserPoolClientIdentityProvider.GOOGLE);
+            }
+
             // Create Web Client (for React SPA)
             WebClient = new UserPoolClient(this, "WebClient", new UserPoolClientProps
             {
                 UserPool = UserPool,
                 UserPoolClientName = $"bluefinwiki-web-{config.Name}",
-                
+
                 // OAuth flows
                 AuthFlows = new AuthFlow
                 {
@@ -205,7 +216,7 @@ namespace Infrastructure.Stacks
                     Custom = false,
                     AdminUserPassword = true // For admin operations
                 },
-                
+
                 // OAuth 2.0 grants
                 OAuth = new OAuthSettings
                 {
@@ -223,25 +234,56 @@ namespace Infrastructure.Stacks
                     CallbackUrls = GetCallbackUrls(config),
                     LogoutUrls = GetLogoutUrls(config)
                 },
-                
+
+                SupportedIdentityProviders = supportedProviders.ToArray(),
+
                 // Token validity
                 AccessTokenValidity = Duration.Hours(1),
                 IdTokenValidity = Duration.Hours(1),
                 RefreshTokenValidity = Duration.Days(30),
-                
+
                 // Prevent user existence errors
                 PreventUserExistenceErrors = true,
-                
+
                 // Enable token revocation
                 EnableTokenRevocation = true
             });
 
-            var hostedUiDomainPrefix = GetHostedUiDomainPrefix(config);
-            var userPoolDomain = new CfnUserPoolDomain(this, "UserPoolDomain", new CfnUserPoolDomainProps
+            // Cognito domain — use custom domain if configured, otherwise prefix-based
+            CfnUserPoolDomain userPoolDomain;
+            string cognitoDomainValue;
+
+            // Cognito custom domain requires the parent domain to have a DNS A record first.
+            // Phase 1: deploy with prefix domain, set up DNS, then Phase 2: switch to custom domain.
+            // Set enableCognitoCustomDomain context to "true" for Phase 2.
+            var enableCognitoCustomDomain = config.EnableCognitoCustomDomain
+                && !string.IsNullOrWhiteSpace(config.CertificateArnUsEast1)
+                && !string.IsNullOrWhiteSpace(config.DomainName);
+
+            if (enableCognitoCustomDomain)
             {
-                UserPoolId = UserPool.UserPoolId,
-                Domain = hostedUiDomainPrefix
-            });
+                var authDomain = $"auth.{config.DomainName}";
+                userPoolDomain = new CfnUserPoolDomain(this, "UserPoolCustomDomain", new CfnUserPoolDomainProps
+                {
+                    UserPoolId = UserPool.UserPoolId,
+                    Domain = authDomain,
+                    CustomDomainConfig = new CfnUserPoolDomain.CustomDomainConfigTypeProperty
+                    {
+                        CertificateArn = config.CertificateArnUsEast1
+                    }
+                });
+                cognitoDomainValue = authDomain;
+            }
+            else
+            {
+                var hostedUiDomainPrefix = GetHostedUiDomainPrefix(config);
+                userPoolDomain = new CfnUserPoolDomain(this, "UserPoolDomain", new CfnUserPoolDomainProps
+                {
+                    UserPoolId = UserPool.UserPoolId,
+                    Domain = hostedUiDomainPrefix
+                });
+                cognitoDomainValue = hostedUiDomainPrefix;
+            }
             
             // Create Native Client (for future mobile apps)
             NativeClient = new UserPoolClient(this, "NativeClient", new UserPoolClientProps
@@ -352,10 +394,141 @@ namespace Infrastructure.Stacks
 
             new CfnOutput(this, "CognitoDomainPrefix", new CfnOutputProps
             {
-                Value = userPoolDomain.Domain,
-                Description = "Cognito Hosted UI domain prefix",
+                Value = cognitoDomainValue,
+                Description = "Cognito domain (custom or prefix)",
                 ExportName = $"{config.Name}-cognito-domain-prefix"
             });
+
+            // =============================================================================
+            // COGNITO LAMBDA TRIGGERS
+            // =============================================================================
+
+            // Note: COGNITO_USER_POOL_ID is not included here to avoid circular dependency.
+            // Trigger Lambdas receive the userPoolId in the event object instead.
+            var triggerEnvVars = new Dictionary<string, string>
+            {
+                { "USER_PROFILES_TABLE", UserProfilesTable.TableName },
+                { "ACTIVITY_LOG_TABLE", ActivityLogTable.TableName },
+                { "INVITATIONS_TABLE", InvitationsTable.TableName },
+                { "ENVIRONMENT", config.Name }
+            };
+
+            // IAM role for trigger Lambdas (needs Cognito admin + DynamoDB access)
+            var triggerRole = new Role(this, "CognitoTriggerRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
+                }
+            });
+
+            UserProfilesTable.GrantReadWriteData(triggerRole);
+            ActivityLogTable.GrantReadWriteData(triggerRole);
+            InvitationsTable.GrantReadData(triggerRole);
+
+            // Pre Sign-Up trigger — links federated identities to existing users
+            var preSignUpFunction = new LambdaFunction(this, "PreSignUpFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-pre-signup",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-pre-signup.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Pre Sign-Up needs Cognito admin permissions to list users and link providers
+            preSignUpFunction.AddToRolePolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Actions = new[] {
+                    "cognito-idp:ListUsers",
+                    "cognito-idp:AdminLinkProviderForUser"
+                },
+                Resources = new[] { UserPool.UserPoolArn }
+            }));
+
+            // Post Confirmation trigger — activates user profile
+            var postConfirmationFunction = new LambdaFunction(this, "PostConfirmationFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-post-confirmation",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-post-confirmation.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Pre Token Generation trigger — adds custom claims to JWT
+            var preTokenGenFunction = new LambdaFunction(this, "PreTokenGenFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-pre-token-gen",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-pre-token-generation.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Custom Message trigger — customizes email templates
+            var customMessageFunction = new LambdaFunction(this, "CustomMessageFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-custom-message",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-custom-message.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Trigger wiring is done by the deploy script after CDK deploy,
+            // because wiring them in CloudFormation creates circular dependencies
+            // (UserPool ↔ Lambda ↔ API Gateway ↔ Cognito Authorizer ↔ UserPool).
+            // The deploy script calls `aws cognito-idp update-user-pool` to attach triggers
+            // and `aws lambda add-permission` to grant invoke permissions.
+
+            // =============================================================================
+            // GOOGLE IDENTITY PROVIDER
+            // Optional — reads credentials from Secrets Manager secret:
+            //   bluefinwiki/{environment}/google-oauth
+            // with JSON keys: { "clientId": "...", "clientSecret": "..." }
+            // Create the secret manually, then CDK picks it up automatically.
+            // =============================================================================
+
+            if (config.EnableGoogleLogin)
+            {
+                var googleSecretName = $"bluefinwiki/{config.Name}/google-oauth";
+                var googleSecret = Secret.FromSecretNameV2(this, "GoogleOAuthSecret", googleSecretName);
+
+                var googleProvider = new UserPoolIdentityProviderGoogle(this, "GoogleProvider", new UserPoolIdentityProviderGoogleProps
+                {
+                    UserPool = UserPool,
+                    ClientId = googleSecret.SecretValueFromJson("clientId").UnsafeUnwrap(),
+                    ClientSecretValue = googleSecret.SecretValueFromJson("clientSecret"),
+                    Scopes = new[] { "openid", "email", "profile" },
+                    AttributeMapping = new AttributeMapping
+                    {
+                        Email = ProviderAttribute.GOOGLE_EMAIL,
+                        GivenName = ProviderAttribute.GOOGLE_GIVEN_NAME,
+                        FamilyName = ProviderAttribute.GOOGLE_FAMILY_NAME
+                    }
+                });
+
+                // WebClient must wait for GoogleProvider to exist before listing it
+                // as a supported identity provider. Use L1 dependency to avoid
+                // pulling the entire construct tree into the dependency chain.
+                var cfnWebClient = (CfnUserPoolClient)WebClient.Node.DefaultChild;
+                var cfnGoogleProvider = (CfnUserPoolIdentityProvider)googleProvider.Node.DefaultChild;
+                cfnWebClient.AddDependency(cfnGoogleProvider);
+            }
             
             new CfnOutput(this, "IdentityPoolId", new CfnOutputProps
             {
@@ -542,6 +715,35 @@ namespace Infrastructure.Stacks
                     AllowCredentials = true
                 }
             });
+
+            // API Gateway custom domain
+            if (!string.IsNullOrWhiteSpace(config.CertificateArnRegional) && !string.IsNullOrWhiteSpace(config.DomainName))
+            {
+                var apiDomainName = $"api.{config.DomainName}";
+                var regionalCert = Certificate.FromCertificateArn(this, "ApiRegionalCert", config.CertificateArnRegional);
+
+                var customDomain = Api.AddDomainName("ApiCustomDomain", new DomainNameOptions
+                {
+                    DomainName = apiDomainName,
+                    Certificate = regionalCert,
+                    EndpointType = EndpointType.REGIONAL,
+                    SecurityPolicy = Amazon.CDK.AWS.APIGateway.SecurityPolicy.TLS_1_2
+                });
+
+                new CfnOutput(this, "ApiCustomDomainTarget", new CfnOutputProps
+                {
+                    Value = customDomain.DomainNameAliasDomainName,
+                    Description = "API Gateway custom domain target (create CNAME to this)",
+                    ExportName = $"{config.Name}-api-custom-domain-target"
+                });
+
+                new CfnOutput(this, "ApiCustomDomainName", new CfnOutputProps
+                {
+                    Value = apiDomainName,
+                    Description = "API custom domain name",
+                    ExportName = $"{config.Name}-api-custom-domain"
+                });
+            }
 
             // Create IAM role for Lambda functions
             var lambdaRole = new Role(this, "LambdaExecutionRole", new RoleProps
@@ -895,9 +1097,13 @@ namespace Infrastructure.Stacks
             });
             
             // Compute Stack outputs
+            var apiUrl = !string.IsNullOrWhiteSpace(config.DomainName)
+                ? $"https://api.{config.DomainName}/"
+                : Api.UrlForPath("/");
+
             new CfnOutput(this, "ApiUrl", new CfnOutputProps
             {
-                Value = Api.UrlForPath("/"),
+                Value = apiUrl,
                 Description = "API Gateway endpoint URL",
                 ExportName = $"{config.Name}-api-url"
             });
@@ -964,18 +1170,27 @@ namespace Infrastructure.Stacks
                 MaxTtl = Duration.Seconds(0)
             });
             
+            // CloudFront certificate (must be in us-east-1)
+            ICertificate cloudfrontCert = null;
+            if (!string.IsNullOrWhiteSpace(config.CertificateArnUsEast1) && !string.IsNullOrWhiteSpace(config.DomainName))
+            {
+                cloudfrontCert = Certificate.FromCertificateArn(this, "CloudFrontCert", config.CertificateArnUsEast1);
+            }
+
             // CloudFront distribution
             Distribution = new CloudFrontDistribution(this, "FrontendDistribution", new DistributionProps
             {
                 Comment = $"BlueFinWiki frontend distribution for {config.Name}",
                 DefaultRootObject = "index.html",
-                PriceClass = config.CloudFrontPriceClass == "PriceClass_100" 
-                    ? PriceClass.PRICE_CLASS_100 
+                PriceClass = config.CloudFrontPriceClass == "PriceClass_100"
+                    ? PriceClass.PRICE_CLASS_100
                     : PriceClass.PRICE_CLASS_200,
                 EnableLogging = config.IsProd,
                 HttpVersion = HttpVersion.HTTP2_AND_3,
                 MinimumProtocolVersion = SecurityPolicyProtocol.TLS_V1_2_2021,
-                
+                DomainNames = cloudfrontCert != null ? new[] { config.DomainName } : null,
+                Certificate = cloudfrontCert,
+
                 DefaultBehavior = new BehaviorOptions
                 {
                     Origin = S3BucketOrigin.WithOriginAccessIdentity(FrontendBucket, new S3BucketOriginWithOAIProps
@@ -1082,6 +1297,12 @@ namespace Infrastructure.Stacks
 
         private string GetFrontendBaseUrl(EnvironmentConfig config)
         {
+            // Custom domain takes priority
+            if (!string.IsNullOrWhiteSpace(config.DomainName))
+            {
+                return $"https://{config.DomainName.Trim().TrimEnd('/')}";
+            }
+
             if (!string.IsNullOrWhiteSpace(config.FrontendDomain))
             {
                 var frontendDomain = config.FrontendDomain.Trim();

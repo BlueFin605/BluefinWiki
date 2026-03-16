@@ -1,11 +1,107 @@
-import React, { useMemo, useCallback, useRef } from 'react';
+import React, { useMemo, useCallback, useRef, useEffect, useState, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
+import mermaid from 'mermaid';
 import remarkWikiLinks from '../../plugins/remarkWikiLinks';
 import apiClient from '../../config/api';
 import './markdown-preview.css';
+
+// Initialize mermaid with default config
+mermaid.initialize({
+  startOnLoad: false,
+  securityLevel: 'strict',
+});
+
+/**
+ * Component that renders a Mermaid diagram from source text.
+ * Each instance gets a unique ID for mermaid's render call.
+ */
+const MermaidDiagram: React.FC<{ chart: string }> = ({ chart }) => {
+  const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const id = useId().replace(/:/g, '_');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const renderChart = async () => {
+      try {
+        // Detect dark mode and set mermaid theme accordingly
+        const isDark = document.documentElement.classList.contains('dark');
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: isDark ? 'dark' : 'default',
+        });
+        const { svg: renderedSvg } = await mermaid.render(`mermaid-${id}`, chart);
+        if (!cancelled) {
+          setSvg(renderedSvg);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to render diagram');
+          setSvg('');
+        }
+      }
+    };
+
+    renderChart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chart, id]);
+
+  if (error) {
+    return (
+      <pre className="my-4 p-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm overflow-x-auto">
+        <code>{chart}</code>
+        <div className="mt-2 text-xs">Mermaid error: {error}</div>
+      </pre>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className="my-4 p-4 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-sm">
+        Rendering diagram...
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="my-4 flex justify-center overflow-x-auto"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+};
+
+/** Convert heading text to a URL-friendly slug (matches GitHub/GFM behaviour) */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')  // remove non-word chars (except spaces & hyphens)
+    .replace(/\s+/g, '-');      // spaces → hyphens
+}
+
+/** Extract plain text from React children (handles nested elements) */
+function childrenToText(children: React.ReactNode): string {
+  return React.Children.toArray(children)
+    .map((child) => {
+      if (typeof child === 'string') return child;
+      if (typeof child === 'number') return String(child);
+      if (React.isValidElement(child) && child.props) {
+        return childrenToText((child.props as { children?: React.ReactNode }).children);
+      }
+      return '';
+    })
+    .join('');
+}
 
 interface MarkdownPreviewProps {
   content: string;
@@ -121,6 +217,11 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       return uri;
     }
 
+    // Skip transformation for anchor links (e.g. #heading-slug)
+    if (uri.startsWith('#')) {
+      return uri;
+    }
+
     // Check if this is a bare filename (no slashes or protocol)
     // Use current pageGuid from context
     if (!uri.includes('/') && pageGuid) {
@@ -197,51 +298,68 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               );
             }
             
-            // External link styling
+            // Anchor link — scroll to heading within the preview
+            if (href?.startsWith('#')) {
+              return (
+                <a
+                  {...props}
+                  href={href}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const targetId = href.slice(1);
+                    const el = document.getElementById(targetId);
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
+                >
+                  {children}
+                </a>
+              );
+            }
+
+            // External link — open in new tab
             return (
               <a
                 {...props}
                 href={href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  // In preview mode, links are disabled
-                  console.log('External link clicked (disabled in preview):', href);
-                }}
-                className="text-blue-600 dark:text-blue-400 underline cursor-not-allowed"
-                title="Links are disabled in preview mode"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer"
               >
                 {children}
               </a>
             );
           },
-          // Style headings
+          // Style headings (with id slugs for anchor links)
           h1: ({ children, ...props }: MarkdownComponentProps<'h1'>) => (
-            <h1 {...props} className="text-3xl font-bold mt-6 mb-4 text-gray-900 dark:text-gray-100">
+            <h1 {...props} id={slugify(childrenToText(children))} className="text-3xl font-bold mt-6 mb-4 text-gray-900 dark:text-gray-100">
               {children}
             </h1>
           ),
           h2: ({ children, ...props }: MarkdownComponentProps<'h2'>) => (
-            <h2 {...props} className="text-2xl font-bold mt-5 mb-3 text-gray-900 dark:text-gray-100">
+            <h2 {...props} id={slugify(childrenToText(children))} className="text-2xl font-bold mt-5 mb-3 text-gray-900 dark:text-gray-100">
               {children}
             </h2>
           ),
           h3: ({ children, ...props }: MarkdownComponentProps<'h3'>) => (
-            <h3 {...props} className="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">
+            <h3 {...props} id={slugify(childrenToText(children))} className="text-xl font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">
               {children}
             </h3>
           ),
           h4: ({ children, ...props }: MarkdownComponentProps<'h4'>) => (
-            <h4 {...props} className="text-lg font-semibold mt-3 mb-2 text-gray-900 dark:text-gray-100">
+            <h4 {...props} id={slugify(childrenToText(children))} className="text-lg font-semibold mt-3 mb-2 text-gray-900 dark:text-gray-100">
               {children}
             </h4>
           ),
           h5: ({ children, ...props }: MarkdownComponentProps<'h5'>) => (
-            <h5 {...props} className="text-base font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
+            <h5 {...props} id={slugify(childrenToText(children))} className="text-base font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
               {children}
             </h5>
           ),
           h6: ({ children, ...props }: MarkdownComponentProps<'h6'>) => (
-            <h6 {...props} className="text-sm font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
+            <h6 {...props} id={slugify(childrenToText(children))} className="text-sm font-semibold mt-2 mb-1 text-gray-900 dark:text-gray-100">
               {children}
             </h6>
           ),
@@ -281,9 +399,26 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               </li>
             );
           },
+          // Skip <pre> wrapper for mermaid diagrams (MermaidDiagram handles its own container)
+          pre: ({ children }: MarkdownComponentProps<'pre'>) => {
+            // Check if the child is a mermaid code block
+            const child = React.Children.toArray(children)[0];
+            if (React.isValidElement(child) && (child.props as Record<string, unknown>).className?.toString().includes('language-mermaid')) {
+              return <>{children}</>;
+            }
+            return <>{children}</>;
+          },
           // Style code blocks (syntax highlighting handled by rehype-highlight)
+          // Mermaid code blocks are rendered as interactive diagrams
           code: ({ className, children, ...props }: MarkdownComponentProps<'code'>) => {
             const inline = !className;
+            const isMermaid = className?.includes('language-mermaid');
+
+            if (isMermaid) {
+              const chart = String(children).replace(/\n$/, '');
+              return <MermaidDiagram chart={chart} />;
+            }
+
             return inline ? (
               <code
                 {...props}

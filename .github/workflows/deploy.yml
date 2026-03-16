@@ -188,6 +188,54 @@ jobs:
           VITE_COGNITO_REDIRECT_URI: ${{ steps.frontend_config.outputs.cognito_redirect_uri }}
         run: npm run build
 
+      - name: Deploy backend Lambdas
+        run: |
+          ENV="${{ env.DEPLOY_ENVIRONMENT }}"
+          FUNCTIONS=(
+            "bluefinwiki-${ENV}-pages-create"
+            "bluefinwiki-${ENV}-pages-get"
+            "bluefinwiki-${ENV}-pages-update"
+            "bluefinwiki-${ENV}-pages-delete"
+            "bluefinwiki-${ENV}-pages-list-children"
+            "bluefinwiki-${ENV}-pages-move"
+            "bluefinwiki-${ENV}-pages-search"
+            "bluefinwiki-${ENV}-pages-attachments-upload"
+            "bluefinwiki-${ENV}-pages-attachments-download"
+            "bluefinwiki-${ENV}-pages-attachments-list"
+            "bluefinwiki-${ENV}-pages-attachments-delete"
+            "bluefinwiki-${ENV}-auth-pre-signup"
+            "bluefinwiki-${ENV}-auth-post-confirmation"
+            "bluefinwiki-${ENV}-auth-pre-token-gen"
+            "bluefinwiki-${ENV}-auth-custom-message"
+          )
+
+          # Package the backend dist into a zip
+          cd backend/dist
+          zip -r ../../backend-lambda.zip .
+          cd ../..
+
+          FAILED=0
+          for FUNC in "${FUNCTIONS[@]}"; do
+            echo "Deploying ${FUNC}..."
+            OUTPUT=$(aws lambda update-function-code \
+              --function-name "${FUNC}" \
+              --zip-file fileb://backend-lambda.zip \
+              --publish 2>&1) && {
+              echo "  ✓ ${FUNC}"
+            } || {
+              echo "  ✗ ${FUNC} - FAILED"
+              echo "    ${OUTPUT}"
+              FAILED=1
+            }
+          done
+
+          rm backend-lambda.zip
+
+          if [ "${FAILED}" -eq 1 ]; then
+            echo "One or more Lambda deployments failed"
+            exit 1
+          fi
+
       - name: Deploy frontend to S3
         env:
           S3_BUCKET: ${{ steps.distribution.outputs.bucket_name }}
@@ -226,3 +274,4 @@ jobs:
           echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
           echo "**S3 Bucket:** ${{ steps.distribution.outputs.bucket_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Distribution ID:** ${{ steps.distribution.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Lambda Functions:** 12 (bluefinwiki-${{ env.DEPLOY_ENVIRONMENT }}-pages-*)" >> $GITHUB_STEP_SUMMARY

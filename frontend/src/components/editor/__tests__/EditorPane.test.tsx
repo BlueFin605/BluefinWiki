@@ -89,7 +89,7 @@ const renderWithRouter = (ui: React.ReactElement) => {
       mutations: { retry: false },
     },
   });
-  
+
   return render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>{ui}</BrowserRouter>
@@ -97,35 +97,53 @@ const renderWithRouter = (ui: React.ReactElement) => {
   );
 };
 
+/** Helper: switch to split mode so both editor and preview are visible */
+async function switchToSplit() {
+  const user = userEvent.setup();
+  const splitButton = screen.getByLabelText('Split view mode');
+  await user.click(splitButton);
+}
+
 describe('EditorPane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('Basic Rendering', () => {
-    it('should render with default props', () => {
+    it('should render with default props', async () => {
       renderWithRouter(<EditorPane />);
-      
+
+      // Default mode is preview; switch to split to see editor + toolbar
+      await switchToSplit();
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.getByTestId('markdown-toolbar')).toBeInTheDocument();
     });
 
-    it('should render with initial content', () => {
+    it('should render with initial content', async () => {
       renderWithRouter(<EditorPane initialContent="# Hello World" />);
-      
+
+      await switchToSplit();
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
 
-    it('should render in split view by default when showPreview is true', () => {
+    it('should default to preview mode when showPreview is true', () => {
       renderWithRouter(<EditorPane showPreview={true} />);
-      
+
+      // Preview visible, editor hidden
+      expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
+      expect(screen.queryByTestId('markdown-editor')).not.toBeInTheDocument();
+    });
+
+    it('should default to split mode when there is draft content', () => {
+      renderWithRouter(<EditorPane showPreview={true} draftContent="unsaved changes" />);
+
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
     });
 
     it('should not render preview when showPreview is false', () => {
       renderWithRouter(<EditorPane showPreview={false} />);
-      
+
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.queryByTestId('markdown-preview')).not.toBeInTheDocument();
     });
@@ -134,7 +152,7 @@ describe('EditorPane', () => {
   describe('View Mode Switching', () => {
     it('should show view mode buttons', () => {
       renderWithRouter(<EditorPane showPreview={true} />);
-      
+
       expect(screen.getByLabelText('Edit only mode')).toBeInTheDocument();
       expect(screen.getByLabelText('Split view mode')).toBeInTheDocument();
       expect(screen.getByLabelText('Preview only mode')).toBeInTheDocument();
@@ -143,21 +161,18 @@ describe('EditorPane', () => {
     it('should switch to edit-only mode', async () => {
       const user = userEvent.setup();
       renderWithRouter(<EditorPane showPreview={true} />);
-      
+
       const editButton = screen.getByLabelText('Edit only mode');
       await user.click(editButton);
-      
+
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.queryByTestId('markdown-preview')).not.toBeInTheDocument();
     });
 
     it('should switch to preview-only mode', async () => {
-      const user = userEvent.setup();
       renderWithRouter(<EditorPane showPreview={true} initialContent="# Test" />);
-      
-      const previewButton = screen.getByLabelText('Preview only mode');
-      await user.click(previewButton);
-      
+
+      // Already in preview mode by default, but verify
       expect(screen.queryByTestId('markdown-editor')).not.toBeInTheDocument();
       expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
     });
@@ -165,15 +180,15 @@ describe('EditorPane', () => {
     it('should switch back to split mode', async () => {
       const user = userEvent.setup();
       renderWithRouter(<EditorPane showPreview={true} />);
-      
+
       // Switch to edit mode
       const editButton = screen.getByLabelText('Edit only mode');
       await user.click(editButton);
-      
+
       // Switch back to split
       const splitButton = screen.getByLabelText('Split view mode');
       await user.click(splitButton);
-      
+
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
     });
@@ -183,19 +198,20 @@ describe('EditorPane', () => {
     it('should call onContentChange when content is edited', async () => {
       const onContentChange = vi.fn();
       renderWithRouter(<EditorPane onContentChange={onContentChange} />);
-      
+
+      await switchToSplit();
       const changeButton = screen.getByText('Change Content');
       fireEvent.click(changeButton);
-      
+
       expect(onContentChange).toHaveBeenCalledWith('new content');
     });
 
     it('should update preview when content changes', async () => {
-      renderWithRouter(<EditorPane showPreview={true} initialContent="Initial" />);
-      
+      renderWithRouter(<EditorPane showPreview={true} initialContent="Initial" draftContent="Initial" />);
+
       const changeButton = screen.getByText('Change Content');
       fireEvent.click(changeButton);
-      
+
       await waitFor(() => {
         expect(screen.getByTestId('markdown-preview')).toHaveTextContent('new content');
       });
@@ -203,32 +219,35 @@ describe('EditorPane', () => {
   });
 
   describe('Editable Mode', () => {
-    it('should be editable by default', () => {
+    it('should be editable by default', async () => {
       renderWithRouter(<EditorPane />);
-      
+
+      await switchToSplit();
       const editor = screen.getByTestId('markdown-editor');
       expect(editor).toHaveAttribute('data-editable', 'true');
     });
 
-    it('should be read-only when editable is false', () => {
+    it('should be read-only when editable is false', async () => {
       renderWithRouter(<EditorPane editable={false} />);
-      
+
+      await switchToSplit();
       const editor = screen.getByTestId('markdown-editor');
       expect(editor).toHaveAttribute('data-editable', 'false');
-      
+
       // Toolbar may not be rendered when editable is false
       const toolbar = screen.queryByTestId('markdown-toolbar');
       if (toolbar) {
         expect(toolbar).toHaveAttribute('data-disabled', 'true');
       }
-      
+
       // Component should render (autosave is enabled internally)
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
 
-    it('should render editor without autosave', () => {
+    it('should render editor without autosave', async () => {
       renderWithRouter(<EditorPane />);
-      
+
+      await switchToSplit();
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
   });
@@ -237,11 +256,12 @@ describe('EditorPane', () => {
     it('should call onSave when save is triggered', async () => {
       const onSave = vi.fn().mockResolvedValue(undefined);
       renderWithRouter(<EditorPane onSave={onSave} />);
-      
+
+      await switchToSplit();
       // Trigger content change to enable autosave
       const changeButton = screen.getByText('Change Content');
       fireEvent.click(changeButton);
-      
+
       // Note: Actual autosave trigger would require waiting for debounce
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
@@ -250,7 +270,7 @@ describe('EditorPane', () => {
   describe('Properties Panel', () => {
     it('should not show properties panel by default', () => {
       renderWithRouter(<EditorPane />);
-      
+
       expect(screen.queryByTestId('page-properties-panel')).not.toBeInTheDocument();
     });
 
@@ -307,15 +327,17 @@ describe('EditorPane', () => {
   });
 
   describe('Toolbar Integration', () => {
-    it('should render toolbar', () => {
+    it('should render toolbar', async () => {
       renderWithRouter(<EditorPane />);
-      
+
+      await switchToSplit();
       expect(screen.getByTestId('markdown-toolbar')).toBeInTheDocument();
     });
 
-    it('should disable toolbar when not editable', () => {
+    it('should disable toolbar when not editable', async () => {
       renderWithRouter(<EditorPane editable={false} />);
-      
+
+      await switchToSplit();
       // Toolbar may not be rendered when editable is false
       const toolbar = screen.queryByTestId('markdown-toolbar');
       if (toolbar) {
@@ -329,19 +351,21 @@ describe('EditorPane', () => {
     it('should handle toolbar actions', async () => {
       const user = userEvent.setup();
       renderWithRouter(<EditorPane />);
-      
+
+      await switchToSplit();
       const boldButton = screen.getByText('Bold');
       await user.click(boldButton);
-      
+
       // Toolbar action should be handled (tested via mocks)
       expect(screen.getByTestId('markdown-toolbar')).toBeInTheDocument();
     });
   });
 
   describe('Resizable Divider (Split Mode)', () => {
-    it('should render divider in split mode', () => {
+    it('should render divider in split mode', async () => {
       renderWithRouter(<EditorPane showPreview={true} />);
-      
+
+      await switchToSplit();
       // Check for split layout
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
@@ -350,26 +374,27 @@ describe('EditorPane', () => {
     it('should not render divider in edit-only mode', async () => {
       const user = userEvent.setup();
       renderWithRouter(<EditorPane showPreview={true} />);
-      
+
       const editButton = screen.getByLabelText('Edit only mode');
       await user.click(editButton);
-      
+
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.queryByTestId('markdown-preview')).not.toBeInTheDocument();
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle empty initial content', () => {
+    it('should handle empty initial content', async () => {
       renderWithRouter(<EditorPane initialContent="" />);
-      
+
+      await switchToSplit();
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
 
-    it('should handle long content', () => {
+    it('should handle long content', async () => {
       const longContent = '# Title\n\n' + 'Lorem ipsum '.repeat(1000);
-      renderWithRouter(<EditorPane initialContent={longContent} showPreview={true} />);
-      
+      renderWithRouter(<EditorPane initialContent={longContent} showPreview={true} draftContent={longContent} />);
+
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
       expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
     });
@@ -377,34 +402,34 @@ describe('EditorPane', () => {
     it('should handle rapid view mode changes', async () => {
       const user = userEvent.setup();
       renderWithRouter(<EditorPane showPreview={true} />);
-      
+
       const editButton = screen.getByLabelText('Edit only mode');
       const splitButton = screen.getByLabelText('Split view mode');
       const previewButton = screen.getByLabelText('Preview only mode');
-      
+
       await user.click(editButton);
       await user.click(splitButton);
       await user.click(previewButton);
       await user.click(editButton);
-      
+
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
   });
 
   describe('Save Status Display', () => {
-    it('should show save status when editable', () => {
+    it('should show save status when editable', async () => {
       renderWithRouter(<EditorPane editable={true} />);
-      
+
+      await switchToSplit();
       // Component should render
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
 
-    it('should show read-only status when not editable', () => {
+    it('should show read-only status when not editable', async () => {
       renderWithRouter(<EditorPane editable={false} />);
-      
+
+      await switchToSplit();
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
   });
 });
-
-
