@@ -111,6 +111,24 @@ if (-not $certRegional) {
     Write-Host "  Found: $certRegional" -ForegroundColor Green
 }
 
+# --- Google OAuth (optional) ---
+# To enable: create a Secrets Manager secret named "bluefinwiki/production/google-oauth"
+# with JSON: { "clientId": "xxx.apps.googleusercontent.com", "clientSecret": "xxx" }
+$enableGoogle = $false
+try {
+    $googleSecret = aws secretsmanager describe-secret --secret-id "bluefinwiki/$StackEnvironment/google-oauth" --region $Region 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $enableGoogle = $true
+        Write-Host ""
+        Write-Host "Google OAuth secret found in Secrets Manager — Google login enabled" -ForegroundColor Green
+    }
+} catch {}
+
+if (-not $enableGoogle) {
+    Write-Host ""
+    Write-Host "No Google OAuth secret found (create bluefinwiki/$StackEnvironment/google-oauth in Secrets Manager to enable)" -ForegroundColor Yellow
+}
+
 # --- CDK Deploy ---
 Write-Host ""
 Write-Host "=== Running CDK Deploy ===" -ForegroundColor Cyan
@@ -119,6 +137,7 @@ Write-Host "  Auth:       $AuthDomain"
 Write-Host "  API:        $ApiDomain"
 Write-Host "  Cert (CF):  $certUsEast1"
 Write-Host "  Cert (API): $certRegional"
+Write-Host "  Google:     $(if ($enableGoogle) { 'Enabled' } else { 'Disabled' })"
 Write-Host ""
 
 Push-Location $PSScriptRoot
@@ -129,10 +148,57 @@ try {
         -c certificateArnUsEast1=$certUsEast1 `
         -c certificateArnRegional=$certRegional `
         -c enableCognitoCustomDomain=true `
+        -c enableGoogleLogin=$($enableGoogle.ToString().ToLower()) `
         --require-approval broadening
 } finally {
     Pop-Location
 }
+
+# --- Wire Cognito Lambda Triggers (post-CDK, avoids circular dependency) ---
+Write-Host ""
+Write-Host "=== Wiring Cognito Lambda Triggers ===" -ForegroundColor Cyan
+
+$UserPoolId = aws cloudformation describe-stacks `
+    --stack-name "BlueFinWiki-$StackEnvironment" `
+    --region $Region `
+    --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" `
+    --output text
+
+$prefix = "bluefinwiki-$StackEnvironment"
+$triggerFunctions = @{
+    PreSignUp        = "$prefix-auth-pre-signup"
+    PostConfirmation = "$prefix-auth-post-confirmation"
+    PreTokenGeneration = "$prefix-auth-pre-token-gen"
+    CustomMessage    = "$prefix-auth-custom-message"
+}
+
+# Build the lambda-config JSON
+$lambdaConfig = @{}
+foreach ($trigger in $triggerFunctions.GetEnumerator()) {
+    $arn = aws lambda get-function --function-name $trigger.Value --region $Region --query "Configuration.FunctionArn" --output text 2>$null
+    if ($arn) {
+        $lambdaConfig[$trigger.Key] = $arn
+        # Grant Cognito permission to invoke (idempotent)
+        aws lambda add-permission `
+            --function-name $trigger.Value `
+            --statement-id "CognitoInvoke" `
+            --action "lambda:InvokeFunction" `
+            --principal "cognito-idp.amazonaws.com" `
+            --source-arn "arn:aws:cognito-idp:${Region}:083148603667:userpool/${UserPoolId}" `
+            --region $Region 2>$null
+        Write-Host "  $($trigger.Key) -> $($trigger.Value)" -ForegroundColor Green
+    } else {
+        Write-Host "  $($trigger.Key) -> NOT FOUND (skipped)" -ForegroundColor Yellow
+    }
+}
+
+$configJson = $lambdaConfig | ConvertTo-Json -Compress
+aws cognito-idp update-user-pool `
+    --user-pool-id $UserPoolId `
+    --lambda-config $configJson `
+    --region $Region 2>&1 | Out-Null
+
+Write-Host "  Triggers wired to User Pool: $UserPoolId" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=== Deploy Complete ===" -ForegroundColor Green

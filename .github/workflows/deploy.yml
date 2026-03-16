@@ -190,19 +190,23 @@ jobs:
 
       - name: Deploy backend Lambdas
         run: |
-          LAMBDA_PREFIX="bluefinwiki-${{ env.DEPLOY_ENVIRONMENT }}-pages"
+          ENV="${{ env.DEPLOY_ENVIRONMENT }}"
           FUNCTIONS=(
-            "${LAMBDA_PREFIX}-create"
-            "${LAMBDA_PREFIX}-get"
-            "${LAMBDA_PREFIX}-update"
-            "${LAMBDA_PREFIX}-delete"
-            "${LAMBDA_PREFIX}-list-children"
-            "${LAMBDA_PREFIX}-move"
-            "${LAMBDA_PREFIX}-search"
-            "${LAMBDA_PREFIX}-attachments-upload"
-            "${LAMBDA_PREFIX}-attachments-download"
-            "${LAMBDA_PREFIX}-attachments-list"
-            "${LAMBDA_PREFIX}-attachments-delete"
+            "bluefinwiki-${ENV}-pages-create"
+            "bluefinwiki-${ENV}-pages-get"
+            "bluefinwiki-${ENV}-pages-update"
+            "bluefinwiki-${ENV}-pages-delete"
+            "bluefinwiki-${ENV}-pages-list-children"
+            "bluefinwiki-${ENV}-pages-move"
+            "bluefinwiki-${ENV}-pages-search"
+            "bluefinwiki-${ENV}-pages-attachments-upload"
+            "bluefinwiki-${ENV}-pages-attachments-download"
+            "bluefinwiki-${ENV}-pages-attachments-list"
+            "bluefinwiki-${ENV}-pages-attachments-delete"
+            "bluefinwiki-${ENV}-auth-pre-signup"
+            "bluefinwiki-${ENV}-auth-post-confirmation"
+            "bluefinwiki-${ENV}-auth-pre-token-gen"
+            "bluefinwiki-${ENV}-auth-custom-message"
           )
 
           # Package the backend dist into a zip
