@@ -1255,7 +1255,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   async getAttachmentUploadUrl(
     pageGuid: string,
     filename: string,
-    contentType: string
+    contentType: string,
+    maxContentLength: number
   ): Promise<{ uploadUrl: string; attachmentKey: string }> {
     try {
       if (!this.validateGuid(pageGuid)) {
@@ -1270,6 +1271,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         Bucket: this.bucketName,
         Key: attachmentKey,
         ContentType: contentType,
+        ContentLength: maxContentLength,
       });
 
       const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 300 });
@@ -1287,6 +1289,41 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         500
       );
     }
+  }
+
+  /**
+   * Head an attachment to verify it exists and get actual size/content-type.
+   */
+  async headAttachment(
+    _pageGuid: string,
+    attachmentKey: string
+  ): Promise<{ contentLength: number; contentType: string | undefined } | null> {
+    try {
+      const response = await this.s3Client.send(new HeadObjectCommand({
+        Bucket: this.bucketName,
+        Key: attachmentKey,
+      }));
+      return {
+        contentLength: response.ContentLength ?? 0,
+        contentType: response.ContentType,
+      };
+    } catch (err: unknown) {
+      const error = err as { name?: string };
+      if (error.name === 'NotFound' || error.name === 'NoSuchKey') {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Delete an attachment by its full S3 key (for cleanup).
+   */
+  async deleteAttachmentByKey(attachmentKey: string): Promise<void> {
+    await this.s3Client.send(new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: attachmentKey,
+    }));
   }
 
   /**

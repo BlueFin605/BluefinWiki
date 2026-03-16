@@ -3,6 +3,11 @@ import { z } from 'zod';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { AttachmentMetadata } from '../types/index.js';
+import {
+  IMAGE_MIME_TYPES,
+  IMAGE_LIMIT_BYTES,
+  DOCUMENT_LIMIT_BYTES,
+} from './attachments-utils.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -18,7 +23,7 @@ const ConfirmRequestSchema = z.object({
  * POST /pages/{pageGuid}/attachments/confirm
  *
  * Called after the client has uploaded a file directly to S3 via presigned URL.
- * Saves attachment metadata sidecar JSON.
+ * Verifies the object exists in S3 and validates actual size before saving metadata.
  */
 export const handler = withAuth(async (
   event: AuthenticatedEvent
@@ -39,14 +44,33 @@ export const handler = withAuth(async (
       return json(400, { error: 'Validation failed', details: parsed.error.format() });
     }
 
-    const { filename, contentType, size } = parsed.data;
+    const { filename, contentType, size, attachmentKey } = parsed.data;
     const user = getUserContext(event);
     const storagePlugin = getStoragePlugin();
 
+    // Verify the object actually exists in S3 and check its real size
+    const headResult = await storagePlugin.headAttachment(pageGuid, attachmentKey);
+
+    if (!headResult) {
+      return json(404, { error: 'Attachment not found in storage. Upload may have failed.' });
+    }
+
+    // Verify actual size matches claimed size (within reason — allow small variance for encoding)
+    const isImage = IMAGE_MIME_TYPES.has(contentType.toLowerCase());
+    const maxSize = isImage ? IMAGE_LIMIT_BYTES : DOCUMENT_LIMIT_BYTES;
+
+    if (headResult.contentLength > maxSize) {
+      // Object exceeds limits — delete it and reject
+      try {
+        await storagePlugin.deleteAttachmentByKey(attachmentKey);
+      } catch { /* best effort cleanup */ }
+      return json(413, { error: 'Uploaded file exceeds size limit.' });
+    }
+
     const metadata: AttachmentMetadata = {
       filename,
-      contentType,
-      size,
+      contentType: headResult.contentType || contentType,
+      size: headResult.contentLength,
       uploadedAt: new Date().toISOString(),
       uploadedBy: user.userId,
     };
@@ -55,12 +79,18 @@ export const handler = withAuth(async (
 
     const url = `${pageGuid}/${filename}`;
 
-    console.log('Attachment confirmed:', { pageGuid, filename, size, uploadedBy: user.userId });
+    console.log('Attachment confirmed:', {
+      pageGuid,
+      filename,
+      claimedSize: size,
+      actualSize: headResult.contentLength,
+      uploadedBy: user.userId,
+    });
 
     return json(201, {
       filename,
-      contentType,
-      size,
+      contentType: metadata.contentType,
+      size: metadata.size,
       url,
     });
   } catch (err: unknown) {
