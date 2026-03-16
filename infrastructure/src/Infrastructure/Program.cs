@@ -15,9 +15,14 @@ namespace Infrastructure
             // Get environment from context or default to production
             var environmentName = app.Node.TryGetContext("environment")?.ToString() ?? "production";
             var frontendDomain = app.Node.TryGetContext("frontendDomain")?.ToString();
-            
+            var domainName = app.Node.TryGetContext("domainName")?.ToString();
+            var certArnUsEast1 = app.Node.TryGetContext("certificateArnUsEast1")?.ToString();
+            var certArnRegional = app.Node.TryGetContext("certificateArnRegional")?.ToString();
+            var enableCognitoCustomDomain = app.Node.TryGetContext("enableCognitoCustomDomain")?.ToString() == "true";
+            var enableGoogleLogin = app.Node.TryGetContext("enableGoogleLogin")?.ToString() == "true";
+
             // Configure environment-specific settings
-            var envConfig = GetEnvironmentConfig(environmentName, frontendDomain);
+            var envConfig = GetEnvironmentConfig(environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain, enableGoogleLogin);
             
             var env = new Amazon.CDK.Environment
             {
@@ -41,7 +46,10 @@ namespace Infrastructure
             app.Synth();
         }
         
-        private static EnvironmentConfig GetEnvironmentConfig(string environmentName, string frontendDomain)
+        private static EnvironmentConfig GetEnvironmentConfig(
+            string environmentName, string frontendDomain,
+            string domainName, string certArnUsEast1, string certArnRegional,
+            bool enableCognitoCustomDomain, bool enableGoogleLogin)
         {
             return environmentName.ToLower() switch
             {
@@ -54,7 +62,7 @@ namespace Infrastructure
                     EnableBackups = false,
                     DynamoDbBillingMode = "PAY_PER_REQUEST",
                     LogRetentionDays = 7,
-                    CloudFrontPriceClass = "PriceClass_100", // Cheapest
+                    CloudFrontPriceClass = "PriceClass_100",
                     FrontendDomain = frontendDomain
                 },
                 "staging" => new EnvironmentConfig
@@ -78,8 +86,13 @@ namespace Infrastructure
                     EnableBackups = true,
                     DynamoDbBillingMode = "PAY_PER_REQUEST",
                     LogRetentionDays = 90,
-                    CloudFrontPriceClass = "PriceClass_200", // Better global coverage
-                    FrontendDomain = frontendDomain
+                    CloudFrontPriceClass = "PriceClass_200",
+                    FrontendDomain = frontendDomain,
+                    DomainName = domainName,
+                    CertificateArnUsEast1 = certArnUsEast1,
+                    CertificateArnRegional = certArnRegional,
+                    EnableCognitoCustomDomain = enableCognitoCustomDomain,
+                    EnableGoogleLogin = enableGoogleLogin
                 },
                 _ => throw new ArgumentException($"Unknown environment: {environmentName}. Valid values: dev, staging, production")
             };
@@ -97,5 +110,15 @@ namespace Infrastructure
         public int LogRetentionDays { get; set; }
         public string CloudFrontPriceClass { get; set; }
         public string FrontendDomain { get; set; }
+        /// <summary>Base domain for the wiki, e.g. "wiki.bluefin605.com"</summary>
+        public string DomainName { get; set; }
+        /// <summary>ACM certificate ARN in us-east-1 (for CloudFront &amp; Cognito custom domain)</summary>
+        public string CertificateArnUsEast1 { get; set; }
+        /// <summary>ACM certificate ARN in the stack region (for API Gateway custom domain)</summary>
+        public string CertificateArnRegional { get; set; }
+        /// <summary>Enable Cognito custom domain (requires parent domain A record to exist first)</summary>
+        public bool EnableCognitoCustomDomain { get; set; }
+        /// <summary>Enable Google federated login (requires secret bluefinwiki/{env}/google-oauth in Secrets Manager)</summary>
+        public bool EnableGoogleLogin { get; set; }
     }
 }

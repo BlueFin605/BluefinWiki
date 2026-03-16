@@ -178,14 +178,15 @@ Line 3
   });
 
   describe('Links', () => {
-    it('should render links as disabled in preview mode', () => {
+    it('should render external links that open in a new tab', () => {
       render(<MarkdownPreview content="[Link Text](https://example.com)" />);
       const link = screen.getByText('Link Text');
-      
+
       expect(link.tagName).toBe('A');
       expect(link).toHaveAttribute('href', 'https://example.com');
-      expect(link).toHaveClass('cursor-not-allowed');
-      expect(link).toHaveAttribute('title', 'Links are disabled in preview mode');
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(link).toHaveClass('cursor-pointer');
     });
 
     it('should render multiple links', () => {

@@ -64,7 +64,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   // Initialize with draft content if available, otherwise server content.
   // key={pageGuid} on this component ensures fresh state per page.
   const [content, setContent] = useState(draftContent ?? initialContent);
-  const [viewMode, setViewMode] = useState<ViewMode>(showPreview ? 'split' : 'edit');
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    showPreview ? (draftContent != null ? 'split' : 'preview') : 'edit'
+  );
   const [dividerPosition, setDividerPosition] = useState(() => getLayout().editorSplitPosition);
   const [showInspector, setShowInspector] = useState(() => getLayout().inspectorVisible);
   const [inspectorWidth, setInspectorWidth] = useState(() => getLayout().inspectorWidth);
