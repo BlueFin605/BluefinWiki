@@ -1,17 +1,25 @@
 /**
  * Attachment API Hook
- * 
- * Provides API methods for uploading and managing page attachments
+ *
+ * Provides API methods for uploading and managing page attachments.
+ * Uses presigned S3 URLs to bypass the API Gateway 10 MB payload limit.
  */
 
 import { useState, useCallback } from 'react';
+import axios from 'axios';
 import apiClient from '../config/api';
-import { 
-  AttachmentUploadResponse, 
+import {
+  AttachmentUploadResponse,
   AttachmentUploadProgress,
   AttachmentValidationError,
   validateFile,
 } from '../types/attachment';
+
+interface PresignResponse {
+  uploadUrl: string;
+  attachmentKey: string;
+  filename: string;
+}
 
 /**
  * Hook for managing attachment uploads
@@ -20,9 +28,7 @@ export function useAttachments(pageGuid: string) {
   const [uploadProgress, setUploadProgress] = useState<Map<string, AttachmentUploadProgress>>(new Map());
 
   /**
-   * Upload a single file with progress tracking
-   * @param file File to upload
-   * @returns Promise with upload response
+   * Upload a single file via presigned S3 URL with progress tracking
    */
   const uploadFile = async (file: File): Promise<AttachmentUploadResponse> => {
     // Validate file first
@@ -35,49 +41,72 @@ export function useAttachments(pageGuid: string) {
     const uploadId = `${file.name}-${Date.now()}`;
 
     // Initialize progress tracking
-    const initialProgress: AttachmentUploadProgress = {
+    setUploadProgress(prev => new Map(prev).set(uploadId, {
       file,
       progress: 0,
       status: 'pending',
-    };
-    setUploadProgress(prev => new Map(prev).set(uploadId, initialProgress));
+    }));
 
     try {
-      // Create FormData for multipart upload
-      const formData = new FormData();
-      formData.append('file', file);
-
-      // Update status to uploading
+      // Step 1: Get presigned URL from our API
       setUploadProgress(prev => {
         const next = new Map(prev);
         const current = next.get(uploadId);
         if (current) {
-          next.set(uploadId, { ...current, status: 'uploading' });
+          next.set(uploadId, { ...current, status: 'uploading', progress: 5 });
         }
         return next;
       });
 
-      // Make the upload request with progress tracking
-      const response = await apiClient.post<AttachmentUploadResponse>(
-        `/pages/${pageGuid}/attachments`,
-        formData,
+      const presignResponse = await apiClient.post<PresignResponse>(
+        `/pages/${pageGuid}/attachments/presign`,
         {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(prev => {
-                const next = new Map(prev);
-                const current = next.get(uploadId);
-                if (current) {
-                  next.set(uploadId, { ...current, progress: percentCompleted });
-                }
-                return next;
-              });
-            }
-          },
+          filename: file.name,
+          contentType: file.type,
+          size: file.size,
+        }
+      );
+
+      const { uploadUrl, attachmentKey, filename } = presignResponse.data;
+
+      // Step 2: Upload directly to S3 using the presigned URL
+      await axios.put(uploadUrl, file, {
+        headers: {
+          'Content-Type': file.type,
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            // Map 10-90% range for the S3 upload portion
+            const s3Progress = Math.round((progressEvent.loaded * 80) / progressEvent.total);
+            setUploadProgress(prev => {
+              const next = new Map(prev);
+              const current = next.get(uploadId);
+              if (current) {
+                next.set(uploadId, { ...current, progress: 10 + s3Progress });
+              }
+              return next;
+            });
+          }
+        },
+      });
+
+      // Step 3: Confirm upload with our API (saves metadata)
+      setUploadProgress(prev => {
+        const next = new Map(prev);
+        const current = next.get(uploadId);
+        if (current) {
+          next.set(uploadId, { ...current, progress: 95 });
+        }
+        return next;
+      });
+
+      const confirmResponse = await apiClient.post<AttachmentUploadResponse>(
+        `/pages/${pageGuid}/attachments/confirm`,
+        {
+          filename,
+          contentType: file.type,
+          size: file.size,
+          attachmentKey,
         }
       );
 
@@ -88,14 +117,13 @@ export function useAttachments(pageGuid: string) {
           file,
           progress: 100,
           status: 'completed',
-          attachmentGuid: response.data.attachmentGuid,
-          filename: response.data.filename,
-          url: response.data.url,
+          filename: confirmResponse.data.filename,
+          url: confirmResponse.data.url,
         });
         return next;
       });
 
-      return response.data;
+      return confirmResponse.data;
     } catch (error: unknown) {
       // Update to failed status
       const errorMessage = error instanceof Error ? error.message : 'Upload failed';
@@ -117,8 +145,6 @@ export function useAttachments(pageGuid: string) {
 
   /**
    * Upload multiple files with progress tracking
-   * @param files Array of files to upload
-   * @returns Promise that resolves when all uploads complete
    */
   const uploadFiles = async (files: File[]): Promise<{
     successful: AttachmentUploadResponse[];
@@ -146,7 +172,6 @@ export function useAttachments(pageGuid: string) {
 
   /**
    * List all attachments for the page
-   * @returns Promise with array of attachment metadata
    */
   const listAttachments = useCallback(async () => {
     const response = await apiClient.get(`/pages/${pageGuid}/attachments`);
@@ -155,7 +180,6 @@ export function useAttachments(pageGuid: string) {
 
   /**
    * Delete an attachment
-   * @param filename Filename of attachment to delete
    */
   const deleteAttachment = useCallback(async (filename: string) => {
     await apiClient.delete(`/pages/${pageGuid}/attachments/${encodeURIComponent(filename)}`);

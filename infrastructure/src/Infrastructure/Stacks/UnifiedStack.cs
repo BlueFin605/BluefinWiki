@@ -934,6 +934,36 @@ namespace Infrastructure.Stacks
                 Description = "Upload page attachment"
             });
 
+            var pagesAttachmentsPresignFunction = new LambdaFunction(this, "PagesAttachmentsPresignFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-presign",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-presign.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Generate presigned URL for attachment upload"
+            });
+
+            var pagesAttachmentsConfirmFunction = new LambdaFunction(this, "PagesAttachmentsConfirmFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-confirm",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-attachments-confirm.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Confirm attachment upload and save metadata"
+            });
+
             var pagesAttachmentsDownloadFunction = new LambdaFunction(this, "PagesAttachmentsDownloadFunction", new LambdaFunctionProps
             {
                 FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-download",
@@ -1076,6 +1106,22 @@ namespace Infrastructure.Stacks
 
             // GET /pages/{guid}/attachments - List attachments
             attachmentsResource.AddMethod("GET", new LambdaIntegration(pagesAttachmentsListFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /pages/{guid}/attachments/presign - Get presigned upload URL
+            var attachmentsPresignResource = attachmentsResource.AddResource("presign");
+            attachmentsPresignResource.AddMethod("POST", new LambdaIntegration(pagesAttachmentsPresignFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /pages/{guid}/attachments/confirm - Confirm upload and save metadata
+            var attachmentsConfirmResource = attachmentsResource.AddResource("confirm");
+            attachmentsConfirmResource.AddMethod("POST", new LambdaIntegration(pagesAttachmentsConfirmFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
