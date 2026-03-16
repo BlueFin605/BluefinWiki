@@ -1248,6 +1248,48 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   }
 
   /**
+   * Generate a presigned PUT URL for direct-to-S3 attachment upload.
+   * Returns the presigned URL and the final S3 key so the caller can
+   * confirm the upload and save metadata afterwards.
+   */
+  async getAttachmentUploadUrl(
+    pageGuid: string,
+    filename: string,
+    contentType: string
+  ): Promise<{ uploadUrl: string; attachmentKey: string }> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid page GUID format', 'INVALID_GUID', 400);
+      }
+
+      const attachmentPath = await this.buildAttachmentPath(pageGuid);
+      const sanitizedFilename = this.sanitizeFilename(filename);
+      const attachmentKey = `${attachmentPath}${sanitizedFilename}`;
+
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: attachmentKey,
+        ContentType: contentType,
+      });
+
+      const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 300 });
+
+      return { uploadUrl, attachmentKey };
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+
+      throw this.createError(
+        `Failed to generate upload URL: ${error.message}`,
+        'PRESIGN_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
    * Sanitize filename for safe S3 storage
    * Preserves extension, removes/replaces unsafe characters
    */
