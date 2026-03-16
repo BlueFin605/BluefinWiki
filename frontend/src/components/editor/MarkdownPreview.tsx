@@ -5,6 +5,7 @@ import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
 import mermaid from 'mermaid';
 import remarkWikiLinks from '../../plugins/remarkWikiLinks';
+import remarkImageSize from '../../plugins/remarkImageSize';
 import apiClient from '../../config/api';
 import './markdown-preview.css';
 
@@ -109,6 +110,8 @@ interface MarkdownPreviewProps {
   onBrokenLinkClick?: (linkText: string, linkTarget: string) => void;
   /** Page GUID for resolving attachment references */
   pageGuid?: string;
+  /** Callback when an image is resized via drag handle. Receives the image src (as written in markdown) and the new pixel width. */
+  onImageResize?: (imageSrc: string, widthPx: number) => void;
 }
 
 // Type helper for react-markdown component props
@@ -124,8 +127,10 @@ const AsyncImage: React.FC<{
   apiUrl: string;
   alt?: string;
   fetchImageBlobUrl: (url: string) => Promise<string>;
+  width?: string;
+  height?: string;
   [key: string]: unknown;
-}> = ({ apiUrl, alt, fetchImageBlobUrl }) => {
+}> = ({ apiUrl, alt, fetchImageBlobUrl, width, height }) => {
   const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
   const [error, setError] = React.useState<boolean>(false);
 
@@ -168,14 +173,96 @@ const AsyncImage: React.FC<{
     );
   }
 
+  const sizeStyle: React.CSSProperties = {};
+  if (width) sizeStyle.width = width;
+  if (height) sizeStyle.height = height;
+
   return (
     <img
       src={blobUrl}
       alt={alt}
-      className="max-w-full h-auto rounded-md shadow-md my-4"
+      className={`${width ? '' : 'max-w-full'} h-auto rounded-md shadow-md my-4`}
+      style={sizeStyle}
       onError={() => setError(true)}
       onLoad={() => console.log('✅ Image loaded:', apiUrl)}
     />
+  );
+};
+
+/**
+ * Wrapper that adds a bottom-right drag handle to an image for resizing.
+ * On drag end it calls back with the new pixel width so the parent can
+ * update the markdown source.
+ */
+const ResizableImage: React.FC<{
+  children: React.ReactElement<React.ImgHTMLAttributes<HTMLImageElement>>;
+  /** The original src as written in the markdown (bare filename or encoded path) */
+  originalSrc: string;
+  onResize?: (imageSrc: string, widthPx: number) => void;
+}> = ({ children, originalSrc, onResize }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [currentWidth, setCurrentWidth] = useState<number | null>(null);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const container = containerRef.current;
+    if (!container) return;
+    startX.current = e.clientX;
+    startWidth.current = container.getBoundingClientRect().width;
+    setDragging(true);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging) return;
+    const delta = e.clientX - startX.current;
+    const newWidth = Math.max(50, Math.round(startWidth.current + delta));
+    setCurrentWidth(newWidth);
+  }, [dragging]);
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragging) return;
+    setDragging(false);
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    if (currentWidth && onResize) {
+      onResize(originalSrc, currentWidth);
+    }
+  }, [dragging, currentWidth, onResize, originalSrc]);
+
+  const widthStyle: React.CSSProperties = currentWidth
+    ? { width: `${currentWidth}px` }
+    : {};
+
+  return (
+    <div
+      ref={containerRef}
+      className={`relative inline-block my-4 group ${dragging ? 'select-none' : ''}`}
+      style={widthStyle}
+    >
+      {React.cloneElement(children, {
+        className: `${children.props.className || ''} ${currentWidth ? 'w-full' : ''}`.trim(),
+        style: { ...children.props.style, ...(currentWidth ? { width: '100%', height: 'auto' } : {}) },
+      } as React.ImgHTMLAttributes<HTMLImageElement>)}
+      {onResize && (
+        <div
+          className={`absolute bottom-1 right-1 w-4 h-4 cursor-se-resize rounded-sm
+            ${dragging ? 'bg-blue-500' : 'bg-gray-400/70 opacity-0 group-hover:opacity-100'}
+            transition-opacity`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          title="Drag to resize"
+        >
+          <svg viewBox="0 0 16 16" className="w-full h-full text-white">
+            <path d="M14 14H10M14 14V10M14 14L8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -195,10 +282,13 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   className = '',
   onBrokenLinkClick,
   pageGuid,
+  onImageResize,
 }) => {
   // Use a ref for the URL cache so the callback reference stays stable
   // and doesn't trigger useMemo/re-render cycles
   const imageUrlCache = useRef<Record<string, string>>({});
+  // Maps transformed URL → original URI as written in the markdown (for resize callback)
+  const transformedToOriginal = useRef<Record<string, string>>({});
 
   const fetchImageBlobUrl = useCallback(async (apiUrl: string): Promise<string> => {
     if (imageUrlCache.current[apiUrl]) {
@@ -227,6 +317,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     // The URI is already percent-encoded from the markdown source, so don't re-encode
     if (!uri.includes('/') && pageGuid) {
       const transformed = `/pages/${pageGuid}/attachments/${uri}`;
+      transformedToOriginal.current[transformed] = uri;
       console.log(`🔄 Transformed bare filename:`, { original: uri, transformed });
       return transformed;
     }
@@ -239,6 +330,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     if (match) {
       const [, guid, filename] = match;
       const transformed = `/pages/${guid}/attachments/${filename}`;
+      transformedToOriginal.current[transformed] = uri;
       console.log(`🔄 Transformed legacy attachment URI:`, { original: uri, transformed });
       return transformed;
     }
@@ -252,7 +344,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   const renderedContent = useMemo(() => {
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks]}
+        remarkPlugins={[remarkGfm, remarkBreaks, remarkWikiLinks, remarkImageSize]}
         rehypePlugins={[rehypeHighlight]}
         urlTransform={transformAttachmentUri}
         components={{
@@ -474,27 +566,40 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
           hr: (props: MarkdownComponentProps<'hr'>) => (
             <hr {...props} className="my-6 border-t-2 border-gray-300 dark:border-gray-600" />
           ),
-          // Style images
-          img: ({ src, alt, ...props }: MarkdownComponentProps<'img'>) => {
+          // Style images (with optional size from remarkImageSize plugin + drag-to-resize)
+          img: ({ src, alt, width, height, ...props }: MarkdownComponentProps<'img'>) => {
+            const imgWidth = typeof width === 'string' ? width : width ? `${width}px` : undefined;
+            const imgHeight = typeof height === 'string' ? height : height ? `${height}px` : undefined;
+            const sizeStyle: React.CSSProperties = {};
+            if (imgWidth) sizeStyle.width = imgWidth;
+            if (imgHeight) sizeStyle.height = imgHeight;
+
+            // Resolve the original src for the resize callback
+            const originalSrc = (src && transformedToOriginal.current[src]) || src || '';
+
             // Check if this is an API URL (starts with /pages/)
             const isApiUrl = src?.startsWith('/pages/');
-            
+
+            let imgEl: React.ReactElement;
             if (isApiUrl && src) {
-              // Return a component that fetches the image via axios
-              return <AsyncImage apiUrl={src} alt={alt} fetchImageBlobUrl={fetchImageBlobUrl} {...props} />;
+              imgEl = <AsyncImage apiUrl={src} alt={alt} fetchImageBlobUrl={fetchImageBlobUrl} width={imgWidth} height={imgHeight} {...props} />;
+            } else {
+              imgEl = (
+                <img
+                  {...props}
+                  src={src}
+                  alt={alt}
+                  className={`${imgWidth ? '' : 'max-w-full'} h-auto rounded-md shadow-md`}
+                  style={sizeStyle}
+                  onError={(e) => console.error('❌ External image failed to load:', src, e)}
+                />
+              );
             }
-            
-            // For external URLs, render directly
-            console.log(`🖼️ Rendering external image:`, { src, alt });
+
             return (
-              <img
-                {...props}
-                src={src}
-                alt={alt}
-                className="max-w-full h-auto rounded-md shadow-md my-4"
-                onError={(e) => console.error('❌ External image failed to load:', src, e)}
-                onLoad={() => console.log('✅ External image loaded:', src)}
-              />
+              <ResizableImage originalSrc={originalSrc} onResize={onImageResize}>
+                {imgEl}
+              </ResizableImage>
             );
           },
         }}
@@ -502,7 +607,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         {content || '*No content yet. Start writing...*'}
       </ReactMarkdown>
     );
-  }, [content, transformAttachmentUri, onBrokenLinkClick, fetchImageBlobUrl]);
+  }, [content, transformAttachmentUri, onBrokenLinkClick, fetchImageBlobUrl, onImageResize]);
 
 
   return (

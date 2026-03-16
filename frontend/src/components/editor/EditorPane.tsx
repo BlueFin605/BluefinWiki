@@ -140,9 +140,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const buildMarkdownFromUpload = useCallback((filename: string, contentType: string) => {
     const altText = filename.replace(/\.[^/.]+$/, '') || 'attachment';
     const isImage = contentType.toLowerCase().startsWith('image/');
-    
-    // Use simple filename format - pageGuid is inferred from context when rendering
-    const attachmentPath = filename;
+
+    // URL-encode the filename so spaces/special chars don't break markdown link parsing
+    const attachmentPath = encodeURIComponent(filename);
 
     if (isImage) {
       return `![${altText}](${attachmentPath})`;
@@ -215,6 +215,24 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     setShowCreatePageModal(false);
     setBrokenLinkData(null);
   }, [brokenLinkData, content, handleContentChange]);
+
+  // Handle drag-to-resize on images in the preview.
+  // Updates the markdown source with the new width using ![alt|WIDTH](src) syntax.
+  const handleImageResize = useCallback((imageSrc: string, widthPx: number) => {
+    // imageSrc is the URI as written in the markdown (e.g. "Sample%20JPEG.jpg")
+    // Escape it for use in a regex
+    const escaped = imageSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Match ![anything](imageSrc) — the alt may already contain |SIZE
+    const pattern = new RegExp(`(!\\[)((?:[^\\]]|\\\\\\])*)\\]\\(${escaped}\\)`, 'g');
+    const updatedContent = content.replace(pattern, (_match, prefix, alt) => {
+      // Strip any existing |SIZE from the alt text
+      const cleanAlt = alt.replace(/\|(\d+%?(?:x\d+%?)?)$/, '');
+      return `${prefix}${cleanAlt}|${widthPx}](${imageSrc})`;
+    });
+    if (updatedContent !== content) {
+      handleContentChange(updatedContent);
+    }
+  }, [content, handleContentChange]);
 
   const handleEditorPreviewResize = useCallback((px: number) => {
     if (!containerRef.current) return;
@@ -409,6 +427,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 content={content}
                 onBrokenLinkClick={handleBrokenLinkClick}
                 pageGuid={pageGuid}
+                onImageResize={editable ? handleImageResize : undefined}
               />
             </div>
           )}
