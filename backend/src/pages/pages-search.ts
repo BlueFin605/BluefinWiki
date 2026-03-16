@@ -172,8 +172,9 @@ export const handler = async (
     const pageTree = await storagePlugin.buildPageTree();
     const allPages = flattenPageTree(pageTree);
     
-    // Filter pages by fuzzy matching on title
+    // Filter pages by fuzzy matching on title, excluding archived/deleted
     const matchedPages = allPages
+      .filter(page => page.status !== 'archived')
       .filter(page => fuzzyMatch(query, page.title))
       .map(page => ({
         page,

@@ -162,12 +162,6 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
           </svg>
         </button>
 
-        {/* Status Badge */}
-        {page.status === 'archived' && (
-          <span className="ml-2 px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-            Archived
-          </span>
-        )}
       </div>
 
       {/* Render Children */}
