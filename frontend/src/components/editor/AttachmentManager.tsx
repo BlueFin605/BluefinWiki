@@ -273,8 +273,8 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   }, []);
 
   const buildMarkdownLink = useCallback((attachment: AttachmentMetadata) => {
-    // Use simple filename format - pageGuid is inferred from context when rendering
-    const attachmentPath = attachment.filename;
+    // URL-encode the filename so spaces/special chars don't break markdown link parsing
+    const attachmentPath = encodeURIComponent(attachment.filename);
     const isImage = isImageContentType(attachment.contentType);
     const altText = attachment.filename.replace(/\.[^/.]+$/, '') || 'attachment';
 

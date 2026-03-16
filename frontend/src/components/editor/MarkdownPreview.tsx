@@ -224,8 +224,9 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
     // Check if this is a bare filename (no slashes or protocol)
     // Use current pageGuid from context
+    // The URI is already percent-encoded from the markdown source, so don't re-encode
     if (!uri.includes('/') && pageGuid) {
-      const transformed = `/pages/${pageGuid}/attachments/${encodeURIComponent(uri)}`;
+      const transformed = `/pages/${pageGuid}/attachments/${uri}`;
       console.log(`🔄 Transformed bare filename:`, { original: uri, transformed });
       return transformed;
     }
@@ -234,10 +235,10 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     // GUID format: 8-4-4-4-12 hex characters
     const legacyPattern = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(.+)$/i;
     const match = uri.match(legacyPattern);
-    
+
     if (match) {
       const [, guid, filename] = match;
-      const transformed = `/pages/${guid}/attachments/${encodeURIComponent(filename)}`;
+      const transformed = `/pages/${guid}/attachments/${filename}`;
       console.log(`🔄 Transformed legacy attachment URI:`, { original: uri, transformed });
       return transformed;
     }
