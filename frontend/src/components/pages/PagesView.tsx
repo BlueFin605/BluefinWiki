@@ -81,9 +81,11 @@ export const PagesView: React.FC = () => {
       setActivePageGuid(undefined);
       // Trigger tree refresh
       setTreeRefreshTrigger(prev => prev + 1);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to delete page:', error);
-      alert('Failed to delete page. Please try again.');
+      const axiosError = error as { response?: { data?: { error?: string } } };
+      const message = axiosError.response?.data?.error || 'Failed to delete page.';
+      alert(message);
     }
   };
 

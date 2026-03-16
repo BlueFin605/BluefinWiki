@@ -10,7 +10,7 @@ const UpdatePageRequestSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be 200 characters or less').optional(),
   content: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  status: z.enum(['draft', 'published', 'archived']).optional(),
+  status: z.enum(['published', 'archived']).optional(),
 });
 
 /**

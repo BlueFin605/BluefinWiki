@@ -32,6 +32,8 @@ import {
   pagesAttachmentsDownload,
   pagesAttachmentsList,
   pagesAttachmentsDelete,
+  pagesAttachmentsPresign,
+  pagesAttachmentsConfirm,
 } from './pages/index.js';
 import { handler as linksResolve } from './pages/links-resolve.js';
 import { handler as authRegister } from './auth/auth-register.js';
@@ -200,6 +202,8 @@ app.post('/pages/:guid/move', wrapLambdaHandler(pagesMove));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
 app.get('/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
+app.post('/pages/:pageGuid/attachments/presign', wrapLambdaHandler(pagesAttachmentsPresign));
+app.post('/pages/:pageGuid/attachments/confirm', wrapLambdaHandler(pagesAttachmentsConfirm));
 app.post(
   '/pages/:pageGuid/attachments',
   express.raw({ type: () => true, limit: '60mb' }),
@@ -279,7 +283,7 @@ async function startServer() {
     
     // Create S3 bucket if it doesn't exist (for LocalStack)
     try {
-      const { S3Client, HeadBucketCommand, CreateBucketCommand } = await import('@aws-sdk/client-s3');
+      const { S3Client, HeadBucketCommand, CreateBucketCommand, PutBucketCorsCommand } = await import('@aws-sdk/client-s3');
       const s3Client = new S3Client({
         region: process.env.AWS_REGION || 'us-east-1',
         endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
@@ -298,6 +302,22 @@ async function startServer() {
         await s3Client.send(new CreateBucketCommand({ Bucket: bucketName }));
         console.log(`✅ Created S3 bucket '${bucketName}'`);
       }
+
+      // Configure CORS on the bucket for presigned URL uploads
+      await s3Client.send(new PutBucketCorsCommand({
+        Bucket: bucketName,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedHeaders: ['*'],
+              AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE'],
+              AllowedOrigins: ['*'],
+              MaxAgeSeconds: 3000,
+            },
+          ],
+        },
+      }));
+      console.log(`✅ S3 bucket CORS configured for presigned uploads`);
     } catch (error) {
       console.warn('⚠️  Could not verify/create S3 bucket:', error);
     }

@@ -12,7 +12,7 @@ const CreatePageRequestSchema = z.object({
   content: z.string().default(''),
   parentGuid: z.string().uuid().nullable().optional(),
   tags: z.array(z.string()).default([]),
-  status: z.enum(['draft', 'published', 'archived']).default('draft'),
+  status: z.enum(['published', 'archived']).default('published'),
 });
 
 /**
@@ -27,7 +27,7 @@ const CreatePageRequestSchema = z.object({
  *   "content": "# Markdown content",
  *   "parentGuid": "parent-guid-or-null",  // optional
  *   "tags": ["tag1", "tag2"],             // optional
- *   "status": "draft"                     // optional, default: draft
+ *   "status": "published"                  // optional, default: published
  * }
  * 
  * Response:

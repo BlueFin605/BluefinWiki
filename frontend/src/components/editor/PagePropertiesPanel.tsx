@@ -45,13 +45,11 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
   const [titleValue, setTitleValue] = useState(metadata.title);
   const [tagInput, setTagInput] = useState('');
   const [localTags, setLocalTags] = useState<string[]>(metadata.tags || []);
-  const [localStatus, setLocalStatus] = useState(metadata.status);
 
   // Sync local state with prop changes
   useEffect(() => {
     setTitleValue(metadata.title);
     setLocalTags(metadata.tags || []);
-    setLocalStatus(metadata.status);
   }, [metadata]);
 
   const handleTitleEdit = useCallback(() => {
@@ -112,24 +110,6 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
     setLocalTags(updatedTags);
     onMetadataChange({ tags: updatedTags });
   }, [localTags, onMetadataChange]);
-
-  const handleStatusChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newStatus = e.target.value as 'draft' | 'published' | 'archived';
-    setLocalStatus(newStatus);
-    onMetadataChange({ status: newStatus });
-  }, [onMetadataChange]);
-
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'archived':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      case 'published':
-      default:
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-    }
-  };
 
   const formatTimestamp = (isoString: string): string => {
     try {
@@ -233,41 +213,6 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
             : 'Tags help organize and find pages'
           }
         </p>
-      </div>
-
-      {/* Status Dropdown */}
-      <div>
-        <label htmlFor="status-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Status
-        </label>
-        {editable ? (
-          <select
-            id="status-select"
-            value={localStatus}
-            onChange={handleStatusChange}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
-          >
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-            <option value="archived">Archived</option>
-          </select>
-        ) : (
-          <div className="flex items-center">
-            <span className={`px-3 py-1 text-sm rounded-full ${getStatusBadgeClass(localStatus)}`}>
-              {localStatus.charAt(0).toUpperCase() + localStatus.slice(1)}
-            </span>
-          </div>
-        )}
-        {localStatus === 'draft' && (
-          <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
-            🔒 Draft - Only you and admins can see this page
-          </p>
-        )}
-        {localStatus === 'archived' && (
-          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-            📦 Archived - Read-only, excluded from main navigation
-          </p>
-        )}
       </div>
 
       {/* Author Display (Read-only) */}

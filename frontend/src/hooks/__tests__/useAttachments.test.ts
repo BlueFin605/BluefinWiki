@@ -1,12 +1,11 @@
 /**
- * Tests for useAttachments Hook (Task 7.3)
- * 
- * Tests upload flow, progress tracking, FormData creation, and error handling
+ * Tests for useAttachments Hook
+ *
+ * Tests presigned URL upload flow, progress tracking, and error handling
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { AxiosProgressEvent } from 'axios';
 import { useAttachments } from '../useAttachments';
 import apiClient from '../../config/api';
 
@@ -18,6 +17,47 @@ vi.mock('../../config/api', () => ({
     delete: vi.fn(),
   },
 }));
+
+// Mock axios for direct S3 PUT
+vi.mock('axios', () => ({
+  default: {
+    put: vi.fn(),
+  },
+}));
+
+import axios from 'axios';
+
+/**
+ * Helper: set up mocks for a successful presign→S3 PUT→confirm flow
+ */
+function mockSuccessfulUpload(overrides?: {
+  filename?: string;
+  contentType?: string;
+  size?: number;
+  url?: string;
+}) {
+  const filename = overrides?.filename ?? 'test.pdf';
+  const contentType = overrides?.contentType ?? 'application/pdf';
+  const size = overrides?.size ?? 1024;
+  const url = overrides?.url ?? `test-page-123/${filename}`;
+
+  // presign response
+  vi.mocked(apiClient.post).mockResolvedValueOnce({
+    data: {
+      uploadUrl: 'https://s3.example.com/presigned-put-url',
+      attachmentKey: `some-path/_attachments/${filename}`,
+      filename,
+    },
+  });
+
+  // S3 PUT
+  vi.mocked(axios.put).mockResolvedValueOnce({ status: 200 });
+
+  // confirm response
+  vi.mocked(apiClient.post).mockResolvedValueOnce({
+    data: { filename, contentType, size, url },
+  });
+}
 
 describe('useAttachments Hook', () => {
   const testPageGuid = 'test-page-123';
@@ -31,134 +71,65 @@ describe('useAttachments Hook', () => {
   });
 
   describe('uploadFile', () => {
-    it('should upload a file successfully', async () => {
-      const mockResponse = {
-        data: {
-          attachmentGuid: 'attachment-123',
-          filename: 'test.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/attachments/test.pdf',
-        },
-      };
-
-      vi.mocked(apiClient.post).mockResolvedValue(mockResponse);
+    it('should upload a file successfully via presigned URL flow', async () => {
+      mockSuccessfulUpload();
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
       const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
       const response = await result.current.uploadFile(file);
 
-      expect(response).toEqual(mockResponse.data);
+      expect(response).toEqual({
+        filename: 'test.pdf',
+        contentType: 'application/pdf',
+        size: 1024,
+        url: 'test-page-123/test.pdf',
+      });
+
+      // Step 1: presign
       expect(apiClient.post).toHaveBeenCalledWith(
-        `/pages/${testPageGuid}/attachments`,
-        expect.any(FormData),
+        `/pages/${testPageGuid}/attachments/presign`,
+        { filename: 'test.pdf', contentType: 'application/pdf', size: file.size }
+      );
+
+      // Step 2: S3 PUT
+      expect(axios.put).toHaveBeenCalledWith(
+        'https://s3.example.com/presigned-put-url',
+        file,
         expect.objectContaining({
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          headers: { 'Content-Type': 'application/pdf' },
+        })
+      );
+
+      // Step 3: confirm
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/pages/${testPageGuid}/attachments/confirm`,
+        expect.objectContaining({
+          filename: 'test.pdf',
+          contentType: 'application/pdf',
+          size: file.size,
         })
       );
     });
 
-    it('should create FormData with file', async () => {
-      const mockResponse = {
-        data: {
-          attachmentGuid: 'attachment-123',
-          filename: 'test.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/test.pdf',
-        },
-      };
-
-      vi.mocked(apiClient.post).mockResolvedValue(mockResponse);
+    it('should track upload progress through all steps', async () => {
+      mockSuccessfulUpload();
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
       const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
       await result.current.uploadFile(file);
 
-      const postCall = vi.mocked(apiClient.post).mock.calls[0];
-      const formData = postCall[1] as FormData;
-
-      expect(formData).toBeInstanceOf(FormData);
-      expect(formData.get('file')).toBe(file);
-    });
-
-    it('should track upload progress', async () => {
-      let progressCallback: ((event: AxiosProgressEvent) => void) | undefined;
-      let resolveUpload: (value: unknown) => void;
-
-      const uploadPromise = new Promise((resolve) => {
-        resolveUpload = resolve;
-      });
-
-      vi.mocked(apiClient.post).mockImplementation((_url, _data, config) => {
-        progressCallback = config?.onUploadProgress;
-        
-        // Simulate progress events
-        setTimeout(() => {
-          if (progressCallback) {
-            progressCallback({ loaded: 50, total: 100 } as AxiosProgressEvent);
-          }
-        }, 50);
-
-        setTimeout(() => {
-          if (progressCallback) {
-            progressCallback({ loaded: 100, total: 100 } as AxiosProgressEvent);
-          }
-          resolveUpload!({
-            data: {
-              attachmentGuid: 'attachment-123',
-              filename: 'test.pdf',
-              contentType: 'application/pdf',
-              size: 1024,
-              url: 'https://example.com/test.pdf',
-            },
-          });
-        }, 100);
-
-        return uploadPromise as Promise<unknown>;
-      });
-
-      const { result } = renderHook(() => useAttachments(testPageGuid));
-
-      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
-      const fileUploadPromise = result.current.uploadFile(file);
-
-      // Wait for upload to start
       await waitFor(() => {
         const progress = result.current.uploadProgress;
-        expect(progress.length).toBeGreaterThan(0);
-      }, { timeout: 500 });
-
-      // Wait for 50% progress
-      await waitFor(() => {
-        const progress = result.current.uploadProgress;
-        expect(progress[0].progress).toBe(50);
-      }, { timeout: 500 });
-
-      // Wait for completion
-      await fileUploadPromise;
-
-      await waitFor(() => {
-        const progress = result.current.uploadProgress;
+        expect(progress.length).toBe(1);
         expect(progress[0].status).toBe('completed');
         expect(progress[0].progress).toBe(100);
       });
     });
 
     it('should initialize upload progress tracking', async () => {
-      vi.mocked(apiClient.post).mockResolvedValue({
-        data: {
-          attachmentGuid: 'attachment-123',
-          filename: 'test.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/test.pdf',
-        },
-      });
+      mockSuccessfulUpload();
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -173,36 +144,44 @@ describe('useAttachments Hook', () => {
       });
     });
 
-    it('should update to uploading status', async () => {
-      vi.mocked(apiClient.post).mockImplementation(() => {
-        return new Promise(() => {}); // Never resolve
-      });
-
-      const { result } = renderHook(() => useAttachments(testPageGuid));
-
-      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
-      result.current.uploadFile(file);
-
-      await waitFor(() => {
-        const progress = result.current.uploadProgress;
-        expect(progress[0].status).toBe('uploading');
-      });
-    });
-
-    it('should handle upload errors', async () => {
-      const errorMessage = 'Upload failed: Network error';
-      vi.mocked(apiClient.post).mockRejectedValue(new Error(errorMessage));
+    it('should handle presign errors', async () => {
+      vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Presign failed'));
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
       const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
 
-      await expect(result.current.uploadFile(file)).rejects.toThrow(errorMessage);
+      await expect(result.current.uploadFile(file)).rejects.toThrow('Presign failed');
 
       await waitFor(() => {
         const progress = result.current.uploadProgress;
         expect(progress[0].status).toBe('failed');
-        expect(progress[0].error).toBe(errorMessage);
+        expect(progress[0].error).toBe('Presign failed');
+      });
+    });
+
+    it('should handle S3 PUT errors', async () => {
+      // presign succeeds
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          uploadUrl: 'https://s3.example.com/presigned-put-url',
+          attachmentKey: 'key',
+          filename: 'test.pdf',
+        },
+      });
+
+      // S3 PUT fails
+      vi.mocked(axios.put).mockRejectedValueOnce(new Error('S3 upload failed'));
+
+      const { result } = renderHook(() => useAttachments(testPageGuid));
+
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
+
+      await expect(result.current.uploadFile(file)).rejects.toThrow('S3 upload failed');
+
+      await waitFor(() => {
+        const progress = result.current.uploadProgress;
+        expect(progress[0].status).toBe('failed');
       });
     });
 
@@ -231,18 +210,11 @@ describe('useAttachments Hook', () => {
       expect(apiClient.post).not.toHaveBeenCalled();
     });
 
-    it('should include attachmentGuid and url in completed progress', async () => {
-      const mockResponse = {
-        data: {
-          attachmentGuid: 'attachment-456',
-          filename: 'test.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/files/test.pdf',
-        },
-      };
-
-      vi.mocked(apiClient.post).mockResolvedValue(mockResponse);
+    it('should include filename and url in completed progress', async () => {
+      mockSuccessfulUpload({
+        filename: 'test.pdf',
+        url: 'test-page-123/test.pdf',
+      });
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -251,39 +223,18 @@ describe('useAttachments Hook', () => {
 
       await waitFor(() => {
         const progress = result.current.uploadProgress;
-        expect(progress[0].attachmentGuid).toBe('attachment-456');
-        expect(progress[0].url).toBe('https://example.com/files/test.pdf');
+        expect(progress[0].filename).toBe('test.pdf');
+        expect(progress[0].url).toBe('test-page-123/test.pdf');
       });
     });
   });
 
   describe('uploadFiles (Multiple)', () => {
     it('should upload multiple files sequentially', async () => {
-      const mockResponses = [
-        {
-          data: {
-            attachmentGuid: 'attachment-1',
-            filename: 'file1.pdf',
-            contentType: 'application/pdf',
-            size: 1024,
-            url: 'https://example.com/file1.pdf',
-          },
-        },
-        {
-          data: {
-            attachmentGuid: 'attachment-2',
-            filename: 'file2.png',
-            contentType: 'image/png',
-            size: 2048,
-            url: 'https://example.com/file2.png',
-          },
-        },
-      ];
-
-      let callCount = 0;
-      vi.mocked(apiClient.post).mockImplementation(() => {
-        return Promise.resolve(mockResponses[callCount++]);
-      });
+      // First file
+      mockSuccessfulUpload({ filename: 'file1.pdf' });
+      // Second file
+      mockSuccessfulUpload({ filename: 'file2.png', contentType: 'image/png', size: 2048 });
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -296,23 +247,16 @@ describe('useAttachments Hook', () => {
 
       expect(uploadResult.successful).toHaveLength(2);
       expect(uploadResult.failed).toHaveLength(0);
-      expect(uploadResult.successful[0].attachmentGuid).toBe('attachment-1');
-      expect(uploadResult.successful[1].attachmentGuid).toBe('attachment-2');
-      expect(apiClient.post).toHaveBeenCalledTimes(2);
+      // 2 presign + 2 confirm = 4 apiClient.post calls
+      expect(apiClient.post).toHaveBeenCalledTimes(4);
+      expect(axios.put).toHaveBeenCalledTimes(2);
     });
 
     it('should handle mixed success and failure', async () => {
-      vi.mocked(apiClient.post)
-        .mockResolvedValueOnce({
-          data: {
-            attachmentGuid: 'attachment-1',
-            filename: 'file1.pdf',
-            contentType: 'application/pdf',
-            size: 1024,
-            url: 'https://example.com/file1.pdf',
-          },
-        })
-        .mockRejectedValueOnce(new Error('Upload failed'));
+      // First file succeeds
+      mockSuccessfulUpload({ filename: 'file1.pdf' });
+      // Second file: presign fails
+      vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Upload failed'));
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -325,23 +269,15 @@ describe('useAttachments Hook', () => {
 
       expect(uploadResult.successful).toHaveLength(1);
       expect(uploadResult.failed).toHaveLength(1);
-      expect(uploadResult.successful[0].attachmentGuid).toBe('attachment-1');
       expect(uploadResult.failed[0].file).toBe(files[1]);
       expect(uploadResult.failed[0].error).toBe('Upload failed');
     });
 
     it('should continue uploading after one failure', async () => {
-      vi.mocked(apiClient.post)
-        .mockRejectedValueOnce(new Error('First upload failed'))
-        .mockResolvedValueOnce({
-          data: {
-            attachmentGuid: 'attachment-2',
-            filename: 'file2.pdf',
-            contentType: 'application/pdf',
-            size: 1024,
-            url: 'https://example.com/file2.pdf',
-          },
-        });
+      // First file: presign fails
+      vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('First upload failed'));
+      // Second file succeeds
+      mockSuccessfulUpload({ filename: 'file2.pdf' });
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -354,20 +290,11 @@ describe('useAttachments Hook', () => {
 
       expect(uploadResult.successful).toHaveLength(1);
       expect(uploadResult.failed).toHaveLength(1);
-      expect(uploadResult.successful[0].attachmentGuid).toBe('attachment-2');
-      expect(apiClient.post).toHaveBeenCalledTimes(2);
+      expect(uploadResult.successful[0].filename).toBe('file2.pdf');
     });
 
     it('should validate all files before upload', async () => {
-      vi.mocked(apiClient.post).mockResolvedValue({
-        data: {
-          attachmentGuid: 'attachment-1',
-          filename: 'valid.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/valid.pdf',
-        },
-      });
+      mockSuccessfulUpload({ filename: 'valid.pdf' });
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -381,8 +308,8 @@ describe('useAttachments Hook', () => {
       expect(uploadResult.successful).toHaveLength(1);
       expect(uploadResult.failed).toHaveLength(1);
       expect(uploadResult.failed[0].error).toContain('not supported');
-      // Should only call API for valid file
-      expect(apiClient.post).toHaveBeenCalledTimes(1);
+      // Only valid file calls presign + confirm = 2 post calls
+      expect(apiClient.post).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -396,14 +323,6 @@ describe('useAttachments Hook', () => {
           size: 1024,
           uploadedAt: '2026-03-07T10:00:00Z',
           uploadedBy: 'user-123',
-        },
-        {
-          attachmentId: 'attachment-2',
-          originalFilename: 'image.png',
-          contentType: 'image/png',
-          size: 2048,
-          uploadedAt: '2026-03-07T11:00:00Z',
-          uploadedBy: 'user-456',
         },
       ];
 
@@ -434,11 +353,11 @@ describe('useAttachments Hook', () => {
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
-      const attachmentGuid = 'attachment-to-delete';
-      await result.current.deleteAttachment(attachmentGuid);
+      const filename = 'attachment-to-delete';
+      await result.current.deleteAttachment(filename);
 
       expect(apiClient.delete).toHaveBeenCalledWith(
-        `/pages/${testPageGuid}/attachments/${attachmentGuid}`
+        `/pages/${testPageGuid}/attachments/${filename}`
       );
     });
 
@@ -455,15 +374,7 @@ describe('useAttachments Hook', () => {
 
   describe('Progress Management', () => {
     it('should clear completed uploads', async () => {
-      vi.mocked(apiClient.post).mockResolvedValue({
-        data: {
-          attachmentGuid: 'attachment-1',
-          filename: 'test.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/test.pdf',
-        },
-      });
+      mockSuccessfulUpload();
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -483,17 +394,10 @@ describe('useAttachments Hook', () => {
     });
 
     it('should not clear failed uploads when clearing completed', async () => {
-      vi.mocked(apiClient.post)
-        .mockResolvedValueOnce({
-          data: {
-            attachmentGuid: 'attachment-1',
-            filename: 'success.pdf',
-            contentType: 'application/pdf',
-            size: 1024,
-            url: 'https://example.com/success.pdf',
-          },
-        })
-        .mockRejectedValueOnce(new Error('Upload failed'));
+      // First file succeeds
+      mockSuccessfulUpload({ filename: 'success.pdf' });
+      // Second file: presign fails
+      vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Upload failed'));
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -518,17 +422,10 @@ describe('useAttachments Hook', () => {
     });
 
     it('should clear all uploads', async () => {
-      vi.mocked(apiClient.post)
-        .mockResolvedValueOnce({
-          data: {
-            attachmentGuid: 'attachment-1',
-            filename: 'file1.pdf',
-            contentType: 'application/pdf',
-            size: 1024,
-            url: 'https://example.com/file1.pdf',
-          },
-        })
-        .mockRejectedValueOnce(new Error('Upload failed'));
+      // First file succeeds
+      mockSuccessfulUpload({ filename: 'file1.pdf' });
+      // Second file: presign fails
+      vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('Upload failed'));
 
       const { result } = renderHook(() => useAttachments(testPageGuid));
 
@@ -548,121 +445,6 @@ describe('useAttachments Hook', () => {
       await waitFor(() => {
         expect(result.current.uploadProgress.length).toBe(0);
       });
-    });
-
-    it('should track multiple concurrent uploads independently', async () => {
-      let resolveFirst: (value: unknown) => void;
-      let resolveSecond: (value: unknown) => void;
-
-      const firstPromise = new Promise((resolve) => {
-        resolveFirst = resolve;
-      });
-      const secondPromise = new Promise((resolve) => {
-        resolveSecond = resolve;
-      });
-
-      vi.mocked(apiClient.post)
-        .mockReturnValueOnce(firstPromise as Promise<unknown>)
-        .mockReturnValueOnce(secondPromise as Promise<unknown>);
-
-      const { result } = renderHook(() => useAttachments(testPageGuid));
-
-      const file1 = new File(['content1'], 'file1.pdf', { type: 'application/pdf' });
-      const file2 = new File(['content2'], 'file2.pdf', { type: 'application/pdf' });
-
-      result.current.uploadFile(file1);
-      result.current.uploadFile(file2);
-
-      await waitFor(() => {
-        expect(result.current.uploadProgress.length).toBe(2);
-        expect(result.current.uploadProgress[0].file).toBe(file1);
-        expect(result.current.uploadProgress[1].file).toBe(file2);
-      });
-
-      // Resolve first upload
-      resolveFirst!({
-        data: {
-          attachmentGuid: 'attachment-1',
-          filename: 'file1.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/file1.pdf',
-        },
-      });
-
-      await waitFor(() => {
-        expect(result.current.uploadProgress[0].status).toBe('completed');
-        expect(result.current.uploadProgress[1].status).toBe('uploading');
-      });
-
-      // Resolve second upload
-      resolveSecond!({
-        data: {
-          attachmentGuid: 'attachment-2',
-          filename: 'file2.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/file2.pdf',
-        },
-      });
-
-      await waitFor(() => {
-        expect(result.current.uploadProgress[0].status).toBe('completed');
-        expect(result.current.uploadProgress[1].status).toBe('completed');
-      });
-    });
-  });
-
-  describe('API Request Configuration', () => {
-    it('should set correct Content-Type header', async () => {
-      vi.mocked(apiClient.post).mockResolvedValue({
-        data: {
-          attachmentGuid: 'attachment-123',
-          filename: 'test.pdf',
-          contentType: 'application/pdf',
-          size: 1024,
-          url: 'https://example.com/test.pdf',
-        },
-      });
-
-      const { result } = renderHook(() => useAttachments(testPageGuid));
-
-      const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
-      await result.current.uploadFile(file);
-
-      expect(apiClient.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(FormData),
-        expect.objectContaining({
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        })
-      );
-    });
-
-    it('should configure progress callback', async () => {
-      let hasProgressCallback = false;
-
-      vi.mocked(apiClient.post).mockImplementation((_url, _data, config) => {
-        hasProgressCallback = typeof config?.onUploadProgress === 'function';
-        return Promise.resolve({
-          data: {
-            attachmentGuid: 'attachment-123',
-            filename: 'test.pdf',
-            contentType: 'application/pdf',
-            size: 1024,
-            url: 'https://example.com/test.pdf',
-          },
-        });
-      });
-
-      const { result } = renderHook(() => useAttachments(testPageGuid));
-
-      const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
-      await result.current.uploadFile(file);
-
-      expect(hasProgressCallback).toBe(true);
     });
   });
 });

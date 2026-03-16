@@ -74,8 +74,9 @@ export const handler = withAuth(async (
       }
     }
 
-    // List children
-    const children = await storagePlugin.listChildren(parentGuid);
+    // List children, excluding archived/deleted pages
+    const allChildren = await storagePlugin.listChildren(parentGuid);
+    const children = allChildren.filter(child => child.status !== 'archived');
 
     // Log activity
     console.log('Children listed:', {

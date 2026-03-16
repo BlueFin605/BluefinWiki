@@ -306,6 +306,12 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
 
   abstract getAttachmentUrl(pageGuid: string, filename: string): Promise<string>;
 
+  abstract getAttachmentUploadUrl(pageGuid: string, filename: string, contentType: string, maxContentLength: number): Promise<{ uploadUrl: string; attachmentKey: string }>;
+
+  abstract headAttachment(pageGuid: string, attachmentKey: string): Promise<{ contentLength: number; contentType: string | undefined } | null>;
+
+  abstract deleteAttachmentByKey(attachmentKey: string): Promise<void>;
+
   abstract healthCheck(): Promise<boolean>;
 
   getType(): string {

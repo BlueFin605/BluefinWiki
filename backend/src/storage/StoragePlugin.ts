@@ -138,6 +138,32 @@ export interface StoragePlugin {
   getAttachmentUrl(pageGuid: string, filename: string): Promise<string>;
 
   /**
+   * Generate a presigned PUT URL for direct-to-S3 attachment upload
+   *
+   * @param pageGuid - Page GUID
+   * @param filename - Attachment filename
+   * @param contentType - MIME type of the file
+   * @returns Presigned URL and the final S3 key
+   */
+  getAttachmentUploadUrl(pageGuid: string, filename: string, contentType: string, maxContentLength: number): Promise<{ uploadUrl: string; attachmentKey: string }>;
+
+  /**
+   * Head an attachment object to verify it exists and get its actual size/content-type
+   *
+   * @param pageGuid - Page GUID (for validation)
+   * @param attachmentKey - Full S3 key of the attachment
+   * @returns Object metadata or null if not found
+   */
+  headAttachment(pageGuid: string, attachmentKey: string): Promise<{ contentLength: number; contentType: string | undefined } | null>;
+
+  /**
+   * Delete an attachment by its full S3 key (for cleanup of invalid uploads)
+   *
+   * @param attachmentKey - Full S3 key of the attachment
+   */
+  deleteAttachmentByKey(attachmentKey: string): Promise<void>;
+
+  /**
    * Get ancestors of a page (for breadcrumbs)
    * Returns an array of page summaries from root to immediate parent
    * 

@@ -230,7 +230,7 @@ describe('PagePropertiesPanel', () => {
   });
 
   describe('Status Management', () => {
-    it('should display current status', () => {
+    it('should not show status dropdown (status UI is hidden)', () => {
       render(
         <PagePropertiesPanel
           metadata={mockMetadata}
@@ -238,52 +238,7 @@ describe('PagePropertiesPanel', () => {
         />
       );
 
-      const select = screen.getByRole('combobox', { name: /status/i });
-      expect(select).toHaveValue('published');
-    });
-
-    it('should change status when dropdown changes', async () => {
-      const user = userEvent.setup();
-      const onMetadataChange = vi.fn();
-      render(
-        <PagePropertiesPanel
-          metadata={mockMetadata}
-          onMetadataChange={onMetadataChange}
-        />
-      );
-
-      const select = screen.getByRole('combobox', { name: /status/i });
-      await user.selectOptions(select, 'draft');
-
-      expect(onMetadataChange).toHaveBeenCalledWith({ status: 'draft' });
-    });
-
-    it('should show draft message for draft status', () => {
-      const draftMetadata = { ...mockMetadata, status: 'draft' as const };
-      render(
-        <PagePropertiesPanel
-          metadata={draftMetadata}
-          onMetadataChange={vi.fn()}
-        />
-      );
-
-      expect(
-        screen.getByText(/only you and admins can see this page/i)
-      ).toBeInTheDocument();
-    });
-
-    it('should show archived message for archived status', () => {
-      const archivedMetadata = { ...mockMetadata, status: 'archived' as const };
-      render(
-        <PagePropertiesPanel
-          metadata={archivedMetadata}
-          onMetadataChange={vi.fn()}
-        />
-      );
-
-      expect(
-        screen.getByText(/read-only, excluded from main navigation/i)
-      ).toBeInTheDocument();
+      expect(screen.queryByRole('combobox', { name: /status/i })).not.toBeInTheDocument();
     });
   });
 
@@ -358,7 +313,7 @@ describe('PagePropertiesPanel', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('should show status as badge when editable is false', () => {
+    it('should not show status dropdown when editable is false', () => {
       render(
         <PagePropertiesPanel
           metadata={mockMetadata}
@@ -367,7 +322,6 @@ describe('PagePropertiesPanel', () => {
         />
       );
 
-      expect(screen.getByText('Published')).toBeInTheDocument();
       expect(
         screen.queryByRole('combobox', { name: /status/i })
       ).not.toBeInTheDocument();
