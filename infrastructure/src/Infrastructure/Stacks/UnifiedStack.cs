@@ -192,12 +192,22 @@ namespace Infrastructure.Stacks
                 DeletionProtection = config.IsProd
             });
             
+            // Supported identity providers for the Web Client
+            var supportedProviders = new List<UserPoolClientIdentityProvider>
+            {
+                UserPoolClientIdentityProvider.COGNITO
+            };
+            if (config.EnableGoogleLogin)
+            {
+                supportedProviders.Add(UserPoolClientIdentityProvider.GOOGLE);
+            }
+
             // Create Web Client (for React SPA)
             WebClient = new UserPoolClient(this, "WebClient", new UserPoolClientProps
             {
                 UserPool = UserPool,
                 UserPoolClientName = $"bluefinwiki-web-{config.Name}",
-                
+
                 // OAuth flows
                 AuthFlows = new AuthFlow
                 {
@@ -206,7 +216,7 @@ namespace Infrastructure.Stacks
                     Custom = false,
                     AdminUserPassword = true // For admin operations
                 },
-                
+
                 // OAuth 2.0 grants
                 OAuth = new OAuthSettings
                 {
@@ -224,15 +234,17 @@ namespace Infrastructure.Stacks
                     CallbackUrls = GetCallbackUrls(config),
                     LogoutUrls = GetLogoutUrls(config)
                 },
-                
+
+                SupportedIdentityProviders = supportedProviders.ToArray(),
+
                 // Token validity
                 AccessTokenValidity = Duration.Hours(1),
                 IdTokenValidity = Duration.Hours(1),
                 RefreshTokenValidity = Duration.Days(30),
-                
+
                 // Prevent user existence errors
                 PreventUserExistenceErrors = true,
-                
+
                 // Enable token revocation
                 EnableTokenRevocation = true
             });
@@ -386,6 +398,137 @@ namespace Infrastructure.Stacks
                 Description = "Cognito domain (custom or prefix)",
                 ExportName = $"{config.Name}-cognito-domain-prefix"
             });
+
+            // =============================================================================
+            // COGNITO LAMBDA TRIGGERS
+            // =============================================================================
+
+            // Note: COGNITO_USER_POOL_ID is not included here to avoid circular dependency.
+            // Trigger Lambdas receive the userPoolId in the event object instead.
+            var triggerEnvVars = new Dictionary<string, string>
+            {
+                { "USER_PROFILES_TABLE", UserProfilesTable.TableName },
+                { "ACTIVITY_LOG_TABLE", ActivityLogTable.TableName },
+                { "INVITATIONS_TABLE", InvitationsTable.TableName },
+                { "ENVIRONMENT", config.Name }
+            };
+
+            // IAM role for trigger Lambdas (needs Cognito admin + DynamoDB access)
+            var triggerRole = new Role(this, "CognitoTriggerRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
+                }
+            });
+
+            UserProfilesTable.GrantReadWriteData(triggerRole);
+            ActivityLogTable.GrantReadWriteData(triggerRole);
+            InvitationsTable.GrantReadData(triggerRole);
+
+            // Pre Sign-Up trigger — links federated identities to existing users
+            var preSignUpFunction = new LambdaFunction(this, "PreSignUpFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-pre-signup",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-pre-signup.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Pre Sign-Up needs Cognito admin permissions to list users and link providers
+            preSignUpFunction.AddToRolePolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Actions = new[] {
+                    "cognito-idp:ListUsers",
+                    "cognito-idp:AdminLinkProviderForUser"
+                },
+                Resources = new[] { UserPool.UserPoolArn }
+            }));
+
+            // Post Confirmation trigger — activates user profile
+            var postConfirmationFunction = new LambdaFunction(this, "PostConfirmationFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-post-confirmation",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-post-confirmation.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Pre Token Generation trigger — adds custom claims to JWT
+            var preTokenGenFunction = new LambdaFunction(this, "PreTokenGenFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-pre-token-gen",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-pre-token-generation.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Custom Message trigger — customizes email templates
+            var customMessageFunction = new LambdaFunction(this, "CustomMessageFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-custom-message",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "auth/auth-custom-message.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = triggerRole,
+                Environment = triggerEnvVars,
+                Timeout = Duration.Seconds(10),
+                MemorySize = 256
+            });
+
+            // Trigger wiring is done by the deploy script after CDK deploy,
+            // because wiring them in CloudFormation creates circular dependencies
+            // (UserPool ↔ Lambda ↔ API Gateway ↔ Cognito Authorizer ↔ UserPool).
+            // The deploy script calls `aws cognito-idp update-user-pool` to attach triggers
+            // and `aws lambda add-permission` to grant invoke permissions.
+
+            // =============================================================================
+            // GOOGLE IDENTITY PROVIDER
+            // Optional — reads credentials from Secrets Manager secret:
+            //   bluefinwiki/{environment}/google-oauth
+            // with JSON keys: { "clientId": "...", "clientSecret": "..." }
+            // Create the secret manually, then CDK picks it up automatically.
+            // =============================================================================
+
+            if (config.EnableGoogleLogin)
+            {
+                var googleSecretName = $"bluefinwiki/{config.Name}/google-oauth";
+                var googleSecret = Secret.FromSecretNameV2(this, "GoogleOAuthSecret", googleSecretName);
+
+                var googleProvider = new UserPoolIdentityProviderGoogle(this, "GoogleProvider", new UserPoolIdentityProviderGoogleProps
+                {
+                    UserPool = UserPool,
+                    ClientId = googleSecret.SecretValueFromJson("clientId").UnsafeUnwrap(),
+                    ClientSecretValue = googleSecret.SecretValueFromJson("clientSecret"),
+                    Scopes = new[] { "openid", "email", "profile" },
+                    AttributeMapping = new AttributeMapping
+                    {
+                        Email = ProviderAttribute.GOOGLE_EMAIL,
+                        GivenName = ProviderAttribute.GOOGLE_GIVEN_NAME,
+                        FamilyName = ProviderAttribute.GOOGLE_FAMILY_NAME
+                    }
+                });
+
+                // WebClient must wait for GoogleProvider to exist before listing it
+                // as a supported identity provider. Use L1 dependency to avoid
+                // pulling the entire construct tree into the dependency chain.
+                var cfnWebClient = (CfnUserPoolClient)WebClient.Node.DefaultChild;
+                var cfnGoogleProvider = (CfnUserPoolIdentityProvider)googleProvider.Node.DefaultChild;
+                cfnWebClient.AddDependency(cfnGoogleProvider);
+            }
             
             new CfnOutput(this, "IdentityPoolId", new CfnOutputProps
             {

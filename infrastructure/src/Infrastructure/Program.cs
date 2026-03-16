@@ -19,9 +19,10 @@ namespace Infrastructure
             var certArnUsEast1 = app.Node.TryGetContext("certificateArnUsEast1")?.ToString();
             var certArnRegional = app.Node.TryGetContext("certificateArnRegional")?.ToString();
             var enableCognitoCustomDomain = app.Node.TryGetContext("enableCognitoCustomDomain")?.ToString() == "true";
+            var enableGoogleLogin = app.Node.TryGetContext("enableGoogleLogin")?.ToString() == "true";
 
             // Configure environment-specific settings
-            var envConfig = GetEnvironmentConfig(environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain);
+            var envConfig = GetEnvironmentConfig(environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain, enableGoogleLogin);
             
             var env = new Amazon.CDK.Environment
             {
@@ -48,7 +49,7 @@ namespace Infrastructure
         private static EnvironmentConfig GetEnvironmentConfig(
             string environmentName, string frontendDomain,
             string domainName, string certArnUsEast1, string certArnRegional,
-            bool enableCognitoCustomDomain)
+            bool enableCognitoCustomDomain, bool enableGoogleLogin)
         {
             return environmentName.ToLower() switch
             {
@@ -90,7 +91,8 @@ namespace Infrastructure
                     DomainName = domainName,
                     CertificateArnUsEast1 = certArnUsEast1,
                     CertificateArnRegional = certArnRegional,
-                    EnableCognitoCustomDomain = enableCognitoCustomDomain
+                    EnableCognitoCustomDomain = enableCognitoCustomDomain,
+                    EnableGoogleLogin = enableGoogleLogin
                 },
                 _ => throw new ArgumentException($"Unknown environment: {environmentName}. Valid values: dev, staging, production")
             };
@@ -116,5 +118,7 @@ namespace Infrastructure
         public string CertificateArnRegional { get; set; }
         /// <summary>Enable Cognito custom domain (requires parent domain A record to exist first)</summary>
         public bool EnableCognitoCustomDomain { get; set; }
+        /// <summary>Enable Google federated login (requires secret bluefinwiki/{env}/google-oauth in Secrets Manager)</summary>
+        public bool EnableGoogleLogin { get; set; }
     }
 }
