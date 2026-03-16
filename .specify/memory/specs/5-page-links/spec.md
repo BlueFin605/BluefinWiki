@@ -1,9 +1,12 @@
 # Feature Specification: Page Links (Internal Wiki and External URLs)
 
-**Feature Branch**: `5-page-links`  
-**Created**: 2026-01-12  
-**Status**: Draft  
+**Feature Branch**: `5-page-links`
+**Created**: 2026-01-12
+**Updated**: 2026-03-16
+**Status**: Implemented
 **Input**: User description: "Add a link to other resources in a page - link to another wiki page, link to external url. When a link is added to and identity the description so it shows rather than the raw url. But also allow the ability to edit the url and description"
+
+> **Implementation Note (2026-03-16)**: Wiki-style `[[Page Title]]` links are supported via the `remarkWikiLinks` plugin. Broken link detection is implemented with visual indicators and a "Create Page" option when clicking broken links. Backlinks are displayed in the Inspector Panel's Links tab (via `LinkedPagesPanel`). The "Copy Link" feature (FR-022, P3) has not yet been implemented.
 
 ## User Scenarios & Testing *(mandatory)*
 

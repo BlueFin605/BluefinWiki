@@ -1,9 +1,12 @@
 # Feature Specification: Page Attachments with Visual Display
 
-**Feature Branch**: `6-page-attachments`  
-**Created**: 2026-01-12  
-**Status**: Draft  
+**Feature Branch**: `6-page-attachments`
+**Created**: 2026-01-12
+**Updated**: 2026-03-16
+**Status**: Implemented
 **Input**: User description: "Ability to include attachments to a markdown file, stored alongside the md file, but displayed visually within the page if possible depending on the type"
+
+> **Implementation Note (2026-03-16)**: Attachments are managed through the **Inspector Panel's Attachments tab** (rather than a bottom-of-page list or separate dialog). Downloads use **S3 presigned URLs** — the backend generates a temporary signed URL and the client fetches directly from S3. The attachment list has moved from "bottom of page" to the Inspector Panel for better UX integration with the editor.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -221,13 +224,13 @@ A user can specify image dimensions in markdown to control display size, allowin
 - **FR-015**: System MUST provide "Upload Attachment" button in editor toolbar
 - **FR-016**: System MUST show upload progress indicator during attachment upload
 - **FR-017**: System MUST support deleting attachments via storage plugin's `deleteAttachment()` method
-- **FR-018**: System MUST provide "Manage Attachments" interface showing all page attachments
-- **FR-019**: System MUST display attachments list at bottom of page showing all files with metadata
+- **FR-018**: System MUST provide "Manage Attachments" interface via the Inspector Panel's Attachments tab showing all page attachments
+- **FR-019**: System MUST display attachments list in the Inspector Panel's Attachments tab showing all files with metadata
 - **FR-020**: System MUST support drag-and-drop file upload into editor (P2 feature)
 - **FR-021**: System MUST support pasting images from clipboard (P3 feature)
 - **FR-022**: System MUST sanitize filenames to prevent security issues (path traversal, XSS)
 - **FR-023**: System MUST validate file types based on content (not just extension) to prevent malicious uploads
-- **FR-024**: System MUST generate attachment URLs that are served securely with proper content-type headers
+- **FR-024**: System MUST generate S3 presigned URLs for secure attachment downloads with proper content-type headers (backend generates temporary signed URL, client fetches directly from S3)
 - **FR-025**: System MUST support replacing existing attachments while preserving markdown references (P3 feature)
 
 ### Key Entities

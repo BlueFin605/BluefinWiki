@@ -1,101 +1,102 @@
 # Feature Specification: User Authentication with Invite-Only Access
 
-**Feature Branch**: `1-user-auth`  
-**Created**: 2026-01-12  
-**Status**: Draft  
+**Feature Branch**: `1-user-auth`
+**Created**: 2026-01-12
+**Updated**: 2026-03-16
+**Status**: Implemented
 **Input**: User description: "Add user authentication with email and password. I tneeds to be by invite only (outside of the first user) so that it is only liited to family users. iu.e. not just anyone can access the wiki"
+
+> **Implementation Note (2026-03-16)**: Authentication is now implemented using **AWS Cognito Hosted UI** with OAuth2 authorization code flow, rather than custom auth pages. This was chosen for security, simplicity, and to enable social login (Google). Custom Login, Register, ForgotPassword, and ResetPassword pages have been removed. All auth UI is handled by Cognito's hosted pages. A pre-signup Lambda trigger enforces invite-only access and handles federated identity linking.
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - First Admin Account Creation (Priority: P1)
 
-The very first user to access the wiki creates the initial admin account that will manage all subsequent user invitations. This is a one-time setup process that secures the wiki.
+The first admin account is created directly in the AWS Cognito console or via the `AdminCreateUser` API during initial deployment. This bootstraps the wiki's invite-only access system.
 
 **Why this priority**: Without an initial admin, the system cannot function. This is the foundation for all security.
 
-**Independent Test**: Can be fully tested by accessing a fresh wiki instance, creating the first admin account with email/password, and verifying that subsequent attempts to create admin accounts are blocked until proper invitations are sent.
+**Independent Test**: After deployment, create the first admin user in Cognito console, navigate to the wiki, authenticate via Cognito Hosted UI, and verify access is granted.
 
 **Acceptance Scenarios**:
 
-1. **Given** the wiki is newly deployed with no users, **When** a visitor accesses the wiki, **Then** they are presented with a "Create Admin Account" page
-2. **Given** the "Create Admin Account" page, **When** the user enters a valid email and strong password, **Then** the admin account is created and they are logged in
-3. **Given** the admin account has been created, **When** any subsequent visitor accesses the wiki, **Then** they see a login page (not the admin creation page)
-4. **Given** the admin account exists, **When** someone tries to access the admin creation endpoint directly, **Then** they receive an error indicating the wiki is already initialized
+1. **Given** the wiki is newly deployed with no users, **When** an admin creates the first user in Cognito, **Then** that user can log in via the Cognito Hosted UI
+2. **Given** the first admin account exists in Cognito, **When** they log in to the wiki, **Then** they are redirected through OAuth2 flow and land on the wiki home page
+3. **Given** no Cognito users exist, **When** a visitor accesses the wiki, **Then** they are redirected to the Cognito Hosted UI login page
+4. **Given** the Cognito Hosted UI, **When** someone without an account tries to sign up, **Then** the pre-signup Lambda rejects the attempt (invite-only enforcement)
 
 ---
 
 ### User Story 2 - Admin Invites Family Members (Priority: P1)
 
-An admin user can generate invitation links for family members, controlling who has access to the wiki. Each invitation is single-use and expires after 7 days.
+An admin user creates new users in Cognito via the backend invitation API. Each invitation creates a Cognito user with a temporary password sent via email.
 
 **Why this priority**: This is the core security mechanism that keeps the wiki family-only. Without invitations, the wiki would be inaccessible to family members.
 
-**Independent Test**: Log in as admin, generate an invitation link, send it to a test email, and verify that using the link allows account creation while the link is valid and blocks reuse.
+**Independent Test**: Call the invitation API as admin, verify the invited user receives a temporary password email, and confirm they can log in via Cognito Hosted UI.
 
 **Acceptance Scenarios**:
 
-1. **Given** an admin is logged in, **When** they navigate to "User Management", **Then** they see an "Invite User" button
-2. **Given** the "Invite User" page, **When** the admin enters a family member's email address, **Then** a unique invitation link is generated and displayed
-3. **Given** an invitation link, **When** the recipient clicks it within 7 days, **Then** they are taken to a registration page pre-filled with their email
+1. **Given** an admin is logged in, **When** they invoke the invitation API with a family member's email, **Then** a Cognito user is created with `AdminCreateUser` and a temporary password email is sent
+2. **Given** an invitation has been created, **When** the recipient accesses the wiki, **Then** they are redirected to the Cognito Hosted UI where they can log in with their temporary password
+3. **Given** a temporary password, **When** the user logs in for the first time, **Then** Cognito prompts them to set a new permanent password
 4. **Given** an invitation link has been used, **When** someone tries to use it again, **Then** they see an error that the invitation has already been used
 5. **Given** an invitation link is older than 7 days, **When** someone tries to use it, **Then** they see an error that the invitation has expired
-6. **Given** the admin invites a user, **When** the invitation is sent, **Then** the admin can see the invitation status (pending/used/expired) in the user management panel
 
 ---
 
 ### User Story 3 - Family Member Creates Account via Invitation (Priority: P1)
 
-A family member receives an invitation link and uses it to create their account with email and password, gaining access to the wiki.
+A family member receives a temporary password via email and uses it to complete their account setup through the Cognito Hosted UI, setting a permanent password.
 
 **Why this priority**: This completes the invitation workflow and allows family members to access the wiki. Without this, invitations would be useless.
 
-**Independent Test**: Use a valid invitation link, complete the registration form with email and password, and verify successful account creation and automatic login.
+**Independent Test**: Receive a temporary password email, navigate to the wiki, log in via Cognito Hosted UI with the temporary password, set a permanent password, and verify access to the wiki.
 
 **Acceptance Scenarios**:
 
-1. **Given** a valid invitation link, **When** the recipient clicks it, **Then** they see a registration page with their email pre-filled
-2. **Given** the registration page, **When** the user enters a valid password meeting security requirements, **Then** their account is created with "Editor" role by default
-3. **Given** successful registration, **When** the account is created, **Then** the user is automatically logged in and redirected to the wiki home page
-4. **Given** the registration page, **When** the user enters a password that doesn't meet requirements (e.g., too short), **Then** they see clear error messages explaining the requirements
-5. **Given** successful registration, **When** the account is created, **Then** the invitation link is marked as used and cannot be reused
+1. **Given** a valid invitation email with temporary password, **When** the recipient navigates to the wiki, **Then** they are redirected to Cognito Hosted UI login
+2. **Given** the Cognito login page, **When** the user enters their email and temporary password, **Then** Cognito prompts them to set a new password
+3. **Given** the user sets a new password, **When** the account is activated, **Then** they are redirected back to the wiki via OAuth callback and logged in
+4. **Given** password requirements, **When** the user enters a weak password, **Then** Cognito displays password requirement errors
+5. **Given** successful registration, **When** the account is activated, **Then** the invitation is marked as used and cannot be reused
 
 ---
 
-### User Story 4 - User Login with Email and Password (Priority: P1)
+### User Story 4 - User Login via Cognito Hosted UI (Priority: P1)
 
-An existing user can log in to the wiki using their email address and password to access family content.
+An existing user can log in to the wiki by being redirected to the Cognito Hosted UI, authenticating with email/password or Google, and being redirected back via OAuth2 callback.
 
 **Why this priority**: This is essential functionality - users need to authenticate to access the wiki. Without login, authenticated users cannot access the system.
 
-**Independent Test**: Create an account, log out, then log back in with the correct credentials and verify access is granted.
+**Independent Test**: Navigate to the wiki as an unauthenticated user, verify redirect to Cognito Hosted UI, log in with correct credentials, and verify redirect back to the wiki with authenticated session.
 
 **Acceptance Scenarios**:
 
-1. **Given** an existing user account, **When** the user navigates to the wiki, **Then** they see a login page
-2. **Given** the login page, **When** the user enters correct email and password, **Then** they are logged in and redirected to the wiki home page
-3. **Given** the login page, **When** the user enters an incorrect password, **Then** they see an error message and remain on the login page
-4. **Given** the login page, **When** the user enters an email that doesn't exist, **Then** they see an error message (intentionally vague for security)
-5. **Given** a logged-in user, **When** their session expires after 7 days of inactivity, **Then** they are redirected to the login page on next page load
-6. **Given** the login page, **When** the user checks "Remember me", **Then** their session persists for 30 days
+1. **Given** an existing user account, **When** the user navigates to the wiki unauthenticated, **Then** they are redirected to the Cognito Hosted UI
+2. **Given** the Cognito Hosted UI, **When** the user enters correct email and password, **Then** they are redirected back to the wiki `/callback` route with an authorization code
+3. **Given** the OAuth callback, **When** the authorization code is exchanged for tokens, **Then** access and refresh tokens are stored and the user sees the wiki home page
+4. **Given** the Cognito Hosted UI, **When** the user enters incorrect credentials, **Then** Cognito displays an error message
+5. **Given** a logged-in user, **When** their access token expires (1 hour), **Then** the refresh token (30-day validity) is used to obtain a new access token transparently
+6. **Given** the Cognito Hosted UI, **When** the user clicks "Sign in with Google", **Then** they authenticate via Google OAuth and the pre-signup Lambda links their Google identity to their Cognito account
 
 ---
 
-### User Story 5 - Password Reset via Email (Priority: P2)
+### User Story 5 - Password Reset via Cognito (Priority: P2)
 
-A user who forgets their password can request a password reset link via email, allowing them to regain access without admin intervention.
+A user who forgets their password uses the Cognito Hosted UI's built-in password reset functionality, which sends a verification code via email.
 
-**Why this priority**: Forgotten passwords are common and should not require admin support. However, this is P2 because users can ask admins to send new invitations as a workaround.
+**Why this priority**: Forgotten passwords are common and should not require admin support. Cognito handles this entirely.
 
-**Independent Test**: Request a password reset, receive the email with reset link, use it to set a new password, and verify login works with the new password.
+**Independent Test**: From the Cognito Hosted UI login page, click "Forgot your password?", enter email, receive verification code, enter code and new password, and verify login works.
 
 **Acceptance Scenarios**:
 
-1. **Given** the login page, **When** the user clicks "Forgot Password?", **Then** they see a password reset request page
-2. **Given** the password reset page, **When** the user enters their email, **Then** a reset link is sent to that email address
-3. **Given** a reset link email, **When** the user clicks the link within 1 hour, **Then** they see a page to set a new password
-4. **Given** the password reset link is older than 1 hour, **When** the user clicks it, **Then** they see an error that the link has expired
-5. **Given** the new password page, **When** the user enters and confirms a valid new password, **Then** their password is updated and they are automatically logged in
-6. **Given** a password reset request for an email that doesn't exist, **When** the request is submitted, **Then** the system shows a generic success message (to prevent email enumeration)
+1. **Given** the Cognito Hosted UI, **When** the user clicks "Forgot your password?", **Then** they see Cognito's password reset page
+2. **Given** the password reset page, **When** the user enters their email, **Then** a verification code is sent to that email address
+3. **Given** a verification code, **When** the user enters the code and a new password, **Then** their password is updated
+4. **Given** a verification code older than 1 hour, **When** the user enters it, **Then** they see an error that the code has expired
+5. **Given** successful password reset, **When** the user returns to login, **Then** they can log in with the new password via Cognito Hosted UI
 
 ---
 
@@ -150,44 +151,49 @@ Users can update their own profile information and change their password without
 
 ### Functional Requirements
 
-- **FR-001**: System MUST allow creation of exactly one initial admin account when wiki is first deployed
-- **FR-002**: System MUST prevent any access to wiki pages without valid authentication
-- **FR-003**: System MUST support email/password authentication for all users
-- **FR-004**: Admin users MUST be able to generate single-use invitation links that expire after 7 days
-- **FR-005**: Invitation links MUST pre-fill the recipient's email address on the registration form
-- **FR-006**: System MUST mark invitation links as "used" once an account is successfully created
+- **FR-001**: System MUST allow creation of an initial admin account via Cognito console or AdminCreateUser API during first deployment
+- **FR-002**: System MUST prevent any access to wiki pages without valid authentication (redirect to Cognito Hosted UI)
+- **FR-003**: System MUST support authentication via AWS Cognito Hosted UI with OAuth2 authorization code flow
+- **FR-003a**: System MUST support Google social login via Cognito federated identity providers
+- **FR-004**: Admin users MUST be able to create single-use invitation codes that expire after 7 days (via backend API using AdminCreateUser)
+- **FR-005**: Invitation emails MUST contain a temporary password for initial Cognito login
+- **FR-006**: System MUST mark invitation links as "used" once an account is successfully activated
 - **FR-007**: New users MUST be assigned the "Editor" role by default upon registration
-- **FR-008**: System MUST enforce password requirements: minimum 8 characters, at least one uppercase letter, one lowercase letter, and one number
-- **FR-009**: System MUST provide password reset functionality via email with links valid for 1 hour
+- **FR-008**: System MUST enforce Cognito password policy: minimum 8 characters, at least one uppercase letter, one lowercase letter, and one number
+- **FR-009**: System MUST provide password reset functionality via Cognito Hosted UI with verification codes valid for 1 hour
 - **FR-010**: System MUST maintain three user roles: Admin (full access), Editor (can create/edit), Viewer (read-only)
 - **FR-011**: Admin users MUST be able to change any user's role or disable their account
 - **FR-012**: System MUST prevent disabling the last remaining admin account
-- **FR-013**: User sessions MUST expire after 7 days of inactivity by default
-- **FR-014**: System MUST support "Remember me" functionality extending sessions to 30 days
-- **FR-015**: System MUST send invitation and password reset emails within 5 minutes of request
-- **FR-016**: System MUST log all authentication events (login attempts, account creation, password resets) for security audit
-- **FR-017**: Users MUST be able to change their own password when logged in
-- **FR-018**: System MUST use secure password hashing (bcrypt with salt) for all stored passwords
-- **FR-019**: System MUST implement rate limiting on login attempts (max 5 attempts per email per 15 minutes)
+- **FR-013**: Access tokens MUST expire after 1 hour; refresh tokens MUST be valid for 30 days
+- **FR-014**: System MUST transparently refresh access tokens using refresh tokens without user intervention
+- **FR-015**: System MUST send invitation emails (with temporary password) via Cognito within 5 minutes of request
+- **FR-016**: System MUST log all authentication events via Cognito and CloudWatch for security audit
+- **FR-017**: Users MUST be able to change their own password via Cognito Hosted UI
+- **FR-018**: System MUST delegate password hashing and storage to AWS Cognito (SRP protocol)
+- **FR-019**: System MUST leverage Cognito's built-in rate limiting and brute force protection
 - **FR-020**: System MUST provide intentionally vague error messages for failed login attempts to prevent email enumeration
+- **FR-021**: System MUST implement a pre-signup Lambda trigger that enforces invite-only access by rejecting sign-ups for emails not already in Cognito
+- **FR-022**: Pre-signup Lambda MUST automatically link federated identity providers (Google) to existing native Cognito accounts by matching email
 
 ### Key Entities
 
-- **User**: Represents a family member with access to the wiki
-  - Attributes: userId (unique), email (unique), passwordHash, displayName, role (Admin/Standard), accountStatus (active/disabled), createdAt, lastLoginAt
-  - Relationships: Created by invitation (except first admin), all users have equal content access
+- **User (Cognito)**: Represents a family member with access to the wiki
+  - Attributes: sub (unique Cognito user ID), email (unique), displayName, role (Admin/Editor/Viewer), accountStatus (active/disabled), createdAt, lastLoginAt
+  - Storage: AWS Cognito User Pool (password managed by Cognito, not stored in application DB)
+  - Relationships: Created by invitation (except first admin via console), may have linked federated identities (Google)
 
-- **Invitation**: Represents a single-use invite link for a new family member
+- **Invitation**: Represents a single-use invite for a new family member
   - Attributes: invitationId (unique), recipientEmail, invitationToken (unique, secure), createdByUserId, status (pending/used/expired), createdAt, expiresAt, usedAt
-  - Relationships: Created by an admin user, consumed when user registers
+  - Relationships: Created by an admin user via backend API, triggers `AdminCreateUser` in Cognito
 
-- **AuthSession**: Represents an active user session
-  - Attributes: sessionId (unique), userId, sessionToken (secure), createdAt, expiresAt, rememberMe (boolean), lastActivityAt
-  - Relationships: Belongs to one user, invalidated on logout or expiration
+- **OAuth Tokens**: Represents an active user session via OAuth2
+  - Attributes: accessToken (JWT, 1-hour expiry), refreshToken (30-day expiry), idToken (user profile claims)
+  - Storage: Browser memory/localStorage, managed by cognitoAuth.ts
+  - Relationships: Issued by Cognito after successful OAuth2 authorization code exchange
 
-- **PasswordResetToken**: Represents a temporary password reset request
-  - Attributes: tokenId (unique), userId, resetToken (unique, secure), createdAt, expiresAt, usedAt
-  - Relationships: Belongs to one user, single-use, expires after 1 hour
+- **Pre-Signup Lambda Trigger**: Enforces invite-only access and federated identity linking
+  - Behavior: Rejects sign-ups for emails not in Cognito, auto-links Google identities to existing native accounts
+  - Storage: Lambda function deployed alongside backend
 
 ## Success Criteria *(mandatory)*
 
@@ -208,25 +214,26 @@ Users can update their own profile information and change their password without
 
 ## Assumptions
 
-- Email delivery service is configured and operational (e.g., AWS SES, SendGrid, or similar)
+- AWS Cognito User Pool is configured with email delivery for temporary passwords and verification codes
 - Wiki will have low concurrent user load (typical family usage: 2-5 concurrent users)
-- Primary authentication module will be AWS Cognito (per constitution), but system will be designed to support pluggable auth providers
+- AWS Cognito is the sole authentication provider; all auth UI is delegated to Cognito Hosted UI
 - Email addresses are unique identifiers for users (one account per email)
 - Admin users are trusted family members who will manage invitations responsibly
-- No two-factor authentication (2FA) in initial release (can be added as optional module later)
-- Session storage will use secure, httpOnly cookies with appropriate security flags
-- System will comply with basic security best practices (HTTPS, secure headers, CSRF protection)
-- Password reset emails are sent from a trusted domain that family members will recognize
-- Initial admin setup occurs in a trusted environment (family member's device, not public computer)
+- No two-factor authentication (2FA) in initial release (can be added via Cognito MFA settings later)
+- OAuth2 tokens are stored in browser; access tokens (JWT) are sent as Bearer tokens in API requests
+- Cognito Hosted UI is served from a custom domain (auth.bluefin605.com) or Cognito prefix domain
+- Google OAuth identity provider is configured in Cognito for social login
+- Initial admin account is created via AWS Cognito console or CLI during first deployment
+- Pre-signup Lambda trigger is deployed and wired to the Cognito User Pool
 
 ## Out of Scope
 
 The following are explicitly **not** included in this specification:
 
-- Social login (Google, Facebook, etc.) - can be added as optional auth module later
-- Two-factor authentication (2FA/MFA) - can be added as future enhancement
-- Single Sign-On (SSO) with external identity providers - pluggable auth architecture allows this as future module
-- Account self-registration without invitation - violates core requirement of invite-only access
+- Social login providers beyond Google (Facebook, Apple, etc.) - can be added in Cognito configuration
+- Two-factor authentication (2FA/MFA) - can be enabled via Cognito MFA settings as future enhancement
+- Custom-branded auth UI pages - all auth UI is delegated to Cognito Hosted UI for security and simplicity
+- Account self-registration without invitation - enforced by pre-signup Lambda trigger
 - Email verification step after registration - invitation link serves as email verification
 - User profile pictures or avatars - out of scope for authentication feature
 - Activity logging visible to non-admin users - only admins see audit logs
@@ -241,8 +248,8 @@ The following are explicitly **not** included in this specification:
 
 This feature aligns with the BlueFinWiki Constitution:
 
-- **Privacy & Security**: Authentication is mandatory for all access, protecting family data
-- **Pluggable Architecture**: Designed with `IAuthProvider` interface to support AWS Cognito (default) with future options for Auth0, Firebase, or custom OIDC
-- **Family-Friendly**: Simple email/password auth suitable for all ages and tech skill levels
+- **Privacy & Security**: Authentication is mandatory for all access via Cognito Hosted UI, protecting family data
+- **Pluggable Architecture**: AWS Cognito handles all auth concerns; Google social login enabled via federated identity providers
+- **Family-Friendly**: Cognito Hosted UI provides familiar login experience with Google sign-in option; suitable for all ages and tech skill levels
 - **Cost-Effective**: Uses serverless authentication services (AWS Cognito free tier: 50K MAUs free)
-- **Simplicity**: Straightforward invite-only workflow minimizes maintenance and support burden
+- **Simplicity**: Delegating auth UI to Cognito eliminates custom auth page maintenance; pre-signup Lambda enforces invite-only access automatically

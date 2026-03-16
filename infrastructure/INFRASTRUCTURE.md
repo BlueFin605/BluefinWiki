@@ -2,7 +2,9 @@
 
 ## Overview
 
-This directory contains the AWS CDK C# infrastructure code for BlueFinWiki. The infrastructure is organized into four CloudFormation stacks for better modularity and deployment control.
+This directory contains the AWS CDK C# infrastructure code for BlueFinWiki. The infrastructure uses a **single Unified Stack** (`UnifiedStack.cs`) that combines all resources into one CloudFormation stack with logical sections for Storage, Database, CDN, Auth (Cognito), and Compute (Lambda + API Gateway).
+
+> **Note**: The original four-stack architecture (Storage, Database, Compute, CDN) was consolidated into a Unified Stack for simpler deployment and cross-resource referencing. The documentation below reflects the current unified architecture.
 
 ## Prerequisites
 
@@ -15,28 +17,28 @@ This directory contains the AWS CDK C# infrastructure code for BlueFinWiki. The 
 
 ```
 infrastructure/
-├── cdk.json                  # CDK app configuration
-├── README.md                 # This file
+├── cdk.json                       # CDK app configuration
+├── README.md                      # This file
+├── deploy-production.ps1          # Production deployment script (ACM certs, Cognito domain, Google OAuth)
 └── src/
     └── Infrastructure/
-        ├── Program.cs        # CDK app entry point with environment configuration
+        ├── Program.cs             # CDK app entry point with environment and context configuration
         ├── Infrastructure.csproj
         └── Stacks/
-            ├── StorageStack.cs    # S3 buckets for pages, attachments, exports
-            ├── DatabaseStack.cs   # DynamoDB tables
-            ├── ComputeStack.cs    # Lambda functions and API Gateway
-            └── CdnStack.cs        # CloudFront distribution and frontend bucket
+            └── UnifiedStack.cs    # Single stack: Storage + Database + CDN + Auth + Compute
 ```
 
-## Stacks Overview
+## Unified Stack Overview (`BlueFinWiki-{env}`)
 
-### 1. **Storage Stack** (`BlueFinWiki-{env}-Storage`)
+The Unified Stack (`UnifiedStack.cs`) combines all resources into logical sections:
+
+### Storage Resources
 S3 buckets for application data:
 - **Pages Bucket**: Wiki page content and metadata (JSON format, versioned)
 - **Attachments Bucket**: Uploaded files (images, PDFs, etc.)
 - **Exports Bucket**: Generated PDFs and HTML exports (7-day auto-cleanup)
 
-### 2. **Database Stack** (`BlueFinWiki-{env}-Database`)
+### Database Resources
 DynamoDB tables for metadata and user data:
 - **Users**: Authentication and user profiles (GSI: email-index)
 - **Invitations**: Invite codes with TTL
@@ -47,18 +49,40 @@ DynamoDB tables for metadata and user data:
 - **User Preferences**: Dashboard customization, favorites
 - **Site Config**: Global wiki settings
 
-### 3. **Compute Stack** (`BlueFinWiki-{env}-Compute`)
-Serverless compute resources:
-- **API Gateway REST API**: Public API endpoints
-- **Lambda Functions**: Backend logic (placeholder during phase 1)
-- **Secrets Manager**: JWT signing secret
+### Auth Resources (Cognito)
+AWS Cognito for authentication:
+- **User Pool**: Email/password auth with configurable password policy
+- **User Pool Domain**: Custom domain (auth.bluefin605.com) or Cognito prefix domain
+- **Web Client**: OAuth2 app client for frontend (authorization code flow)
+- **Native Client**: App client for backend/admin operations
+- **Google Identity Provider**: Federated login via Google OAuth (optional, controlled by `enableGoogleLogin` context)
+- **Pre-Signup Lambda Trigger**: Enforces invite-only access, links federated identities
+
+### Compute Resources
+Serverless compute:
+- **API Gateway REST API**: Public API endpoints with custom domain support (api.bluefin605.com)
+- **Lambda Functions**: Backend logic (Node.js handlers)
+- **Secrets Manager**: Google OAuth client secret (when Google login enabled)
 - **IAM Roles**: Lambda execution roles with least privilege
 
-### 4. **CDN Stack** (`BlueFinWiki-{env}-CDN`)
+### CDN Resources
 Content delivery and frontend hosting:
 - **Frontend S3 Bucket**: React SPA static files
-- **CloudFront Distribution**: Global CDN with caching policies
+- **CloudFront Distribution**: Global CDN with caching policies, custom domain (wiki.bluefin605.com)
 - **Origin Access Identity**: Secure S3 access
+
+### CDK Context Parameters
+
+The stack accepts these context parameters via `--context`:
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `environment` | Deployment environment | `dev`, `staging`, `production` |
+| `domainName` | Custom domain name | `bluefin605.com` |
+| `certificateArnUsEast1` | ACM cert ARN in us-east-1 (for CloudFront/Cognito) | `arn:aws:acm:us-east-1:...` |
+| `certificateArnRegional` | ACM cert ARN in deployment region (for API Gateway) | `arn:aws:acm:ap-southeast-2:...` |
+| `enableCognitoCustomDomain` | Enable custom Cognito domain | `true`/`false` |
+| `enableGoogleLogin` | Enable Google social login | `true`/`false` |
 
 ## Environment Configuration
 
@@ -99,27 +123,29 @@ cdk synth --context environment=production
 
 ### Deploy Infrastructure
 
-#### Deploy All Stacks (Dev Environment)
+#### Deploy Dev Environment
 
 ```bash
 cdk deploy --context environment=dev --all
 ```
 
-#### Deploy Individual Stacks
-
-```bash
-# Storage stack only
-cdk deploy BlueFinWiki-dev-Storage --context environment=dev
-
-# Database stack only
-cdk deploy BlueFinWiki-dev-Database --context environment=dev
-
-# All at once with specific order
-cdk deploy BlueFinWiki-dev-Storage BlueFinWiki-dev-Database BlueFinWiki-dev-Compute BlueFinWiki-dev-CDN --context environment=dev
-```
-
 #### Deploy to Production
 
+For production deployment with custom domains, ACM certificates, Cognito domain, and Google OAuth, use the production deployment script:
+
+```powershell
+# From infrastructure directory
+./deploy-production.ps1
+```
+
+The script handles:
+- ACM certificate creation/validation in us-east-1 (for CloudFront/Cognito) and regional (for API Gateway)
+- Google OAuth secret retrieval from AWS Secrets Manager
+- CDK deploy with all context parameters
+- Cognito custom domain configuration with DNS validation
+- Lambda trigger wiring post-deployment
+
+For a basic production deploy without custom domains:
 ```bash
 cdk deploy --context environment=production --all --require-approval never
 ```
@@ -136,27 +162,15 @@ cdk destroy --context environment=production --all
 
 ## Stack Outputs
 
-After deployment, important resource identifiers are exported:
+After deployment, the unified stack exports these resource identifiers:
 
-### Storage Stack
-- `{env}-pages-bucket`: Pages S3 bucket name
-- `{env}-attachments-bucket`: Attachments S3 bucket name
-- `{env}-exports-bucket`: Exports S3 bucket name
-
-### Database Stack
-- `{env}-users-table`: Users DynamoDB table name
-- `{env}-page-links-table`: Page links DynamoDB table name
-
-### Compute Stack
-- `{env}-api-url`: API Gateway endpoint URL
-- `{env}-api-id`: API Gateway ID
-- `{env}-jwt-secret-arn`: Secrets Manager ARN for JWT secret
-
-### CDN Stack
-- `{env}-frontend-bucket`: Frontend S3 bucket name
-- `{env}-distribution-id`: CloudFront distribution ID
-- `{env}-distribution-domain`: CloudFront domain name
-- `{env}-frontend-url`: Full frontend URL (https://...)
+- `ApiUrl`: API Gateway endpoint URL (or custom domain api.bluefin605.com)
+- `UserPoolId`: Cognito User Pool ID
+- `WebClientId`: Cognito Web App Client ID
+- `FrontendBucket`: Frontend S3 bucket name
+- `DistributionId`: CloudFront distribution ID
+- `FrontendUrl`: Full frontend URL (https://wiki.bluefin605.com or CloudFront domain)
+- `CognitoDomain`: Cognito Hosted UI domain (auth.bluefin605.com or prefix domain)
 
 ## Cost Estimation
 
@@ -166,6 +180,7 @@ After deployment, important resource identifiers are exported:
 - **Lambda**: < $0.50/month (< 100K invocations)
 - **API Gateway**: < $1.00/month (< 1M requests)
 - **CloudFront**: < $1.00/month (< 10 GB transfer)
+- **Cognito**: Free (< 50K MAUs)
 - **Secrets Manager**: $0.40/month (1 secret)
 - **CloudWatch Logs**: < $0.50/month (< 5 GB logs)
 
@@ -177,6 +192,7 @@ After deployment, important resource identifiers are exported:
 - **Lambda**: < $2.00/month (< 1M invocations)
 - **API Gateway**: < $3.50/month (< 1M requests)
 - **CloudFront**: < $5.00/month (< 50 GB transfer)
+- **Cognito**: Free (< 50K MAUs)
 - **Secrets Manager**: $0.40/month
 - **CloudWatch Logs**: < $2.00/month
 
@@ -223,6 +239,6 @@ After deployment, important resource identifiers are exported:
 
 ---
 
-**Last Updated**: February 6, 2026  
-**CDK Version**: 2.x  
+**Last Updated**: March 16, 2026
+**CDK Version**: 2.x
 **.NET Version**: 8.0

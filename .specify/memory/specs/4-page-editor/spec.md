@@ -1,9 +1,12 @@
 # Feature Specification: Page Editor with Markdown Support
 
-**Feature Branch**: `4-page-editor`  
-**Created**: 2026-01-12  
-**Status**: Draft  
+**Feature Branch**: `4-page-editor`
+**Created**: 2026-01-12
+**Updated**: 2026-03-16
+**Status**: Implemented
 **Input**: User description: "Create a page editor with markdown support"
+
+> **Implementation Note (2026-03-16)**: The editor now includes features beyond the original spec: **Mermaid diagram rendering** in preview (originally out of scope), a **tabbed Inspector Panel** (Properties/Attachments/Links) replacing separate dialogs, **resizable panes** with a drag divider, and **layout persistence** via localStorage. Draft persistence uses an in-memory store (saved on page navigation) rather than the specified 30-second localStorage auto-save timer.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -214,20 +217,24 @@ When multiple users are editing the same page simultaneously, the system detects
 - **FR-009**: Editor MUST validate markdown before saving to ensure well-formed frontmatter
 - **FR-010**: Editor MUST save page content via storage plugin's `createPage()` or `updatePage()` methods
 - **FR-011**: Editor MUST update page metadata (title, modified timestamp, author) on save
-- **FR-012**: Editor MUST implement auto-save to browser local storage every 30 seconds
-- **FR-013**: Editor MUST prompt to recover draft if unsaved changes exist when opening editor
-- **FR-014**: Editor MUST clear draft from local storage after successful save
+- **FR-012**: Editor MUST preserve unsaved content in an in-memory draft store when navigating between pages, allowing recovery when returning to the page within the same session
+- **FR-013**: Editor MUST load draft content when returning to a previously-edited page within the same session
+- **FR-014**: Editor MUST clear draft from the store after successful save
 - **FR-015**: Editor MUST support image upload through storage plugin's `uploadAttachment()` method
 - **FR-016**: Editor MUST insert correct markdown syntax for uploaded attachments
 - **FR-017**: Editor MUST validate uploaded file types and sizes (images <10MB)
 - **FR-018**: Editor MUST provide markdown syntax help/cheat sheet accessible from toolbar
 - **FR-019**: Editor MUST support full-page preview mode showing final page layout before publishing
-- **FR-020**: Editor MUST allow editing page metadata (title, tags, description) through UI panel
+- **FR-020**: Editor MUST allow editing page metadata (title, tags, description) through a tabbed Inspector Panel
 - **FR-021**: Editor MUST enforce role-based permissions (Editor/Admin can edit, Viewer cannot)
 - **FR-022**: Editor MUST warn users before leaving page with unsaved changes
 - **FR-023**: Editor MUST detect concurrent edits and warn before overwriting changes (P3)
 - **FR-024**: Editor MUST sanitize user input to prevent XSS attacks in preview
 - **FR-025**: Editor MUST support responsive design for tablet and mobile editing
+- **FR-026**: Editor MUST render Mermaid diagram code blocks as visual diagrams in the preview pane, with dark mode support and error fallback
+- **FR-027**: Editor MUST provide a tabbed Inspector Panel (Properties, Attachments, Links) as a collapsible right-side panel
+- **FR-028**: Editor MUST support resizable panes (editor/preview split and inspector width) via drag dividers
+- **FR-029**: Editor MUST persist pane layout (tree width, inspector width, inspector visibility, editor split position) to localStorage across sessions
 
 ### Key Entities
 
@@ -294,7 +301,7 @@ The following are explicitly **not** included in this specification:
 - WYSIWYG rich text editor (separate editor module could be added)
 - Real-time collaborative editing with multiple cursors (future enhancement)
 - Version history or diff viewing within editor (separate feature)
-- Advanced markdown extensions (diagrams, math, custom blocks) (future enhancements)
+- ~~Advanced markdown extensions (diagrams, math, custom blocks) (future enhancements)~~ **Mermaid diagrams are now supported** (added 2026-03-16). Math and custom blocks remain out of scope.
 - Offline editing with sync when reconnected (future PWA enhancement)
 - AI-assisted writing or content suggestions (future enhancement)
 - Grammar and spell checking beyond browser built-in (future enhancement)
@@ -329,45 +336,55 @@ Consider these proven markdown editor libraries:
 - **react-markdown-editor-lite**: Lightweight React markdown editor with preview
 - **SimpleMDE/EasyMDE**: Simple, user-friendly markdown editor
 
-### Split-Pane Layout
+### Split-Pane Layout with Inspector Panel
 
 ```
-┌─────────────────────────────────────────┐
-│  Toolbar: [B][I][H][List][Link][Image]  │
-├──────────────────┬──────────────────────┤
-│                  │                      │
-│  # My Page       │  My Page            │
-│                  │  ----------------    │
-│  ## Section 1    │  Section 1          │
-│                  │                      │
-│  - List item     │  • List item        │
-│  - Another       │  • Another          │
-│                  │                      │
-│  [Markdown Edit] │  [Live Preview]     │
-│                  │                      │
-└──────────────────┴──────────────────────┘
+┌──────────┬──────────────────────────────────────────┬──────────────┐
+│          │  Toolbar: [B][I][H][List][Link][Image]   │              │
+│          ├──────────────────┬───────────────────────┤  Inspector   │
+│  Page    │                  │                       │  Panel       │
+│  Tree    │  # My Page       │  My Page             │ [Props][Att] │
+│          │                  │  ────────────        │ [Links]      │
+│          │  ## Section 1    │  Section 1           │              │
+│          │                  │                       │  Title: ...  │
+│          │  - List item     │  • List item         │  Tags: ...   │
+│          │  - Another       │  • Another           │              │
+│          │                  │                       │              │
+│          │  [Markdown Edit] │  [Live Preview]      │              │
+│          │     ↕ resize     │                       │   ↔ resize  │
+└──────────┴──────────────────┴───────────────────────┴──────────────┘
 ```
 
-### Auto-Save Flow
+### Draft Persistence Flow
 
 ```typescript
-// Debounced auto-save every 30 seconds
-const autoSave = debounce(() => {
-  const draft = {
-    pageId,
-    content: editorContent,
-    frontmatter: parsedFrontmatter,
-    savedAt: Date.now(),
-    userId: currentUser.id
-  };
-  localStorage.setItem(`draft:${pageId}:${userId}`, JSON.stringify(draft));
-}, 30000);
+// In-memory draft store (survives page navigation, lost on browser refresh)
+// See: frontend/src/stores/draftsStore.ts
+const draftsStore = new Map<string, string>(); // pageGuid -> content
 
-// On editor mount, check for draft
-const draftKey = `draft:${pageId}:${userId}`;
-const draft = localStorage.getItem(draftKey);
-if (draft && JSON.parse(draft).savedAt > lastSavedTimestamp) {
-  showDraftRecoveryPrompt();
+// On navigating away from page (PageEditor unmount)
+draftsStore.set(pageGuid, currentContent);
+
+// On returning to page (EditorPane mount)
+const draft = draftsStore.get(pageGuid);
+if (draft) {
+  loadDraftContent(draft);
+}
+
+// On successful save
+draftsStore.delete(pageGuid);
+```
+
+### Layout Persistence
+
+```typescript
+// Persisted to localStorage as 'bluefinwiki-layout'
+// See: frontend/src/stores/layoutStore.ts
+interface LayoutState {
+  treeWidth: number;          // default: 320
+  inspectorWidth: number;     // default: 320
+  inspectorVisible: boolean;
+  editorSplitPosition: number; // percentage, default: 50
 }
 ```
 
