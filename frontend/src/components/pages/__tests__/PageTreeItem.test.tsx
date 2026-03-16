@@ -97,13 +97,13 @@ describe('PageTreeItem', () => {
     expect(element).toBeInTheDocument();
   });
 
-  it('shows draft badge for draft pages', () => {
+  it('does not show draft badge (draft state is hidden)', () => {
     const queryClient = createTestQueryClient();
     const draftPage: PageTreeNode = {
       ...mockPage,
       status: 'draft',
     };
-    
+
     render(
       <QueryClientProvider client={queryClient}>
         <PageTreeItem
@@ -115,7 +115,7 @@ describe('PageTreeItem', () => {
       </QueryClientProvider>
     );
 
-    expect(screen.getByText('Draft')).toBeInTheDocument();
+    expect(screen.queryByText('Draft')).not.toBeInTheDocument();
   });
 
   it('shows archived badge for archived pages', () => {

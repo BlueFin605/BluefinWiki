@@ -253,23 +253,24 @@ describe('PagePropertiesPanel', () => {
       );
 
       const select = screen.getByRole('combobox', { name: /status/i });
-      await user.selectOptions(select, 'draft');
+      await user.selectOptions(select, 'archived');
 
-      expect(onMetadataChange).toHaveBeenCalledWith({ status: 'draft' });
+      expect(onMetadataChange).toHaveBeenCalledWith({ status: 'archived' });
     });
 
-    it('should show draft message for draft status', () => {
-      const draftMetadata = { ...mockMetadata, status: 'draft' as const };
+    it('should not have draft option in status dropdown', () => {
       render(
         <PagePropertiesPanel
-          metadata={draftMetadata}
+          metadata={mockMetadata}
           onMetadataChange={vi.fn()}
         />
       );
 
-      expect(
-        screen.getByText(/only you and admins can see this page/i)
-      ).toBeInTheDocument();
+      const select = screen.getByRole('combobox', { name: /status/i });
+      const options = Array.from(select.querySelectorAll('option')).map(o => o.value);
+      expect(options).not.toContain('draft');
+      expect(options).toContain('published');
+      expect(options).toContain('archived');
     });
 
     it('should show archived message for archived status', () => {
