@@ -25,7 +25,8 @@
       "Bash(MSYS_NO_PATHCONV=1 aws apigateway get-rest-apis --region ap-southeast-2 --query \"items[?name=='bluefinwiki-api-production'].id\" --output text 2>&1)",
       "Bash(which:*)",
       "Bash(aws acm:*)",
-      "Bash(aws cognito-idp:*)"
+      "Bash(aws cognito-idp:*)",
+      "Bash(xxd:*)"
     ]
   }
 }

@@ -120,7 +120,7 @@ try {
     if ($LASTEXITCODE -eq 0) {
         $enableGoogle = $true
         Write-Host ""
-        Write-Host "Google OAuth secret found in Secrets Manager — Google login enabled" -ForegroundColor Green
+        Write-Host "Google OAuth secret found in Secrets Manager - Google login enabled" -ForegroundColor Green
     }
 } catch {}
 
@@ -178,14 +178,18 @@ foreach ($trigger in $triggerFunctions.GetEnumerator()) {
     $arn = aws lambda get-function --function-name $trigger.Value --region $Region --query "Configuration.FunctionArn" --output text 2>$null
     if ($arn) {
         $lambdaConfig[$trigger.Key] = $arn
-        # Grant Cognito permission to invoke (idempotent)
-        aws lambda add-permission `
-            --function-name $trigger.Value `
-            --statement-id "CognitoInvoke" `
-            --action "lambda:InvokeFunction" `
-            --principal "cognito-idp.amazonaws.com" `
-            --source-arn "arn:aws:cognito-idp:${Region}:083148603667:userpool/${UserPoolId}" `
-            --region $Region 2>$null
+        # Grant Cognito permission to invoke (idempotent — ignore if already exists)
+        try {
+            aws lambda add-permission `
+                --function-name $trigger.Value `
+                --statement-id "CognitoInvoke" `
+                --action "lambda:InvokeFunction" `
+                --principal "cognito-idp.amazonaws.com" `
+                --source-arn "arn:aws:cognito-idp:${Region}:083148603667:userpool/${UserPoolId}" `
+                --region $Region 2>&1 | Out-Null
+        } catch {
+            # Permission already exists — safe to ignore
+        }
         Write-Host "  $($trigger.Key) -> $($trigger.Value)" -ForegroundColor Green
     } else {
         Write-Host "  $($trigger.Key) -> NOT FOUND (skipped)" -ForegroundColor Yellow
@@ -193,12 +197,15 @@ foreach ($trigger in $triggerFunctions.GetEnumerator()) {
 }
 
 $configJson = $lambdaConfig | ConvertTo-Json -Compress
-aws cognito-idp update-user-pool `
-    --user-pool-id $UserPoolId `
-    --lambda-config $configJson `
-    --region $Region 2>&1 | Out-Null
-
-Write-Host "  Triggers wired to User Pool: $UserPoolId" -ForegroundColor Green
+try {
+    aws cognito-idp update-user-pool `
+        --user-pool-id $UserPoolId `
+        --lambda-config $configJson `
+        --region $Region 2>&1 | Out-Null
+    Write-Host "  Triggers wired to User Pool: $UserPoolId" -ForegroundColor Green
+} catch {
+    Write-Host "  Warning: Failed to wire triggers to User Pool: $_" -ForegroundColor Yellow
+}
 
 Write-Host ""
 Write-Host "=== Deploy Complete ===" -ForegroundColor Green
