@@ -280,7 +280,7 @@ Content`;
         return { Body: createMockStream(childContent1)() } as any;
       });
 
-      await expect(plugin.deletePage(guid, false)).rejects.toThrow(/Cannot delete page with children/);
+      await expect(plugin.deletePage(guid, false)).rejects.toThrow(/has child pages/);
     });
 
     it('should recursively delete page and all children', async () => {

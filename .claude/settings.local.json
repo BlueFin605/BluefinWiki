@@ -27,7 +27,9 @@
       "Bash(aws acm:*)",
       "Bash(aws cognito-idp:*)",
       "Bash(xxd:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(aws logs:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

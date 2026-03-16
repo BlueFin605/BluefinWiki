@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 
-const IMAGE_MIME_TYPES = new Set([
+export const IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/gif',
@@ -8,7 +8,7 @@ const IMAGE_MIME_TYPES = new Set([
   'image/svg+xml',
 ]);
 
-const DOCUMENT_MIME_TYPES = new Set([
+export const DOCUMENT_MIME_TYPES = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -21,8 +21,8 @@ const DOCUMENT_MIME_TYPES = new Set([
   'application/rtf',
 ]);
 
-const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']);
-const DOCUMENT_EXTENSIONS = new Set([
+export const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']);
+export const DOCUMENT_EXTENSIONS = new Set([
   '.pdf',
   '.doc',
   '.docx',
@@ -35,8 +35,8 @@ const DOCUMENT_EXTENSIONS = new Set([
   '.rtf',
 ]);
 
-const IMAGE_LIMIT_BYTES = 10 * 1024 * 1024;
-const DOCUMENT_LIMIT_BYTES = 50 * 1024 * 1024;
+export const IMAGE_LIMIT_BYTES = 10 * 1024 * 1024;
+export const DOCUMENT_LIMIT_BYTES = 50 * 1024 * 1024;
 
 export interface ParsedMultipartFile {
   filename: string;
