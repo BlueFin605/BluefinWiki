@@ -1,4 +1,5 @@
 using Amazon.CDK;
+using Amazon.CDK.AWS.CertificateManager;
 using Amazon.CDK.AWS.Cognito;
 using Amazon.CDK.AWS.CloudFront;
 using Amazon.CDK.AWS.CloudFront.Origins;
@@ -236,12 +237,41 @@ namespace Infrastructure.Stacks
                 EnableTokenRevocation = true
             });
 
-            var hostedUiDomainPrefix = GetHostedUiDomainPrefix(config);
-            var userPoolDomain = new CfnUserPoolDomain(this, "UserPoolDomain", new CfnUserPoolDomainProps
+            // Cognito domain — use custom domain if configured, otherwise prefix-based
+            CfnUserPoolDomain userPoolDomain;
+            string cognitoDomainValue;
+
+            // Cognito custom domain requires the parent domain to have a DNS A record first.
+            // Phase 1: deploy with prefix domain, set up DNS, then Phase 2: switch to custom domain.
+            // Set enableCognitoCustomDomain context to "true" for Phase 2.
+            var enableCognitoCustomDomain = config.EnableCognitoCustomDomain
+                && !string.IsNullOrWhiteSpace(config.CertificateArnUsEast1)
+                && !string.IsNullOrWhiteSpace(config.DomainName);
+
+            if (enableCognitoCustomDomain)
             {
-                UserPoolId = UserPool.UserPoolId,
-                Domain = hostedUiDomainPrefix
-            });
+                var authDomain = $"auth.{config.DomainName}";
+                userPoolDomain = new CfnUserPoolDomain(this, "UserPoolCustomDomain", new CfnUserPoolDomainProps
+                {
+                    UserPoolId = UserPool.UserPoolId,
+                    Domain = authDomain,
+                    CustomDomainConfig = new CfnUserPoolDomain.CustomDomainConfigTypeProperty
+                    {
+                        CertificateArn = config.CertificateArnUsEast1
+                    }
+                });
+                cognitoDomainValue = authDomain;
+            }
+            else
+            {
+                var hostedUiDomainPrefix = GetHostedUiDomainPrefix(config);
+                userPoolDomain = new CfnUserPoolDomain(this, "UserPoolDomain", new CfnUserPoolDomainProps
+                {
+                    UserPoolId = UserPool.UserPoolId,
+                    Domain = hostedUiDomainPrefix
+                });
+                cognitoDomainValue = hostedUiDomainPrefix;
+            }
             
             // Create Native Client (for future mobile apps)
             NativeClient = new UserPoolClient(this, "NativeClient", new UserPoolClientProps
@@ -352,8 +382,8 @@ namespace Infrastructure.Stacks
 
             new CfnOutput(this, "CognitoDomainPrefix", new CfnOutputProps
             {
-                Value = userPoolDomain.Domain,
-                Description = "Cognito Hosted UI domain prefix",
+                Value = cognitoDomainValue,
+                Description = "Cognito domain (custom or prefix)",
                 ExportName = $"{config.Name}-cognito-domain-prefix"
             });
             
@@ -542,6 +572,35 @@ namespace Infrastructure.Stacks
                     AllowCredentials = true
                 }
             });
+
+            // API Gateway custom domain
+            if (!string.IsNullOrWhiteSpace(config.CertificateArnRegional) && !string.IsNullOrWhiteSpace(config.DomainName))
+            {
+                var apiDomainName = $"api.{config.DomainName}";
+                var regionalCert = Certificate.FromCertificateArn(this, "ApiRegionalCert", config.CertificateArnRegional);
+
+                var customDomain = Api.AddDomainName("ApiCustomDomain", new DomainNameOptions
+                {
+                    DomainName = apiDomainName,
+                    Certificate = regionalCert,
+                    EndpointType = EndpointType.REGIONAL,
+                    SecurityPolicy = Amazon.CDK.AWS.APIGateway.SecurityPolicy.TLS_1_2
+                });
+
+                new CfnOutput(this, "ApiCustomDomainTarget", new CfnOutputProps
+                {
+                    Value = customDomain.DomainNameAliasDomainName,
+                    Description = "API Gateway custom domain target (create CNAME to this)",
+                    ExportName = $"{config.Name}-api-custom-domain-target"
+                });
+
+                new CfnOutput(this, "ApiCustomDomainName", new CfnOutputProps
+                {
+                    Value = apiDomainName,
+                    Description = "API custom domain name",
+                    ExportName = $"{config.Name}-api-custom-domain"
+                });
+            }
 
             // Create IAM role for Lambda functions
             var lambdaRole = new Role(this, "LambdaExecutionRole", new RoleProps
@@ -895,9 +954,13 @@ namespace Infrastructure.Stacks
             });
             
             // Compute Stack outputs
+            var apiUrl = !string.IsNullOrWhiteSpace(config.DomainName)
+                ? $"https://api.{config.DomainName}/"
+                : Api.UrlForPath("/");
+
             new CfnOutput(this, "ApiUrl", new CfnOutputProps
             {
-                Value = Api.UrlForPath("/"),
+                Value = apiUrl,
                 Description = "API Gateway endpoint URL",
                 ExportName = $"{config.Name}-api-url"
             });
@@ -964,18 +1027,27 @@ namespace Infrastructure.Stacks
                 MaxTtl = Duration.Seconds(0)
             });
             
+            // CloudFront certificate (must be in us-east-1)
+            ICertificate cloudfrontCert = null;
+            if (!string.IsNullOrWhiteSpace(config.CertificateArnUsEast1) && !string.IsNullOrWhiteSpace(config.DomainName))
+            {
+                cloudfrontCert = Certificate.FromCertificateArn(this, "CloudFrontCert", config.CertificateArnUsEast1);
+            }
+
             // CloudFront distribution
             Distribution = new CloudFrontDistribution(this, "FrontendDistribution", new DistributionProps
             {
                 Comment = $"BlueFinWiki frontend distribution for {config.Name}",
                 DefaultRootObject = "index.html",
-                PriceClass = config.CloudFrontPriceClass == "PriceClass_100" 
-                    ? PriceClass.PRICE_CLASS_100 
+                PriceClass = config.CloudFrontPriceClass == "PriceClass_100"
+                    ? PriceClass.PRICE_CLASS_100
                     : PriceClass.PRICE_CLASS_200,
                 EnableLogging = config.IsProd,
                 HttpVersion = HttpVersion.HTTP2_AND_3,
                 MinimumProtocolVersion = SecurityPolicyProtocol.TLS_V1_2_2021,
-                
+                DomainNames = cloudfrontCert != null ? new[] { config.DomainName } : null,
+                Certificate = cloudfrontCert,
+
                 DefaultBehavior = new BehaviorOptions
                 {
                     Origin = S3BucketOrigin.WithOriginAccessIdentity(FrontendBucket, new S3BucketOriginWithOAIProps
@@ -1082,6 +1154,12 @@ namespace Infrastructure.Stacks
 
         private string GetFrontendBaseUrl(EnvironmentConfig config)
         {
+            // Custom domain takes priority
+            if (!string.IsNullOrWhiteSpace(config.DomainName))
+            {
+                return $"https://{config.DomainName.Trim().TrimEnd('/')}";
+            }
+
             if (!string.IsNullOrWhiteSpace(config.FrontendDomain))
             {
                 var frontendDomain = config.FrontendDomain.Trim();
