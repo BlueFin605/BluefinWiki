@@ -26,7 +26,8 @@
       "Bash(which:*)",
       "Bash(aws acm:*)",
       "Bash(aws cognito-idp:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "Bash(grep:*)"
     ]
   }
 }
