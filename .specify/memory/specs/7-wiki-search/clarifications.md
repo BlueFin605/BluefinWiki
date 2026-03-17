@@ -24,16 +24,19 @@
 ## 🔴 Critical Priority - Must Answer Before Implementation
 
 ### 1. Default Search Implementation Choice
-**Question**: What is the "cheapest implementation" for default search? Option A
+**Question**: What is the "cheapest implementation" for default search?
 
-**Current spec says**: "Default version should be cheapest implementation"
+**ANSWERED**: Client-side search (Fuse.js or Lunr.js) — $0/month
 
-**Needs specific decision**:
-- Option A: Simple grep/scan of all markdown files (CPU, no additional service cost)
-- Option B: SQLite FTS (Full-Text Search) with local database
-- Option C: DynamoDB with basic text search (AWS cost)
-- Option D: Client-side search in browser (load all content)
-- What defines "cheapest" - dollar cost, development time, or complexity? dollor cost
+**Decision** (updated 2026-03-17): Client-side search library is the MVP default. A JSON search index is built server-side on page changes and served from S3/CloudFront. The browser downloads the index and performs all search operations locally. This is the cheapest option ($0/month), requires no DynamoDB table, and provides fuzzy matching out of the box.
+
+**Options evaluated**:
+- ~~Option A: Simple grep/scan of all markdown files~~ — requires Lambda per search
+- ~~Option B: SQLite FTS~~ — not serverless-friendly
+- ~~Option C: DynamoDB scan~~ — available as optional Tier 2 upgrade
+- **Option D: Client-side search in browser** — SELECTED as MVP default
+- Option E: S3 Vectors — available as optional Tier 3 upgrade (semantic search)
+- What defines "cheapest" - dollar cost, development time, or complexity? dollar cost
 
 ---
 
@@ -108,13 +111,12 @@ interface SearchPluginStatus {
 ---
 
 ### 3. Search Index Storage Location
-**Question**: Where is the search index stored and maintained? search index shuld depend on the implementation of search, for example cheapest will have no index
+**Question**: Where is the search index stored and maintained?
 
-**Needs clarification**:
-- If default is file-based: Local filesystem? S3?
-- If using DynamoDB: Separate search table or integrated with metadata?
-- Who builds/maintains the index: Background job? On-demand?
-- How is index kept in sync with content changes?
+**ANSWERED** (updated 2026-03-17): Depends on provider tier:
+- **Client-side (default)**: JSON file (`search-index.json`) stored in S3 static assets bucket, served via CloudFront. Rebuilt by Lambda on page changes.
+- **DynamoDB (optional)**: Separate DynamoDB table `WikiSearchIndex` with on-demand pricing. Indexed inline during page save operations.
+- **S3 Vectors (optional)**: S3 vector bucket with vector index. Embeddings generated via Bedrock Titan on page save, stored as vectors with page metadata.
 
 ---
 
@@ -580,38 +582,41 @@ interface SearchPluginStatus {
 9. **Test with realistic data** - 1000+ pages, various content types, edge cases
 10. **Document plugin development** - Guide for creating custom search plugins
 
-## 🎯 MVP Implementation Priority
+## 🎯 Implementation Priority
 
-**Phase 1 - Core Search** (Critical):
-- Default file-scan search plugin
-- Basic search dialog UI with results
-- Simple text matching (case-insensitive)
-- Snippet generation with context
-- Keyboard navigation (Ctrl+K to open)
+**Phase 1 - Core Search (MVP)** — Client-Side Provider:
+- ISearchProvider interface and plugin architecture
+- Client-side search provider (Fuse.js) as default
+- JSON index builder (Lambda, triggered on page changes)
+- Search dialog UI with results and keyboard nav (Ctrl+K)
+- Fuzzy text matching, case-insensitive, title-weighted ranking
+- Snippet generation with context around first match
 
-**Phase 2 - Enhanced UX** (High Priority):
+**Phase 2 - Enhanced UX**:
 - Recent searches (localStorage)
 - Folder-scoped search with dropdown
 - Loading indicators and error messages
-- Result pagination/infinite scroll
-- Basic ranking (title > content)
+- Infinite scroll for results
+- Tag-based search via "tag:" prefix
 
-**Phase 3 - Polish** (Medium Priority):
+**Phase 3 - Polish**:
 - Filter by date/author
 - Sort options (relevance/date/title)
 - Security: input validation, rate limiting
-- Accessibility improvements
-- Performance optimization
+- Accessibility improvements (WCAG 2.1 AA)
+- Index size monitoring and upgrade recommendations
 
-**Phase 4 - Advanced** (Future):
-- Plugin system for advanced search engines
-- Tag-based filtering
-- Advanced query syntax (Boolean, phrase)
-- Search analytics (if privacy allows)
-- API access for integrations
+**Phase 4 - Optional Provider: DynamoDB Search**:
+- DynamoDB search provider implementing ISearchProvider
+- DynamoDB table with on-demand pricing
+- Server-side scan with filter expressions
+- Inline indexing on page create/update/delete
+- Provider hot-swap from client-side without data loss
 
-Would you like me to:
-- Create implementation tasks for Phase 1?
-- Design the default file-scan plugin architecture?
-- Create mockups for the search dialog and results?
-- Write unit test scenarios for search functionality?
+**Phase 5 - Optional Provider: S3 Vectors (Semantic Search)**:
+- S3 Vectors search provider implementing ISearchProvider
+- S3 vector bucket and index setup (1024-dim, cosine)
+- Bedrock Titan Text Embeddings V2 integration for indexing and queries
+- Metadata filtering (folder, author, tags)
+- Optional hybrid mode: combine semantic results with keyword results from another provider
+- Documentation of cost implications and regional availability

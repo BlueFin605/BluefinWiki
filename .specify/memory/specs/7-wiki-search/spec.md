@@ -207,7 +207,7 @@ The system uses a default cost-effective search implementation (DynamoDB scan or
 ### Functional Requirements
 
 - **FR-001**: System MUST implement ISearchProvider interface for pluggable search architecture
-- **FR-002**: System MUST provide default search implementation using DynamoDB scan or basic inverted index (cost-effective, <$1/month)
+- **FR-002**: System MUST provide default search implementation using client-side search library (Fuse.js or Lunr.js) — zero cost, runs entirely in browser
 - **FR-003**: System MUST support full-text search across all page content (markdown body)
 - **FR-004**: System MUST support search across page titles and metadata (tags, description)
 - **FR-005**: System MUST return search results with page title, snippet (150 chars), and relevance score
@@ -215,8 +215,8 @@ The system uses a default cost-effective search implementation (DynamoDB scan or
 - **FR-007**: System MUST rank results by relevance (default: match count, optionally TF-IDF or provider-specific)
 - **FR-008**: System MUST support case-insensitive search by default
 - **FR-009**: System MUST support partial word matching (e.g., "recip" matches "recipe")
-- **FR-010**: System MUST index pages automatically on create, update, delete operations
-- **FR-011**: System MUST complete index updates within 5 seconds of page change (eventual consistency acceptable)
+- **FR-010**: System MUST rebuild client-side search index on page create, update, delete operations (default provider); server-side providers MUST index automatically
+- **FR-011**: System MUST make updated content searchable within 5 seconds of page change (client-side: on next index fetch; server-side: eventual consistency acceptable)
 - **FR-012**: System MUST provide search UI accessible via keyboard shortcut (Ctrl+K or Cmd+K)
 - **FR-013**: System MUST display search results in paginated format (10 results per page)
 - **FR-014**: System MUST require authentication to access search (all authenticated users see all results)
@@ -251,7 +251,7 @@ The system uses a default cost-effective search implementation (DynamoDB scan or
 
 - **SearchIndex**: Represents the indexed content for search
   - Attributes: pageId, pageTitle, contentTokens (array of words), tags, lastIndexed, wordCount
-  - Storage: DynamoDB table (default provider) or provider-specific storage
+  - Storage: JSON file in S3 (default client-side provider), DynamoDB table (DynamoDB provider), S3 vector bucket (S3 Vectors provider), or provider-specific storage
   - Relationships: One-to-one with page
 
 - **SearchProvider**: Plugin implementing search functionality
@@ -314,7 +314,7 @@ interface ISearchProvider extends IModule {
 - **SC-003**: Search index updates within 5 seconds of page create/update/delete operations 100% of the time
 - **SC-004**: Search query sanitization prevents 100% of injection attacks (XSS, SQL injection)
 - **SC-005**: Search respects permissions 100% of the time (users cannot find pages they don't have access to)
-- **SC-006**: Default search provider costs less than $1/month for typical family wiki (500 pages, 100 searches/day)
+- **SC-006**: Default search provider costs $0/month for typical family wiki (client-side, no server resources)
 - **SC-007**: Search UI opens within 300ms when triggered by Ctrl+K shortcut
 - **SC-008**: Search auto-suggestions appear within 200ms of typing (P3 feature)
 - **SC-009**: Relevance ranking returns expected "best match" in top 3 results for 90% of test queries
@@ -327,8 +327,8 @@ interface ISearchProvider extends IModule {
 
 ## Assumptions
 
-- Search index can be eventually consistent (5-second delay acceptable for new content)
-- DynamoDB scan is acceptable for default implementation given small wiki size (<1000 pages)
+- Client-side search index (JSON file) is acceptable for default implementation given small wiki size (<1000 pages)
+- Search index JSON file is regenerated on page changes and served from S3/CloudFront with cache invalidation
 - Full-text search on markdown content is sufficient (no need to parse/index rendered HTML initially)
 - Search query volume is low (<1000 queries/day) for family wiki use case
 - Advanced search features (fuzzy matching, synonym expansion) can wait for plugin providers
@@ -367,7 +367,7 @@ The following are explicitly **not** included in this specification:
 This feature aligns with the BlueFinWiki Constitution:
 
 - **Pluggable Architecture (Non-Negotiable #1)**: ISearchProvider interface enables swapping search implementations
-- **Cost-Effectiveness (Non-Negotiable #3)**: Default DynamoDB provider costs <$1/month, well within $5 budget
+- **Cost-Effectiveness (Non-Negotiable #3)**: Default client-side provider costs $0/month; optional DynamoDB provider <$0.50/month; S3 Vectors provider <$0.15/month
 - **Simplicity (Principle III)**: Basic search works out-of-box; complexity is optional via plugins
 - **Family-Friendly (Principle IV)**: Easy-to-use search helps non-technical family members find content
 - **Performance (Principle II)**: Search returns results within 1 second for typical usage
@@ -375,59 +375,281 @@ This feature aligns with the BlueFinWiki Constitution:
 
 ## Technical Notes
 
-### Default Search Provider: DynamoDB Implementation
+### Search Provider Tiers
+
+The search architecture supports three provider tiers, all implementing the same `ISearchProvider` interface. Users start with the free client-side default and can upgrade without code changes.
+
+| Provider | Cost/month | Search Type | Best For | Complexity |
+|---|---|---|---|---|
+| **Client-Side (MVP default)** | $0 | Keyword + fuzzy | <1000 pages | Very low |
+| **DynamoDB (optional)** | ~$0-0.50 | Keyword (server-side) | 500-5000 pages | Low |
+| **S3 Vectors (optional)** | ~$0.02-0.15 | Semantic similarity | Meaning-based search | Medium |
+| **Algolia (optional)** | $0 (free tier) | Full-text + typo tolerance | Advanced search UX | Low |
+
+---
+
+### Tier 1 — Default: Client-Side Search (Fuse.js/Lunr.js) — MVP
+
+**Cost**: $0/month — runs entirely in the browser, no AWS resources consumed per search.
+
+**How it works**:
+1. On page create/update/delete, a Lambda function rebuilds a JSON search index file
+2. The JSON index is stored in the S3 static assets bucket alongside the React SPA
+3. The browser downloads the index on first search (cached by CloudFront/service worker)
+4. All searching, ranking, and fuzzy matching happens client-side using Fuse.js or Lunr.js
 
 **Cost Analysis**:
-- DynamoDB table: On-demand pricing
-- 500 pages × 2KB avg = 1MB storage = $0.25/month
-- 100 searches/day × 30 = 3000 reads/month = $0.25/month
-- **Total: ~$0.50/month**
+- S3 storage for index JSON: negligible (included in existing SPA hosting)
+- CloudFront serving: negligible (included in existing CDN)
+- Lambda for index rebuild: ~1 invocation per page change, free tier covers it
+- **Total: $0/month**
+
+**Capabilities**:
+- Fuzzy matching (typo tolerance via Fuse.js)
+- Partial word matching
+- Case-insensitive search
+- Title-weighted ranking
+- Works offline once index is cached
+- No cold start latency — instant results
+
+**Limitations**:
+- Index must fit in browser memory (practical limit ~1000-2000 pages)
+- Index rebuild required on page changes (seconds, not real-time)
+- No server-side query logging or analytics
+- Full page content sent to client (privacy consideration: all authenticated users can already view all pages)
 
 **Implementation Strategy**:
 ```typescript
-// DynamoDB table structure
+// Index builder (Lambda or build-time)
+interface ClientSearchIndex {
+  version: number;
+  generatedAt: string;
+  pages: Array<{
+    id: string;
+    shortCode: string;
+    title: string;
+    content: string;       // markdown body (stripped of formatting)
+    tags: string[];
+    path: string;          // folder path for scoped search
+    modifiedDate: string;
+    author: string;
+  }>;
+}
+
+// Client-side search (Fuse.js example)
+const fuse = new Fuse(index.pages, {
+  keys: [
+    { name: 'title', weight: 10 },
+    { name: 'tags', weight: 5 },
+    { name: 'content', weight: 1 }
+  ],
+  includeScore: true,
+  includeMatches: true,
+  threshold: 0.3,          // fuzzy tolerance
+  minMatchCharLength: 2
+});
+
+const results = fuse.search(query.text);
+```
+
+**Index Update Flow**:
+```
+Page Created/Updated/Deleted
+    ↓
+Save to Storage Plugin
+    ↓
+Trigger index rebuild (Lambda or API endpoint)
+    ↓
+Fetch all page metadata + content from storage
+    ↓
+Build JSON index (strip markdown, tokenize)
+    ↓
+Upload search-index.json to S3 static bucket
+    ↓
+Invalidate CloudFront cache for /search-index.json
+    ↓
+Browser fetches updated index on next search (or poll)
+```
+
+---
+
+### Tier 2 — Optional: DynamoDB Search Provider
+
+**Cost**: ~$0-0.50/month — likely free under AWS free tier for family usage.
+
+**When to upgrade**: Wiki grows beyond ~1000 pages where client-side index becomes too large, or you want server-side search without sending all content to the browser.
+
+**How it works**:
+1. Each page is indexed as a DynamoDB item with tokenized content
+2. Search queries are executed server-side via Lambda + API Gateway
+3. DynamoDB scan with filter expressions for small datasets; GSI-based queries for larger ones
+
+**Cost Analysis**:
+- DynamoDB on-demand: 25 GB storage + 25 RCU/WCU in free tier
+- 500 pages × 2KB avg = 1MB storage — well within free tier
+- 100 searches/day × 30 = 3000 reads/month — well within free tier
+- **Total: $0/month (free tier) or ~$0.50/month after free tier expires**
+
+**Capabilities**:
+- Server-side search (content not sent to browser)
+- Exact and prefix matching
+- Case-insensitive via stored lowercase fields
+- Tag filtering via DynamoDB filter expressions
+- Folder-scoped search via path prefix queries
+- Scales to ~5000 pages before needing optimization
+
+**Limitations**:
+- No fuzzy/typo tolerance (exact or prefix match only)
+- DynamoDB scan is O(n) — gets slow beyond ~5000 pages
+- Requires Lambda cold start on first search (~1-2s)
+- No built-in relevance ranking (must be computed in Lambda)
+
+**Implementation Strategy**:
+```typescript
+// DynamoDB table structure (single-table design)
 {
-  PK: "PAGE#<pageId>",
+  PK: "SEARCH#<pageId>",
   SK: "INDEX",
   pageId: string,
   title: string,
-  titleLower: string, // for case-insensitive search
-  contentTokens: string[], // words from content
+  titleLower: string,
+  contentLower: string,      // full content lowercased for contains()
   tags: string[],
+  path: string,              // folder path for scoped queries
+  author: string,
+  modifiedDate: string,
   wordCount: number,
-  lastIndexed: timestamp
+  lastIndexed: string
 }
 
-// Search implementation (simplified)
+// Search via scan (acceptable for <5000 pages)
 async search(query: SearchQuery): Promise<SearchResultSet> {
-  // Scan DynamoDB (acceptable for <1000 pages)
   const items = await dynamodb.scan({
     TableName: 'WikiSearchIndex',
-    FilterExpression: 'contains(titleLower, :q) OR contains(contentTokens, :q)',
+    FilterExpression: 'contains(titleLower, :q) OR contains(contentLower, :q)',
     ExpressionAttributeValues: {
       ':q': query.text.toLowerCase()
     }
   });
-  
-  // Rank by match count (simple relevance)
-  const results = items.Items.map(item => ({
-    pageId: item.pageId,
-    pageTitle: item.title,
-    relevanceScore: calculateMatchCount(item, query),
-    snippet: generateSnippet(item.content, query)
-  })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-  
-  return {
-    results: results.slice(0, 10),
-    totalResults: results.length
-  };
+
+  return rankAndPaginate(items.Items, query);
 }
 ```
 
-### Advanced Search Provider Options
+---
 
-**Algolia** (Recommended for scaling):
-- Cost: Free tier (10k searches/month), then $1/month for 100k searches
+### Tier 3 — Optional: S3 Vectors Search Provider (Semantic Search)
+
+**Cost**: ~$0.02-0.15/month — very cheap but requires embedding generation.
+
+**When to upgrade**: You want meaning-based search (e.g., searching "beach trip" finds pages about "ocean vacation") or want to explore AI-powered search capabilities.
+
+**How it works**:
+1. On page create/update, content is sent to Amazon Bedrock Titan Text Embeddings V2 to generate a 1024-dimension vector
+2. The vector is stored in an S3 vector bucket with page metadata
+3. On search, the query is embedded and `QueryVectors` returns the nearest neighbors by cosine similarity
+4. Results represent semantically similar pages, not just keyword matches
+
+**Cost Analysis** (1000 pages, ~100 searches/day):
+- S3 Vectors storage: ~5MB of vectors — negligible (<$0.01/month)
+- S3 Vectors queries: ~3000/month = 0.003M × $2.50/M = ~$0.01/month
+- S3 Vectors query data processed: ~5MB/query × 3000 = ~15GB at $0.004/TB = ~$0.00006/month
+- Bedrock Titan Embeddings (indexing): 1000 pages × ~500 tokens avg = 500K tokens × $0.00002/1K = ~$0.01 (one-time, plus incremental)
+- Bedrock Titan Embeddings (queries): 3000 queries × ~20 tokens avg = 60K tokens × $0.00002/1K = ~$0.001/month
+- **Total: ~$0.02-0.15/month**
+
+**Capabilities**:
+- Semantic/meaning-based search (finds conceptually related content)
+- No exact keyword match required — understands intent
+- Metadata filtering (by tags, author, folder path)
+- Sub-second query latency (~100ms warm)
+- Scales to millions of pages
+- Native AWS service — no external dependencies
+
+**Limitations**:
+- Does NOT do keyword/exact match search — purely semantic similarity
+- Requires Amazon Bedrock access and Titan model availability
+- Embedding generation adds ~200-500ms latency to page indexing
+- Results may feel "fuzzy" — semantically similar but not containing exact search terms
+- Vector index configuration (dimension, distance metric) is immutable after creation
+- Available in select AWS regions only
+- Best paired with keyword search for hybrid approach
+
+**Implementation Strategy**:
+```typescript
+// S3 Vectors setup
+// 1. Create vector bucket: aws s3vectors create-vector-bucket --name wiki-search-vectors
+// 2. Create index: aws s3vectors create-index --vector-bucket wiki-search-vectors
+//    --index-name pages --dimension 1024 --distance-metric cosine
+//    --metadata-configuration filterable: [folder, author, tags]
+
+// Indexing a page
+async indexPage(page: PageInput): Promise<void> {
+  // Generate embedding via Bedrock Titan
+  const embedding = await bedrock.invokeModel({
+    modelId: 'amazon.titan-embed-text-v2:0',
+    body: JSON.stringify({
+      inputText: `${page.title}\n\n${page.content}`,
+      dimensions: 1024
+    })
+  });
+
+  // Store in S3 Vectors
+  await s3vectors.putVectors({
+    vectorBucketName: 'wiki-search-vectors',
+    indexName: 'pages',
+    vectors: [{
+      key: page.pageId,
+      data: { float32: embedding.embedding },
+      metadata: {
+        title: page.title,
+        shortCode: page.shortCode,
+        folder: page.path,
+        author: page.author,
+        tags: page.tags.join(','),
+        modifiedDate: page.modifiedDate
+      }
+    }]
+  });
+}
+
+// Searching
+async search(query: SearchQuery): Promise<SearchResultSet> {
+  // Embed the query
+  const queryEmbedding = await bedrock.invokeModel({
+    modelId: 'amazon.titan-embed-text-v2:0',
+    body: JSON.stringify({
+      inputText: query.text,
+      dimensions: 1024
+    })
+  });
+
+  // Query S3 Vectors
+  const results = await s3vectors.queryVectors({
+    vectorBucketName: 'wiki-search-vectors',
+    indexName: 'pages',
+    queryVector: { float32: queryEmbedding.embedding },
+    topK: query.limit || 10,
+    filter: query.scope ? { folder: { startsWith: query.scope } } : undefined
+  });
+
+  return mapToSearchResultSet(results.vectors, query);
+}
+```
+
+**Hybrid Search Consideration**:
+S3 Vectors excels at semantic search but won't find exact keyword matches reliably. For the best user experience, consider combining it with the client-side or DynamoDB provider:
+- Run both providers in parallel
+- Merge and deduplicate results
+- Weight keyword matches higher for short/exact queries
+- Weight semantic matches higher for natural language queries
+
+---
+
+### Other Advanced Search Provider Options
+
+**Algolia** (Recommended for full-text scaling):
+- Cost: Free tier (10K searches/month), then $1/month for 100K searches
 - Features: Typo tolerance, faceting, instant search, highlighting
 - Integration: Simple REST API, official Node.js client
 
@@ -476,52 +698,41 @@ async search(query: SearchQuery): Promise<SearchResultSet> {
 </SearchDialog>
 ```
 
-### Search Index Update Flow
-
-```
-Page Created/Updated
-    ↓
-Save to Storage Plugin
-    ↓
-Emit "pageChanged" Event
-    ↓
-Search Provider Listener
-    ↓
-Extract Title, Content, Tags
-    ↓
-Tokenize Content (split into words)
-    ↓
-Call searchProvider.indexPage()
-    ↓
-Update Search Index (DynamoDB/Algolia/etc.)
-    ↓
-Return Success (async, non-blocking)
-```
-
 ### Configuration Example
 
 ```yaml
-# .specifyrc.yml or config file
+# config/modules.yml
 search:
-  provider: "dynamodb" # or "algolia", "meilisearch", "custom"
-  
+  provider: "client-side" # "client-side" | "dynamodb" | "s3-vectors" | "algolia" | "meilisearch" | "custom"
+
+  client-side:
+    library: "fuse.js"            # "fuse.js" or "lunr"
+    indexPath: "/search-index.json"
+    fuzzyThreshold: 0.3           # 0 = exact, 1 = very fuzzy
+    maxIndexSizeKB: 5000          # warn if index exceeds this
+
   dynamodb:
     tableName: "WikiSearchIndex"
     region: "us-east-1"
-  
+
+  s3-vectors:
+    vectorBucketName: "wiki-search-vectors"
+    indexName: "pages"
+    embeddingModel: "amazon.titan-embed-text-v2:0"
+    dimensions: 1024
+    distanceMetric: "cosine"
+    region: "us-east-1"
+    # Optional: hybrid mode pairs semantic search with keyword search
+    hybridMode: false
+    hybridKeywordProvider: "client-side"
+
   algolia:
     appId: "YOUR_APP_ID"
     apiKey: "YOUR_API_KEY"
     indexName: "wiki_pages"
-  
-  meilisearch:
-    host: "https://meilisearch.example.com"
-    apiKey: "YOUR_API_KEY"
-  
+
   options:
-    indexDelay: 5000 # ms to wait before indexing (debounce)
-    maxQueryLength: 200 # chars
+    maxQueryLength: 200           # chars
     resultsPerPage: 10
-    enableAutoSuggest: true # P3 feature
-    storeSearchHistory: true # P3 feature
+    storeSearchHistory: true      # P3 feature, localStorage
 ```
