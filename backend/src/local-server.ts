@@ -41,6 +41,7 @@ import { handler as authMe } from './auth/auth-me.js';
 import { handler as adminCreateInvitation } from './auth/admin-create-invitation.js';
 import { handler as adminListInvitations } from './auth/admin-list-invitations.js';
 import { handler as adminRevokeInvitation } from './auth/admin-revoke-invitation.js';
+import { buildSearchIndexData } from './search/search-build-index.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -227,6 +228,22 @@ app.get('/auth/me', wrapLambdaHandler(authMe));
 app.post('/admin/invitations', wrapLambdaHandler(adminCreateInvitation));
 app.get('/admin/invitations', wrapLambdaHandler(adminListInvitations));
 app.delete('/admin/invitations/:invitationCode', wrapLambdaHandler(adminRevokeInvitation));
+
+// ============================================================================
+// API Routes - Search Index
+// ============================================================================
+
+app.get('/api/search-index.json', ((_req, res) => {
+  buildSearchIndexData()
+    .then(searchIndex => res.json(searchIndex))
+    .catch(error => {
+      console.error('Failed to build search index:', error);
+      res.status(500).json({
+        error: 'Failed to build search index',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
+}));
 
 // ============================================================================
 // Health Check
@@ -416,6 +433,7 @@ async function startServer() {
   console.log('   POST   /pages/:guid/move');
   console.log('   GET    /pages/:guid/backlinks');
   console.log('   GET    /search');
+  console.log('   GET    /api/search-index.json');
   console.log('   POST   /pages/links/resolve');
   console.log('   POST   /auth/register');
   console.log('   GET    /auth/me');
