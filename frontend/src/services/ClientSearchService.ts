@@ -169,6 +169,12 @@ export class ClientSearchService {
   async search(query: WikiSearchQuery): Promise<WikiSearchResultSet> {
     const startTime = performance.now();
 
+    // Sanitize query: enforce max length and strip potentially dangerous characters
+    const sanitizedText = query.text
+      .slice(0, 500)
+      .replace(/[<>]/g, '');
+    query = { ...query, text: sanitizedText };
+
     // Ensure index is loaded
     await this.loadIndex();
 

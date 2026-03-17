@@ -7,10 +7,12 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ClientSearchService } from '../services/ClientSearchService';
+import { SearchRateLimiter } from '../utils/searchRateLimiter';
 import type { WikiSearchQuery, WikiSearchResult, WikiSearchResultSet } from '../types/search';
 
 const DEBOUNCE_MS = 300;
 const DEFAULT_PAGE_SIZE = 10;
+const MAX_SEARCHES_PER_MINUTE = 60;
 
 interface UseSearchOptions {
   /** URL to fetch the search index from */
@@ -77,6 +79,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const [isIndexLoaded, setIsIndexLoaded] = useState(false);
 
   const serviceRef = useRef<ClientSearchService | null>(null);
+  const rateLimiterRef = useRef(new SearchRateLimiter(MAX_SEARCHES_PER_MINUTE));
 
   // Initialize the search service
   const service = useMemo(() => {
@@ -128,6 +131,11 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     let cancelled = false;
 
     const doSearch = async () => {
+      if (!rateLimiterRef.current.tryAcquire()) {
+        setError('Too many searches. Please wait a moment.');
+        return;
+      }
+
       setIsSearching(true);
       setError(null);
 
@@ -172,6 +180,11 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 
   const loadMore = useCallback(async () => {
     if (!debouncedQuery.trim() || !hasMore || isSearching) return;
+
+    if (!rateLimiterRef.current.tryAcquire()) {
+      setError('Too many searches. Please wait a moment.');
+      return;
+    }
 
     const newOffset = results.length;
     setIsSearching(true);

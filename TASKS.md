@@ -809,13 +809,13 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Works at 200% zoom, respects prefers-reduced-motion
 
 #### 8.4 Search Security & Input Validation
-- [ ] Sanitize search queries
-  - [ ] Max query length: 500 characters
-  - [ ] Strip/escape characters that could cause XSS
-  - [ ] HTML-encode all user content in result snippets
-- [ ] Rate limiting (client-side)
-  - [ ] Debounce search input (300ms)
-  - [ ] Max 60 searches per minute
+- [X] Sanitize search queries
+  - [X] Max query length: 500 characters
+  - [X] Strip/escape characters that could cause XSS
+  - [X] HTML-encode all user content in result snippets
+- [X] Rate limiting (client-side)
+  - [X] Debounce search input (300ms)
+  - [X] Max 60 searches per minute
 
 #### 8.5 Optional Provider: DynamoDB Search **→ OPTIONAL, POST-MVP**
 - [ ] Implement DynamoDB search provider (implements `ISearchProvider`)
