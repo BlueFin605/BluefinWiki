@@ -3,7 +3,7 @@
  * Task 8.3: Recent searches in localStorage
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // We need to control localStorage for these tests
 const store: Record<string, string> = {};

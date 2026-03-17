@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ClientSearchService } from '../services/ClientSearchService';
 import { SearchRateLimiter } from '../utils/searchRateLimiter';
-import type { WikiSearchQuery, WikiSearchResult, WikiSearchResultSet } from '../types/search';
+import type { WikiSearchQuery, WikiSearchResult } from '../types/search';
 
 const DEBOUNCE_MS = 300;
 const DEFAULT_PAGE_SIZE = 10;
@@ -73,7 +73,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const [executionTimeMs, setExecutionTimeMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState(initialPageSize);
-  const [offset, setOffset] = useState(0);
   const [scope, setScope] = useState<string>('all');
   const [titleOnly, setTitleOnly] = useState(false);
   const [isIndexLoaded, setIsIndexLoaded] = useState(false);
@@ -114,7 +113,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 
   // Reset pagination when query, scope, or titleOnly changes
   useEffect(() => {
-    setOffset(0);
     setResults([]);
   }, [debouncedQuery, scope, titleOnly, pageSize]);
 
@@ -201,7 +199,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       const resultSet = await service.search(searchQuery);
       setResults(prev => [...prev, ...resultSet.results]);
       setTotalResults(resultSet.totalResults);
-      setOffset(newOffset);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load more results');
     } finally {
