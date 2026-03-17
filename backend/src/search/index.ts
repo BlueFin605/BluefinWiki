@@ -26,3 +26,9 @@ export {
   resetSearchProvider,
   isSearchProviderInitialized,
 } from './SearchProviderRegistry.js';
+
+// Utilities
+export { stripMarkdown } from './markdown-stripper.js';
+
+// Index builder
+export { buildSearchIndex } from './search-build-index.js';
