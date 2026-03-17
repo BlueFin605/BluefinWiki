@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SearchDialog } from '../SearchDialog';
+import type { WikiSearchResult } from '../../../types/search';
 
 // Mock the useSearch hook
 const mockSetQuery = vi.fn();
@@ -17,11 +18,11 @@ const mockSetPageSize = vi.fn();
 const defaultUseSearchReturn = {
   query: '',
   setQuery: mockSetQuery,
-  results: [],
+  results: [] as WikiSearchResult[],
   totalResults: 0,
   isSearching: false,
   executionTimeMs: 0,
-  error: null,
+  error: null as string | null,
   hasMore: false,
   loadMore: mockLoadMore,
   pageSize: 10,

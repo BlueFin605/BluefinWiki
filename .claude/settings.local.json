@@ -30,7 +30,8 @@
       "Bash(grep:*)",
       "Bash(aws logs:*)",
       "Bash(npm test:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
