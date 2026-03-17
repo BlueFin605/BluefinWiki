@@ -63,15 +63,10 @@ async function buildPagePath(
 }
 
 /**
- * Build and upload the search index
+ * Build the search index (in-memory only, no S3 upload)
  */
-export async function buildSearchIndex(): Promise<ClientSearchIndex> {
+export async function buildSearchIndexData(): Promise<ClientSearchIndex> {
   const storagePlugin = getStoragePlugin();
-  const assetsBucket = process.env.SEARCH_INDEX_BUCKET || process.env.PAGES_BUCKET || process.env.S3_PAGES_BUCKET;
-
-  if (!assetsBucket) {
-    throw new Error('No S3 bucket configured for search index (SEARCH_INDEX_BUCKET or PAGES_BUCKET)');
-  }
 
   // Get all pages
   const pageTree = await storagePlugin.buildPageTree();
@@ -106,12 +101,25 @@ export async function buildSearchIndex(): Promise<ClientSearchIndex> {
   // Filter out failed entries
   const validEntries = entries.filter((e): e is NonNullable<typeof e> => e !== null);
 
-  const searchIndex: ClientSearchIndex = {
+  return {
     version: CLIENT_SEARCH_INDEX_VERSION,
     builtAt: new Date().toISOString(),
     totalPages: validEntries.length,
     entries: validEntries,
   };
+}
+
+/**
+ * Build and upload the search index to S3
+ */
+export async function buildSearchIndex(): Promise<ClientSearchIndex> {
+  const assetsBucket = process.env.SEARCH_INDEX_BUCKET || process.env.PAGES_BUCKET || process.env.S3_PAGES_BUCKET;
+
+  if (!assetsBucket) {
+    throw new Error('No S3 bucket configured for search index (SEARCH_INDEX_BUCKET or PAGES_BUCKET)');
+  }
+
+  const searchIndex = await buildSearchIndexData();
 
   // Upload to S3
   const indexKey = process.env.SEARCH_INDEX_KEY || 'search-index.json';
@@ -123,7 +131,7 @@ export async function buildSearchIndex(): Promise<ClientSearchIndex> {
     CacheControl: 'public, max-age=60',
   }));
 
-  console.log(`Search index built: ${validEntries.length} pages, uploaded to s3://${assetsBucket}/${indexKey}`);
+  console.log(`Search index built: ${searchIndex.totalPages} pages, uploaded to s3://${assetsBucket}/${indexKey}`);
 
   return searchIndex;
 }
