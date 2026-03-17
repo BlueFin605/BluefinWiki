@@ -737,19 +737,19 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 **Goal**: Implement pluggable search with client-side MVP ($0/month), optional DynamoDB and S3 Vectors providers
 
 #### 8.1 Search Plugin Interface & Architecture
-- [ ] Define `ISearchProvider` interface
-  - [ ] Methods: `indexPage()`, `search()`, `deletePage()`, `reindexAll()`
-  - [ ] `getCapabilities()` returning fuzzySearch, faceting, highlighting, estimatedMonthlyCost
-  - [ ] `SearchQuery` type: text, scope, titleOnly, tags, limit, offset
-  - [ ] `SearchResult` type: pageId, shortCode, title, snippet, relevanceScore, matchCount, path, tags
-  - [ ] `SearchResultSet` type: results array, totalResults, executionTime
-- [ ] Implement search provider plugin loader
-  - [ ] Read provider config from modules.yml (`search.provider`)
-  - [ ] Load and initialize the configured provider
-  - [ ] Fallback to client-side provider if configured provider fails
-- [ ] Define `ClientSearchIndex` JSON schema
-  - [ ] Fields: id, shortCode, title, content (stripped markdown), tags, path, modifiedDate, author
-  - [ ] Version number for cache invalidation
+- [X] Define `ISearchProvider` interface
+  - [X] Methods: `indexPage()`, `search()`, `deletePage()`, `reindexAll()`
+  - [X] `getCapabilities()` returning fuzzySearch, faceting, highlighting, estimatedMonthlyCost
+  - [X] `SearchQuery` type: text, scope, titleOnly, tags, limit, offset
+  - [X] `SearchResult` type: pageId, shortCode, title, snippet, relevanceScore, matchCount, path, tags
+  - [X] `SearchResultSet` type: results array, totalResults, executionTime
+- [X] Implement search provider plugin loader
+  - [X] Read provider config from environment (`SEARCH_PROVIDER_TYPE`, defaults to 'client-side')
+  - [X] Load and initialize the configured provider
+  - [X] Fallback to client-side provider if configured provider fails
+- [X] Define `ClientSearchIndex` JSON schema
+  - [X] Fields: id, shortCode, title, content (stripped markdown), tags, path, modifiedDate, author
+  - [X] Version number for cache invalidation
 
 #### 8.2 Client-Side Search Provider (MVP Default — $0/month)
 - [ ] Install and configure Fuse.js
