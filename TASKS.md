@@ -773,40 +773,40 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Refresh index on visibility change or periodic poll
 
 #### 8.3 Frontend Search UI
-- [ ] Build search dialog component (modal overlay)
-  - [ ] Keyboard shortcut: Cmd/Ctrl+K to open
-  - [ ] Search input with placeholder "Search wiki..."
-  - [ ] Escape to close, focus trap within dialog
-- [ ] Build search results display
-  - [ ] Display results with page title + snippet (first match with context)
-  - [ ] Highlight matching terms in snippets (bold)
-  - [ ] Show folder path for each result
-  - [ ] Click result to navigate to page (`/pages/{shortCode}/Title`)
-  - [ ] "No results found for 'query'" message when empty
-- [ ] Implement keyboard navigation
-  - [ ] Up/Down arrows to navigate results
-  - [ ] Enter to open selected result
-  - [ ] Ctrl+Enter to open in new tab
-  - [ ] Home/End to jump to first/last result
-- [ ] Implement search filters (P2)
-  - [ ] Scope dropdown: "All pages" / "Current folder" / "Current folder + subfolders"
+- [X] Build search dialog component (modal overlay)
+  - [X] Keyboard shortcut: Cmd/Ctrl+K to open
+  - [X] Search input with placeholder "Search wiki..."
+  - [X] Escape to close, focus trap within dialog
+- [X] Build search results display
+  - [X] Display results with page title + snippet (first match with context)
+  - [X] Highlight matching terms in snippets (bold)
+  - [X] Show folder path for each result
+  - [X] Click result to navigate to page (`/pages/{pageId}`)
+  - [X] "No results found for 'query'" message when empty
+- [X] Implement keyboard navigation
+  - [X] Up/Down arrows to navigate results
+  - [X] Enter to open selected result
+  - [X] Ctrl+Enter to open in new tab
+  - [X] Home/End to jump to first/last result
+- [X] Implement search filters (P2)
+  - [X] Scope dropdown: "All pages" / "Current folder" / "Current folder + subfolders"
   - [ ] Persist scope preference for session
-  - [ ] Title-only toggle
-- [ ] Implement infinite scroll for results
-  - [ ] Load 10 results initially
-  - [ ] "Load more" on scroll, user-selectable page size (10, 25, 50)
-- [ ] Implement recent searches (P3)
-  - [ ] Store last 10 searches in localStorage (`bluefin_recent_searches`)
-  - [ ] Show in dropdown when search input is focused and empty
-  - [ ] Click to re-run, "X" to remove individual items
-  - [ ] "Clear recent searches" link
-  - [ ] Auto-cleanup searches older than 30 days
-- [ ] Accessibility (WCAG 2.1 AA)
-  - [ ] ARIA labels for search input, results, filters
-  - [ ] Screen reader announcements: "X results found for 'query'"
-  - [ ] Visible focus indicators, logical tab order
-  - [ ] Return focus to trigger element on dialog close
-  - [ ] Works at 200% zoom, respects prefers-reduced-motion
+  - [X] Title-only toggle
+- [X] Implement infinite scroll for results
+  - [X] Load 10 results initially
+  - [X] "Load more" on scroll, user-selectable page size (10, 25, 50)
+- [X] Implement recent searches (P3)
+  - [X] Store last 10 searches in localStorage (`bluefin_recent_searches`)
+  - [X] Show in dropdown when search input is focused and empty
+  - [X] Click to re-run, "X" to remove individual items
+  - [X] "Clear recent searches" link
+  - [X] Auto-cleanup searches older than 30 days
+- [X] Accessibility (WCAG 2.1 AA)
+  - [X] ARIA labels for search input, results, filters
+  - [X] Screen reader announcements: "X results found for 'query'"
+  - [X] Visible focus indicators, logical tab order
+  - [X] Return focus to trigger element on dialog close
+  - [X] Works at 200% zoom, respects prefers-reduced-motion
 
 #### 8.4 Search Security & Input Validation
 - [ ] Sanitize search queries
