@@ -734,86 +734,119 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 
 ### Week 8: Wiki Search (Spec #7)
 
-**Goal**: Implement full-text search across content
+**Goal**: Implement pluggable search with client-side MVP ($0/month), optional DynamoDB and S3 Vectors providers
 
-#### 8.1 Search Infrastructure Setup
-- [ ] Provision AWS CloudSearch domain
-  - [ ] Choose instance type (small.search for MVP)
-  - [ ] Configure scaling (manual for cost control)
-  - [ ] Set up VPC access (optional)
-- [ ] Define CloudSearch document schema
-  - [ ] Fields: `guid` (id), `title` (text), `content` (text), `tags` (text-array), `author` (literal), `modifiedAt` (date)
-  - [ ] Configure field weights (title: 3x, content: 1x)
-  - [ ] Enable stemming for English language
-  - [ ] Configure result highlighting
-- [ ] Set up IAM roles for Lambda access to CloudSearch
+#### 8.1 Search Plugin Interface & Architecture
+- [ ] Define `ISearchProvider` interface
+  - [ ] Methods: `indexPage()`, `search()`, `deletePage()`, `reindexAll()`
+  - [ ] `getCapabilities()` returning fuzzySearch, faceting, highlighting, estimatedMonthlyCost
+  - [ ] `SearchQuery` type: text, scope, titleOnly, tags, limit, offset
+  - [ ] `SearchResult` type: pageId, shortCode, title, snippet, relevanceScore, matchCount, path, tags
+  - [ ] `SearchResultSet` type: results array, totalResults, executionTime
+- [ ] Implement search provider plugin loader
+  - [ ] Read provider config from modules.yml (`search.provider`)
+  - [ ] Load and initialize the configured provider
+  - [ ] Fallback to client-side provider if configured provider fails
+- [ ] Define `ClientSearchIndex` JSON schema
+  - [ ] Fields: id, shortCode, title, content (stripped markdown), tags, path, modifiedDate, author
+  - [ ] Version number for cache invalidation
 
-#### 8.2 Search Indexing
-- [ ] Build search indexer Lambda: `search-index-page`
-  - [ ] Triggered by S3 event (page save)
-  - [ ] Or triggered by SQS queue (decoupled)
-  - [ ] Load page via storage plugin `loadPage`
-  - [ ] Extract plain text from Markdown content
-  - [ ] Remove code blocks and special syntax
-  - [ ] Extract metadata from PageContent (title, tags, author, etc.)
-  - [ ] Submit document to CloudSearch
-- [ ] Implement batch indexing
-  - [ ] Lambda: `search-reindex-all` (admin operation)
-  - [ ] Paginate through all pages
-  - [ ] Batch submit to CloudSearch (100 docs/request)
-  - [ ] Track indexing progress
-- [ ] Handle indexing failures
-  - [ ] Retry with exponential backoff
-  - [ ] Dead-letter queue for failed documents
-  - [ ] Admin alert on repeated failures
+#### 8.2 Client-Side Search Provider (MVP Default — $0/month)
+- [ ] Install and configure Fuse.js
+  - [ ] Add fuse.js dependency to frontend
+  - [ ] Configure search keys with weights (title: 10x, tags: 5x, content: 1x)
+  - [ ] Set fuzzy threshold (0.3), minMatchCharLength (2)
+- [ ] Build search index builder Lambda: `search-build-index`
+  - [ ] Triggered by S3 event on page create/update/delete
+  - [ ] Fetch all page metadata + content from storage plugin
+  - [ ] Strip markdown formatting from content (remove code blocks, special syntax)
+  - [ ] Build `ClientSearchIndex` JSON structure
+  - [ ] Upload `search-index.json` to S3 static assets bucket
+  - [ ] Invalidate CloudFront cache for `/search-index.json`
+- [ ] Implement client-side search service
+  - [ ] Fetch and cache `search-index.json` (service worker or in-memory)
+  - [ ] Initialize Fuse.js instance with downloaded index
+  - [ ] Execute search queries entirely in browser
+  - [ ] Generate snippets with context around first match (200-300 chars)
+  - [ ] Rank results: title match (10x) > tag match (5x) > content match (1x)
+  - [ ] Support folder-scoped search (filter by path prefix)
+  - [ ] Refresh index on visibility change or periodic poll
 
-#### 8.3 Search API
-- [ ] Implement Lambda: `search-query` (GET /search)
-  - [ ] Query parameters: `q` (query), `parent` (GUID - search within page and descendants), `tags`, `author`, `dateFrom`, `dateTo`
-  - [ ] Build CloudSearch query syntax
-  - [ ] Apply permissions filter (exclude drafts for non-authors)
-  - [ ] Execute search request
-  - [ ] Parse and format results
-  - [ ] Return ranked results with snippets
-- [ ] Implement advanced search features
-  - [ ] Phrase search: `"exact phrase"`
-  - [ ] Exclusion: `-word`
-  - [ ] Field search: `title:keyword`
-  - [ ] Parent-scoped search (filter by page hierarchy - search within page and all descendants)
-- [ ] Add pagination support
-  - [ ] Default: 10 results per page
-  - [ ] Max: 50 results per page
-  - [ ] Return total count and next page cursor
+#### 8.3 Frontend Search UI
+- [ ] Build search dialog component (modal overlay)
+  - [ ] Keyboard shortcut: Cmd/Ctrl+K to open
+  - [ ] Search input with placeholder "Search wiki..."
+  - [ ] Escape to close, focus trap within dialog
+- [ ] Build search results display
+  - [ ] Display results with page title + snippet (first match with context)
+  - [ ] Highlight matching terms in snippets (bold)
+  - [ ] Show folder path for each result
+  - [ ] Click result to navigate to page (`/pages/{shortCode}/Title`)
+  - [ ] "No results found for 'query'" message when empty
+- [ ] Implement keyboard navigation
+  - [ ] Up/Down arrows to navigate results
+  - [ ] Enter to open selected result
+  - [ ] Ctrl+Enter to open in new tab
+  - [ ] Home/End to jump to first/last result
+- [ ] Implement search filters (P2)
+  - [ ] Scope dropdown: "All pages" / "Current folder" / "Current folder + subfolders"
+  - [ ] Persist scope preference for session
+  - [ ] Title-only toggle
+- [ ] Implement infinite scroll for results
+  - [ ] Load 10 results initially
+  - [ ] "Load more" on scroll, user-selectable page size (10, 25, 50)
+- [ ] Implement recent searches (P3)
+  - [ ] Store last 10 searches in localStorage (`bluefin_recent_searches`)
+  - [ ] Show in dropdown when search input is focused and empty
+  - [ ] Click to re-run, "X" to remove individual items
+  - [ ] "Clear recent searches" link
+  - [ ] Auto-cleanup searches older than 30 days
+- [ ] Accessibility (WCAG 2.1 AA)
+  - [ ] ARIA labels for search input, results, filters
+  - [ ] Screen reader announcements: "X results found for 'query'"
+  - [ ] Visible focus indicators, logical tab order
+  - [ ] Return focus to trigger element on dialog close
+  - [ ] Works at 200% zoom, respects prefers-reduced-motion
 
-#### 8.4 Frontend Search UI
-- [ ] Build global search bar component
-  - [ ] Keyboard shortcut: Cmd/Ctrl+K
-  - [ ] Autocomplete dropdown (top 5 results)
-  - [ ] Navigate to full results page on Enter
-- [ ] Build search results page
-  - [ ] Display results with title + snippet
-  - [ ] Highlight matching keywords
-  - [ ] Show page metadata (parent page path, author, date)
-  - [ ] Click to open page
-- [ ] Implement search filters
-  - [ ] Parent page selector (tree dropdown - search within page and descendants)
-  - [ ] Tag multi-select
-  - [ ] Author dropdown
-  - [ ] Date range picker
-- [ ] Add search suggestions
-  - [ ] Track popular searches
-  - [ ] Show "Did you mean?" for typos
-  - [ ] Display "No results" with suggestions
+#### 8.4 Search Security & Input Validation
+- [ ] Sanitize search queries
+  - [ ] Max query length: 500 characters
+  - [ ] Strip/escape characters that could cause XSS
+  - [ ] HTML-encode all user content in result snippets
+- [ ] Rate limiting (client-side)
+  - [ ] Debounce search input (300ms)
+  - [ ] Max 60 searches per minute
 
-#### 8.5 Search Performance Optimization **→ DEFERRED TO POST-MVP**
-- [ ] Implement client-side caching **→ POST-MVP**
-  - [ ] Cache search results (React Query) **→ POST-MVP**
-  - [ ] 5-minute cache TTL **→ POST-MVP**
-  - [ ] Invalidate on page edits **→ POST-MVP**
-- [ ] Add search analytics
-  - [ ] Log search queries (DynamoDB)
-  - [ ] Track zero-result queries
-  - [ ] Identify popular search terms
+#### 8.5 Optional Provider: DynamoDB Search **→ OPTIONAL, POST-MVP**
+- [ ] Implement DynamoDB search provider (implements `ISearchProvider`)
+  - [ ] Create DynamoDB table `WikiSearchIndex` (on-demand pricing)
+  - [ ] Table schema: PK `SEARCH#<pageId>`, SK `INDEX`, titleLower, contentLower, tags, path, author, modifiedDate
+  - [ ] `indexPage()`: Store tokenized page data in DynamoDB on page save
+  - [ ] `search()`: Scan with FilterExpression `contains(titleLower, :q) OR contains(contentLower, :q)`
+  - [ ] `deletePage()`: Delete item from DynamoDB
+  - [ ] `reindexAll()`: Batch write all pages to DynamoDB table
+  - [ ] Rank results in Lambda (title match weighted higher)
+- [ ] Set up IAM roles for Lambda access to DynamoDB search table
+- [ ] Test provider hot-swap from client-side to DynamoDB without data loss
+
+#### 8.6 Optional Provider: S3 Vectors Semantic Search **→ OPTIONAL, POST-MVP**
+- [ ] Implement S3 Vectors search provider (implements `ISearchProvider`)
+  - [ ] Create S3 vector bucket: `wiki-search-vectors`
+  - [ ] Create vector index: dimension 1024, cosine distance, float32
+  - [ ] Configure filterable metadata: folder, author, tags
+- [ ] Integrate Amazon Bedrock Titan Text Embeddings V2
+  - [ ] `indexPage()`: Generate 1024-dim embedding via Bedrock, store in S3 Vectors with page metadata
+  - [ ] `search()`: Embed query via Bedrock, call `QueryVectors` for top-K nearest neighbors
+  - [ ] `deletePage()`: Remove vector by page ID key
+  - [ ] `reindexAll()`: Batch embed and store all pages
+- [ ] Set up IAM roles for Lambda access to S3 Vectors and Bedrock
+- [ ] Handle regional availability (S3 Vectors not in all regions)
+- [ ] Optional: Implement hybrid search mode
+  - [ ] Run S3 Vectors + client-side provider in parallel
+  - [ ] Merge and deduplicate results
+  - [ ] Weight keyword matches higher for short/exact queries
+  - [ ] Weight semantic matches higher for natural language queries
+- [ ] Document cost implications (~$0.02-0.15/month) and setup requirements
 
 ---
 
@@ -1356,7 +1389,7 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [ ] Allow updates to tags, category, status, customFields
   - [ ] Validate status transitions (Draft → Published → Archived)
   - [ ] Update page data and save via storage plugin
-  - [ ] Trigger search reindex
+  - [ ] Trigger search index rebuild (regenerate search-index.json)
 - [ ] Implement Lambda: `tags-list` (GET /tags)
   - [ ] List all pages from storage plugin
   - [ ] Extract and aggregate unique tags
@@ -1394,7 +1427,7 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [ ] Validate field types
   - [ ] Store in `customFields` JSON column
 - [ ] Enable search on custom fields
-  - [ ] Index custom fields in CloudSearch
+  - [ ] Include custom fields in search index JSON (client-side) or provider-specific index
   - [ ] Query by field name and value
 
 ---
@@ -1569,8 +1602,8 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - Mitigation: Use CloudFront for caching
 - [ ] DynamoDB throttling
   - Mitigation: Enable auto-scaling, use exponential backoff
-- [ ] CloudSearch cost overruns
-  - Mitigation: Monitor spend, consider OpenSearch Serverless or Algolia
+- [ ] Search provider costs (if using optional DynamoDB or S3 Vectors providers)
+  - Mitigation: Default client-side search is $0/month; monitor optional provider costs; hot-swap back to client-side if needed
 - [ ] Lambda cold start latency
   - Mitigation: Provisioned concurrency for critical functions, optimize bundle size
 
@@ -1580,7 +1613,7 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
 - [ ] Underestimated complexity
   - Mitigation: Add 20% buffer to each phase, weekly progress reviews
 - [ ] Dependency delays (AWS services)
-  - Mitigation: Have fallback options (e.g., local search if CloudSearch unavailable)
+  - Mitigation: Client-side search has no AWS dependency; optional providers fall back to client-side on failure
 
 ### Security Risks
 - [ ] Data breach
