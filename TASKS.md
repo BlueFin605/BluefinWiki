@@ -752,25 +752,25 @@ Display names are stored in YAML frontmatter within each `.md` file. This enable
   - [X] Version number for cache invalidation
 
 #### 8.2 Client-Side Search Provider (MVP Default — $0/month)
-- [ ] Install and configure Fuse.js
-  - [ ] Add fuse.js dependency to frontend
-  - [ ] Configure search keys with weights (title: 10x, tags: 5x, content: 1x)
-  - [ ] Set fuzzy threshold (0.3), minMatchCharLength (2)
-- [ ] Build search index builder Lambda: `search-build-index`
-  - [ ] Triggered by S3 event on page create/update/delete
-  - [ ] Fetch all page metadata + content from storage plugin
-  - [ ] Strip markdown formatting from content (remove code blocks, special syntax)
-  - [ ] Build `ClientSearchIndex` JSON structure
-  - [ ] Upload `search-index.json` to S3 static assets bucket
+- [X] Install and configure Fuse.js
+  - [X] Add fuse.js dependency to frontend
+  - [X] Configure search keys with weights (title: 10x, tags: 5x, content: 1x)
+  - [X] Set fuzzy threshold (0.3), minMatchCharLength (2)
+- [X] Build search index builder Lambda: `search-build-index`
+  - [X] Triggered by S3 event on page create/update/delete
+  - [X] Fetch all page metadata + content from storage plugin
+  - [X] Strip markdown formatting from content (remove code blocks, special syntax)
+  - [X] Build `ClientSearchIndex` JSON structure
+  - [X] Upload `search-index.json` to S3 static assets bucket
   - [ ] Invalidate CloudFront cache for `/search-index.json`
-- [ ] Implement client-side search service
-  - [ ] Fetch and cache `search-index.json` (service worker or in-memory)
-  - [ ] Initialize Fuse.js instance with downloaded index
-  - [ ] Execute search queries entirely in browser
-  - [ ] Generate snippets with context around first match (200-300 chars)
-  - [ ] Rank results: title match (10x) > tag match (5x) > content match (1x)
-  - [ ] Support folder-scoped search (filter by path prefix)
-  - [ ] Refresh index on visibility change or periodic poll
+- [X] Implement client-side search service
+  - [X] Fetch and cache `search-index.json` (service worker or in-memory)
+  - [X] Initialize Fuse.js instance with downloaded index
+  - [X] Execute search queries entirely in browser
+  - [X] Generate snippets with context around first match (200-300 chars)
+  - [X] Rank results: title match (10x) > tag match (5x) > content match (1x)
+  - [X] Support folder-scoped search (filter by path prefix)
+  - [X] Refresh index on visibility change or periodic poll
 
 #### 8.3 Frontend Search UI
 - [ ] Build search dialog component (modal overlay)
