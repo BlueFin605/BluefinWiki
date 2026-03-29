@@ -85,6 +85,15 @@ Fuse.js in browser. Lambda builds `search-index.json` on S3 events (page create/
 
 ---
 
+### Page Index (Spec 9) — Complete
+
+DynamoDB `page_index` table provides O(1) GUID-to-S3-key lookups, eliminating full S3 bucket scans in `findPageKey()`. Index maintained atomically with S3 writes (save, move, delete). Self-repairs on cache miss by falling back to S3 scan and writing result back to index. `rebuild-page-index` utility handles migration and recovery.
+
+> `backend/src/storage/S3StoragePlugin.ts` — `findPageKey()` now queries DynamoDB first
+> `backend/src/storage/rebuild-page-index.ts` — Migration/recovery utility
+
+---
+
 ## What's Not Built
 
 ### User Management Admin UI (Spec 8) — Not Started
@@ -118,6 +127,10 @@ No PDF or HTML export. Would need Puppeteer in Lambda for PDF generation.
 ### Comments (Spec 15) — Not Started
 
 No comments DynamoDB table, no APIs, no UI.
+
+### Custom Properties & Page Types — Not Started
+
+Pages have fixed metadata fields in YAML frontmatter. No custom typed properties (string, number, date, tags). No page type definitions. No shared tag vocabulary. No Kanban board view. The existing `tags` field on `PageContent` is a flat `string[]` with no autocomplete or aggregation. The hierarchical pages-as-folders model is a natural fit for structured hierarchies (Show → Season → Episode) but the system currently treats all pages identically. See plans: [Custom Properties](plans/custom-properties.md), [Page Types](plans/page-types.md), [Kanban Board](plans/kanban-board.md), [Default Templates](plans/default-templates.md).
 
 ### Page Metadata (Spec 16) — Partially Done
 

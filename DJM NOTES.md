@@ -79,3 +79,24 @@ cdk deploy BlueFinWiki-production \
 ```
 cdk deploy --context environment=dev --all
 ```
+
+
+# My big idea
+I want to build a Kanban board into it, I know it is not a traditionl feature BUT The
+  hierachical nature of the Wiki folders-->pages-->folders resembles the Eipc->Story->Task, and
+  would introduce an element of flexibiloity, not forced into the same break down and limit of
+  levels.  so my idea would be
+  1. Introduce a concept of custom properties to a page, allowing to store named values of data
+  types: string, number, date, tags. Note this introduces the concept of tags as well
+  2. Introduce the ability to create different page types  which define the properties the page
+  can have and which ones are compulsory. Users can make as many types as they want
+     2.1 ability to define the type of tickets that can be created as a child to the page, do not
+  negatively impact a standard wiki poage though
+  3. Add a icon to a type and, and the name shoul dbe able to be changed, so maybe needs a GUID
+  key and a name priperty
+  4. now a user can create the the kanban tickets using the page types so we can build a
+  rudementary kanban board
+    4.1 The wiki page show the hierachy of pages and the type of "ticket"
+    4.2 The state of the "ticket" would be a mandatory property of "state"
+    4.3 I want it to track tv series, so maybe come with a preconfigured default ticket hieracy
+  to represent a Show->Series
