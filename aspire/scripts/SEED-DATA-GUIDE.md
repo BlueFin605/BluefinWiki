@@ -76,7 +76,7 @@ Use this to capture your current test data state and create reusable seed data f
 **Output structure:**
 ```
 seed-snapshots/
-  2026-03-03/
+  2026-03-29/
     dynamodb/
       users.json
       invitations.json
