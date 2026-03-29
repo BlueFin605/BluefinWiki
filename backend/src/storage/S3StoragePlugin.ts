@@ -74,6 +74,7 @@ function folderToFileKey(folder: string, guid: string): string {
 }
 import {
   PageContent,
+  PageProperty,
   Version,
   PageSummary,
   AttachmentUploadInput,
@@ -207,7 +208,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Parse YAML frontmatter from markdown content
    */
-  private parseFrontmatter(rawContent: string): { metadata: Record<string, string | string[] | undefined>; body: string } {
+  private parseFrontmatter(rawContent: string): { metadata: Record<string, string | string[] | undefined>; body: string; properties?: Record<string, PageProperty> } {
     // Normalize Windows CRLF to LF so regex matching works regardless of line endings
     const content = rawContent.replace(/\r\n/g, '\n');
     const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
@@ -224,22 +225,101 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     const yamlContent = match[1];
     const body = match[2];
 
-    // Simple YAML parser (supports basic key: value format and arrays)
+    // Simple YAML parser (supports basic key: value format, arrays, and properties block)
     const metadata: Record<string, string | string[] | undefined> = {};
     const lines = yamlContent.split('\n');
     let currentKey: string | null = null;
     let currentArray: string[] = [];
+    let inProperties = false;
+    let currentPropName: string | null = null;
+    let currentProp: Partial<PageProperty> = {};
+    const properties: Record<string, PageProperty> = {};
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      
+      const indent = line.length - line.trimStart().length;
+
+      // Detect entering/leaving the properties block
+      if (indent === 0 && line.trimStart().startsWith('properties:')) {
+        const value = line.substring(line.indexOf(':') + 1).trim();
+        if (value === '{}' || value === '') {
+          inProperties = true;
+          // Flush any pending top-level array
+          if (currentKey && currentArray.length > 0) {
+            metadata[currentKey] = currentArray;
+            currentKey = null;
+            currentArray = [];
+          }
+          continue;
+        }
+      }
+
+      if (inProperties) {
+        // A non-indented line means we left the properties block
+        if (indent === 0 && line.trim() !== '') {
+          // Save pending property
+          if (currentPropName && currentProp.type) {
+            properties[currentPropName] = currentProp as PageProperty;
+          }
+          inProperties = false;
+          currentPropName = null;
+          currentProp = {};
+          // Fall through to normal parsing for this line
+        } else {
+          // Parse property entries (indent 2 = property name, indent 4 = type/value)
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          if (indent === 2 && trimmed.includes(':')) {
+            // Save previous property
+            if (currentPropName && currentProp.type) {
+              properties[currentPropName] = currentProp as PageProperty;
+            }
+            const propName = trimmed.substring(0, trimmed.indexOf(':')).trim();
+            currentPropName = propName;
+            currentProp = {};
+          } else if (indent >= 4 && trimmed.includes(':')) {
+            const key = trimmed.substring(0, trimmed.indexOf(':')).trim();
+            let val = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+            // Remove quotes
+            if ((val.startsWith('"') && val.endsWith('"')) ||
+                (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.substring(1, val.length - 1);
+            }
+            if (key === 'type') {
+              currentProp.type = val as PageProperty['type'];
+            } else if (key === 'value') {
+              if (val.startsWith('[') && val.endsWith(']')) {
+                // Inline array
+                currentProp.value = val.substring(1, val.length - 1)
+                  .split(',')
+                  .map(item => item.trim().replace(/^["']|["']$/g, ''))
+                  .filter(item => item.length > 0);
+              } else if (currentProp.type === 'number') {
+                currentProp.value = parseFloat(val) || 0;
+              } else if (val === '' || val === '[]') {
+                // Multi-line array values follow on subsequent lines
+                currentProp.value = [];
+              } else {
+                currentProp.value = val;
+              }
+            }
+          } else if (indent >= 6 && trimmed.startsWith('-') && Array.isArray(currentProp.value)) {
+            // Multi-line array item for a property value
+            const item = trimmed.substring(1).trim().replace(/^["']|["']$/g, '');
+            (currentProp.value as string[]).push(item);
+          }
+          continue;
+        }
+      }
+
       // Check if this is an array item (starts with -)
       if (line.trim().startsWith('-') && currentKey) {
         const item = line.trim().substring(1).trim();
         currentArray.push(item);
         continue;
       }
-      
+
       // If we were building an array, save it now
       if (currentKey && currentArray.length > 0) {
         metadata[currentKey] = currentArray;
@@ -274,13 +354,19 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         metadata[key] = value;
       }
     }
-    
+
     // Save any remaining array
     if (currentKey && currentArray.length > 0) {
       metadata[currentKey] = currentArray;
     }
 
-    return { metadata, body };
+    // Save any remaining property
+    if (inProperties && currentPropName && currentProp.type) {
+      properties[currentPropName] = currentProp as PageProperty;
+    }
+
+    const hasProperties = Object.keys(properties).length > 0;
+    return { metadata, body, ...(hasProperties ? { properties } : {}) };
   }
 
   /**
@@ -316,6 +402,26 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       lines.push('tags: []');
     }
     
+    // Add properties block if present and non-empty
+    if (content.properties && Object.keys(content.properties).length > 0) {
+      lines.push('properties:');
+      for (const [name, prop] of Object.entries(content.properties)) {
+        lines.push(`  ${name}:`);
+        lines.push(`    type: ${prop.type}`);
+        if (Array.isArray(prop.value)) {
+          if (prop.value.length === 0) {
+            lines.push('    value: []');
+          } else {
+            lines.push(`    value: [${prop.value.map(v => `"${v}"`).join(', ')}]`);
+          }
+        } else if (typeof prop.value === 'number') {
+          lines.push(`    value: ${prop.value}`);
+        } else {
+          lines.push(`    value: "${prop.value}"`);
+        }
+      }
+    }
+
     lines.push(
       `createdBy: "${content.createdBy}"`,
       `modifiedBy: "${content.modifiedBy}"`,
@@ -323,7 +429,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       `modifiedAt: "${content.modifiedAt}"`,
       '---'
     );
-    
+
     return lines.join('\n') + '\n' + content.content;
   }
 
@@ -436,7 +542,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const markdown = await this.readBodyAsString(response.Body);
 
       // Parse frontmatter
-      const { metadata, body } = this.parseFrontmatter(markdown);
+      const { metadata, body, properties } = this.parseFrontmatter(markdown);
 
       // Build PageContent object
       const folderId = Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId;
@@ -448,7 +554,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         (effectiveFolderId === null || effectiveFolderId === 'null')
           ? ''
           : (effectiveFolderId === pageGuid ? inferredParentGuid : effectiveFolderId);
-      
+
       const pageContent: PageContent = {
         guid: pageGuid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
@@ -457,6 +563,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
+        ...(properties ? { properties } : {}),
         createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
         modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',
         createdAt: Array.isArray(metadata.createdAt) ? metadata.createdAt[0] : metadata.createdAt || this.formatDate(),

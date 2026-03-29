@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { PageProperty } from '../../types/page';
+import { CustomPropertiesEditor } from './CustomPropertiesEditor';
 
 export interface PageMetadata {
   title: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   description?: string;
+  properties?: Record<string, PageProperty>;
   createdBy: string;
   modifiedBy: string;
   createdAt: string;
@@ -236,6 +239,13 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
           <p>Modified: {formatTimestamp(metadata.modifiedAt)}</p>
         </div>
       </div>
+
+      {/* Custom Properties */}
+      <CustomPropertiesEditor
+        properties={metadata.properties || {}}
+        onChange={(properties) => onMetadataChange({ properties })}
+        editable={editable}
+      />
 
       {/* Page GUID (Read-only, for debugging) */}
       {metadata.guid && (

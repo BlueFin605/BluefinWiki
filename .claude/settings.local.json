@@ -42,7 +42,8 @@
       "WebSearch",
       "Bash(dotnet restore:*)",
       "Bash(dotnet build:*)",
-      "Bash(docker ps:*)"
+      "Bash(docker ps:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

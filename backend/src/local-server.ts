@@ -42,6 +42,8 @@ import { handler as adminCreateInvitation } from './auth/admin-create-invitation
 import { handler as adminListInvitations } from './auth/admin-list-invitations.js';
 import { handler as adminRevokeInvitation } from './auth/admin-revoke-invitation.js';
 import { buildSearchIndexData } from './search/search-build-index.js';
+import { handler as tagsList } from './tags/tags-list.js';
+import { handler as tagsCreate } from './tags/tags-create.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -228,6 +230,13 @@ app.get('/auth/me', wrapLambdaHandler(authMe));
 app.post('/admin/invitations', wrapLambdaHandler(adminCreateInvitation));
 app.get('/admin/invitations', wrapLambdaHandler(adminListInvitations));
 app.delete('/admin/invitations/:invitationCode', wrapLambdaHandler(adminRevokeInvitation));
+
+// ============================================================================
+// API Routes - Tags
+// ============================================================================
+
+app.get('/tags', wrapLambdaHandler(tagsList));
+app.post('/tags', wrapLambdaHandler(tagsCreate));
 
 // ============================================================================
 // API Routes - Search Index

@@ -62,6 +62,13 @@ export interface ActivityLogRecord {
   createdAt: string; // ISO 8601
 }
 
+export type PropertyType = 'string' | 'number' | 'date' | 'tags';
+
+export interface PageProperty {
+  type: PropertyType;
+  value: string | number | string[];
+}
+
 export interface PageContent {
   guid: string;
   title: string;
@@ -70,6 +77,7 @@ export interface PageContent {
   tags: string[];
   status: 'draft' | 'published' | 'archived' | 'deleted';
   description?: string; // Optional page description
+  properties?: Record<string, PageProperty>;
   createdBy: string; // Cognito sub
   modifiedBy: string; // Cognito sub
   createdAt: string; // ISO 8601

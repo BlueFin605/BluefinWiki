@@ -5,6 +5,27 @@ import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
+import { autoRegisterTagsFromProperties } from '../tags/tags-service.js';
+
+// Property validation schema
+const PagePropertySchema = z.object({
+  type: z.enum(['string', 'number', 'date', 'tags']),
+  value: z.union([z.string(), z.number(), z.array(z.string())]),
+}).refine(
+  (prop) => {
+    switch (prop.type) {
+      case 'string': return typeof prop.value === 'string';
+      case 'number': return typeof prop.value === 'number';
+      case 'date': return typeof prop.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(prop.value);
+      case 'tags': return Array.isArray(prop.value);
+      default: return false;
+    }
+  },
+  { message: 'Property value does not match its declared type' }
+);
+
+// Property name must be kebab-case
+const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Property names must be kebab-case');
 
 // Request validation schema
 const CreatePageRequestSchema = z.object({
@@ -13,6 +34,7 @@ const CreatePageRequestSchema = z.object({
   parentGuid: z.string().uuid().nullable().optional(),
   tags: z.array(z.string()).default([]),
   status: z.enum(['published', 'archived']).default('published'),
+  properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
 });
 
 /**
@@ -64,7 +86,7 @@ export const handler = withAuth(async (
       };
     }
 
-    const { title, content, parentGuid = null, tags, status } = validationResult.data;
+    const { title, content, parentGuid = null, tags, status, properties } = validationResult.data;
 
     // Get authenticated user context
     const user = getUserContext(event);
@@ -81,6 +103,7 @@ export const handler = withAuth(async (
       folderId: parentGuid || '',
       tags,
       status,
+      ...(properties ? { properties } : {}),
       createdBy: user.userId,
       modifiedBy: user.userId,
       createdAt: now,
@@ -101,6 +124,13 @@ export const handler = withAuth(async (
         guid,
         linkCount: wikiLinks.length,
       });
+    }
+
+    // Auto-register tags from properties (best-effort)
+    if (properties) {
+      autoRegisterTagsFromProperties(properties, user.userId).catch(err =>
+        console.warn('Tag auto-registration failed:', err)
+      );
     }
 
     // Log activity
