@@ -89,7 +89,7 @@ AWS CDK with C# for infrastructure as code. Single unified stack (`UnifiedStack`
 |----------------|-------------|
 | Auth | Cognito UserPool, WebClient, NativeClient, IdentityPool, domain, 4 trigger Lambdas |
 | Storage | S3 pages bucket (versioning enabled), S3 frontend bucket (no versioning) |
-| Database | DynamoDB tables (user_profiles, invitations, page_links, activity_log) |
+| Database | DynamoDB tables (user_profiles, invitations, page_links, activity_log, page_index) |
 | Compute | Individual Lambda functions per endpoint (~14 pages + 4 auth + search), API Gateway REST API with Cognito authorizer |
 | CDN | CloudFront distribution serving frontend bucket |
 
@@ -163,7 +163,7 @@ Markdown content here...
 
 | Table | PK | SK/GSI | Purpose |
 |-------|-----|--------|---------|
-| `page_index` | `guid` | — | **Not yet created** — GUID-to-S3-key mapping to eliminate bucket scans |
+| `page_index` | `guid` | — | GUID-to-S3-key mapping — eliminates bucket scans in `findPageKey()`. Self-repairing: falls back to S3 scan and repairs the index on miss. |
 | `user_profiles` | `cognitoUserId` | GSI: `email-index` | Extended profile data (role, preferences, display name) |
 | `invitations` | `inviteCode` | TTL: `expiresAt` | Invitation codes with 7-day expiry |
 | `page_links` | `sourceGuid` | SK: `targetGuid`, GSI: `targetGuid-index` | Wiki link tracking for backlinks |
@@ -294,7 +294,7 @@ Minimal caching in MVP. Lambda containers are ephemeral with cold starts — no 
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| `findPageKey` scans entire S3 bucket | Every non-root page load is O(n) | Plan: Page Index — DynamoDB GUID-to-path lookup with S3 scan fallback |
+| `findPageKey` scans entire S3 bucket | Every non-root page load is O(n) | **Mitigated**: Page Index implemented — DynamoDB GUID-to-path lookup with S3 scan fallback and self-repair |
 | Lambda cold starts | First request slow | Provisioned concurrency for critical functions (post-MVP) |
 | Search index grows too large | Frontend load time increases | At 500 pages ~2MB JSON. Acceptable. Compress or paginate if needed |
 | CDK synth workflow disabled | No automated infrastructure validation on PR | Re-enable `infrastructure.yml` workflow |

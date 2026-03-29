@@ -45,6 +45,25 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import { BaseStoragePlugin } from './BaseStoragePlugin.js';
+
+/**
+ * Page index interface — allows injection of the DynamoDB page index
+ * without creating a hard dependency on the DynamoDB SDK at import time.
+ */
+export interface PageIndexProvider {
+  getPageKey(guid: string): Promise<string | null>;
+  putPageKey(record: { guid: string; s3Key: string; parentGuid: string | null; title: string; updatedAt: string }): Promise<void>;
+  deletePageKey(guid: string): Promise<void>;
+  deletePageKeys(guids: string[]): Promise<void>;
+}
+
+// No-op index that does nothing (used when no index is configured)
+const noOpIndex: PageIndexProvider = {
+  getPageKey: async () => null,
+  putPageKey: async () => {},
+  deletePageKey: async () => {},
+  deletePageKeys: async () => {},
+};
 import {
   PageContent,
   Version,
@@ -59,16 +78,20 @@ interface S3StorageConfig {
   bucketName: string;
   region?: string;
   endpoint?: string; // For LocalStack
+  pageIndex?: PageIndexProvider; // Optional page index for GUID → S3 key lookups
 }
 
 export class S3StoragePlugin extends BaseStoragePlugin {
   private s3Client: S3Client;
   private bucketName: string;
+  private pageIndex: PageIndexProvider;
+  private repairingGuids: Set<string> = new Set();
 
   constructor(config: S3StorageConfig) {
     super('s3');
-    
+
     this.bucketName = config.bucketName;
+    this.pageIndex = config.pageIndex || noOpIndex;
     
     // Initialize S3 client
     this.s3Client = new S3Client({
@@ -353,6 +376,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       });
 
       await this.s3Client.send(command);
+
+      // Update the page index (fire-and-forget — don't block the save)
+      this.pageIndex.putPageKey({
+        guid,
+        s3Key: key,
+        parentGuid: parentGuid || null,
+        title: content.title,
+        updatedAt: content.modifiedAt || new Date().toISOString(),
+      });
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
       if (error.code && error.code.startsWith('INVALID_')) {
@@ -467,13 +499,26 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    */
   private async findPageKey(guid: string): Promise<string | null> {
     try {
-      // First, try as a root page (new structure: {guid}/{guid}.md)
+      // 1. Try the DynamoDB page index first — O(1) lookup
+      try {
+        const indexedKey = await this.pageIndex.getPageKey(guid);
+        if (indexedKey) {
+          return indexedKey;
+        }
+      } catch {
+        // Index unavailable — fall through to S3 scan
+        console.warn(`[PageIndex] Index lookup failed for ${guid}, falling back to S3 scan`);
+      }
+
+      // 2. Fallback: try as a root page (HeadObject — fast)
       const rootKey = `${guid}/${guid}.md`;
       try {
         await this.s3Client.send(new HeadObjectCommand({
           Bucket: this.bucketName,
           Key: rootKey,
         }));
+        // Repair the index with this key
+        this.repairIndex(guid, rootKey);
         return rootKey;
       } catch (err: unknown) {
         const error = err as { name?: string; message?: string };
@@ -482,9 +527,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         }
       }
 
-      // Search for the page in all folders (new structure: {parent}/{guid}/{guid}.md)
+      // 3. Fallback: full bucket scan — O(n), slow
       let continuationToken: string | undefined = undefined;
-      
+
       do {
         const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
           Bucket: this.bucketName,
@@ -492,10 +537,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         });
 
         const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
-        
+
         if (response.Contents) {
           for (const obj of response.Contents) {
             if (obj.Key && obj.Key.endsWith(`/${guid}/${guid}.md`)) {
+              // Repair the index with the discovered key
+              this.repairIndex(guid, obj.Key);
               return obj.Key;
             }
           }
@@ -513,6 +560,31 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         500
       );
     }
+  }
+
+  /**
+   * Repair a missing or stale index entry (fire-and-forget).
+   * Called when findPageKey falls back to S3 scan and finds the page.
+   */
+  private repairIndex(guid: string, s3Key: string): void {
+    // Guard against infinite recursion: loadPage → findPageKey → repairIndex → loadPage
+    if (this.repairingGuids.has(guid)) return;
+    this.repairingGuids.add(guid);
+
+    // Load the page to get metadata for the index entry, but don't block on it
+    this.loadPage(guid).then(page => {
+      this.pageIndex.putPageKey({
+        guid,
+        s3Key,
+        parentGuid: page.folderId || null,
+        title: page.title,
+        updatedAt: page.modifiedAt || new Date().toISOString(),
+      });
+    }).catch(() => {
+      // Best-effort repair — if it fails, the next request will try again
+    }).finally(() => {
+      this.repairingGuids.delete(guid);
+    });
   }
 
   /**
@@ -548,8 +620,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       if (recursive && hasChildPages) {
-        // Delete all children recursively
+        // Collect child GUIDs for index cleanup before deleting
+        const children = await this.listChildren(guid);
+        const childGuids = await this.collectDescendantGuids(children);
+
+        // Delete all children recursively from S3
         await this.deletePageAndChildren(guid, key);
+
+        // Clean up index for deleted page and all descendants
+        this.pageIndex.deletePageKeys([guid, ...childGuids]);
       } else {
         // Delete single page
         const deleteCommand = new DeleteObjectCommand({
@@ -557,6 +636,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           Key: key,
         });
         await this.s3Client.send(deleteCommand);
+
+        // Clean up index for deleted page
+        this.pageIndex.deletePageKey(guid);
       }
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
@@ -569,6 +651,21 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         500
       );
     }
+  }
+
+  /**
+   * Collect GUIDs from a list of page summaries and their descendants (for index cleanup on recursive delete).
+   */
+  private async collectDescendantGuids(children: PageSummary[]): Promise<string[]> {
+    const guids: string[] = [];
+    for (const child of children) {
+      guids.push(child.guid);
+      if (child.hasChildren) {
+        const grandchildren = await this.listChildren(child.guid);
+        guids.push(...await this.collectDescendantGuids(grandchildren));
+      }
+    }
+    return guids;
   }
 
   /**
@@ -931,7 +1028,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         if (childOldKey) {
           // Copy child to new location
           const childNewKey = await this.buildPageKey(child.guid, guid);
-          
+
           const childCopyCommand = new CopyObjectCommand({
             Bucket: this.bucketName,
             CopySource: `${this.bucketName}/${childOldKey}`,
@@ -948,6 +1045,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
             Key: childOldKey,
           });
           await this.s3Client.send(childDeleteCommand);
+
+          // Update child index entry with new key
+          this.pageIndex.putPageKey({
+            guid: child.guid,
+            s3Key: childNewKey,
+            parentGuid: guid,
+            title: child.title,
+            updatedAt: new Date().toISOString(),
+          });
         }
       }
     } catch (err: unknown) {

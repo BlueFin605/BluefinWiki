@@ -8,6 +8,7 @@
 import { StoragePlugin } from './StoragePlugin.js';
 import { StoragePluginConfig } from '../types/index.js';
 import { S3StoragePlugin } from './S3StoragePlugin.js';
+import * as PageIndex from './PageIndexService.js';
 
 type StoragePluginConstructor = new (config: Record<string, unknown>) => StoragePlugin;
 
@@ -182,11 +183,14 @@ export function getStoragePlugin(): StoragePlugin {
       if (!StoragePluginRegistry.has('s3')) {
         StoragePluginRegistry.register('s3', S3StoragePlugin as never);
       }
-      globalPluginInstance = StoragePluginFactory.create({
-        type: 's3',
+      const pageIndex = process.env.DYNAMODB_PAGE_INDEX_TABLE || process.env.PAGE_INDEX_TABLE
+        ? PageIndex
+        : undefined;
+      globalPluginInstance = new S3StoragePlugin({
         bucketName,
         region: process.env.AWS_REGION,
-      } as StoragePluginConfig);
+        pageIndex,
+      });
     } else {
       throw new Error(
         'Storage plugin not initialized and PAGES_BUCKET environment variable not set.'
