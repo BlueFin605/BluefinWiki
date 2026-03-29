@@ -1,0 +1,38 @@
+[
+  {
+    "configKey": "features.exports.enabled",
+    "updatedBy": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": true,
+    "updatedAt": "2026-03-29T19:02:41.685Z"
+  },
+  {
+    "configKey": "email.fromAddress",
+    "updatedBy": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": "noreply@bluefinwiki.local",
+    "updatedAt": "2026-03-29T19:02:41.685Z"
+  },
+  {
+    "configKey": "features.comments.enabled",
+    "updatedBy": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": true,
+    "updatedAt": "2026-03-29T19:02:41.685Z"
+  },
+  {
+    "configKey": "site.description",
+    "updatedBy": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": "Family Wiki Platform",
+    "updatedAt": "2026-03-29T19:02:41.685Z"
+  },
+  {
+    "configKey": "site.name",
+    "updatedBy": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": "BlueFinWiki",
+    "updatedAt": "2026-03-29T19:02:41.685Z"
+  },
+  {
+    "configKey": "email.fromName",
+    "updatedBy": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": "BlueFinWiki",
+    "updatedAt": "2026-03-29T19:02:41.685Z"
+  }
+]

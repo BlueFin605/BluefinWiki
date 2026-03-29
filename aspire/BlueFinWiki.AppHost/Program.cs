@@ -1,4 +1,5 @@
 using Aspire.Hosting;
+using Aspire.Hosting.JavaScript;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -7,6 +8,7 @@ var localstack = builder.AddContainer("localstack", "localstack/localstack", "la
     .WithEnvironment("SERVICES", "s3,dynamodb,ses")
     .WithEnvironment("DEBUG", "1")
     .WithEnvironment("EDGE_PORT", "4566")
+    .WithEnvironment("LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT", "1")
     .WithHttpEndpoint(port: 4566, targetPort: 4566, name: "localstack");
 
 // Cognito Local for local authentication testing
@@ -20,7 +22,7 @@ var mailhog = builder.AddContainer("mailhog", "mailhog/mailhog", "latest")
     .WithEndpoint(port: 1025, targetPort: 1025, name: "mailhog-smtp");
 
 // Backend API (Node.js Express wrapper for Lambda functions)
-var backend = builder.AddNpmApp("backend", "../../backend", "dev")
+var backend = builder.AddJavaScriptApp("backend", "../../backend", "dev")
     .WithEnvironment("NODE_ENV", "development")
     .WithEnvironment("PORT", "3000")
     .WithEnvironment("AWS_REGION", "us-east-1")
@@ -45,7 +47,7 @@ var backend = builder.AddNpmApp("backend", "../../backend", "dev")
     .WithExternalHttpEndpoints();
 
 // Frontend (Vite/React)
-var frontend = builder.AddNpmApp("frontend", "../../frontend", "dev")
+var frontend = builder.AddViteApp("frontend", "../../frontend")
     .WithEnvironment("NODE_ENV", "development")
     .WithEnvironment("VITE_DISABLE_AUTH", "true")
     .WithEnvironment("VITE_API_BASE_URL", "http://localhost:3000")
@@ -55,7 +57,6 @@ var frontend = builder.AddNpmApp("frontend", "../../frontend", "dev")
     .WithEnvironment("VITE_COGNITO_CLIENT_ID", "local-client-id")
     .WithEnvironment("VITE_COGNITO_ENDPOINT", "http://localhost:9229")
     .WithEnvironment("VITE_LOCALSTACK_ENDPOINT", "http://localhost:4566")
-    .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
 
 var app = builder.Build();
