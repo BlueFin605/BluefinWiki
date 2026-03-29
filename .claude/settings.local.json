@@ -35,7 +35,14 @@
       "Bash(mv .github/agents/speckit.*.md .archive/speckit-agents/)",
       "Bash(mv .github/prompts/speckit.*.md .archive/speckit-agents/)",
       "Bash(npm install:*)",
-      "Bash(tee /tmp/vitest-out.txt)"
+      "Bash(tee /tmp/vitest-out.txt)",
+      "Bash(dotnet --list-sdks)",
+      "WebFetch(domain:aka.ms)",
+      "WebFetch(domain:www.nuget.org)",
+      "WebSearch",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet build:*)",
+      "Bash(docker ps:*)"
     ]
   }
 }

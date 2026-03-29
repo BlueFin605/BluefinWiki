@@ -24,7 +24,7 @@ npm run test:integration    # Integration tests only
 npm run test:all            # Both unit and integration tests
 
 
-### Running wediste Locally ###
+### Running web site Locally ###
  cd frontend
  npm run dev
 
@@ -38,7 +38,8 @@ Password: Test123!
 
 ### Seed database
 cd aspire\scripts
-node import-seed-data.js --source ./seed-snapshots/2026-03-03
+
+node import-seed-data.js --source ./seed-snapshots/2026-03-29
 
 -- .\manage-seed-data.ps1 -Action import -Source "seed-snaps
 

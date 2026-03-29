@@ -993,7 +993,7 @@ Test content`;
         expect(lastCall.args[0].input.ContentType).toBe('application/pdf');
       });
 
-      it('should collapse duplicate trailing page folders in attachment path', async () => {
+      it('should place attachments in the page folder found in S3', async () => {
         const parentGuid = uuidv4();
         const pageGuid = uuidv4();
 
@@ -1010,8 +1010,8 @@ Test content`;
           uploadedBy: 'user-123',
         });
 
-        expect(result.attachmentKey).toContain(`${parentGuid}/${pageGuid}/_attachments/`);
-        expect(result.attachmentKey).not.toContain(`${pageGuid}/${pageGuid}/_attachments/`);
+        // Attachments go in the same folder as the .md file
+        expect(result.attachmentKey).toContain(`${parentGuid}/${pageGuid}/${pageGuid}/_attachments/`);
       });
 
       it('should support various file extensions', async () => {

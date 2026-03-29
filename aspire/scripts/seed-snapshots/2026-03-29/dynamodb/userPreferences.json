@@ -1,0 +1,51 @@
+[
+  {
+    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
+    "value": [
+      "welcome",
+      "recent",
+      "favorites"
+    ],
+    "preferenceKey": "dashboardLayout"
+  },
+  {
+    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
+    "value": true,
+    "preferenceKey": "emailNotifications"
+  },
+  {
+    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
+    "value": "en",
+    "preferenceKey": "language"
+  },
+  {
+    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
+    "value": "light",
+    "preferenceKey": "theme"
+  },
+  {
+    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": [
+      "welcome",
+      "recent",
+      "favorites",
+      "stats"
+    ],
+    "preferenceKey": "dashboardLayout"
+  },
+  {
+    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": true,
+    "preferenceKey": "emailNotifications"
+  },
+  {
+    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": "en",
+    "preferenceKey": "language"
+  },
+  {
+    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "value": "light",
+    "preferenceKey": "theme"
+  }
+]
