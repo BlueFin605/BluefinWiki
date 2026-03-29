@@ -11,6 +11,8 @@ purpose: { design: 80, reference: 20 }
 
 BlueFinWiki is a private family wiki for 3-20 members. It needs to be cheap (<$5/month), zero-ops, and reliable. The architecture must support a solo developer working with Claude as implementation partner — simplicity over sophistication at every decision point.
 
+**The system is built on a plugin architecture.** Storage, search, and authentication are abstracted behind interfaces so the underlying technology can be swapped without affecting features or content. The current implementation uses AWS services (S3, Fuse.js, Cognito), but the wiki is not locked to AWS.
+
 This design enables all flows: authentication, content editing, search, versioning, attachments, user management, and the features not yet built (comments, export, navigation, permissions).
 
 ## Constraints
@@ -181,6 +183,46 @@ Markdown content here...
 
 ---
 
+## Plugin Architecture
+
+The wiki's core capabilities are abstracted behind interfaces. Each plugin implements a contract; the rest of the system codes against the interface, never the implementation.
+
+### Storage Plugin (`StoragePlugin` interface)
+
+Defines the contract for all page and attachment operations: save, load, delete, list, move, versions, attachments. Every feature that touches page content goes through this interface.
+
+| Implementation | Status | What it provides |
+|----------------|--------|-----------------|
+| `S3StoragePlugin` | **Active** | AWS S3 with versioning, YAML frontmatter, pages-as-folders |
+| GitHub plugin | Planned | Git-backed storage with PR-based versioning |
+
+> `backend/src/storage/StoragePlugin.ts` — Interface definition
+> `backend/src/storage/S3StoragePlugin.ts` — Current implementation
+> `backend/src/storage/BaseStoragePlugin.ts` — Shared logic (validation, circular reference checks)
+
+### Search Provider (`ISearchProvider` interface)
+
+Defines the contract for indexing and searching pages: `indexPage()`, `search()`, `deletePage()`, `reindexAll()`, `getCapabilities()`.
+
+| Implementation | Status | Cost | Trade-off |
+|----------------|--------|------|-----------|
+| Client-side (Fuse.js) | **Active** | $0/month | Good for <500 pages, no server cost |
+| DynamoDB | Optional | <$1/month | Server-side, scan-based, better for larger wikis |
+| S3 Vectors + Bedrock | Optional | <$0.15/month | Semantic search, natural language queries |
+
+> `backend/src/search/SearchProvider.ts` — Interface definition
+> `backend/src/search/SearchProviderRegistry.ts` — Plugin loader (reads `SEARCH_PROVIDER_TYPE` env var)
+
+### Authentication (Isolated, not yet a formal plugin)
+
+Authentication is isolated behind the auth middleware and Cognito-specific code in `backend/src/auth/`. The middleware extracts a `UserContext` (userId, email, role, displayName, status) from JWT claims — downstream code works with `UserContext`, not Cognito types.
+
+Swapping auth providers would require: a new auth middleware that produces the same `UserContext`, replacement Lambda triggers (or equivalent), and frontend auth context changes. The interface is implicit (the `UserContext` shape) rather than a formal plugin contract.
+
+**Future consideration**: Formalising an `IAuthProvider` interface would make auth provider swaps as clean as storage and search swaps.
+
+---
+
 ## Cross-Cutting Concerns
 
 ### Authentication & Authorization
@@ -263,13 +305,13 @@ Minimal caching in MVP. Lambda containers are ephemeral with cold starts — no 
 
 ## Extension Points
 
-| Point | Current | Future |
-|-------|---------|--------|
-| Storage plugin | S3StoragePlugin | GitHub storage plugin |
-| Search provider | Client-side Fuse.js ($0) | DynamoDB ($<1), S3 Vectors ($<0.15) |
-| Auth provider | Cognito | Could abstract to support other IdPs |
-| Export renderer | Not built | Puppeteer Lambda for PDF, static HTML bundler |
-| Notification system | Email only (invitations, password reset) | In-app notifications, @mentions (post-MVP) |
+| Point | Interface | Current | Future |
+|-------|-----------|---------|--------|
+| Storage | `StoragePlugin` (formal) | S3StoragePlugin | GitHub storage plugin |
+| Search | `ISearchProvider` (formal) | Client-side Fuse.js ($0) | DynamoDB ($<1), S3 Vectors ($<0.15) |
+| Auth | `UserContext` shape (implicit) | Cognito + JWT | Formal `IAuthProvider` interface, other IdPs |
+| Export | Not defined | Not built | Puppeteer Lambda for PDF, static HTML bundler |
+| Notifications | Not defined | Email only (invitations, password reset) | In-app notifications, @mentions (post-MVP) |
 
 ---
 

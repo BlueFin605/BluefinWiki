@@ -7,9 +7,9 @@ purpose: { north-star: 100 }
 
 # BlueFinWiki: What Great Looks Like
 
-> A private family wiki where any member can capture, organize, find, and share knowledge — with zero ops burden and near-zero cost.
+> A private, pluggable family wiki where any member can capture, organize, find, and share knowledge — with zero ops burden, near-zero cost, and the freedom to swap any technology underneath.
 
-A family member opens their wiki and sees what's changed since they last visited. They search for a recipe Grandma wrote last month and find it instantly. They create a new page about the family holiday, drag photos into the editor, link it to the trip planning page, and nest it under "Holidays." Another family member reads it, leaves a comment, and restores an older version of a different page that was accidentally overwritten. The admin invites a new family member with one click. Nobody thinks about servers, backups, or AWS bills. The wiki just works.
+A family member opens their wiki and sees what's changed since they last visited. They search for a recipe Grandma wrote last month and find it instantly. They create a new page about the family holiday, drag photos into the editor, link it to the trip planning page, and nest it under "Holidays." Another family member reads it, leaves a comment, and restores an older version of a different page that was accidentally overwritten. The admin invites a new family member with one click. Nobody thinks about servers, backups, or AWS bills. The wiki just works. And if the family ever outgrows S3 storage or wants smarter search, the underlying technology swaps out without touching the wiki content or user experience.
 
 ---
 
@@ -106,6 +106,16 @@ A family member opens their wiki and sees what's changed since they last visited
 
 ---
 
+## Pluggable Architecture
+
+- It should be possible to swap the storage backend without changing the wiki's features or content
+- It should be possible to swap the search provider without changing the user experience
+- It should be possible to swap the authentication provider without re-inviting family members
+- A new plugin should only need to implement a defined interface — no changes to the rest of the system
+- The wiki should not be locked into any single cloud provider or service
+
+---
+
 ## Reliability
 
 - The wiki should remain usable when a single AWS service experiences degradation
@@ -125,6 +135,7 @@ A family member opens their wiki and sees what's changed since they last visited
 | Invite-only with admin controls | Private family space, not a public wiki |
 | Works on phone, works with screen reader | Nobody excluded from the family wiki |
 | Zero ops, near-zero cost | Sustainable for a family, not a business expense |
+| Swap storage, search, or auth without user impact | No vendor lock-in, technology evolves independently |
 
 ---
 
