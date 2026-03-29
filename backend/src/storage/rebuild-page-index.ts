@@ -45,7 +45,7 @@ export interface RebuildResult {
  * Rebuild the entire page index from S3.
  *
  * For each page found via buildPageTree, we need the S3 key.
- * Since findPageKey is private on the storage plugin, we use the
+ * Since findPageFolder is private on the storage plugin, we use the
  * knowledge that pages are stored at {ancestorPath}/{guid}/{guid}.md
  * and reconstruct the key from the page hierarchy.
  */
@@ -66,12 +66,12 @@ export async function rebuildPageIndex(): Promise<RebuildResult> {
     try {
       const fullPage = await storagePlugin.loadPage(page.guid);
 
-      // Reconstruct the S3 key by walking ancestors
-      const s3Key = await buildS3Key(page.guid, fullPage.folderId || null, storagePlugin);
+      // Reconstruct the S3 folder path by walking ancestors
+      const s3Folder = await buildS3Folder(page.guid, fullPage.folderId || null, storagePlugin);
 
       await PageIndex.putPageKey({
         guid: page.guid,
-        s3Key,
+        s3Key: s3Folder,
         parentGuid: fullPage.folderId || null,
         title: fullPage.title,
         updatedAt: fullPage.modifiedAt || new Date().toISOString(),
@@ -102,20 +102,20 @@ export async function rebuildPageIndex(): Promise<RebuildResult> {
 }
 
 /**
- * Build the S3 key for a page by walking its ancestor chain.
- * Mirrors the logic in S3StoragePlugin.buildPageKey / buildAncestorPath.
+ * Build the S3 folder path for a page by walking its ancestor chain.
+ * Returns the folder (e.g., "parent/child/"), not the .md file key.
  */
-async function buildS3Key(
+async function buildS3Folder(
   guid: string,
   parentGuid: string | null,
   storagePlugin: ReturnType<typeof getStoragePlugin>,
 ): Promise<string> {
   if (!parentGuid || parentGuid === '') {
-    return `${guid}/${guid}.md`;
+    return `${guid}/`;
   }
 
   const ancestorPath = await buildAncestorPath(parentGuid, storagePlugin);
-  return `${ancestorPath}${guid}/${guid}.md`;
+  return `${ancestorPath}${guid}/`;
 }
 
 async function buildAncestorPath(

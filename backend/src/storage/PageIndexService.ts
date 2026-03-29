@@ -15,13 +15,14 @@ let _dynamoClient: DynamoDBClient | null = null;
 
 function getDynamoClient(): DynamoDBClient {
   if (!_dynamoClient) {
+    const endpoint = process.env.AWS_ENDPOINT_URL || process.env.AWS_ENDPOINT;
     _dynamoClient = new DynamoDBClient({
       region: process.env.AWS_REGION || 'us-east-1',
-      ...(process.env.AWS_ENDPOINT && {
-        endpoint: process.env.AWS_ENDPOINT,
+      ...(endpoint && {
+        endpoint,
         credentials: {
-          accessKeyId: 'test',
-          secretAccessKey: 'test',
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
         },
       }),
     });

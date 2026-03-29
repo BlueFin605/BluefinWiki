@@ -64,6 +64,14 @@ const noOpIndex: PageIndexProvider = {
   deletePageKey: async () => {},
   deletePageKeys: async () => {},
 };
+
+/**
+ * Derive the .md file key from a page folder path.
+ * "parent/child/" + guid → "parent/child/child.md"
+ */
+function folderToFileKey(folder: string, guid: string): string {
+  return `${folder}${guid}.md`;
+}
 import {
   PageContent,
   Version,
@@ -96,9 +104,13 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     // Initialize S3 client
     this.s3Client = new S3Client({
       region: config.region || process.env.AWS_REGION || 'us-east-1',
-      ...(config.endpoint && { 
+      ...(config.endpoint && {
         endpoint: config.endpoint,
-        forcePathStyle: true // Required for LocalStack
+        forcePathStyle: true, // Required for LocalStack
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
+        },
       }),
     });
 
@@ -159,10 +171,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    * This ensures attachments are in the same folder as the page's .md file
    */
   private async buildAttachmentPath(pageGuid: string): Promise<string> {
-    // Always derive from the actual page key in S3 so malformed frontmatter
+    // Always derive from the actual page folder in S3 so malformed frontmatter
     // (for example folderId = pageGuid) cannot produce duplicated segments.
-    const pageKey = await this.findPageKey(pageGuid);
-    if (!pageKey) {
+    const folder = await this.findPageFolder(pageGuid);
+    if (!folder) {
       throw this.createError(
         `Page not found: ${pageGuid}`,
         'PAGE_NOT_FOUND',
@@ -170,44 +182,24 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       );
     }
 
-    // Remove trailing filename and add _attachments/
-    // "parent/child/child.md" -> "parent/child/_attachments/"
-    // "root/root.md" -> "root/_attachments/"
-    const lastSlashIndex = pageKey.lastIndexOf('/');
-    const directory = lastSlashIndex === -1 ? '' : pageKey.substring(0, lastSlashIndex + 1);
-
-    const pathSegments = directory.split('/').filter(Boolean);
-    while (
-      pathSegments.length >= 2 &&
-      pathSegments[pathSegments.length - 1] === pageGuid &&
-      pathSegments[pathSegments.length - 2] === pageGuid
-    ) {
-      pathSegments.pop();
-    }
-
-    const normalizedDirectory = pathSegments.length > 0 ? `${pathSegments.join('/')}/` : '';
-    return `${normalizedDirectory}_attachments/`;
+    return `${folder}_attachments/`;
   }
 
-  private inferParentGuidFromPageKey(pageKey: string, pageGuid: string): string {
-    const keySegments = pageKey.split('/').filter(Boolean);
-    if (keySegments.length < 2) {
+  private inferParentGuidFromFolder(folder: string, pageGuid: string): string {
+    // Folder format: "grandparent/parent/child/" — segments are ancestor GUIDs
+    const segments = folder.split('/').filter(Boolean);
+    if (segments.length < 2) {
       return '';
     }
 
-    const filename = keySegments[keySegments.length - 1];
-    if (filename !== `${pageGuid}.md`) {
-      return '';
-    }
+    // Last segment is the page's own guid, parent is the one before it
+    let parentIndex = segments.length - 2;
 
-    const directorySegments = keySegments.slice(0, -1);
-    let parentIndex = directorySegments.length - 2;
-
-    while (parentIndex >= 0 && directorySegments[parentIndex] === pageGuid) {
+    while (parentIndex >= 0 && segments[parentIndex] === pageGuid) {
       parentIndex -= 1;
     }
 
-    return parentIndex >= 0 ? directorySegments[parentIndex] : '';
+    return parentIndex >= 0 ? segments[parentIndex] : '';
   }
 
 
@@ -377,10 +369,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       await this.s3Client.send(command);
 
-      // Update the page index (fire-and-forget — don't block the save)
+      // Update the page index with the folder path (fire-and-forget — don't block the save)
+      const folder = key.substring(0, key.lastIndexOf('/') + 1);
       this.pageIndex.putPageKey({
         guid,
-        s3Key: key,
+        s3Key: folder,
         parentGuid: parentGuid || null,
         title: content.title,
         updatedAt: content.modifiedAt || new Date().toISOString(),
@@ -411,10 +404,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      // Try to find the page by searching
-      const key = await this.findPageKey(guid);
+      // Try to find the page folder
+      const folder = await this.findPageFolder(guid);
 
-      if (!key) {
+      if (!folder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -423,13 +416,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // Fetch from S3
+      const fileKey = folderToFileKey(folder, guid);
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
-        Key: key,
+        Key: fileKey,
       });
 
       const response = await this.s3Client.send(command);
-      
+
       if (!response.Body) {
         throw this.createError(
           'Empty response from S3',
@@ -449,7 +443,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const parentGuid = Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid;
       const effectiveFolderId = folderId || parentGuid || '';
       const pageGuid = Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid;
-      const inferredParentGuid = this.inferParentGuidFromPageKey(key, pageGuid);
+      const inferredParentGuid = this.inferParentGuidFromFolder(folder, pageGuid);
       const normalizedFolderId =
         (effectiveFolderId === null || effectiveFolderId === 'null')
           ? ''
@@ -494,16 +488,17 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   }
 
   /**
-   * Find a page's S3 key by searching for its GUID
-   * This is needed because we don't store the full path separately
+   * Find a page's folder path in S3 by its GUID.
+   * Returns the folder path (e.g., "parent-guid/child-guid/"), not the .md file key.
+   * Use folderToFileKey() to derive the .md path when needed.
    */
-  private async findPageKey(guid: string): Promise<string | null> {
+  private async findPageFolder(guid: string): Promise<string | null> {
     try {
       // 1. Try the DynamoDB page index first — O(1) lookup
       try {
-        const indexedKey = await this.pageIndex.getPageKey(guid);
-        if (indexedKey) {
-          return indexedKey;
+        const indexedFolder = await this.pageIndex.getPageKey(guid);
+        if (indexedFolder) {
+          return indexedFolder;
         }
       } catch {
         // Index unavailable — fall through to S3 scan
@@ -511,15 +506,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // 2. Fallback: try as a root page (HeadObject — fast)
-      const rootKey = `${guid}/${guid}.md`;
+      const rootFolder = `${guid}/`;
       try {
         await this.s3Client.send(new HeadObjectCommand({
           Bucket: this.bucketName,
-          Key: rootKey,
+          Key: folderToFileKey(rootFolder, guid),
         }));
-        // Repair the index with this key
-        this.repairIndex(guid, rootKey);
-        return rootKey;
+        // Repair the index with this folder
+        this.repairIndex(guid, rootFolder);
+        return rootFolder;
       } catch (err: unknown) {
         const error = err as { name?: string; message?: string };
         if (error.name !== 'NotFound') {
@@ -541,9 +536,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         if (response.Contents) {
           for (const obj of response.Contents) {
             if (obj.Key && obj.Key.endsWith(`/${guid}/${guid}.md`)) {
-              // Repair the index with the discovered key
-              this.repairIndex(guid, obj.Key);
-              return obj.Key;
+              // Extract folder from the discovered .md key
+              const folder = obj.Key.substring(0, obj.Key.lastIndexOf('/') + 1);
+              this.repairIndex(guid, folder);
+              return folder;
             }
           }
         }
@@ -564,10 +560,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
   /**
    * Repair a missing or stale index entry (fire-and-forget).
-   * Called when findPageKey falls back to S3 scan and finds the page.
+   * Called when findPageFolder falls back to S3 scan and finds the page.
    */
-  private repairIndex(guid: string, s3Key: string): void {
-    // Guard against infinite recursion: loadPage → findPageKey → repairIndex → loadPage
+  private repairIndex(guid: string, s3Folder: string): void {
+    // Guard against infinite recursion: loadPage → findPageFolder → repairIndex → loadPage
     if (this.repairingGuids.has(guid)) return;
     this.repairingGuids.add(guid);
 
@@ -575,7 +571,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     this.loadPage(guid).then(page => {
       this.pageIndex.putPageKey({
         guid,
-        s3Key,
+        s3Key: s3Folder,
         parentGuid: page.folderId || null,
         title: page.title,
         updatedAt: page.modifiedAt || new Date().toISOString(),
@@ -597,10 +593,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      // Find the page key
-      const key = await this.findPageKey(guid);
-      
-      if (!key) {
+      // Find the page folder
+      const folder = await this.findPageFolder(guid);
+
+      if (!folder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -625,7 +621,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         const childGuids = await this.collectDescendantGuids(children);
 
         // Delete all children recursively from S3
-        await this.deletePageAndChildren(guid, key);
+        await this.deletePageAndChildren(guid, folderToFileKey(folder, guid));
 
         // Clean up index for deleted page and all descendants
         this.pageIndex.deletePageKeys([guid, ...childGuids]);
@@ -633,7 +629,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         // Delete single page
         const deleteCommand = new DeleteObjectCommand({
           Bucket: this.bucketName,
-          Key: key,
+          Key: folderToFileKey(folder, guid),
         });
         await this.s3Client.send(deleteCommand);
 
@@ -728,10 +724,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      // Find the page key
-      const key = await this.findPageKey(guid);
-      
-      if (!key) {
+      // Find the page folder
+      const folder = await this.findPageFolder(guid);
+
+      if (!folder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -740,9 +736,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // List object versions
+      const fileKey = folderToFileKey(folder, guid);
       const command = new ListObjectVersionsCommand({
         Bucket: this.bucketName,
-        Prefix: key,
+        Prefix: fileKey,
       });
 
       const response = await this.s3Client.send(command);
@@ -753,7 +750,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       // Convert to Version objects
       const versions: Version[] = response.Versions
-        .filter(v => v.Key === key) // Only exact matches
+        .filter(v => v.Key === fileKey) // Only exact matches
         .map(v => ({
           versionId: v.VersionId || '',
           timestamp: v.LastModified ? v.LastModified.toISOString() : this.formatDate(),
@@ -783,16 +780,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    */
   private async hasChildrenDirect(guid: string): Promise<boolean> {
     try {
-      // Find the page's location
-      const pageKey = await this.findPageKey(guid);
-      if (!pageKey) {
+      // Find the page's folder
+      const pageFolder = await this.findPageFolder(guid);
+      if (!pageFolder) {
         return false;
       }
-      
-      // Extract the page's folder path from its key
-      // Key format: {ancestor-path}/{guid}/{guid}.md
-      // We want: {ancestor-path}/{guid}/
-      const pageFolder = pageKey.substring(0, pageKey.lastIndexOf('/') + 1);
       
       const listCommand = new ListObjectsV2Command({
         Bucket: this.bucketName,
@@ -875,19 +867,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         // In new structure: need to find where parent is located first
         // Then list its immediate child folders
         
-        // First, find the parent's location to build the correct prefix
-        const parentKey = await this.findPageKey(parentGuid);
-        if (!parentKey) {
+        // First, find the parent's folder
+        const parentFolder = await this.findPageFolder(parentGuid);
+        if (!parentFolder) {
           // Parent not found, return empty
           return [];
         }
-        
-        // Extract the parent's folder path from its key
-        // Key format: {ancestor-path}/{parentGuid}/{parentGuid}.md
-        // We want: {ancestor-path}/{parentGuid}/
-        const parentFolder = parentKey.substring(0, parentKey.lastIndexOf('/') + 1);
-        
-        console.log(`[listChildren] Parent: ${parentGuid}, ParentKey: ${parentKey}, ParentFolder: ${parentFolder}`);
+
+        console.log(`[listChildren] Parent: ${parentGuid}, ParentFolder: ${parentFolder}`);
         
         let continuationToken: string | undefined = undefined;
 
@@ -973,9 +960,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       // Load current page
       const page = await this.loadPage(guid);
-      const oldKey = await this.findPageKey(guid);
+      const oldFolder = await this.findPageFolder(guid);
 
-      if (!oldKey) {
+      if (!oldFolder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -985,6 +972,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       // Build new key
       const newKey = await this.buildPageKey(guid, newParentGuid);
+      const oldKey = folderToFileKey(oldFolder, guid);
 
       // If keys are the same, nothing to do
       if (oldKey === newKey) {
@@ -1024,10 +1012,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       // Move children if any
       const children = await this.listChildren(guid);
       for (const child of children) {
-        const childOldKey = await this.findPageKey(child.guid);
-        if (childOldKey) {
+        const childOldFolder = await this.findPageFolder(child.guid);
+        if (childOldFolder) {
           // Copy child to new location
+          const childOldKey = folderToFileKey(childOldFolder, child.guid);
           const childNewKey = await this.buildPageKey(child.guid, guid);
+          const childNewFolder = childNewKey.substring(0, childNewKey.lastIndexOf('/') + 1);
 
           const childCopyCommand = new CopyObjectCommand({
             Bucket: this.bucketName,
@@ -1046,10 +1036,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           });
           await this.s3Client.send(childDeleteCommand);
 
-          // Update child index entry with new key
+          // Update child index entry with new folder
           this.pageIndex.putPageKey({
             guid: child.guid,
-            s3Key: childNewKey,
+            s3Key: childNewFolder,
             parentGuid: guid,
             title: child.title,
             updatedAt: new Date().toISOString(),

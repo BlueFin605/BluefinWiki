@@ -12,7 +12,7 @@ npm run setup
 npm run export-seed
 
 # Import seed snapshot (after resetting environment)
-npm run import-seed -- --source ./seed-snapshots/2026-03-03
+npm run import-seed -- --source ./seed-snapshots/2026-03-29
 ```
 
 ## Available Scripts
@@ -126,7 +126,7 @@ Use this to quickly restore your environment to a known state with rich test dat
 **Usage:**
 ```bash
 # Import from a specific snapshot
-npm run import-seed -- --source ./seed-snapshots/2026-03-03
+npm run import-seed -- --source ./seed-snapshots/2026-03-29
 
 # Import from custom location
 npm run import-seed -- --source ./my-snapshots/feature-123
@@ -197,7 +197,7 @@ cd aspire/scripts
 npm run init-db
 
 # Restore from your snapshot
-npm run import-seed -- --source ./seed-snapshots/2026-03-03
+npm run import-seed -- --source ./seed-snapshots/2026-03-29
 ```
 
 ### Scenario 4: Share Test Data with Team
