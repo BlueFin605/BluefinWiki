@@ -4,6 +4,26 @@ import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
+import { autoRegisterTagsFromProperties } from '../tags/tags-service.js';
+
+// Property validation schema
+const PagePropertySchema = z.object({
+  type: z.enum(['string', 'number', 'date', 'tags']),
+  value: z.union([z.string(), z.number(), z.array(z.string())]),
+}).refine(
+  (prop) => {
+    switch (prop.type) {
+      case 'string': return typeof prop.value === 'string';
+      case 'number': return typeof prop.value === 'number';
+      case 'date': return typeof prop.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(prop.value);
+      case 'tags': return Array.isArray(prop.value);
+      default: return false;
+    }
+  },
+  { message: 'Property value does not match its declared type' }
+);
+
+const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Property names must be kebab-case');
 
 // Request validation schema
 const UpdatePageRequestSchema = z.object({
@@ -11,6 +31,7 @@ const UpdatePageRequestSchema = z.object({
   content: z.string().optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(['published', 'archived']).optional(),
+  properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
 });
 
 /**
@@ -113,9 +134,14 @@ export const handler = withAuth(async (
 
     // Build updated page content (merge existing with updates)
     const now = new Date().toISOString();
+    // If properties are provided, replace entirely (not merged field-by-field)
+    const mergedProperties = updates.properties !== undefined
+      ? (Object.keys(updates.properties).length > 0 ? updates.properties : undefined)
+      : existingPage.properties;
     const updatedPage: PageContent = {
       ...existingPage,
       ...updates,
+      ...(mergedProperties ? { properties: mergedProperties } : {}),
       modifiedBy: user.userId,
       modifiedAt: now,
       // Preserve fields that should not be updated via this endpoint
@@ -124,6 +150,10 @@ export const handler = withAuth(async (
       createdBy: existingPage.createdBy,
       createdAt: existingPage.createdAt,
     };
+    // Remove properties key if it's now empty
+    if (updatedPage.properties && Object.keys(updatedPage.properties).length === 0) {
+      delete updatedPage.properties;
+    }
 
     // Determine parentGuid from folderId
     const parentGuid = updatedPage.folderId || null;
@@ -139,6 +169,13 @@ export const handler = withAuth(async (
         guid,
         linkCount: wikiLinks.length,
       });
+    }
+
+    // Auto-register tags from properties (best-effort)
+    if (updates.properties) {
+      autoRegisterTagsFromProperties(updates.properties, user.userId).catch(err =>
+        console.warn('Tag auto-registration failed:', err)
+      );
     }
 
     // Log activity

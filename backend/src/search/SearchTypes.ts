@@ -95,6 +95,8 @@ export interface ClientSearchIndexEntry {
   content: string;
   /** Tags on the page */
   tags: string[];
+  /** Searchable text from custom properties (string and tags values) */
+  propertyText?: string;
   /** Hierarchical path */
   path: string;
   /** Last modified date (ISO 8601) */

@@ -2,6 +2,13 @@
  * Page types for BlueFinWiki frontend
  */
 
+export type PropertyType = 'string' | 'number' | 'date' | 'tags';
+
+export interface PageProperty {
+  type: PropertyType;
+  value: string | number | string[];
+}
+
 export interface PageContent {
   guid: string;
   title: string;
@@ -10,6 +17,7 @@ export interface PageContent {
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   description?: string;
+  properties?: Record<string, PageProperty>;
   createdBy: string;
   modifiedBy: string;
   createdAt: string;
@@ -44,6 +52,7 @@ export interface UpdatePageRequest {
   content?: string;
   status?: 'draft' | 'published' | 'archived';
   tags?: string[];
+  properties?: Record<string, PageProperty>;
 }
 
 export interface MovePageRequest {

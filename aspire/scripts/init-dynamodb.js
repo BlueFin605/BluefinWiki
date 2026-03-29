@@ -182,6 +182,19 @@ const tableDefinitions = [
     },
   },
   {
+    name: 'bluefinwiki-tags-local',
+    schema: {
+      TableName: 'bluefinwiki-tags-local',
+      KeySchema: [
+        { AttributeName: 'tag', KeyType: 'HASH' },
+      ],
+      AttributeDefinitions: [
+        { AttributeName: 'tag', AttributeType: 'S' },
+      ],
+      BillingMode: 'PAY_PER_REQUEST',
+    },
+  },
+  {
     name: 'bluefinwiki-site-config-local',
     schema: {
       TableName: 'bluefinwiki-site-config-local',

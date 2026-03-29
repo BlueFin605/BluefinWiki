@@ -82,11 +82,28 @@ export async function buildSearchIndexData(): Promise<ClientSearchIndex> {
         const fullPage = await storagePlugin.loadPage(page.guid);
         const path = await buildPagePath(page.guid, storagePlugin);
 
+        // Extract searchable text from custom properties (string and tags values)
+        let propertyText: string | undefined;
+        if (fullPage.properties) {
+          const parts: string[] = [];
+          for (const prop of Object.values(fullPage.properties)) {
+            if (prop.type === 'string' && typeof prop.value === 'string') {
+              parts.push(prop.value);
+            } else if (prop.type === 'tags' && Array.isArray(prop.value)) {
+              parts.push(...prop.value);
+            }
+          }
+          if (parts.length > 0) {
+            propertyText = parts.join(' ');
+          }
+        }
+
         return {
           id: page.guid,
           title: fullPage.title,
           content: stripMarkdown(fullPage.content),
           tags: fullPage.tags || [],
+          ...(propertyText ? { propertyText } : {}),
           path,
           modifiedDate: fullPage.modifiedAt,
           author: fullPage.modifiedBy,
