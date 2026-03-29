@@ -39,6 +39,7 @@ namespace Infrastructure.Stacks
         public Table InvitationsTable { get; private set; }
         public Table PageLinksTable { get; private set; }
         public Table ActivityLogTable { get; private set; }
+        public Table PageIndexTable { get; private set; }
         
         // Compute resources
         public RestApi Api { get; private set; }
@@ -653,6 +654,16 @@ namespace Infrastructure.Stacks
                 TimeToLiveAttribute = "expiresAt" // Auto-delete old logs (90 days, Unix timestamp)
             });
             
+            // Page Index table - GUID to S3 key mapping
+            // Eliminates full bucket scans in findPageKey()
+            PageIndexTable = new Table(this, "PageIndexTable", new TableProps
+            {
+                TableName = $"bluefinwiki-page-index-{config.Name}",
+                PartitionKey = new Attribute { Name = "guid", Type = AttributeType.STRING },
+                BillingMode = BillingMode.PAY_PER_REQUEST,
+                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
+            });
+
             // Database Stack outputs
             new CfnOutput(this, "UserProfilesTableName", new CfnOutputProps
             {
@@ -673,6 +684,13 @@ namespace Infrastructure.Stacks
                 Value = PageLinksTable.TableName,
                 Description = "DynamoDB table for page links",
                 ExportName = $"{config.Name}-page-links-table"
+            });
+
+            new CfnOutput(this, "PageIndexTableName", new CfnOutputProps
+            {
+                Value = PageIndexTable.TableName,
+                Description = "DynamoDB table for page GUID to S3 key index",
+                ExportName = $"{config.Name}-page-index-table"
             });
         }
         
@@ -764,6 +782,7 @@ namespace Infrastructure.Stacks
             InvitationsTable.GrantReadWriteData(lambdaRole);
             PageLinksTable.GrantReadWriteData(lambdaRole);
             ActivityLogTable.GrantReadWriteData(lambdaRole);
+            PageIndexTable.GrantReadWriteData(lambdaRole);
             
             // Grant Lambda access to JWT secret
             JwtSecret.GrantRead(lambdaRole);
@@ -778,6 +797,7 @@ namespace Infrastructure.Stacks
                 { "INVITATIONS_TABLE", InvitationsTable.TableName },
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
                 { "ACTIVITY_LOG_TABLE", ActivityLogTable.TableName },
+                { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
                 { "JWT_SECRET_ARN", JwtSecret.SecretArn },
                 { "ENVIRONMENT", config.Name }
             };

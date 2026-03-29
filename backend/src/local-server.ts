@@ -246,6 +246,20 @@ app.get('/api/search-index.json', ((_req, res) => {
 }));
 
 // ============================================================================
+// Admin: Rebuild Page Index
+// ============================================================================
+
+app.post('/admin/rebuild-page-index', async (_req, res) => {
+  try {
+    const { rebuildPageIndex } = await import('./storage/rebuild-page-index.js');
+    const result = await rebuildPageIndex();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// ============================================================================
 // Health Check
 // ============================================================================
 

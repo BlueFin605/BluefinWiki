@@ -4,12 +4,12 @@
     "eslint --fix --max-warnings 0"
   ],
   "frontend/**/*.{ts,tsx}": [
-    "npm run type-check --workspace=frontend"
+    "bash -c 'tsc --noEmit --project frontend/tsconfig.json'"
   ],
   "backend/**/*.ts": [
-    "npm run type-check --workspace=backend"
+    "bash -c 'tsc --noEmit --project backend/tsconfig.json'"
   ],
   "infrastructure/**/*.ts": [
-    "npm run type-check --workspace=infrastructure"
+    "bash -c 'tsc --noEmit --project infrastructure/tsconfig.json'"
   ]
 }

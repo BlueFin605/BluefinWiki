@@ -33,7 +33,9 @@
       "Bash(mkdir:*)",
       "Bash(npm run:*)",
       "Bash(mv .github/agents/speckit.*.md .archive/speckit-agents/)",
-      "Bash(mv .github/prompts/speckit.*.md .archive/speckit-agents/)"
+      "Bash(mv .github/prompts/speckit.*.md .archive/speckit-agents/)",
+      "Bash(npm install:*)",
+      "Bash(tee /tmp/vitest-out.txt)"
     ]
   }
 }

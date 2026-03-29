@@ -155,9 +155,9 @@ Basic error boundaries likely exist in React. No structured offline mode, no con
 
 ---
 
-## Known Performance Issue
+## Known Performance Issue — Resolved
 
-`S3StoragePlugin.findPageKey()` (`backend/src/storage/S3StoragePlugin.ts:468`) resolves a page GUID to an S3 key by trying the root path first (HeadObject — O(1)), then falling back to **listing the entire bucket** via ListObjectsV2 and scanning for a match (O(n)). Every `loadPage`, `deletePage`, `movePage`, and attachment operation hits this path for non-root pages. The original speckit tasks noted "need to search if parent unknown, or track in index" — the index was never built. See Plan: Page Index.
+`S3StoragePlugin.findPageKey()` previously resolved a page GUID to an S3 key by listing the entire bucket (O(n)) for non-root pages. **This is now resolved** by the Page Index — a DynamoDB table (`page_index`) providing O(1) GUID-to-S3-key lookups. The index is maintained atomically with S3 writes (save, move, delete) and self-repairs on cache miss by falling back to S3 scan and writing the result back to the index. A `rebuild-page-index` utility handles initial migration and recovery. See [Plan: Page Index](plans/page-index.md).
 
 ---
 
@@ -222,7 +222,7 @@ TECHNICAL-PLAN.md also references JWT delivery via httpOnly cookies — the actu
 
 1. **Deletion strategy** — Page deletion is hard-delete (remove S3 objects). No trash/restore mechanism exists. Recoverability only via S3 versioning.
 2. **Move operation atomicity** — `movePage` does S3 copy + delete. If copy succeeds but delete fails, duplicates exist. No detection or cleanup mechanism.
-3. **Display path resolution** — GUIDs are used for internal references, but human-readable URLs need a `displayPath→GUID` mapping. The `page_index` plan solves GUID→S3 key, not display path→GUID.
+3. **Display path resolution** — GUIDs are used for internal references, but human-readable URLs need a `displayPath→GUID` mapping. The `page_index` table solves GUID→S3 key, not display path→GUID.
 4. **Wiki link format mismatch** — Frontend uses `[[guid|Display Text]]`, backend extractor uses `[[guid:abc-123]]`. Backlinks for GUID-style links are not tracked correctly.
 5. **Markdown sanitization** — No DOMPurify or rehype-sanitize in the rendering pipeline. Tokens stored in `localStorage` are vulnerable to XSS. This is a real security gap.
 
