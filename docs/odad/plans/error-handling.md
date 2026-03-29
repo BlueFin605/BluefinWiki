@@ -60,13 +60,18 @@ The wiki should handle every error with a clear message and a path forward. No b
 - Client-side: form validation before submit (required fields, format checks, length limits)
 - Server-side: all inputs validated in Lambda handlers (never trust client)
 - Validation errors shall return 400 with field-specific error messages
-- All user content displayed shall be sanitized against XSS
+- All user content displayed shall be sanitized against XSS (DOMPurify or rehype-sanitize in the Markdown rendering pipeline)
+- Page content should warn at 50,000 characters and consider a hard limit at 200,000 characters
+
+### CSRF Protection
+- JWT is transported via Bearer tokens in the Authorization header — CSRF protection is not required
+- **XSS is the primary threat vector** since tokens are in `localStorage`. Markdown output sanitization (rehype-sanitize) is the critical mitigation.
 
 ### API Rate Limiting
-- API Gateway shall enforce throttling: 100 requests per second per user
+- API Gateway throttling is already configured: 50 req/s sustained, burst 100 (stage-level, all routes)
 - Lambda concurrency limits shall prevent runaway invocations
-- When rate limited, the API shall return 429 with "Too many requests — please try again shortly"
-- The frontend shall show the rate limit message to the user
+- When rate limited, the API returns 429 — the frontend shall show "Too many requests — please try again shortly"
+- Per-endpoint rate limiting (e.g., 5 login attempts/15min, 10 comments/hour) is not yet implemented — consider adding per-route throttling
 
 ### Retry Logic
 - API calls from the frontend shall retry on 5xx errors with exponential backoff

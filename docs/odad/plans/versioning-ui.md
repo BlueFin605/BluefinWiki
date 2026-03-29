@@ -46,8 +46,10 @@ A family member should be able to see every previous version, compare any two ve
 
 ### Version List API
 - The `pages-versions-list` endpoint shall return all versions of a page by calling S3 ListObjectVersions
-- Each version in the response shall include: versionId, author (from frontmatter modifiedBy), timestamp (from frontmatter modifiedAt), title
-- The list shall be sorted newest first
+- For each version, the endpoint shall load the page content to extract author (from frontmatter `modifiedBy`) and timestamp (from frontmatter `modifiedAt`). This is necessary because S3 version metadata alone does not store author information.
+- Each version in the response shall include: versionId, author, timestamp, title
+- The first version shall be labelled "Page created"
+- The list shall be sorted newest first with pagination at 20 versions per page
 - When a page has no versions (newly created), the endpoint shall return a single-item list with the current version
 
 ### Version Detail API
@@ -62,9 +64,12 @@ A family member should be able to see every previous version, compare any two ve
 
 ### Version Restore API
 - The `pages-versions-restore` endpoint shall fetch the specified historical version
+- The endpoint shall verify the page's current ETag/version matches the version loaded by the client (prevent concurrent edit conflicts during restore)
+- If the ETag does not match, the endpoint shall return 409 with the current version info
 - The endpoint shall create a new current version with the historical content
 - The new version's frontmatter shall include a "Restored from version {versionId}" note in a `restoreNote` field
 - The endpoint shall set `modifiedBy` to the restoring user, not the original author
+- Restore shall NOT affect attachments — only page content and metadata are restored
 - Restore shall trigger search index rebuild (same as a normal save)
 
 ### Frontend History Timeline
@@ -85,8 +90,9 @@ A family member should be able to see every previous version, compare any two ve
 - When the diff exceeds 10,000 lines, the viewer shall show a truncation warning
 
 ### Restore Confirmation
-- Clicking "Restore" shall show a confirmation dialog: "Restore to version from [date] by [author]?"
+- Clicking "Restore" shall show a confirmation dialog: "Restore to version from [date] by [author]? Attachments will not be affected."
 - On confirmation, the page content shall update to the restored version
+- If a concurrent edit conflict is detected (409), the dialog shall warn and offer to reload
 - The history timeline shall show the restore as a new version entry
 
 ## Constraints

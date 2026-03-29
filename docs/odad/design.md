@@ -63,34 +63,35 @@ graph TB
 
 React 18 with TypeScript, bundled by Vite, styled with Tailwind CSS. Served via CloudFront. Key libraries:
 - **CodeMirror 6**: Markdown editor with syntax highlighting, toolbar, and split-pane preview
-- **react-markdown**: Renders Markdown with remark-gfm, remark-breaks, rehype-highlight, and Mermaid support
+- **react-markdown**: Renders Markdown with remark-gfm, remark-breaks, rehype-highlight, Mermaid support, and custom image sizing (`![alt|300](url)`, `![alt|300x200](url)`, `![alt|50%](url)` via `remarkImageSize` plugin)
 - **Fuse.js**: Client-side full-text search against a pre-built JSON index
 - **React Router**: SPA routing
 - **React Context**: Auth state (Cognito tokens, user info, role)
 
-No state management library — React Context + local component state is sufficient for the user count and complexity.
+State management: React Context (auth), two hand-rolled module stores (`draftsStore.ts` for in-memory draft persistence, `layoutStore.ts` for panel preferences in localStorage), and `@tanstack/react-query` (installed, caching behaviour deferred for MVP).
 
 ### Backend
 
 AWS Lambda functions (Node.js 20) behind API Gateway REST. Single handler pattern — one Lambda function with API Gateway routing, not individual Lambda functions per endpoint. Key patterns:
+- **Individual Lambda functions**: One function per API endpoint (~14 for pages, 4 auth triggers, search index builder). Not a single-handler pattern.
 - **Storage Plugin**: `IStoragePlugin` interface with `S3StoragePlugin` implementation. Abstraction allows future GitHub backend.
-- **Search Provider**: `ISearchProvider` interface with client-side (Fuse.js index builder) default. Optional DynamoDB and S3 Vectors providers.
-- **Auth Middleware**: JWT validation against Cognito public keys (JWKS). Extracts user context (sub, email, role) from token claims.
-- **Cognito Triggers**: Pre-token-generation (add custom claims), post-confirmation (activate profile), custom-message (branded emails)
+- **Search Provider**: `ISearchProvider` interface with client-side (Fuse.js index builder) default. Only `published` pages are indexed. Optional DynamoDB and S3 Vectors providers.
+- **Auth Middleware**: JWT validation via `aws-jwt-verify` against Cognito ID tokens. Bearer tokens in Authorization header, stored in `localStorage`. Extracts user context (sub, email, role, displayName, status, preferences). `withRole()` helper exists but not applied to endpoints yet.
+- **Cognito Triggers**: Pre-token-generation (add custom claims), post-confirmation (activate profile), custom-message (branded emails), forgot-password (rate limiting/logging)
 
 ### Infrastructure
 
-AWS CDK with C# for infrastructure as code. Five stacks:
+AWS CDK with C# for infrastructure as code. Single unified stack (`UnifiedStack`) containing all resources:
 
-| Stack | Resources |
-|-------|-----------|
-| Network | VPC, subnets (if needed) |
-| Storage | S3 pages bucket (versioning enabled) |
-| Database | DynamoDB tables |
-| Compute | Lambda functions, API Gateway |
-| CDN | CloudFront distribution |
+| Resource Group | What's In It |
+|----------------|-------------|
+| Auth | Cognito UserPool, WebClient, NativeClient, IdentityPool, domain, 4 trigger Lambdas |
+| Storage | S3 pages bucket (versioning enabled), S3 frontend bucket (no versioning) |
+| Database | DynamoDB tables (user_profiles, invitations, page_links, activity_log) |
+| Compute | Individual Lambda functions per endpoint (~14 pages + 4 auth + search), API Gateway REST API with Cognito authorizer |
+| CDN | CloudFront distribution serving frontend bucket |
 
-Three environments: dev, staging, production. Auth stack (Cognito) is **not yet in CDK** — may be manually configured.
+Three environments: dev, staging, production. API Gateway throttling: 50 req/s sustained, burst 100.
 
 ### Local Development
 
@@ -115,27 +116,32 @@ Pages stored as Markdown files with YAML frontmatter:
 
 ```
 bucket/
-├── {guid}.md                                    # Root page
-├── {guid}/{child-guid}.md                       # Child page
-├── {guid}/{child-guid}/{grandchild-guid}.md     # Grandchild
-├── {guid}/{guid}/_attachments/
-│   ├── {attachment-guid}.png                    # Attachment file
-│   └── {attachment-guid}.meta.json              # Sidecar metadata
-└── search-index.json                            # Client search index
+├── {guid}/{guid}.md                                          # Root page
+├── {guid}/_attachments/                                      # Root page attachments
+│   ├── {sanitized-filename}.png                              # Attachment file
+│   └── {sanitized-filename}.png.meta.json                    # Sidecar metadata
+├── {guid}/{child-guid}/{child-guid}.md                       # Child page
+├── {guid}/{child-guid}/_attachments/                         # Child page attachments
+├── {guid}/{child-guid}/{grandchild-guid}/{grandchild-guid}.md  # Grandchild
+└── search-index.json                                         # Client search index
 ```
+
+Every page lives inside its own GUID-named folder. The `_attachments/` directory is a sibling of the `.md` file, derived by stripping the filename from the page's S3 key.
 
 Page file format:
 ```yaml
 ---
 title: Page Title
+guid: <page-guid>
 parentGuid: <parent-guid or null>
-tags: [tag1, tag2]
+folderId: <same as parentGuid — legacy/redundant field>
 status: Draft | Published | Archived
+description: Optional description
+tags: [tag1, tag2]
 createdBy: <cognito-sub>
 modifiedBy: <cognito-sub>
 createdAt: <ISO timestamp>
 modifiedAt: <ISO timestamp>
-description: Optional description
 ---
 
 Markdown content here...
@@ -146,15 +152,21 @@ Markdown content here...
 - GUIDs for all identifiers — titles stored in frontmatter, renames don't break paths
 - S3 versioning for page history — no custom version management
 - Sidecar `.meta.json` for attachment metadata — not a DynamoDB table
+- Hard delete — no trash/restore mechanism. Deleted pages are permanently removed from S3. Recoverability via S3 versioning only.
+- Move is copy + delete — not atomic. If copy succeeds but delete fails, duplicates exist. No detection or cleanup mechanism yet.
+- Page size — no enforced limit. Large pages may cause editor performance issues and Lambda timeout on export. Consider a warning at 50K characters.
+- Image sizing — Obsidian-style `![alt|300](url)` syntax via custom remark plugin (`remarkImageSize`). Supports px and % dimensions.
 
 ### DynamoDB Tables
 
 | Table | PK | SK/GSI | Purpose |
 |-------|-----|--------|---------|
+| `page_index` | `guid` | — | **Not yet created** — GUID-to-S3-key mapping to eliminate bucket scans |
 | `user_profiles` | `cognitoUserId` | GSI: `email-index` | Extended profile data (role, preferences, display name) |
 | `invitations` | `inviteCode` | TTL: `expiresAt` | Invitation codes with 7-day expiry |
 | `page_links` | `sourceGuid` | SK: `targetGuid`, GSI: `targetGuid-index` | Wiki link tracking for backlinks |
-| `activity_log` | `userId` | SK: `timestamp`, TTL: 90 days | **Not yet created** — activity audit trail |
+| `user_preferences` | `userId` | SK: `preferenceKey` | **Not yet created** — theme, dashboard layout, favorites, tour completion |
+| `activity_log` | `userId` | SK: `timestamp`, TTL: 90 days | Created in CDK. Post-confirmation trigger writes to it. No UI or query APIs yet. |
 | `comments` | `guid` | GSI: `pageGuid-createdAt-index` | **Not yet created** — page comments |
 | `site_config` | `configKey` | — | **Not yet created** — admin settings |
 
@@ -175,7 +187,19 @@ Markdown content here...
 
 All API requests validated by Cognito authorizer on API Gateway. JWT claims provide `sub` (user ID), `email`, and `custom:role`. Auth middleware extracts these into request context for Lambda handlers.
 
+**JWT transport**: Bearer tokens in Authorization header. Tokens stored in `localStorage` via the frontend AuthContext. This means CSRF protection is not required (no cookies), but XSS can steal tokens. Markdown output sanitization is critical — see Content Security section.
+
+**Role changes and active sessions**: JWT tokens are stateless with 1-hour expiry. A role demotion does not take effect until the access token expires or is refreshed. The pre-token-generation trigger will issue a token with the new role on next refresh. This means a demoted admin retains privileges for up to 1 hour.
+
 **Gap**: Permission enforcement beyond basic auth is not implemented. The two-role model exists in Cognito but no middleware enforces role-based access on endpoints. Draft visibility is not filtered.
+
+### Content Security
+
+**Markdown sanitization**: User-supplied Markdown is rendered to HTML via react-markdown. **Neither DOMPurify nor rehype-sanitize is in the pipeline.** Mermaid diagrams are rendered via `dangerouslySetInnerHTML` (partially mitigated by Mermaid `securityLevel: 'strict'`). Since JWT tokens are in `localStorage`, any XSS vulnerability can steal authentication tokens. Adding `rehype-sanitize` to the react-markdown plugin chain is a priority.
+
+**Content Security Policy**: Not configured. No `ResponseHeadersPolicy` on CloudFront. For a wiki rendering user-generated HTML, a CSP header should restrict inline scripts, limit `connect-src` to the API Gateway domain, and set `frame-ancestors: none`.
+
+**CSRF protection**: Not required — JWT is transported via Bearer tokens in the Authorization header, not cookies.
 
 ### Error Handling
 
@@ -195,7 +219,7 @@ The search index is rebuilt on every page change (S3 event → Lambda). The inde
 
 ### Caching
 
-No caching in MVP. Lambda containers are ephemeral with cold starts — no in-memory caching. No React Query caching on frontend. S3 sub-10ms latency is sufficient for 3-20 users. Post-MVP: React Query with TTL, CloudFront API caching.
+Minimal caching in MVP. Lambda containers are ephemeral with cold starts — no in-memory caching. `@tanstack/react-query` is installed but caching behaviour is not actively configured. Search index served with `Cache-Control: public, max-age=60`. S3 sub-10ms latency is sufficient for 3-20 users. Post-MVP: React Query with TTL, CloudFront API caching.
 
 ---
 
@@ -228,10 +252,11 @@ No caching in MVP. Lambda containers are ephemeral with cold starts — no in-me
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| S3 ListObjects slow with many pages | Page tree loading degrades | Unlikely at <500 pages. If needed, add DynamoDB page index |
+| `findPageKey` scans entire S3 bucket | Every non-root page load is O(n) | Plan: Page Index — DynamoDB GUID-to-path lookup with S3 scan fallback |
 | Lambda cold starts | First request slow | Provisioned concurrency for critical functions (post-MVP) |
 | Search index grows too large | Frontend load time increases | At 500 pages ~2MB JSON. Acceptable. Compress or paginate if needed |
-| Cognito not in CDK | Manual config drift between environments | Add Auth stack to CDK (task unchecked) |
+| CDK synth workflow disabled | No automated infrastructure validation on PR | Re-enable `infrastructure.yml` workflow |
+| Stale TECHNICAL-PLAN.md | Agents may create wrong DynamoDB tables | Do not use TECHNICAL-PLAN.md for new work. ODAD docs are source of truth |
 | No conflict resolution | Concurrent edits overwrite silently | Low risk at 3-20 users. Build conflict UI in Phase 4 |
 
 ---

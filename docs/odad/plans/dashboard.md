@@ -50,8 +50,9 @@ A family member opens the wiki and immediately sees what matters — what's new,
 ### Favorites API
 - The `dashboard-favorites` POST endpoint shall add a page GUID to the user's favorites list
 - The `dashboard-favorites` DELETE endpoint shall remove a page GUID from favorites
-- Favorites shall be stored in DynamoDB `user_preferences` table as a JSON array
-- The favorites list shall be limited to 50 items
+- Favorites shall be stored in DynamoDB `user_preferences` table (PK: userId, SK: preferenceKey) with preferenceKey `favorites`
+- The favorites list shall be limited to 20 items
+- When a favorited page is deleted, it shall be automatically removed from the favorites list
 
 ### Welcome Banner
 - The dashboard shall show "Welcome, [Display Name]!" at the top

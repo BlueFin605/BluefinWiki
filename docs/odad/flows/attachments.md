@@ -31,7 +31,7 @@ A family member drags a file into the editor, clicks the attachment button, or u
 
 ### 3. Server Processing
 **Actor**: `pages-attachments` Lambda
-**Action**: Parses multipart body. Validates file type (whitelist: images, PDFs, docs) and size. Generates attachment GUID. Uploads to S3 at `{pageGuid}/{pageGuid}/_attachments/{attachmentGuid}.{ext}`. Creates sidecar `.meta.json` with metadata (attachmentId, originalFilename, contentType, size, uploadedAt, uploadedBy, dimensions if image, checksum).
+**Action**: Parses multipart body. Validates file type (whitelist: images, PDFs, docs) and size. Uploads to S3 at `{page-s3-path}/_attachments/{sanitized-filename}` (path derived from page's S3 key). Creates sidecar `{sanitized-filename}.meta.json` with metadata (filename, contentType, size, uploadedAt, uploadedBy, dimensions if image, duration, checksum).
 **Output**: AttachmentGuid, filename, size, download URL returned to frontend
 **Failure**: S3 write failure (return 500), metadata write failure (orphaned attachment — needs cleanup)
 

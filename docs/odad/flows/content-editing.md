@@ -38,7 +38,7 @@ A family member clicks "New Page" or opens an existing page for editing.
 ### 4. Attachment Upload
 **Actor**: Family member
 **Action**: Drags file into editor or clicks attachment button. File uploaded via multipart POST to `/pages/{guid}/attachments`
-**Output**: File stored in S3 at `{pageGuid}/{pageGuid}/_attachments/{attachmentGuid}.{ext}`. Sidecar `.meta.json` created. Markdown image/link syntax inserted into editor.
+**Output**: File stored in S3 at `{page-s3-path}/_attachments/{sanitized-filename}`. Sidecar `.meta.json` created. Markdown image/link syntax inserted into editor.
 **Failure**: File too large (>10MB image, >50MB document), unsupported type (client-side + server-side validation), upload network failure (progress bar shows error)
 
 ### 5. Manual Save
@@ -49,7 +49,7 @@ A family member clicks "New Page" or opens an existing page for editing.
 
 ### 6. Wiki Link Processing
 **Actor**: System (on save)
-**Action**: Parses saved content for `[[wiki links]]`. Extracts all links, updates DynamoDB `page_links` table (insert new, remove stale).
+**Action**: Parses saved content for `[[wiki links]]`. Links are stored as-is in Markdown — either `[[Page Title]]` (resolved by title at render time) or `[[guid|Display Text]]` (resolved by GUID, survives renames). Extracts all links, updates DynamoDB `page_links` table (insert new, remove stale). On page deletion, `page_links` entries where this page is the source are also removed.
 **Output**: Backlinks updated for all referenced pages
 **Failure**: Link resolution fails for ambiguous titles (stored as broken link, displayed with `?` indicator)
 

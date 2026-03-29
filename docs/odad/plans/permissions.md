@@ -69,11 +69,14 @@ The right people see the right things. Admins manage, standards contribute. Draf
 - When a non-admin navigates to a guarded route, the component shall show a 403 error page
 - When an unauthenticated user navigates to any protected route, the component shall redirect to login
 
+### Server-Side Invariants (Already Implemented)
+- Circular reference prevention is already enforced server-side: `BaseStoragePlugin.validateNoCircularReference()` walks the ancestor chain, and `pages-move.ts` performs an additional `checkIfDescendant` check at the API boundary
+
 ## Constraints
 
 - **Two roles only** — Admin and Standard. No custom roles, no page-level ACLs.
 - **Backend is the enforcement layer** — frontend hides UI elements but does not provide security. The API enforces permissions regardless of client.
-- **Draft filtering in search** — client-side Fuse.js search must filter drafts locally using status + createdBy from the index. The server doesn't filter search results (the index is pre-built).
+- **Draft filtering in search** — the search index builder already excludes non-published pages (only `status === 'published'` is indexed). Client-side filtering is not needed for search. However, navigation (page tree, sitemap) still needs draft filtering.
 
 ## References
 
