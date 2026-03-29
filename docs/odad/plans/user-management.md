@@ -59,6 +59,8 @@ An admin should be able to see all family members, manage their roles, and contr
 - The endpoint shall update email via Cognito AdminUpdateUserAttributes (triggers verification)
 - The endpoint shall support password reset via AdminSetUserPassword
 - If an admin attempts to modify their own role, the endpoint shall return 400 with "Cannot change your own role"
+- If demoting the last remaining admin, the endpoint shall return 400 with "Cannot remove the last admin"
+- When a role changes, the new role takes effect on next token refresh (up to 1 hour delay with current JWT expiry). The pre-token-generation trigger issues the updated role claim.
 
 ### User Suspend / Activate
 - The `admin-users-suspend` endpoint shall call Cognito AdminDisableUser and update DynamoDB status to 'suspended'
@@ -70,7 +72,10 @@ An admin should be able to see all family members, manage their roles, and contr
 - The endpoint shall hard-delete from Cognito via AdminDeleteUser
 - The endpoint shall preserve activity logs for audit
 
-### Invitation Management
+### Invitation Management (Backend Already Implemented)
+- The `admin-create-invitation` endpoint already accepts a role parameter (Admin/Standard, default Standard) and stores it on the invitation record
+- The `auth-register` endpoint already reads `invitation.role` and applies it to both Cognito user and DynamoDB profile
+- The invitation UI plan covers the admin-facing management interface (not the backend logic)
 - The `admin-invitations-create` endpoint shall generate an 8-character invite code with 7-day TTL
 - The endpoint shall send an invitation email via SES with registration link
 - The `admin-invitations-list` endpoint shall return all invitations with status
@@ -78,6 +83,7 @@ An admin should be able to see all family members, manage their roles, and contr
 
 ### Admin Dashboard UI
 - The user list page shall display a sortable table with Name, Email, Role, Status, Last Active columns
+- The current admin's own row shall be visually distinguished (e.g., "You" label or highlight)
 - The user list shall support search/filter and pagination
 - The user detail modal shall display full profile with edit and suspend/activate actions
 - The invitation management page shall show pending/used/expired invitations with create and revoke actions

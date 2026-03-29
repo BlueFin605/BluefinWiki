@@ -23,50 +23,61 @@ purpose: { findings: 90, reference: 10 }
 
 ### Authentication (Spec 1) — Complete
 
-Invite-only auth using AWS Cognito. Backend Lambda functions handle registration, login, password reset, and invitation management. Cognito triggers (pre-token-generation, post-confirmation, custom-message) extend the auth flow. Frontend has login, registration, and password reset pages with React Context for auth state. JWT validation middleware protects API endpoints.
+Invite-only auth using AWS Cognito. Backend Lambda functions handle registration, login, password reset, and invitation management. Cognito triggers (pre-token-generation, post-confirmation, custom-message, forgot-password) extend the auth flow. Frontend has login, registration, and password reset pages with React Context for auth state. JWT tokens transported as Bearer tokens in Authorization header, stored in `localStorage`. Auth middleware (`aws-jwt-verify`) validates ID tokens and extracts user context (sub, email, role, displayName, status). Invitations carry a pre-assigned role (Admin/Standard) that flows through to the user profile.
 
-> `backend/src/auth/` — Lambda handlers for all auth flows
-> `frontend/src/contexts/` — AuthContext with Cognito integration
-> `backend/src/middleware/` — JWT validation
+**Security note**: Tokens in `localStorage` are accessible to any JavaScript on the page. If XSS is possible, tokens can be stolen. This makes Markdown output sanitization (DOMPurify/rehype-sanitize) critical — and it is currently **not implemented**.
+
+> `backend/src/auth/` — Lambda handlers for all auth flows (individual functions per endpoint)
+> `frontend/src/contexts/AuthContext.tsx` — Cognito integration via `amazon-cognito-identity-js`
+> `frontend/src/config/api.ts` — Axios interceptor adds Bearer token
+> `backend/src/middleware/auth.ts` — JWT validation, `withRole()` helper (exists but not applied to endpoints)
 
 ### Storage Plugin (Spec 2) — Complete
 
-S3StoragePlugin implements a pluggable interface. Pages stored as markdown files with YAML frontmatter. Hierarchy expressed through S3 paths: root pages at `{guid}.md`, children at `{parent-guid}/{child-guid}.md`. Versioning via S3 object versions. CRUD operations, hierarchy traversal, and move operations all tested including integration tests against LocalStack.
+S3StoragePlugin implements a pluggable interface. Pages stored as markdown files with YAML frontmatter. Every page lives inside its own GUID-named folder — root pages at `{guid}/{guid}.md`, children at `{parent-guid}/{child-guid}/{child-guid}.md`. Versioning via S3 object versions. CRUD operations, hierarchy traversal, and move operations all tested including integration tests against LocalStack. Frontmatter includes `guid` and `folderId` fields in addition to the documented metadata fields.
 
 > `backend/src/storage/` — StoragePlugin interface and S3 implementation
-> `infrastructure/` — CDK stacks (C#) for S3, DynamoDB, Lambda, CloudFront
+> `infrastructure/src/Infrastructure/Stacks/UnifiedStack.cs` — Single CDK stack with all resources
 
 ### Page Hierarchy (Spec 3) — Complete
 
-Pages ARE folders. A page with children has a directory named after its GUID. Tree component with expand/collapse, drag-and-drop reparenting, context menu (rename, delete, move, new child), and circular reference prevention. No caching (Lambda ephemeral containers) — S3 sub-10ms latency is sufficient for 3-20 users.
+Pages ARE folders. A page with children has a directory named after its GUID. Tree component with expand/collapse, drag-and-drop reparenting, context menu (rename, delete, move, new child). Circular reference prevention enforced server-side in both `BaseStoragePlugin.validateNoCircularReference()` and `pages-move.ts` API handler. No caching (Lambda ephemeral containers) — S3 sub-10ms latency is sufficient for 3-20 users.
 
 > `frontend/src/components/` — Recursive tree component, drag-and-drop
-> `backend/src/storage/` — Hierarchy traversal, ancestor path, descendant checks
+> `backend/src/storage/BaseStoragePlugin.ts` — `validateNoCircularReference()` walks ancestor chain
+> `backend/src/pages/pages-move.ts` — Second circular reference check at API boundary
 
 ### Page Editor (Spec 4) — Complete
 
-CodeMirror 6 with markdown mode. Split-pane layout (edit | preview) with resizable divider. Markdown toolbar (bold, italic, headers, lists, links, images, code). react-markdown with remark-gfm, remark-breaks, rehype-highlight. Mermaid diagram support. **Manual save only** — autosave deferred to post-MVP. No unsaved changes warning on navigation.
+CodeMirror 6 with markdown mode. Split-pane layout (edit | preview) with resizable divider. Markdown toolbar (bold, italic, headers, lists, links, images, code). react-markdown with remark-gfm, remark-breaks, rehype-highlight. Mermaid diagram support. Image resizing via Obsidian-style syntax (`![alt|300](url)`, `![alt|300x200](url)`, `![alt|50%](url)`) implemented as a custom remark plugin. **Manual save only** — autosave deferred to post-MVP. No unsaved changes warning on navigation.
 
 > `frontend/src/components/` — Editor component, toolbar, preview
-> `frontend/src/plugins/` — Remark plugins for wiki links, images
+> `frontend/src/plugins/` — Remark plugins for wiki links, image sizing
 
 ### Page Links (Spec 5) — Complete
 
-Wiki link syntax `[[Page Title]]` and `[[guid|Display Text]]`. Custom remark plugin converts wiki links to React components. Link resolution with fuzzy matching. Broken link detection with "Create Page" quick action. Link autocomplete triggered on `[[` input. Backlinks tracked in DynamoDB `page_links` table with GSI for reverse lookups.
+Wiki link syntax `[[Page Title]]` and `[[guid|Display Text]]`. Custom remark plugin converts wiki links to React components. Link resolution with fuzzy matching. Broken link detection with "Create Page" quick action. Link autocomplete triggered on `[[` input. Backlinks tracked in DynamoDB `page_links` table with GSI for reverse lookups. Links updated on page create and update.
+
+**Internal link storage format**: Wiki links are stored as text in Markdown. The frontend parser (`wikiLinkParser.ts`) handles `[[Page Title]]` (type: `page-title`) and `[[guid|Display Text]]` (type: `page-guid`). At render time, the remark plugin resolves them.
+
+**Known bug**: The backend link extractor (`link-extraction.ts`) uses a different syntax — `[[guid:abc-123]]` with a `guid:` prefix — which is incompatible with the frontend's `[[guid|Display Text]]` format. GUID-style links written by the editor will not be correctly tracked for backlinks by the backend.
+
+**Known bug**: `pages-delete.ts` does not call `removePageLinks()`. Deleting a page leaves orphaned records in `page_links` — both outbound links from the deleted page and inbound backlink references to it.
 
 > `frontend/src/plugins/` — Wiki link remark plugin
-> `backend/src/storage/` — Link resolution and backlinks
+> `frontend/src/utils/wikiLinkParser.ts` — Link syntax parsing
+> `backend/src/pages/link-extraction.ts` — Backend link extractor (different syntax)
 
 ### Page Attachments (Spec 6) — Complete
 
-Attachments stored in pages bucket at `{pageGuid}/{pageGuid}/_attachments/`. Sidecar `.meta.json` files for metadata (no DynamoDB table). Upload via multipart/form-data with type validation (images, PDFs, docs) and size limits (10MB images, 50MB documents). Presigned URLs for download. Frontend has drag-and-drop upload, progress bars, image previews, and editor toolbar integration.
+Attachments stored in pages bucket at `{pageGuid}/_attachments/` (derived from the page's S3 key by stripping the `.md` filename and appending `_attachments/`). For a root page at `{guid}/{guid}.md`, attachments go to `{guid}/_attachments/`. Sidecar `.meta.json` files for metadata (filename, contentType, size, uploadedAt, uploadedBy, optional dimensions/duration/checksum — no DynamoDB table). Upload via multipart/form-data with type validation (images, PDFs, docs) and size limits (10MB images, 50MB documents). Presigned URLs for download. Frontend has drag-and-drop upload, progress bars, image previews, and editor toolbar integration.
 
-> `backend/src/storage/` — Attachment methods on S3StoragePlugin
+> `backend/src/storage/S3StoragePlugin.ts` — `buildAttachmentPath()`, attachment CRUD methods
 > `frontend/src/components/` — Upload UI, attachment list, image preview
 
 ### Client-Side Search (Spec 7) — Complete
 
-Fuse.js in browser. Lambda builds `search-index.json` on S3 events (page create/update/delete). Frontend fetches index, initializes Fuse.js, executes searches client-side. Search dialog (Cmd/Ctrl+K), result snippets with highlighting, keyboard navigation, folder-scoped search, title-only toggle, recent searches in localStorage. Accessibility (ARIA, screen reader announcements, focus management). Cost: $0/month.
+Fuse.js in browser. Lambda builds `search-index.json` on S3 events (page create/update/delete). **Only pages with `status === 'published'` are indexed** — drafts and archived pages are excluded from search. Index served with `Cache-Control: public, max-age=60`. Frontend fetches index, initializes Fuse.js, executes searches client-side. Search dialog (Cmd/Ctrl+K), result snippets with highlighting, keyboard navigation, folder-scoped search, title-only toggle, recent searches in localStorage. Accessibility (ARIA, screen reader announcements, focus management). Cost: $0/month.
 
 > `frontend/src/components/` — SearchDialog component
 > `frontend/src/utils/` — Search utilities, Fuse.js integration
@@ -122,7 +133,7 @@ No first-time tour, no contextual tooltips. Markdown help may partially exist vi
 
 ### Error Handling (Spec 19) — Partial
 
-Basic error boundaries likely exist in React. No structured offline mode, no conflict resolution UI, no rate limiting beyond search debounce, no retry logic, no monitoring/alerting.
+Basic error boundaries likely exist in React. No structured offline mode, no conflict resolution UI, no retry logic, no monitoring/alerting. API Gateway throttling is configured (50 req/s sustained, burst 100) — returns 429 when exceeded. No per-endpoint rate limiting.
 
 ---
 
@@ -137,10 +148,16 @@ Basic error boundaries likely exist in React. No structured offline mode, no con
 | DynamoDB for relational data | Links, invitations, profiles — access-pattern-driven design |
 | Client-side search default | $0/month, sufficient for 3-20 users and <500 pages |
 | Manual save only (MVP) | Autosave complexity deferred; manual save + dirty state indicator |
-| No frontend caching (MVP) | React Query caching deferred; fresh fetches acceptable at low user count |
+| No frontend caching (MVP) | `@tanstack/react-query` is installed but caching behaviour deferred; fresh fetches acceptable at low user count |
 | Sidecar .meta.json for attachments | Simpler than DynamoDB table; metadata lives with the file |
 | Aspire for local dev | Orchestrates frontend, backend, LocalStack, MailHog in one command |
-| CDK with C# for IaC | Type-safe infrastructure, multi-stack (network, storage, database, compute, CDN) |
+| CDK with C# for IaC | Type-safe infrastructure, single unified stack containing all resources |
+
+---
+
+## Known Performance Issue
+
+`S3StoragePlugin.findPageKey()` (`backend/src/storage/S3StoragePlugin.ts:468`) resolves a page GUID to an S3 key by trying the root path first (HeadObject — O(1)), then falling back to **listing the entire bucket** via ListObjectsV2 and scanning for a match (O(n)). Every `loadPage`, `deletePage`, `movePage`, and attachment operation hits this path for non-root pages. The original speckit tasks noted "need to search if parent unknown, or track in index" — the index was never built. See Plan: Page Index.
 
 ---
 
@@ -156,16 +173,15 @@ Basic error boundaries likely exist in React. No structured offline mode, no con
 
 | Component | Status |
 |-----------|--------|
-| CDK stacks (C#) | Deployed: Network, Storage, Database, Compute, CDN |
-| Auth stack (Cognito) | **Not in CDK** — task unchecked; Cognito may be manually configured |
-| S3 pages bucket | Deployed with versioning |
-| DynamoDB tables | user_profiles, invitations, page_links deployed |
-| Lambda functions | Auth, pages CRUD, links, attachments, search index builder |
-| API Gateway | REST API with Cognito authorizer |
-| GitHub Actions | Frontend build/test, backend build/test, CDK synth, deploy to dev |
-| Aspire | Local orchestration working |
-| LocalStack | S3, DynamoDB, SES emulation |
-| MailHog | Local email testing |
+| CDK (C#) | Single `UnifiedStack` containing all resources (auth, storage, database, compute, CDN) |
+| Cognito | **Fully in CDK** — UserPool, clients, identity pool, domain, 4 trigger Lambdas |
+| S3 buckets | Two: `bluefinwiki-pages-{env}` (versioning on), `bluefinwiki-frontend-{env}` (versioning off) |
+| DynamoDB tables | user_profiles, invitations, page_links, activity_log — all deployed |
+| Lambda functions | Individual functions per endpoint (~14 for pages + 4 auth triggers + search index builder) |
+| API Gateway | REST API (v1) with Cognito authorizer on all routes. Throttling: 50 req/s, burst 100 |
+| GitHub Actions | Frontend build/test, backend build/test active. CDK synth **disabled** (.old). Deploy is **production-only, manual trigger** |
+| Aspire | Local orchestration: LocalStack, cognito-local, MailHog, backend, frontend |
+| Frontend state | React Context (auth) + hand-rolled stores (drafts, layout) + `@tanstack/react-query` installed |
 
 ---
 
@@ -182,6 +198,33 @@ Target: <$5/month for a 5-user family wiki.
 | CloudFront | <$1.00/month (low bandwidth) |
 | API Gateway | <$0.50/month (low request count) |
 | **Total** | **~$2-3/month** |
+
+---
+
+## Stale Source Documents
+
+TECHNICAL-PLAN.md contains database schemas that contradict the committed architecture. An agent reading it would try to create tables that shouldn't exist:
+
+| TECHNICAL-PLAN.md says | Actual decision |
+|------------------------|-----------------|
+| `folders` DynamoDB table | Pages-as-folders in S3, no separate folder entity |
+| `pages_metadata` DynamoDB table | Metadata in YAML frontmatter inside S3 .md files |
+| `attachments` DynamoDB table | Sidecar `.meta.json` files in S3 |
+| CloudSearch for full-text search | Client-side Fuse.js ($0/month) |
+
+TECHNICAL-PLAN.md also references JWT delivery via httpOnly cookies — the actual implementation uses Bearer tokens in the Authorization header with `localStorage` storage.
+
+**These old documents should not be used for new work.** The ODAD documents (`docs/odad/`) are the source of truth.
+
+---
+
+## Unresolved Design Questions
+
+1. **Deletion strategy** — Page deletion is hard-delete (remove S3 objects). No trash/restore mechanism exists. Recoverability only via S3 versioning.
+2. **Move operation atomicity** — `movePage` does S3 copy + delete. If copy succeeds but delete fails, duplicates exist. No detection or cleanup mechanism.
+3. **Display path resolution** — GUIDs are used for internal references, but human-readable URLs need a `displayPath→GUID` mapping. The `page_index` plan solves GUID→S3 key, not display path→GUID.
+4. **Wiki link format mismatch** — Frontend uses `[[guid|Display Text]]`, backend extractor uses `[[guid:abc-123]]`. Backlinks for GUID-style links are not tracked correctly.
+5. **Markdown sanitization** — No DOMPurify or rehype-sanitize in the rendering pipeline. Tokens stored in `localStorage` are vulnerable to XSS. This is a real security gap.
 
 ---
 

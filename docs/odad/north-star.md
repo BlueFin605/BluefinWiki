@@ -20,6 +20,7 @@ A family member opens their wiki and sees what's changed since they last visited
 - A family member should be able to use a formatting toolbar without knowing Markdown syntax
 - A family member should be able to attach files to a page by dragging them into the editor
 - A family member should be able to insert images inline and see them rendered in the preview
+- A family member should be able to control image display size using simple syntax in the editor
 - A family member should be able to save their work and know it was saved successfully
 - A family member should be able to resume editing a page they were working on without losing content
 
