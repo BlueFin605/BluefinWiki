@@ -98,6 +98,20 @@ A family member opens their wiki and sees what's changed since they last visited
 
 ---
 
+## Structured Content & Boards
+
+- A family member should be able to add custom properties to any page — dates, numbers, ratings, tags — as structured data, not just text
+- A family member should be able to define page types that specify what properties a page should have and which are required
+- A family member should be able to give a page type a name, an icon, and rename it later without breaking anything
+- A family member should be able to constrain what types of child pages can be created under a typed page
+- A family member should be able to use page types without affecting standard wiki pages — types are opt-in
+- A family member should be able to view a page's children as a Kanban board, with cards grouped by state
+- A family member should be able to drag a card between columns to change its state
+- A family member should be able to set up a TV tracker, task board, or similar structured hierarchy from a template in one action
+- Tags should have a shared vocabulary across the wiki, with autocomplete suggestions
+
+---
+
 ## Onboarding
 
 - A new family member should be able to understand the wiki's features through a guided tour on first login

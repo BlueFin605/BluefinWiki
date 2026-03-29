@@ -167,6 +167,8 @@ Markdown content here...
 | `user_profiles` | `cognitoUserId` | GSI: `email-index` | Extended profile data (role, preferences, display name) |
 | `invitations` | `inviteCode` | TTL: `expiresAt` | Invitation codes with 7-day expiry |
 | `page_links` | `sourceGuid` | SK: `targetGuid`, GSI: `targetGuid-index` | Wiki link tracking for backlinks |
+| `tags` | `tag` | — | Shared tag vocabulary — lowercase tag names with usage count, for autocomplete and aggregation |
+| `page_types` | `guid` | — | Page type definitions — name, icon, property schema (JSON), allowed child types (JSON) |
 | `user_preferences` | `userId` | SK: `preferenceKey` | **Not yet created** — theme, dashboard layout, favorites, tour completion |
 | `activity_log` | `userId` | SK: `timestamp`, TTL: 90 days | Created in CDK. Post-confirmation trigger writes to it. No UI or query APIs yet. |
 | `comments` | `guid` | GSI: `pageGuid-createdAt-index` | **Not yet created** — page comments |
