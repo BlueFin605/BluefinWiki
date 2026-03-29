@@ -9,7 +9,7 @@
  * - Inline rename
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { ResizeDivider } from '../editor/ResizeDivider';
 import { getLayout, setLayout } from '../../stores/layoutStore';
 import { PageTree } from './PageTree';
@@ -19,6 +19,7 @@ import { PageRenameInline } from './PageRenameInline';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { EditorErrorBoundary } from '../common/EditorErrorBoundary';
 import { PageEditor } from './PageEditor';
+import { SearchDialog } from '../search/SearchDialog';
 import { PageTreeNode } from '../../types/page';
 import { useDeletePage } from '../../hooks/usePages';
 
@@ -39,6 +40,19 @@ export const PagesView: React.FC = () => {
   }>({ isOpen: false, page: null });
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
   const [treeWidth, setTreeWidth] = useState(() => getLayout().treeWidth);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Cmd/Ctrl+K to open search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleTreeResize = useCallback((px: number) => {
     const w = Math.min(Math.max(px, 200), 600);
@@ -126,21 +140,33 @@ export const PagesView: React.FC = () => {
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-lg font-semibold text-gray-900">Pages</h2>
-              <button
-                onClick={handleNewRootPage}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                aria-label="New page"
-                title="Create new root page"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setIsSearchOpen(true)}
+                  className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Search wiki (Ctrl+K)"
+                  title="Search wiki (Ctrl+K)"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleNewRootPage}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  aria-label="New page"
+                  title="Create new root page"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -256,6 +282,16 @@ export const PagesView: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Search Dialog */}
+        <SearchDialog
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          onNavigate={(pageId) => {
+            setActivePageGuid(pageId);
+            setIsSearchOpen(false);
+          }}
+        />
       </div>
   );
 };
