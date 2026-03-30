@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageTypeDefinition, PageTypeProperty, PropertyType } from '../../types/page';
 import {
   usePageTypes,
@@ -247,6 +248,7 @@ const PageTypeForm: React.FC<{
 // ============================================================================
 
 export const PageTypesAdmin: React.FC = () => {
+  const navigate = useNavigate();
   const { data: pageTypes = [], isLoading } = usePageTypes();
   const createPageType = useCreatePageType();
   const updatePageType = useUpdatePageType();
@@ -296,7 +298,18 @@ export const PageTypesAdmin: React.FC = () => {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Page Types</h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/settings')}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+              aria-label="Back to settings"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">Page Types</h1>
+          </div>
           {!showForm && !editingType && (
             <button
               onClick={() => setShowForm(true)}
