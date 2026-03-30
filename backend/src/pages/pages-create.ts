@@ -6,6 +6,7 @@ import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
 import { autoRegisterTagsFromProperties, autoRegisterPageTags } from '../tags/tags-service.js';
+import { validatePageType, validateChildTypeConstraint } from './page-type-validation.js';
 
 // Property validation schema
 const PagePropertySchema = z.object({
@@ -34,6 +35,7 @@ const CreatePageRequestSchema = z.object({
   parentGuid: z.string().uuid().nullable().optional(),
   tags: z.array(z.string()).default([]),
   status: z.enum(['published', 'archived']).default('published'),
+  pageType: z.string().uuid().optional(),
   properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
 });
 
@@ -86,7 +88,7 @@ export const handler = withAuth(async (
       };
     }
 
-    const { title, content, parentGuid = null, tags, status, properties } = validationResult.data;
+    const { title, content, parentGuid = null, tags, status, pageType, properties } = validationResult.data;
 
     // Get authenticated user context
     const user = getUserContext(event);
@@ -94,6 +96,22 @@ export const handler = withAuth(async (
     // Generate new page GUID
     const guid = uuidv4();
     const now = new Date().toISOString();
+
+    // Validate page type constraints (advisory — warns but doesn't hard-block)
+    if (pageType) {
+      const typeValidation = await validatePageType(pageType, properties || {});
+      if (typeValidation.warnings.length > 0) {
+        console.warn('Page type validation warnings:', typeValidation.warnings);
+      }
+    }
+
+    // Validate child type constraint if parent exists
+    if (parentGuid && pageType) {
+      const childValidation = await validateChildTypeConstraint(parentGuid, pageType);
+      if (childValidation.warnings.length > 0) {
+        console.warn('Child type constraint warnings:', childValidation.warnings);
+      }
+    }
 
     // Build PageContent object
     const pageContent: PageContent = {
@@ -103,6 +121,7 @@ export const handler = withAuth(async (
       folderId: parentGuid || '',
       tags,
       status,
+      ...(pageType ? { pageType } : {}),
       ...(properties ? { properties } : {}),
       createdBy: user.userId,
       modifiedBy: user.userId,

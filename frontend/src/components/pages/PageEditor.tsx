@@ -21,6 +21,7 @@ interface PageEditorProps {
 
 function metadataFromPage(page: {
   title: string; tags: string[]; status: 'draft' | 'published' | 'archived';
+  pageType?: string;
   properties?: Record<string, import('../../types/page').PageProperty>;
   createdBy: string; modifiedBy: string;
   createdAt: string; modifiedAt: string; guid: string;
@@ -29,6 +30,7 @@ function metadataFromPage(page: {
     title: page.title,
     tags: page.tags,
     status: page.status,
+    ...(page.pageType ? { pageType: page.pageType } : {}),
     ...(page.properties ? { properties: page.properties } : {}),
     createdBy: page.createdBy,
     modifiedBy: page.modifiedBy,
@@ -116,6 +118,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       title: meta.title,
       tags: meta.tags,
       status: meta.status,
+      ...(meta.pageType !== undefined ? { pageType: meta.pageType || null } : {}),
       ...(meta.properties ? { properties: meta.properties } : {}),
     };
 

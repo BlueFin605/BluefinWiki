@@ -41,6 +41,7 @@ namespace Infrastructure.Stacks
         public Table ActivityLogTable { get; private set; }
         public Table PageIndexTable { get; private set; }
         public Table TagsTable { get; private set; }
+        public Table PageTypesTable { get; private set; }
         
         // Compute resources
         public RestApi Api { get; private set; }
@@ -677,7 +678,24 @@ namespace Infrastructure.Stacks
                 RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
             });
 
+            // Page Types table - type definitions for structured pages
+            // PK: guid (UUID v4)
+            PageTypesTable = new Table(this, "PageTypesTable", new TableProps
+            {
+                TableName = $"bluefinwiki-page-types-{config.Name}",
+                PartitionKey = new Attribute { Name = "guid", Type = AttributeType.STRING },
+                BillingMode = BillingMode.PAY_PER_REQUEST,
+                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
+            });
+
             // Database Stack outputs
+            new CfnOutput(this, "PageTypesTableName", new CfnOutputProps
+            {
+                Value = PageTypesTable.TableName,
+                Description = "DynamoDB table for page type definitions",
+                ExportName = $"{config.Name}-page-types-table"
+            });
+
             new CfnOutput(this, "UserProfilesTableName", new CfnOutputProps
             {
                 Value = UserProfilesTable.TableName,
@@ -804,6 +822,7 @@ namespace Infrastructure.Stacks
             ActivityLogTable.GrantReadWriteData(lambdaRole);
             PageIndexTable.GrantReadWriteData(lambdaRole);
             TagsTable.GrantReadWriteData(lambdaRole);
+            PageTypesTable.GrantReadWriteData(lambdaRole);
 
             // Grant Lambda access to JWT secret
             JwtSecret.GrantRead(lambdaRole);
@@ -820,6 +839,7 @@ namespace Infrastructure.Stacks
                 { "ACTIVITY_LOG_TABLE", ActivityLogTable.TableName },
                 { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
                 { "TAGS_TABLE", TagsTable.TableName },
+                { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
                 { "JWT_SECRET_ARN", JwtSecret.SecretArn },
                 { "ENVIRONMENT", config.Name }
             };
@@ -1082,6 +1102,100 @@ namespace Infrastructure.Stacks
             });
 
             // =============================================================================
+            // Page Types Lambda Functions
+            // =============================================================================
+
+            var pageTypesListFunction = new LambdaFunction(this, "PageTypesListFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-page-types-list",
+                Runtime = lambdaProps.Runtime,
+                Handler = "page-types/page-types-list.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List all page type definitions"
+            });
+
+            var pageTypesGetFunction = new LambdaFunction(this, "PageTypesGetFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-page-types-get",
+                Runtime = lambdaProps.Runtime,
+                Handler = "page-types/page-types-get.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Get a page type definition by GUID"
+            });
+
+            var pageTypesCreateFunction = new LambdaFunction(this, "PageTypesCreateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-page-types-create",
+                Runtime = lambdaProps.Runtime,
+                Handler = "page-types/page-types-create.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Create a new page type definition"
+            });
+
+            var pageTypesUpdateFunction = new LambdaFunction(this, "PageTypesUpdateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-page-types-update",
+                Runtime = lambdaProps.Runtime,
+                Handler = "page-types/page-types-update.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Update a page type definition"
+            });
+
+            var pageTypesDeleteFunction = new LambdaFunction(this, "PageTypesDeleteFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-page-types-delete",
+                Runtime = lambdaProps.Runtime,
+                Handler = "page-types/page-types-delete.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Delete a page type definition"
+            });
+
+            var pageTypesAllowedChildrenFunction = new LambdaFunction(this, "PageTypesAllowedChildrenFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-page-types-allowed-children",
+                Runtime = lambdaProps.Runtime,
+                Handler = "page-types/page-types-allowed-children.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Get allowed child types for a page type"
+            });
+
+            // =============================================================================
             // API Gateway Routes - /pages
             // =============================================================================
             
@@ -1229,6 +1343,58 @@ namespace Infrastructure.Stacks
 
             // POST /tags - Create a new tag
             tagsResource.AddMethod("POST", new LambdaIntegration(tagsCreateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // =============================================================================
+            // API Gateway Routes - /page-types
+            // =============================================================================
+
+            var pageTypesResource = Api.Root.AddResource("page-types");
+
+            // GET /page-types - List all page type definitions
+            pageTypesResource.AddMethod("GET", new LambdaIntegration(pageTypesListFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /page-types - Create a new page type definition
+            pageTypesResource.AddMethod("POST", new LambdaIntegration(pageTypesCreateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // /page-types/{guid} resource
+            var pageTypeGuidResource = pageTypesResource.AddResource("{guid}");
+
+            // GET /page-types/{guid} - Get a page type definition
+            pageTypeGuidResource.AddMethod("GET", new LambdaIntegration(pageTypesGetFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // PUT /page-types/{guid} - Update a page type definition
+            pageTypeGuidResource.AddMethod("PUT", new LambdaIntegration(pageTypesUpdateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // DELETE /page-types/{guid} - Delete a page type definition
+            pageTypeGuidResource.AddMethod("DELETE", new LambdaIntegration(pageTypesDeleteFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // GET /page-types/{guid}/allowed-children - Get allowed child types
+            var allowedChildrenResource = pageTypeGuidResource.AddResource("allowed-children");
+            allowedChildrenResource.AddMethod("GET", new LambdaIntegration(pageTypesAllowedChildrenFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
