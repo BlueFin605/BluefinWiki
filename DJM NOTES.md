@@ -41,7 +41,7 @@ cd aspire\scripts
 
 .\manage-seed-data.ps1 -Action setup
 
-node import-seed-data.js --source ./seed-snapshots/2026-03-29
+node import-seed-data.js --source ./seed-snapshots/2026-03-30
 
 ### Deploy Infrastructure
 

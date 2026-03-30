@@ -42,7 +42,7 @@ This creates a snapshot in `seed-snapshots/YYYY-MM-DD/` containing:
 ### Import a Snapshot
 ```powershell
 cd aspire/scripts
-.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-29"
+.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-30"
 ```
 
 This restores all data from the snapshot to your LocalStack environment.
@@ -135,7 +135,7 @@ cd aspire/scripts
 .\manage-seed-data.ps1 -Action export -Output "my-snapshot"
 
 # Import snapshot
-.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-29"
+.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-30"
 
 # Setup fresh environment
 .\manage-seed-data.ps1 -Action setup
@@ -144,7 +144,7 @@ cd aspire/scripts
 .\manage-seed-data.ps1 -Action list
 
 # Reset environment
-.\manage-seed-data.ps1 -Action reset -Source "seed-snapshots/2026-03-29"
+.\manage-seed-data.ps1 -Action reset -Source "seed-snapshots/2026-03-30"
 ```
 
 ### NPM (Direct)
@@ -156,7 +156,7 @@ npm run export-seed
 npm run export-seed -- --output ./seed-snapshots/my-snapshot
 
 # Import
-npm run import-seed -- --source ./seed-snapshots/2026-03-29
+npm run import-seed -- --source ./seed-snapshots/2026-03-30
 
 # Setup
 npm run setup
@@ -169,7 +169,7 @@ npm run setup
 ==================================================================
 BlueFin Wiki - Export Seed Data
 ==================================================================
-Output directory: ./seed-snapshots/2026-03-29
+Output directory: ./seed-snapshots/2026-03-30
 
 --- Exporting S3 Buckets ---
 Exporting S3 bucket: bluefinwiki-pages-local...
@@ -194,7 +194,7 @@ DynamoDB Items:
   siteConfig     : 6 items
   ...
 
-✓ Export complete! Data saved to: ./seed-snapshots/2026-03-29
+✓ Export complete! Data saved to: ./seed-snapshots/2026-03-30
 ```
 
 ## 📚 Documentation

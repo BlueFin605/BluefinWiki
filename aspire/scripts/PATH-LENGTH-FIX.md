@@ -24,7 +24,7 @@ S3 objects are now stored with hash-based filenames instead of preserving the ne
 
 **Before:**
 ```
-seed-snapshots/2026-03-29/s3/pages/
+seed-snapshots/2026-03-30/s3/pages/
   a271ab77-ef53-48be-87c8-1d1d9aeebe08/
     77f9e930-3b8a-4035-9884-cba4fdc0fe49/
       a84dbeae-b381-482f-ad5f-18f0aa6bf3f6/
@@ -34,7 +34,7 @@ seed-snapshots/2026-03-29/s3/pages/
 
 **After:**
 ```
-seed-snapshots/2026-03-29/s3/pages/
+seed-snapshots/2026-03-30/s3/pages/
   a932d51ae54cf3ec.md        # Hash-based filename
   ba3cfc54e4297861.md
   50f2c1c5023737e4.md

@@ -7,7 +7,7 @@
  * This allows you to quickly restore your environment to a known state.
  * 
  * Usage:
- *   npm run import-seed -- --source ./seed-snapshots/2026-03-29
+ *   npm run import-seed -- --source ./seed-snapshots/2026-03-30
  * 
  * Input structure (same as export):
  *   {source-dir}/
@@ -33,7 +33,7 @@ const args = process.argv.slice(2);
 const sourceIndex = args.indexOf('--source');
 if (sourceIndex === -1 || !args[sourceIndex + 1]) {
   console.error('Error: --source directory is required');
-  console.log('Usage: npm run import-seed -- --source ./seed-snapshots/2026-03-29');
+  console.log('Usage: npm run import-seed -- --source ./seed-snapshots/2026-03-30');
   process.exit(1);
 }
 const SOURCE_DIR = args[sourceIndex + 1];
