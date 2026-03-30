@@ -209,6 +209,19 @@ const tableDefinitions = [
       BillingMode: 'PAY_PER_REQUEST',
     },
   },
+  {
+    name: 'bluefinwiki-page-types-local',
+    schema: {
+      TableName: 'bluefinwiki-page-types-local',
+      KeySchema: [
+        { AttributeName: 'guid', KeyType: 'HASH' },
+      ],
+      AttributeDefinitions: [
+        { AttributeName: 'guid', AttributeType: 'S' },
+      ],
+      BillingMode: 'PAY_PER_REQUEST',
+    },
+  },
 ];
 
 async function tableExists(tableName) {

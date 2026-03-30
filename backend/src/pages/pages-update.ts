@@ -5,6 +5,7 @@ import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
 import { autoRegisterTagsFromProperties, autoRegisterPageTags } from '../tags/tags-service.js';
+import { validatePageType } from './page-type-validation.js';
 
 // Property validation schema
 const PagePropertySchema = z.object({
@@ -31,6 +32,7 @@ const UpdatePageRequestSchema = z.object({
   content: z.string().optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(['published', 'archived']).optional(),
+  pageType: z.string().uuid().nullable().optional(),
   properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
 });
 
@@ -138,10 +140,17 @@ export const handler = withAuth(async (
     const mergedProperties = updates.properties !== undefined
       ? (Object.keys(updates.properties).length > 0 ? updates.properties : undefined)
       : existingPage.properties;
+    // Handle pageType: explicit null removes it, undefined keeps existing
+    const mergedPageType = updates.pageType === null
+      ? undefined
+      : (updates.pageType ?? existingPage.pageType);
     const updatedPage: PageContent = {
       ...existingPage,
-      ...updates,
+      ...Object.fromEntries(
+        Object.entries(updates).filter(([k]) => k !== 'pageType' && k !== 'properties')
+      ),
       ...(mergedProperties ? { properties: mergedProperties } : {}),
+      ...(mergedPageType ? { pageType: mergedPageType } : {}),
       modifiedBy: user.userId,
       modifiedAt: now,
       // Preserve fields that should not be updated via this endpoint
@@ -150,9 +159,21 @@ export const handler = withAuth(async (
       createdBy: existingPage.createdBy,
       createdAt: existingPage.createdAt,
     };
+    // Remove pageType if it was explicitly set to null
+    if (updates.pageType === null) {
+      delete updatedPage.pageType;
+    }
     // Remove properties key if it's now empty
     if (updatedPage.properties && Object.keys(updatedPage.properties).length === 0) {
       delete updatedPage.properties;
+    }
+
+    // Validate page type constraints (advisory — warns but doesn't hard-block)
+    if (updatedPage.pageType) {
+      const typeValidation = await validatePageType(updatedPage.pageType, updatedPage.properties || {});
+      if (typeValidation.warnings.length > 0) {
+        console.warn('Page type validation warnings:', typeValidation.warnings);
+      }
     }
 
     // Determine parentGuid from folderId

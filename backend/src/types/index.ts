@@ -64,6 +64,25 @@ export interface ActivityLogRecord {
 
 export type PropertyType = 'string' | 'number' | 'date' | 'tags';
 
+export interface PageTypeProperty {
+  name: string;                    // Property name (kebab-case)
+  type: PropertyType;              // string | number | date | tags
+  required: boolean;               // Must be set when saving the page
+  defaultValue?: string | number | string[];  // Optional default
+}
+
+export interface PageTypeDefinition {
+  guid: string;                    // Immutable identifier (UUID v4)
+  name: string;                    // Display name (mutable, e.g. "TV Show")
+  icon: string;                    // Icon identifier (emoji or icon library key)
+  properties: PageTypeProperty[];  // Property schema
+  allowedChildTypes: string[];     // GUIDs of types that can be created as children
+  allowWikiPageChildren: boolean;  // Whether untyped wiki pages can be children (default true)
+  createdBy: string;               // Cognito sub
+  createdAt: string;               // ISO 8601
+  updatedAt: string;               // ISO 8601
+}
+
 export interface PageProperty {
   type: PropertyType;
   value: string | number | string[];
@@ -77,6 +96,7 @@ export interface PageContent {
   tags: string[];
   status: 'draft' | 'published' | 'archived' | 'deleted';
   description?: string; // Optional page description
+  pageType?: string; // Page type GUID — references PageTypeDefinition
   properties?: Record<string, PageProperty>;
   createdBy: string; // Cognito sub
   modifiedBy: string; // Cognito sub

@@ -44,6 +44,12 @@ import { handler as adminRevokeInvitation } from './auth/admin-revoke-invitation
 import { buildSearchIndexData } from './search/search-build-index.js';
 import { handler as tagsList } from './tags/tags-list.js';
 import { handler as tagsCreate } from './tags/tags-create.js';
+import { handler as pageTypesList } from './page-types/page-types-list.js';
+import { handler as pageTypesGet } from './page-types/page-types-get.js';
+import { handler as pageTypesCreate } from './page-types/page-types-create.js';
+import { handler as pageTypesUpdate } from './page-types/page-types-update.js';
+import { handler as pageTypesDelete } from './page-types/page-types-delete.js';
+import { handler as pageTypesAllowedChildren } from './page-types/page-types-allowed-children.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -237,6 +243,17 @@ app.delete('/admin/invitations/:invitationCode', wrapLambdaHandler(adminRevokeIn
 
 app.get('/tags', wrapLambdaHandler(tagsList));
 app.post('/tags', wrapLambdaHandler(tagsCreate));
+
+// ============================================================================
+// API Routes - Page Types
+// ============================================================================
+
+app.get('/page-types', wrapLambdaHandler(pageTypesList));
+app.post('/page-types', wrapLambdaHandler(pageTypesCreate));
+app.get('/page-types/:guid/allowed-children', wrapLambdaHandler(pageTypesAllowedChildren));
+app.get('/page-types/:guid', wrapLambdaHandler(pageTypesGet));
+app.put('/page-types/:guid', wrapLambdaHandler(pageTypesUpdate));
+app.delete('/page-types/:guid', wrapLambdaHandler(pageTypesDelete));
 
 // ============================================================================
 // API Routes - Search Index
@@ -501,6 +518,12 @@ async function startServer() {
           AttributeDefinitions: [{ AttributeName: 'configKey', AttributeType: 'S' }],
           BillingMode: 'PAY_PER_REQUEST',
         },
+        {
+          TableName: process.env.DYNAMODB_PAGE_TYPES_TABLE || 'bluefinwiki-page-types-local',
+          KeySchema: [{ AttributeName: 'guid', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'guid', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
       ];
 
       const { TableNames } = await dynamoClient.send(new ListTablesCommand({}));
@@ -545,6 +568,12 @@ async function startServer() {
   console.log('   POST   /admin/invitations');
   console.log('   GET    /admin/invitations');
   console.log('   DELETE /admin/invitations/:invitationCode');
+  console.log('   GET    /page-types');
+  console.log('   POST   /page-types');
+  console.log('   GET    /page-types/:guid');
+  console.log('   PUT    /page-types/:guid');
+  console.log('   DELETE /page-types/:guid');
+  console.log('   GET    /page-types/:guid/allowed-children');
   console.log('');
   console.log('Press Ctrl+C to stop');
   console.log('════════════════════════════════════════════════════════════════');

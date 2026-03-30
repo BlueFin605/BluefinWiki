@@ -4,6 +4,25 @@
 
 export type PropertyType = 'string' | 'number' | 'date' | 'tags';
 
+export interface PageTypeProperty {
+  name: string;
+  type: PropertyType;
+  required: boolean;
+  defaultValue?: string | number | string[];
+}
+
+export interface PageTypeDefinition {
+  guid: string;
+  name: string;
+  icon: string;
+  properties: PageTypeProperty[];
+  allowedChildTypes: string[];
+  allowWikiPageChildren: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PageProperty {
   type: PropertyType;
   value: string | number | string[];
@@ -17,6 +36,7 @@ export interface PageContent {
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   description?: string;
+  pageType?: string;
   properties?: Record<string, PageProperty>;
   createdBy: string;
   modifiedBy: string;
@@ -44,6 +64,7 @@ export interface CreatePageRequest {
   parentGuid: string | null;
   description?: string;
   content?: string;
+  pageType?: string;
 }
 
 export interface UpdatePageRequest {
@@ -52,6 +73,7 @@ export interface UpdatePageRequest {
   content?: string;
   status?: 'draft' | 'published' | 'archived';
   tags?: string[];
+  pageType?: string | null;
   properties?: Record<string, PageProperty>;
 }
 

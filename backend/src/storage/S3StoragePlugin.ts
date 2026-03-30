@@ -391,6 +391,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     if (content.description) {
       lines.push(`description: "${content.description}"`);
     }
+
+    // Add pageType if present
+    if (content.pageType) {
+      lines.push(`pageType: "${content.pageType}"`);
+    }
     
     // Add tags in YAML list format
     if (content.tags.length > 0) {
@@ -563,6 +568,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
+        ...(metadata.pageType ? { pageType: Array.isArray(metadata.pageType) ? metadata.pageType[0] : metadata.pageType } : {}),
         ...(properties ? { properties } : {}),
         createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
         modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',

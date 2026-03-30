@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { PageProperty } from '../../types/page';
 import { CustomPropertiesEditor } from './CustomPropertiesEditor';
 import { useTags, PAGE_TAGS_SCOPE } from '../../hooks/useTags';
+import { usePageTypes } from '../../hooks/usePageTypes';
 
 export interface PageMetadata {
   title: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   description?: string;
+  pageType?: string;
   properties?: Record<string, PageProperty>;
   createdBy: string;
   modifiedBy: string;
@@ -39,6 +41,44 @@ interface PagePropertiesPanelProps {
  * - Status dropdown with visual indicators
  * - Read-only display of author and timestamps
  */
+const PageTypeSelector: React.FC<{
+  pageType?: string;
+  onChange: (pageType: string | null) => void;
+  editable: boolean;
+}> = ({ pageType, onChange, editable }) => {
+  const { data: pageTypes = [] } = usePageTypes();
+
+  if (pageTypes.length === 0) return null;
+
+  const selected = pageTypes.find(pt => pt.guid === pageType);
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Page Type
+      </label>
+      {editable ? (
+        <select
+          value={pageType || ''}
+          onChange={(e) => onChange(e.target.value || null)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+        >
+          <option value="">None (Wiki Page)</option>
+          {pageTypes.map(pt => (
+            <option key={pt.guid} value={pt.guid}>
+              {pt.icon} {pt.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          {selected ? `${selected.icon} ${selected.name}` : 'None (Wiki Page)'}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
   metadata,
   onMetadataChange,
@@ -177,6 +217,13 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
           </p>
         )}
       </div>
+
+      {/* Page Type Selector */}
+      <PageTypeSelector
+        pageType={metadata.pageType}
+        onChange={(pageType) => onMetadataChange({ pageType: pageType || undefined })}
+        editable={editable}
+      />
 
       {/* Tags Input */}
       <div>
