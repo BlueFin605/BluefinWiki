@@ -207,6 +207,8 @@ jobs:
             "bluefinwiki-${ENV}-auth-post-confirmation"
             "bluefinwiki-${ENV}-auth-pre-token-gen"
             "bluefinwiki-${ENV}-auth-custom-message"
+            "bluefinwiki-${ENV}-tags-create"
+            "bluefinwiki-${ENV}-tags-list"
           )
 
           # Package the backend dist into a zip
