@@ -1,30 +1,6 @@
 [
   {
-    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
-    "value": [
-      "welcome",
-      "recent",
-      "favorites"
-    ],
-    "preferenceKey": "dashboardLayout"
-  },
-  {
-    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
-    "value": true,
-    "preferenceKey": "emailNotifications"
-  },
-  {
-    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
-    "value": "en",
-    "preferenceKey": "language"
-  },
-  {
-    "userId": "00a34b7a-a0fe-4d10-a06a-524f2268cfcf",
-    "value": "light",
-    "preferenceKey": "theme"
-  },
-  {
-    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
     "value": [
       "welcome",
       "recent",
@@ -34,17 +10,41 @@
     "preferenceKey": "dashboardLayout"
   },
   {
-    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
     "value": true,
     "preferenceKey": "emailNotifications"
   },
   {
-    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
     "value": "en",
     "preferenceKey": "language"
   },
   {
-    "userId": "ff292f13-1956-45dc-b791-39b77de9c8f3",
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "value": "light",
+    "preferenceKey": "theme"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "value": [
+      "welcome",
+      "recent",
+      "favorites"
+    ],
+    "preferenceKey": "dashboardLayout"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "value": true,
+    "preferenceKey": "emailNotifications"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "value": "en",
+    "preferenceKey": "language"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
     "value": "light",
     "preferenceKey": "theme"
   }

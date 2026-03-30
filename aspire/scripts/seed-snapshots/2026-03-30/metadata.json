@@ -1,22 +1,23 @@
 {
-  "exportedAt": "2026-03-03T08:22:39.970Z",
+  "exportedAt": "2026-03-30T09:31:07.195Z",
   "exportedBy": "export-seed-data.js",
   "environment": "LocalStack",
   "statistics": {
     "s3": {
-      "pages": 6,
+      "pages": 4,
       "attachments": 0,
       "exports": 0
     },
     "dynamodb": {
-      "users": 0,
-      "invitations": 0,
+      "users": 2,
+      "invitations": 2,
       "attachments": 0,
       "comments": 0,
       "pageLinks": 0,
       "activityLog": 0,
-      "siteConfig": 0,
-      "userPreferences": 0
+      "siteConfig": 6,
+      "userPreferences": 8,
+      "pageIndex": 0
     }
   },
   "buckets": {
@@ -32,6 +33,7 @@
     "pageLinks": "bluefinwiki-page-links-local",
     "activityLog": "bluefinwiki-activity-log-local",
     "siteConfig": "bluefinwiki-site-config-local",
-    "userPreferences": "bluefinwiki-user-preferences-local"
+    "userPreferences": "bluefinwiki-user-preferences-local",
+    "pageIndex": "bluefinwiki-page-index-local"
   }
 }

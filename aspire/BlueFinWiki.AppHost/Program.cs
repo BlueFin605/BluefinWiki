@@ -9,7 +9,8 @@ var localstack = builder.AddContainer("localstack", "localstack/localstack", "la
     .WithEnvironment("DEBUG", "1")
     .WithEnvironment("EDGE_PORT", "4566")
     .WithEnvironment("LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT", "1")
-    .WithHttpEndpoint(port: 4566, targetPort: 4566, name: "localstack");
+    .WithHttpEndpoint(port: 4566, targetPort: 4566, name: "localstack")
+    .WithHttpHealthCheck("/_localstack/health", endpointName: "localstack");
 
 // Cognito Local for local authentication testing
 var cognitoLocal = builder.AddContainer("cognito-local", "jagregory/cognito-local", "latest")
@@ -23,6 +24,8 @@ var mailhog = builder.AddContainer("mailhog", "mailhog/mailhog", "latest")
 
 // Backend API (Node.js Express wrapper for Lambda functions)
 var backend = builder.AddJavaScriptApp("backend", "../../backend", "dev")
+    .WaitFor(localstack)
+    .WaitFor(cognitoLocal)
     .WithEnvironment("NODE_ENV", "development")
     .WithEnvironment("PORT", "3000")
     .WithEnvironment("AWS_REGION", "us-east-1")
