@@ -132,15 +132,17 @@ No comments DynamoDB table, no APIs, no UI.
 
 Typed custom properties (string, number, date, tags) are implemented. Pages can have an optional `properties` block in YAML frontmatter. Tag vocabulary is **scoped by property name** — each property (e.g., `genre`, `channel`) has its own autocomplete list stored in DynamoDB with a composite key (`scope` + `tag`). Page-level tags (the top-level `tags` field) have their own separate vocabulary under scope `_page`, with autocomplete in the Page Properties panel. Frontend caches tag vocabularies for 5 minutes per scope. Backend auto-registers tags on page create/update for both page-level and property-level tags. See plan: [Custom Properties](plans/kanban/custom-properties.md).
 
-**Not yet done**: Page types (Step 2), Kanban board (Step 3), Default templates (Step 4). See plans: [Page Types](plans/kanban/page-types.md), [Kanban Board](plans/kanban/kanban-board.md), [Default Templates](plans/kanban/default-templates.md).
+**Page Types (Step 2) — Done**: Page type definitions are stored in DynamoDB (`page_types` table) with full CRUD API (`/page-types`). Types define a property schema (required properties with type enforcement), allowed child types, and a visual icon. Pages reference a type via `pageType` GUID in frontmatter. Validation is advisory in MVP (warns, doesn't block saves). Frontend includes an admin page (`/admin/page-types`) with type creation, property schema builder, and allowed child type picker. Type selector appears in the page properties panel and new page modal. See plan: [Page Types](plans/kanban/page-types.md).
+
+**Not yet done**: Kanban board (Step 3), Default templates (Step 4). See plans: [Kanban Board](plans/kanban/kanban-board.md), [Default Templates](plans/kanban/default-templates.md).
 
 ### Page Metadata (Spec 16) — Partially Done
 
 Tags, status, and category fields exist in page frontmatter and the editor has a properties panel. But no dedicated metadata API, no tag aggregation endpoint, no category listing, no metadata-based filtering in search.
 
-### Admin Configuration (Spec 17) — Not Started
+### Admin Configuration (Spec 17) — Shell Only
 
-No site_config table, no config API, no admin settings UI, no system health dashboard.
+A `/settings` page exists as the navigation entry point for admin features, accessible via a gear icon at the bottom of the page tree sidebar. Currently it only links to the Page Types admin page. No site_config table, no config API, no site settings, no feature toggles, no system health dashboard. The settings page will grow to host all admin configuration as those features are built (user management, site settings, feature toggles, health).
 
 ### Onboarding & Help (Spec 18) — Not Started
 
