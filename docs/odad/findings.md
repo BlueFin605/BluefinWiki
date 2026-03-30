@@ -128,9 +128,11 @@ No PDF or HTML export. Would need Puppeteer in Lambda for PDF generation.
 
 No comments DynamoDB table, no APIs, no UI.
 
-### Custom Properties & Page Types — Not Started
+### Custom Properties — Step 1 Done
 
-Pages have fixed metadata fields in YAML frontmatter. No custom typed properties (string, number, date, tags). No page type definitions. No shared tag vocabulary. No Kanban board view. The existing `tags` field on `PageContent` is a flat `string[]` with no autocomplete or aggregation. The hierarchical pages-as-folders model is a natural fit for structured hierarchies (Show → Season → Episode) but the system currently treats all pages identically. See plans: [Custom Properties](plans/custom-properties.md), [Page Types](plans/page-types.md), [Kanban Board](plans/kanban-board.md), [Default Templates](plans/default-templates.md).
+Typed custom properties (string, number, date, tags) are implemented. Pages can have an optional `properties` block in YAML frontmatter. Tag vocabulary is **scoped by property name** — each property (e.g., `genre`, `channel`) has its own autocomplete list stored in DynamoDB with a composite key (`scope` + `tag`). Page-level tags (the top-level `tags` field) have their own separate vocabulary under scope `_page`, with autocomplete in the Page Properties panel. Frontend caches tag vocabularies for 5 minutes per scope. Backend auto-registers tags on page create/update for both page-level and property-level tags. See plan: [Custom Properties](plans/kanban/custom-properties.md).
+
+**Not yet done**: Page types (Step 2), Kanban board (Step 3), Default templates (Step 4). See plans: [Page Types](plans/kanban/page-types.md), [Kanban Board](plans/kanban/kanban-board.md), [Default Templates](plans/kanban/default-templates.md).
 
 ### Page Metadata (Spec 16) — Partially Done
 

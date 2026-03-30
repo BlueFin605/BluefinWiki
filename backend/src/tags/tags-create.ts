@@ -1,10 +1,11 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
-import { createTag } from './tags-service.js';
+import { createTag, PAGE_TAGS_SCOPE } from './tags-service.js';
 
 const CreateTagSchema = z.object({
   tag: z.string().min(1, 'Tag name is required').max(100, 'Tag must be 100 characters or less'),
+  scope: z.string().min(1).max(100).optional(),
 });
 
 /**
@@ -49,7 +50,8 @@ export const handler = withAuth(async (
       };
     }
 
-    const record = await createTag(validationResult.data.tag, user.userId);
+    const scope = validationResult.data.scope || PAGE_TAGS_SCOPE;
+    const record = await createTag(scope, validationResult.data.tag, user.userId);
 
     return {
       statusCode: 201,

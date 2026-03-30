@@ -1,24 +1,29 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent } from '../middleware/auth.js';
-import { listTags } from './tags-service.js';
+import { listTags, PAGE_TAGS_SCOPE } from './tags-service.js';
 
 /**
  * Lambda: tags-list
- * GET /tags
+ * GET /tags?scope={propertyName}
  *
- * Returns all tags from the shared vocabulary, sorted alphabetically.
+ * Returns all tags for a given scope from the shared vocabulary, sorted alphabetically.
+ * The scope parameter identifies which property's tags to return:
+ * - "_page" for page-level tags
+ * - A property name (e.g., "genre", "channel") for custom property tags
+ *
+ * If scope is omitted, defaults to "_page" for backward compatibility.
  */
 export const handler = withAuth(async (
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _event: AuthenticatedEvent
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
-    const tags = await listTags();
+    const scope = event.queryStringParameters?.scope || PAGE_TAGS_SCOPE;
+    const tags = await listTags(scope);
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tags }),
+      body: JSON.stringify({ tags, scope }),
     };
   } catch (err: unknown) {
     console.error('Error listing tags:', err);

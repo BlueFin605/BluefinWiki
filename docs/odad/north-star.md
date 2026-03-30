@@ -108,7 +108,8 @@ A family member opens their wiki and sees what's changed since they last visited
 - A family member should be able to view a page's children as a Kanban board, with cards grouped by state
 - A family member should be able to drag a card between columns to change its state
 - A family member should be able to set up a TV tracker, task board, or similar structured hierarchy from a template in one action
-- Tags should have a shared vocabulary across the wiki, with autocomplete suggestions
+- Tags should have a shared vocabulary across the wiki, with autocomplete suggestions — scoped per property name so that e.g. "channel" tags are separate from "director" tags
+- Page-level tags should have their own autocomplete vocabulary, separate from custom property tags
 
 ---
 
