@@ -25,11 +25,12 @@ function defaultValueForType(type: PropertyType): string | number | string[] {
 }
 
 const PropertyValueInput: React.FC<{
+  propertyName: string;
   prop: PageProperty;
   onValueChange: (value: string | number | string[]) => void;
   editable: boolean;
-}> = ({ prop, onValueChange, editable }) => {
-  const { data: vocabularyTags } = useTags();
+}> = ({ propertyName, prop, onValueChange, editable }) => {
+  const { data: vocabularyTags } = useTags(propertyName);
   const [tagInput, setTagInput] = useState('');
 
   const inputClass = 'w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100';
@@ -214,6 +215,7 @@ export const CustomPropertiesEditor: React.FC<CustomPropertiesEditorProps> = ({
                 )}
               </div>
               <PropertyValueInput
+                propertyName={name}
                 prop={prop}
                 onValueChange={(val) => handleValueChange(name, val)}
                 editable={editable}

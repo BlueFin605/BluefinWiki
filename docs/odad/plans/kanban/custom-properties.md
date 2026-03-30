@@ -84,9 +84,9 @@ properties:
 - `string`: free-text string value
 - `number`: numeric value (integer or decimal)
 - `date`: ISO 8601 date string (YYYY-MM-DD)
-- `tags`: array of strings, drawn from the shared tag vocabulary
+- `tags`: array of strings, drawn from a **scoped** tag vocabulary (each property name has its own vocabulary)
 - Properties are optional — pages without the `properties` block remain valid
-- The existing top-level `tags` field continues to work unchanged (backward compatible)
+- The existing top-level `tags` field continues to work unchanged (backward compatible) and has its own separate vocabulary (scope `_page`)
 
 ### TypeScript Types
 
@@ -108,21 +108,25 @@ interface PageContent {
 
 - `GET /pages/:guid` shall return properties in the page response (already does via frontmatter — just needs parsing)
 - `PUT /pages/:guid` shall accept properties in the request body and persist them to frontmatter
-- `GET /tags` shall return all known tags from the vocabulary table, sorted alphabetically
-- `POST /tags` shall add a tag to the vocabulary (admin only) — but tags also auto-register when used in a property value
-- Tags used in `properties` with `type: tags` shall be auto-registered in the vocabulary table if not already present
+- `GET /tags?scope={name}` shall return all known tags for the given scope from the vocabulary table, sorted alphabetically. Scope is the property name (e.g., `genre`, `channel`) or `_page` for page-level tags. Defaults to `_page` if omitted.
+- `POST /tags` shall add a tag to the vocabulary for a given scope (admin only) — but tags also auto-register when used in a property value or as page-level tags
+- Tags used in `properties` with `type: tags` shall be auto-registered in the vocabulary table under the property name as scope
+- Page-level tags (the top-level `tags` array) shall be auto-registered under the `_page` scope
 
 ### DynamoDB: Tags Vocabulary
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `tag` (PK) | String | The tag name, lowercase |
+| `scope` (PK) | String | The property name (e.g., `genre`, `channel`) or `_page` for page-level tags |
+| `tag` (SK) | String | The tag name, lowercase |
 | `createdAt` | String | ISO 8601 timestamp |
 | `createdBy` | String | Cognito sub of whoever first used the tag |
 | `usageCount` | Number | Approximate count (updated on page save, best-effort) |
 
 - On-demand capacity (consistent with other tables)
+- Composite key (`scope` + `tag`) ensures each property name has its own tag vocabulary
 - Tags are case-insensitive (stored lowercase, displayed as-is from first use)
+- Querying by scope uses a DynamoDB Query (not Scan) — efficient even with many tags
 - No delete API in MVP — tags accumulate. Admin cleanup can come later.
 
 ### Frontmatter Parsing
@@ -139,10 +143,18 @@ interface PageContent {
   - `string`: text input
   - `number`: number input
   - `date`: date picker
-  - `tags`: tag input with autocomplete from the shared vocabulary
+  - `tags`: tag input with **property-scoped autocomplete** — each property name (e.g., `genre`, `channel`) fetches suggestions from its own vocabulary
+- Page-level tags (in the Page Properties panel) have their own autocomplete, separate from custom property tags, using the `_page` scope
 - Add property button: name input + type selector dropdown
 - Remove property button (with confirmation)
 - Properties save with the page (same save action, not separate)
+
+### Frontend: Tag Cache
+
+- Tag vocabularies are cached locally using React Query with a **5-minute staleTime** (`300_000ms`)
+- Each scope gets its own cache entry (query key: `['tags', scope]`)
+- This limits API calls — the vocabulary is only refetched when stale or when the page is revisited after 5 minutes
+- Cache is per-scope, so navigating between pages with different property types doesn't invalidate unrelated caches
 
 ### Search Index
 
@@ -155,7 +167,7 @@ interface PageContent {
 - **Frontmatter is the source of truth for properties** — no separate DynamoDB table for property values. Properties live with the page.
 - **Tag vocabulary is DynamoDB** — separate from the properties themselves. The vocabulary is an index for autocomplete and aggregation, not the source of truth for which tags a page has.
 - **No breaking changes to existing pages** — pages without `properties` must continue to work unchanged.
-- **The existing `tags` field on PageContent remains** — it is a separate concern (page-level tags for search/categorization). Custom properties with `type: tags` are for structured data within the properties system. The two may converge later, but for now they coexist.
+- **The existing `tags` field on PageContent remains** — it is a separate concern (page-level tags for search/categorization). Custom properties with `type: tags` are for structured data within the properties system. **Each has its own vocabulary scope**: page tags use `_page`, property tags use the property name. The two coexist with independent autocomplete lists.
 
 ## Error Policy
 

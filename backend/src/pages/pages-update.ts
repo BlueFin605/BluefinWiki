@@ -4,7 +4,7 @@ import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
-import { autoRegisterTagsFromProperties } from '../tags/tags-service.js';
+import { autoRegisterTagsFromProperties, autoRegisterPageTags } from '../tags/tags-service.js';
 
 // Property validation schema
 const PagePropertySchema = z.object({
@@ -171,10 +171,15 @@ export const handler = withAuth(async (
       });
     }
 
-    // Auto-register tags from properties (best-effort)
+    // Auto-register tags (best-effort)
+    if (updates.tags && updates.tags.length > 0) {
+      autoRegisterPageTags(updates.tags, user.userId).catch(err =>
+        console.warn('Page tag auto-registration failed:', err)
+      );
+    }
     if (updates.properties) {
       autoRegisterTagsFromProperties(updates.properties, user.userId).catch(err =>
-        console.warn('Tag auto-registration failed:', err)
+        console.warn('Property tag auto-registration failed:', err)
       );
     }
 
