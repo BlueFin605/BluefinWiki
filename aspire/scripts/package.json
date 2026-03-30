@@ -8,6 +8,7 @@
     "export-seed": "node export-seed-data.js",
     "import-seed": "node import-seed-data.js",
     "setup-cognito": "node setup-cognito-local.js",
+    "seed-kanban": "node seed-kanban-data.js",
     "setup": "npm run init-db && npm run seed && npm run setup-cognito"
   },
   "dependencies": {
