@@ -1051,6 +1051,36 @@ namespace Infrastructure.Stacks
                 Description = "Delete page attachment"
             });
             
+            var tagsListFunction = new LambdaFunction(this, "TagsListFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-tags-list",
+                Runtime = lambdaProps.Runtime,
+                Handler = "tags/tags-list.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List tags for autocomplete"
+            });
+
+            var tagsCreateFunction = new LambdaFunction(this, "TagsCreateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-tags-create",
+                Runtime = lambdaProps.Runtime,
+                Handler = "tags/tags-create.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Create a new tag"
+            });
+
             // =============================================================================
             // API Gateway Routes - /pages
             // =============================================================================
@@ -1184,6 +1214,26 @@ namespace Infrastructure.Stacks
                 Authorizer = cognitoAuthorizer
             });
             
+            // =============================================================================
+            // API Gateway Routes - /tags
+            // =============================================================================
+
+            var tagsResource = Api.Root.AddResource("tags");
+
+            // GET /tags - List tags for autocomplete
+            tagsResource.AddMethod("GET", new LambdaIntegration(tagsListFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /tags - Create a new tag
+            tagsResource.AddMethod("POST", new LambdaIntegration(tagsCreateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
             // Compute Stack outputs
             var apiUrl = !string.IsNullOrWhiteSpace(config.DomainName)
                 ? $"https://api.{config.DomainName}/"
