@@ -199,7 +199,10 @@ jobs:
             "bluefinwiki-${ENV}-pages-list-children"
             "bluefinwiki-${ENV}-pages-move"
             "bluefinwiki-${ENV}-pages-search"
+            "bluefinwiki-${ENV}-pages-backlinks"
             "bluefinwiki-${ENV}-pages-attachments-upload"
+            "bluefinwiki-${ENV}-pages-attachments-presign"
+            "bluefinwiki-${ENV}-pages-attachments-confirm"
             "bluefinwiki-${ENV}-pages-attachments-download"
             "bluefinwiki-${ENV}-pages-attachments-list"
             "bluefinwiki-${ENV}-pages-attachments-delete"
@@ -209,6 +212,12 @@ jobs:
             "bluefinwiki-${ENV}-auth-custom-message"
             "bluefinwiki-${ENV}-tags-create"
             "bluefinwiki-${ENV}-tags-list"
+            "bluefinwiki-${ENV}-page-types-list"
+            "bluefinwiki-${ENV}-page-types-get"
+            "bluefinwiki-${ENV}-page-types-create"
+            "bluefinwiki-${ENV}-page-types-update"
+            "bluefinwiki-${ENV}-page-types-delete"
+            "bluefinwiki-${ENV}-page-types-allowed-children"
           )
 
           # Package the backend dist into a zip

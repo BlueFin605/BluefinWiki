@@ -33,6 +33,7 @@ Once admin config exists:
 
 - Authentication with admin role — **done**
 - Permission enforcement — depends on **Plan: Permissions**
+- Settings page shell — **done** (`/settings` route with sidebar gear icon, links to admin features)
 
 ## North Star
 
@@ -65,8 +66,9 @@ An admin should be able to configure the wiki through a settings page, not throu
 - Health data shall be fetched from S3 (bucket size), storage plugin (page count), and Cognito (user count)
 
 ### Admin Settings UI
-- The settings page shall show form fields for each configurable setting
-- Changes shall be saved with a single "Save" button
+- The `/settings` page already exists as a shell with navigation to admin features (gear icon in sidebar). Site settings, feature toggles, and system health sections shall be added as cards on this page alongside the existing Page Types link.
+- Each settings section shall show form fields for its configurable settings
+- Changes shall be saved with a single "Save" button per section
 - The page shall show who last updated settings and when
 - Feature toggles shall use switch/toggle UI elements
 
