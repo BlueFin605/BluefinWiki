@@ -963,6 +963,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                       modifiedAt: page.modifiedAt,
                       modifiedBy: page.modifiedBy,
                       hasChildren: await this.hasChildrenDirect(guid),
+                      ...(page.pageType ? { pageType: page.pageType } : {}),
                     });
                   }
                 } catch (err) {
@@ -1028,6 +1029,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                     modifiedAt: page.modifiedAt,
                     modifiedBy: page.modifiedBy,
                     hasChildren: await this.hasChildrenDirect(guid),
+                    ...(page.pageType ? { pageType: page.pageType } : {}),
                   });
                 } catch (err) {
                   console.warn(`Failed to load page ${guid}:`, err);

@@ -52,11 +52,24 @@ export interface PageSummary {
   modifiedAt: string;
   modifiedBy: string;
   hasChildren: boolean;
+  pageType?: string;
 }
 
 export interface PageTreeNode extends PageSummary {
   children?: PageTreeNode[];
   isExpanded?: boolean;
+}
+
+/** Extended child summary with properties, returned by list-children?include=properties */
+export interface PageChildDetail extends PageSummary {
+  pageType?: string;
+  properties?: Record<string, PageProperty>;
+}
+
+/** Board configuration stored in parent page's board-config property */
+export interface BoardConfig {
+  columns: string[];
+  colors: Record<string, string>;
 }
 
 export interface CreatePageRequest {

@@ -36,6 +36,7 @@ describe('PageTreeItem', () => {
     onDrop: vi.fn(),
     onToggleExpand: vi.fn(),
     onNewChild: vi.fn(),
+    pageTypesMap: {} as Record<string, import('../../../types/page').PageTypeDefinition>,
   };
 
   const mockExpandedGuids = new Set<string>();

@@ -1,6 +1,7 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
+import { PageChildDetail } from '../types/index.js';
 
 /**
  * Lambda: pages-list-children
@@ -78,10 +79,38 @@ export const handler = withAuth(async (
     const allChildren = await storagePlugin.listChildren(parentGuid);
     const children = allChildren.filter(child => child.status !== 'archived');
 
+    // Check if caller wants properties included (for board view)
+    const includeProperties = event.queryStringParameters?.include === 'properties';
+
+    let responseChildren: (typeof children[number] | PageChildDetail)[] = children;
+
+    if (includeProperties) {
+      // Enrich each child with pageType and properties from full page data
+      responseChildren = await Promise.all(
+        children.map(async (child) => {
+          try {
+            const fullPage = await storagePlugin.loadPage(child.guid);
+            const detail: PageChildDetail = {
+              ...child,
+              ...(fullPage.pageType ? { pageType: fullPage.pageType } : {}),
+              ...(fullPage.properties && Object.keys(fullPage.properties).length > 0
+                ? { properties: fullPage.properties }
+                : {}),
+            };
+            return detail;
+          } catch {
+            // If we can't load the full page, return the summary as-is
+            return child;
+          }
+        })
+      );
+    }
+
     // Log activity
     console.log('Children listed:', {
       parentGuid,
       childCount: children.length,
+      includeProperties,
       requestedBy: user.userId,
       timestamp: new Date().toISOString(),
     });
@@ -92,8 +121,8 @@ export const handler = withAuth(async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         parentGuid,
-        children,
-        count: children.length,
+        children: responseChildren,
+        count: responseChildren.length,
       }),
     };
   } catch (err: unknown) {

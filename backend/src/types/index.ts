@@ -135,6 +135,13 @@ export interface PageSummary {
   modifiedAt: string; // ISO 8601
   modifiedBy: string; // Cognito sub
   hasChildren: boolean;
+  pageType?: string; // Page type GUID — included for type-aware UI (tree icons, board detection)
+}
+
+/** Extended child summary returned when ?include=properties is set on list-children */
+export interface PageChildDetail extends PageSummary {
+  pageType?: string;
+  properties?: Record<string, PageProperty>;
 }
 
 export interface AttachmentUploadInput {
