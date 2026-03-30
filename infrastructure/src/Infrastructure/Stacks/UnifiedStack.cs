@@ -40,6 +40,7 @@ namespace Infrastructure.Stacks
         public Table PageLinksTable { get; private set; }
         public Table ActivityLogTable { get; private set; }
         public Table PageIndexTable { get; private set; }
+        public Table TagsTable { get; private set; }
         
         // Compute resources
         public RestApi Api { get; private set; }
@@ -664,6 +665,18 @@ namespace Infrastructure.Stacks
                 RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
             });
 
+            // Tags table - vocabulary for tag autocomplete
+            // PK: scope (e.g. "_page" for page-level tags, or property name for property tags)
+            // SK: tag (the tag value)
+            TagsTable = new Table(this, "TagsTable", new TableProps
+            {
+                TableName = $"bluefinwiki-tags-{config.Name}",
+                PartitionKey = new Attribute { Name = "scope", Type = AttributeType.STRING },
+                SortKey = new Attribute { Name = "tag", Type = AttributeType.STRING },
+                BillingMode = BillingMode.PAY_PER_REQUEST,
+                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
+            });
+
             // Database Stack outputs
             new CfnOutput(this, "UserProfilesTableName", new CfnOutputProps
             {
@@ -691,6 +704,13 @@ namespace Infrastructure.Stacks
                 Value = PageIndexTable.TableName,
                 Description = "DynamoDB table for page GUID to S3 key index",
                 ExportName = $"{config.Name}-page-index-table"
+            });
+
+            new CfnOutput(this, "TagsTableName", new CfnOutputProps
+            {
+                Value = TagsTable.TableName,
+                Description = "DynamoDB table for tag vocabulary/autocomplete",
+                ExportName = $"{config.Name}-tags-table"
             });
         }
         
@@ -783,7 +803,8 @@ namespace Infrastructure.Stacks
             PageLinksTable.GrantReadWriteData(lambdaRole);
             ActivityLogTable.GrantReadWriteData(lambdaRole);
             PageIndexTable.GrantReadWriteData(lambdaRole);
-            
+            TagsTable.GrantReadWriteData(lambdaRole);
+
             // Grant Lambda access to JWT secret
             JwtSecret.GrantRead(lambdaRole);
             
@@ -798,6 +819,7 @@ namespace Infrastructure.Stacks
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
                 { "ACTIVITY_LOG_TABLE", ActivityLogTable.TableName },
                 { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
+                { "TAGS_TABLE", TagsTable.TableName },
                 { "JWT_SECRET_ARN", JwtSecret.SecretArn },
                 { "ENVIRONMENT", config.Name }
             };
