@@ -1,7 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, RenderOptions } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PagePropertiesPanel, PageMetadata } from '../PagePropertiesPanel';
+
+function renderWithProviders(ui: React.ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+    ...options,
+  });
+}
 
 const mockMetadata: PageMetadata = {
   title: 'Test Page',
@@ -16,7 +29,7 @@ const mockMetadata: PageMetadata = {
 describe('PagePropertiesPanel', () => {
   describe('Title Editing', () => {
     it('should display the title', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -28,7 +41,7 @@ describe('PagePropertiesPanel', () => {
 
     it('should enter edit mode when title is clicked', async () => {
       const user = userEvent.setup();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -46,7 +59,7 @@ describe('PagePropertiesPanel', () => {
     it('should save title on Enter key', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -67,7 +80,7 @@ describe('PagePropertiesPanel', () => {
     it('should cancel title edit on Escape key', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -89,7 +102,7 @@ describe('PagePropertiesPanel', () => {
     it('should not allow empty title', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -110,7 +123,7 @@ describe('PagePropertiesPanel', () => {
 
   describe('Tag Management', () => {
     it('should display existing tags', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -124,7 +137,7 @@ describe('PagePropertiesPanel', () => {
     it('should add tag on Enter key', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -142,7 +155,7 @@ describe('PagePropertiesPanel', () => {
     it('should add tag on comma', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -160,7 +173,7 @@ describe('PagePropertiesPanel', () => {
     it('should prevent duplicate tags', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -176,7 +189,7 @@ describe('PagePropertiesPanel', () => {
     it('should normalize tag to lowercase', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -194,7 +207,7 @@ describe('PagePropertiesPanel', () => {
     it('should remove tag when × button clicked', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -212,7 +225,7 @@ describe('PagePropertiesPanel', () => {
     it('should remove last tag on backspace when input is empty', async () => {
       const user = userEvent.setup();
       const onMetadataChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={onMetadataChange}
@@ -231,7 +244,7 @@ describe('PagePropertiesPanel', () => {
 
   describe('Status Management', () => {
     it('should not show status dropdown (status UI is hidden)', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -244,7 +257,7 @@ describe('PagePropertiesPanel', () => {
 
   describe('Read-only Display', () => {
     it('should display author information', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -256,7 +269,7 @@ describe('PagePropertiesPanel', () => {
     });
 
     it('should display formatted timestamps', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -270,7 +283,7 @@ describe('PagePropertiesPanel', () => {
 
   describe('Editable Mode', () => {
     it('should not allow editing when editable is false', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -286,7 +299,7 @@ describe('PagePropertiesPanel', () => {
     });
 
     it('should not show tag input when editable is false', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -300,7 +313,7 @@ describe('PagePropertiesPanel', () => {
     });
 
     it('should not show remove tag buttons when editable is false', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -314,7 +327,7 @@ describe('PagePropertiesPanel', () => {
     });
 
     it('should not show status dropdown when editable is false', () => {
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -332,7 +345,7 @@ describe('PagePropertiesPanel', () => {
     it('should call onTitleChange when title changes', async () => {
       const user = userEvent.setup();
       const onTitleChange = vi.fn();
-      render(
+      renderWithProviders(
         <PagePropertiesPanel
           metadata={mockMetadata}
           onMetadataChange={vi.fn()}
@@ -354,21 +367,28 @@ describe('PagePropertiesPanel', () => {
 
   describe('State Synchronization', () => {
     it('should update local state when metadata prop changes', () => {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
       const { rerender } = render(
-        <PagePropertiesPanel
-          metadata={mockMetadata}
-          onMetadataChange={vi.fn()}
-        />
+        <QueryClientProvider client={queryClient}>
+          <PagePropertiesPanel
+            metadata={mockMetadata}
+            onMetadataChange={vi.fn()}
+          />
+        </QueryClientProvider>
       );
 
       expect(screen.getByText('Test Page')).toBeInTheDocument();
 
       const newMetadata = { ...mockMetadata, title: 'Updated Title' };
       rerender(
-        <PagePropertiesPanel
-          metadata={newMetadata}
-          onMetadataChange={vi.fn()}
-        />
+        <QueryClientProvider client={queryClient}>
+          <PagePropertiesPanel
+            metadata={newMetadata}
+            onMetadataChange={vi.fn()}
+          />
+        </QueryClientProvider>
       );
 
       expect(screen.getByText('Updated Title')).toBeInTheDocument();
