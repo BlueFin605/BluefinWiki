@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-03-30T09:31:07.195Z",
+  "exportedAt": "2026-03-30T10:02:40.096Z",
   "exportedBy": "export-seed-data.js",
   "environment": "LocalStack",
   "statistics": {
@@ -17,7 +17,8 @@
       "activityLog": 0,
       "siteConfig": 6,
       "userPreferences": 8,
-      "pageIndex": 0
+      "pageIndex": 0,
+      "tags": 6
     }
   },
   "buckets": {
@@ -34,6 +35,7 @@
     "activityLog": "bluefinwiki-activity-log-local",
     "siteConfig": "bluefinwiki-site-config-local",
     "userPreferences": "bluefinwiki-user-preferences-local",
-    "pageIndex": "bluefinwiki-page-index-local"
+    "pageIndex": "bluefinwiki-page-index-local",
+    "tags": "bluefinwiki-tags-local"
   }
 }
