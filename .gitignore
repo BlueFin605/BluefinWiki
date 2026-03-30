@@ -1,3 +1,6 @@
+.repoql/
+.claude/
+
 # Secrets / credentials
 client_secret*.json
 *.pem
