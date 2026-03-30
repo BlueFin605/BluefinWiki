@@ -368,9 +368,8 @@ async function startServer() {
         DynamoDBClient,
         ListTablesCommand,
         CreateTableCommand,
-        DescribeTableCommand,
-        DeleteTableCommand,
       } = await import('@aws-sdk/client-dynamodb');
+      type CreateTableInput = ConstructorParameters<typeof CreateTableCommand>[0];
       const dynamoClient = new DynamoDBClient({
         region: process.env.AWS_REGION || 'us-east-1',
         endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
@@ -380,57 +379,140 @@ async function startServer() {
         },
       });
 
-      const pageLinksTable = process.env.DYNAMODB_PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local';
-
-      const createPageLinksTable = async () => {
-        await dynamoClient.send(new CreateTableCommand({
-          TableName: pageLinksTable,
+      const tableDefinitions: CreateTableInput[] = [
+        {
+          TableName: process.env.DYNAMODB_USERS_TABLE || 'bluefinwiki-users-local',
+          KeySchema: [{ AttributeName: 'userId', KeyType: 'HASH' }],
           AttributeDefinitions: [
-            { AttributeName: 'sourceGuid', AttributeType: 'S' },
-            { AttributeName: 'targetGuid', AttributeType: 'S' },
+            { AttributeName: 'userId', AttributeType: 'S' },
+            { AttributeName: 'email', AttributeType: 'S' },
           ],
+          GlobalSecondaryIndexes: [{
+            IndexName: 'email-index',
+            KeySchema: [{ AttributeName: 'email', KeyType: 'HASH' }],
+            Projection: { ProjectionType: 'ALL' },
+          }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: process.env.DYNAMODB_INVITATIONS_TABLE || 'bluefinwiki-invitations-local',
+          KeySchema: [{ AttributeName: 'inviteCode', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'inviteCode', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: process.env.DYNAMODB_PAGE_LINKS_TABLE || 'bluefinwiki-page-links-local',
           KeySchema: [
             { AttributeName: 'sourceGuid', KeyType: 'HASH' },
             { AttributeName: 'targetGuid', KeyType: 'RANGE' },
           ],
-          BillingMode: 'PAY_PER_REQUEST',
-          GlobalSecondaryIndexes: [
-            {
-              IndexName: 'targetGuid-index',
-              KeySchema: [{ AttributeName: 'targetGuid', KeyType: 'HASH' }],
-              Projection: { ProjectionType: 'ALL' },
-            },
+          AttributeDefinitions: [
+            { AttributeName: 'sourceGuid', AttributeType: 'S' },
+            { AttributeName: 'targetGuid', AttributeType: 'S' },
           ],
-        }));
-      };
-      
-      // Check if table exists
+          GlobalSecondaryIndexes: [{
+            IndexName: 'targetGuid-index',
+            KeySchema: [{ AttributeName: 'targetGuid', KeyType: 'HASH' }],
+            Projection: { ProjectionType: 'ALL' },
+          }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: 'bluefinwiki-attachments-local',
+          KeySchema: [{ AttributeName: 'guid', KeyType: 'HASH' }],
+          AttributeDefinitions: [
+            { AttributeName: 'guid', AttributeType: 'S' },
+            { AttributeName: 'pageGuid', AttributeType: 'S' },
+            { AttributeName: 'uploadedAt', AttributeType: 'S' },
+          ],
+          GlobalSecondaryIndexes: [{
+            IndexName: 'pageGuid-index',
+            KeySchema: [
+              { AttributeName: 'pageGuid', KeyType: 'HASH' },
+              { AttributeName: 'uploadedAt', KeyType: 'RANGE' },
+            ],
+            Projection: { ProjectionType: 'ALL' },
+          }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: process.env.DYNAMODB_COMMENTS_TABLE || 'bluefinwiki-comments-local',
+          KeySchema: [{ AttributeName: 'guid', KeyType: 'HASH' }],
+          AttributeDefinitions: [
+            { AttributeName: 'guid', AttributeType: 'S' },
+            { AttributeName: 'pageGuid', AttributeType: 'S' },
+            { AttributeName: 'createdAt', AttributeType: 'S' },
+          ],
+          GlobalSecondaryIndexes: [{
+            IndexName: 'pageGuid-createdAt-index',
+            KeySchema: [
+              { AttributeName: 'pageGuid', KeyType: 'HASH' },
+              { AttributeName: 'createdAt', KeyType: 'RANGE' },
+            ],
+            Projection: { ProjectionType: 'ALL' },
+          }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: process.env.DYNAMODB_ACTIVITY_LOG_TABLE || 'bluefinwiki-activity-log-local',
+          KeySchema: [
+            { AttributeName: 'userId', KeyType: 'HASH' },
+            { AttributeName: 'timestamp', KeyType: 'RANGE' },
+          ],
+          AttributeDefinitions: [
+            { AttributeName: 'userId', AttributeType: 'S' },
+            { AttributeName: 'timestamp', AttributeType: 'S' },
+          ],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: 'bluefinwiki-user-preferences-local',
+          KeySchema: [
+            { AttributeName: 'userId', KeyType: 'HASH' },
+            { AttributeName: 'preferenceKey', KeyType: 'RANGE' },
+          ],
+          AttributeDefinitions: [
+            { AttributeName: 'userId', AttributeType: 'S' },
+            { AttributeName: 'preferenceKey', AttributeType: 'S' },
+          ],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: process.env.DYNAMODB_PAGE_INDEX_TABLE || 'bluefinwiki-page-index-local',
+          KeySchema: [{ AttributeName: 'guid', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'guid', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: 'bluefinwiki-tags-local',
+          KeySchema: [
+            { AttributeName: 'scope', KeyType: 'HASH' },
+            { AttributeName: 'tag', KeyType: 'RANGE' },
+          ],
+          AttributeDefinitions: [
+            { AttributeName: 'scope', AttributeType: 'S' },
+            { AttributeName: 'tag', AttributeType: 'S' },
+          ],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
+          TableName: process.env.DYNAMODB_SITE_CONFIG_TABLE || 'bluefinwiki-site-config-local',
+          KeySchema: [{ AttributeName: 'configKey', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'configKey', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+      ];
+
       const { TableNames } = await dynamoClient.send(new ListTablesCommand({}));
-      
-      if (!TableNames?.includes(pageLinksTable)) {
-        // Create page-links table
-        await createPageLinksTable();
-        console.log(`✅ Created DynamoDB table '${pageLinksTable}'`);
-      } else {
-        const describeResult = await dynamoClient.send(new DescribeTableCommand({
-          TableName: pageLinksTable,
-        }));
-        const table = describeResult.Table;
-        const keySchema = table?.KeySchema || [];
-        const hasExpectedKeySchema =
-          keySchema.some(key => key.AttributeName === 'sourceGuid' && key.KeyType === 'HASH') &&
-          keySchema.some(key => key.AttributeName === 'targetGuid' && key.KeyType === 'RANGE');
+      const existingTables = new Set(TableNames || []);
 
-        const gsiNames = table?.GlobalSecondaryIndexes?.map(gsi => gsi.IndexName) || [];
-        const hasExpectedBacklinkIndex = gsiNames.includes('targetGuid-index');
-
-        if (!hasExpectedKeySchema || !hasExpectedBacklinkIndex) {
-          console.warn(`⚠️  DynamoDB table '${pageLinksTable}' has outdated schema; recreating for local compatibility`);
-          await dynamoClient.send(new DeleteTableCommand({ TableName: pageLinksTable }));
-          await createPageLinksTable();
-          console.log(`✅ Recreated DynamoDB table '${pageLinksTable}' with expected schema`);
+      for (const tableDef of tableDefinitions) {
+        const name = tableDef.TableName!;
+        if (!existingTables.has(name)) {
+          await dynamoClient.send(new CreateTableCommand(tableDef));
+          console.log(`✅ Created DynamoDB table '${name}'`);
         } else {
-          console.log(`✅ DynamoDB table '${pageLinksTable}' already exists`);
+          console.log(`✅ DynamoDB table '${name}' already exists`);
         }
       }
     } catch (error) {
