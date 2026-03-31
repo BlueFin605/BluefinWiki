@@ -169,6 +169,34 @@ const tableDefinitions = [
     },
   },
   {
+    name: 'bluefinwiki-page-index-local',
+    schema: {
+      TableName: 'bluefinwiki-page-index-local',
+      KeySchema: [
+        { AttributeName: 'guid', KeyType: 'HASH' },
+      ],
+      AttributeDefinitions: [
+        { AttributeName: 'guid', AttributeType: 'S' },
+      ],
+      BillingMode: 'PAY_PER_REQUEST',
+    },
+  },
+  {
+    name: 'bluefinwiki-tags-local',
+    schema: {
+      TableName: 'bluefinwiki-tags-local',
+      KeySchema: [
+        { AttributeName: 'scope', KeyType: 'HASH' },
+        { AttributeName: 'tag', KeyType: 'RANGE' },
+      ],
+      AttributeDefinitions: [
+        { AttributeName: 'scope', AttributeType: 'S' },
+        { AttributeName: 'tag', AttributeType: 'S' },
+      ],
+      BillingMode: 'PAY_PER_REQUEST',
+    },
+  },
+  {
     name: 'bluefinwiki-site-config-local',
     schema: {
       TableName: 'bluefinwiki-site-config-local',
@@ -177,6 +205,19 @@ const tableDefinitions = [
       ],
       AttributeDefinitions: [
         { AttributeName: 'configKey', AttributeType: 'S' },
+      ],
+      BillingMode: 'PAY_PER_REQUEST',
+    },
+  },
+  {
+    name: 'bluefinwiki-page-types-local',
+    schema: {
+      TableName: 'bluefinwiki-page-types-local',
+      KeySchema: [
+        { AttributeName: 'guid', KeyType: 'HASH' },
+      ],
+      AttributeDefinitions: [
+        { AttributeName: 'guid', AttributeType: 'S' },
       ],
       BillingMode: 'PAY_PER_REQUEST',
     },

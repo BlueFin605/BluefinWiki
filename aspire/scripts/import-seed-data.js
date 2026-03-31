@@ -7,7 +7,7 @@
  * This allows you to quickly restore your environment to a known state.
  * 
  * Usage:
- *   npm run import-seed -- --source ./seed-snapshots/2026-03-03
+ *   npm run import-seed -- --source ./seed-snapshots/2026-03-30
  * 
  * Input structure (same as export):
  *   {source-dir}/
@@ -33,7 +33,7 @@ const args = process.argv.slice(2);
 const sourceIndex = args.indexOf('--source');
 if (sourceIndex === -1 || !args[sourceIndex + 1]) {
   console.error('Error: --source directory is required');
-  console.log('Usage: npm run import-seed -- --source ./seed-snapshots/2026-03-03');
+  console.log('Usage: npm run import-seed -- --source ./seed-snapshots/2026-03-30');
   process.exit(1);
 }
 const SOURCE_DIR = args[sourceIndex + 1];
@@ -76,6 +76,8 @@ const DYNAMODB_TABLES = {
   activityLog: 'bluefinwiki-activity-log-local',
   siteConfig: 'bluefinwiki-site-config-local',
   userPreferences: 'bluefinwiki-user-preferences-local',
+  pageIndex: 'bluefinwiki-page-index-local',
+  tags: 'bluefinwiki-tags-local',
 };
 
 /**
@@ -99,12 +101,13 @@ async function ensureBucket(bucketName) {
  * Import files to S3 bucket
  */
 async function importS3Bucket(bucketName, bucketType) {
-  console.log(`\nImporting S3 bucket: ${bucketName}...`);
+  console.log(`\nImporting S3 bucket: ${bucketName}... from ${SOURCE_DIR}/s3/${bucketType}/`);
   
   await ensureBucket(bucketName);
 
   const bucketDir = path.join(SOURCE_DIR, 's3', bucketType);
-  
+  console.log(`  Checking for data in: ${bucketDir}...`);
+
   try {
     await fs.access(bucketDir);
   } catch {
@@ -126,13 +129,15 @@ async function importS3Bucket(bucketName, bucketType) {
   }
 
   // Find all files recursively using glob
-  const files = await glob('**/*', {
+  const files = glob.sync('**/*', {
     cwd: bucketDir,
     nodir: true,
     absolute: false,
   });
 
   let totalUploaded = 0;
+
+  console.log(`  Found ${files.length} files to import in ${bucketDir}...`);
 
   for (const file of files) {
     // Skip the mapping file itself

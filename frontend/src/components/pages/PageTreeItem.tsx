@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { PageTreeNode } from '../../types/page';
+import { PageTreeNode, PageTypeDefinition } from '../../types/page';
 import { usePageChildren } from '../../hooks/usePages';
 
 interface PageTreeItemProps {
@@ -14,6 +14,7 @@ interface PageTreeItemProps {
   level: number;
   isActive?: boolean;
   expandedGuids: Set<string>;
+  pageTypesMap: Record<string, PageTypeDefinition>;
   onSelect: (guid: string) => void;
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
   onDragStart: (event: React.DragEvent, page: PageTreeNode) => void;
@@ -28,6 +29,7 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
   level,
   isActive = false,
   expandedGuids,
+  pageTypesMap,
   onSelect,
   onContextMenu,
   onDragStart,
@@ -120,9 +122,13 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
           <span className="mr-1 w-6 h-6 inline-block shrink-0" />
         )}
 
-        {/* Page Icon */}
-        <span className="mr-2">
-          {page.hasChildren ? (
+        {/* Page Icon — show type icon if page has a type, otherwise default */}
+        <span className="mr-2 shrink-0">
+          {page.pageType && pageTypesMap[page.pageType] ? (
+            <span className="text-base leading-5" title={pageTypesMap[page.pageType].name}>
+              {pageTypesMap[page.pageType].icon}
+            </span>
+          ) : page.hasChildren ? (
             <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
             </svg>
@@ -177,6 +183,7 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
               level={level + 1}
               isActive={isActive}
               expandedGuids={expandedGuids}
+              pageTypesMap={pageTypesMap}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
               onDragStart={onDragStart}

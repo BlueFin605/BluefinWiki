@@ -2,6 +2,32 @@
  * Page types for BlueFinWiki frontend
  */
 
+export type PropertyType = 'string' | 'number' | 'date' | 'tags';
+
+export interface PageTypeProperty {
+  name: string;
+  type: PropertyType;
+  required: boolean;
+  defaultValue?: string | number | string[];
+}
+
+export interface PageTypeDefinition {
+  guid: string;
+  name: string;
+  icon: string;
+  properties: PageTypeProperty[];
+  allowedChildTypes: string[];
+  allowWikiPageChildren: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PageProperty {
+  type: PropertyType;
+  value: string | number | string[];
+}
+
 export interface PageContent {
   guid: string;
   title: string;
@@ -10,6 +36,9 @@ export interface PageContent {
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   description?: string;
+  pageType?: string;
+  properties?: Record<string, PageProperty>;
+  boardConfig?: BoardConfig;
   createdBy: string;
   modifiedBy: string;
   createdAt: string;
@@ -24,6 +53,7 @@ export interface PageSummary {
   modifiedAt: string;
   modifiedBy: string;
   hasChildren: boolean;
+  pageType?: string;
 }
 
 export interface PageTreeNode extends PageSummary {
@@ -31,11 +61,30 @@ export interface PageTreeNode extends PageSummary {
   isExpanded?: boolean;
 }
 
+/** Extended child summary with properties, returned by list-children?include=properties */
+export interface PageChildDetail extends PageSummary {
+  pageType?: string;
+  properties?: Record<string, PageProperty>;
+  parentTitle?: string; // Populated for deep board fetches — title of the immediate parent
+}
+
+/** Board view configuration — stored as first-class frontmatter field on parent page */
+export interface BoardConfig {
+  columns?: string[];
+  colors?: Record<string, string>;
+  targetTypeGuid?: string;  // Page type to collect from descendants (deep board)
+  depth?: number;            // Max levels to recurse (default 1 = direct children; cap at 10)
+  showParentTitle?: boolean; // Show parent page title as card subtitle (default true when targetTypeGuid set)
+  swapTitles?: boolean;      // Show parent title as primary, page title as subtitle
+  defaultView?: 'content' | 'board'; // Which view to show when opening the page
+}
+
 export interface CreatePageRequest {
   title: string;
   parentGuid: string | null;
   description?: string;
   content?: string;
+  pageType?: string;
 }
 
 export interface UpdatePageRequest {
@@ -44,6 +93,9 @@ export interface UpdatePageRequest {
   content?: string;
   status?: 'draft' | 'published' | 'archived';
   tags?: string[];
+  pageType?: string | null;
+  properties?: Record<string, PageProperty>;
+  boardConfig?: BoardConfig | null;
 }
 
 export interface MovePageRequest {

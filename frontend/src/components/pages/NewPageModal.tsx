@@ -11,6 +11,7 @@
 import React, { useState } from 'react';
 import { CreatePageRequest } from '../../types/page';
 import { useCreatePage } from '../../hooks/usePages';
+import { usePageTypes } from '../../hooks/usePageTypes';
 
 interface NewPageModalProps {
   isOpen: boolean;
@@ -25,9 +26,11 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedPageType, setSelectedPageType] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const createPage = useCreatePage();
+  const { data: pageTypes = [] } = usePageTypes();
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -54,6 +57,7 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
       parentGuid: defaultParentGuid,
       description: description.trim() || undefined,
       content: '# ' + title.trim() + '\n\nStart writing your page content here...',
+      ...(selectedPageType ? { pageType: selectedPageType } : {}),
     };
 
     try {
@@ -72,6 +76,7 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
   const handleClose = () => {
     setTitle('');
     setDescription('');
+    setSelectedPageType('');
     setErrors({});
     onClose();
   };
@@ -147,6 +152,28 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
               rows={3}
             />
           </div>
+
+          {/* Page Type Selector */}
+          {pageTypes.length > 0 && (
+            <div className="mb-4">
+              <label htmlFor="page-type" className="block text-sm font-medium text-gray-700 mb-1">
+                Page Type (optional)
+              </label>
+              <select
+                id="page-type"
+                value={selectedPageType}
+                onChange={(e) => setSelectedPageType(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Wiki Page (no type)</option>
+                {pageTypes.map(pt => (
+                  <option key={pt.guid} value={pt.guid}>
+                    {pt.icon} {pt.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Info about page location */}
           {defaultParentGuid && (

@@ -81,7 +81,7 @@ cd scripts
 .\manage-seed-data.ps1 -Action export
 
 # Import from a snapshot
-.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-03"
+.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-30"
 
 # Full setup with baseline data
 .\manage-seed-data.ps1 -Action setup

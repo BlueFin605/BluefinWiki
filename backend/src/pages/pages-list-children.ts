@@ -1,48 +1,116 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
+import { PageChildDetail, PageSummary, PageContent } from '../types/index.js';
+import { StoragePlugin } from '../storage/StoragePlugin.js';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_DEPTH = 10;
+
+/**
+ * Recursively collect descendants matching a specific page type.
+ * Each result includes parentTitle for context.
+ */
+async function collectDescendantsByType(
+  storagePlugin: StoragePlugin,
+  parentGuid: string,
+  parentTitle: string,
+  targetTypeGuid: string,
+  remainingDepth: number,
+): Promise<PageChildDetail[]> {
+  if (remainingDepth <= 0) return [];
+
+  const allChildren = await storagePlugin.listChildren(parentGuid);
+  const children = allChildren.filter(child => child.status !== 'archived');
+
+  const results: PageChildDetail[] = [];
+
+  for (const child of children) {
+    let fullPage: PageContent | null = null;
+    try {
+      fullPage = await storagePlugin.loadPage(child.guid);
+    } catch {
+      // Skip pages that can't be loaded
+      continue;
+    }
+
+    // If this child matches the target type, include it
+    if (fullPage.pageType === targetTypeGuid) {
+      results.push({
+        ...child,
+        ...(fullPage.pageType ? { pageType: fullPage.pageType } : {}),
+        ...(fullPage.properties && Object.keys(fullPage.properties).length > 0
+          ? { properties: fullPage.properties }
+          : {}),
+        parentTitle,
+      });
+    }
+
+    // Recurse into children regardless (the target type may be deeper)
+    if (child.hasChildren && remainingDepth > 1) {
+      const deeper = await collectDescendantsByType(
+        storagePlugin,
+        child.guid,
+        fullPage.title,
+        targetTypeGuid,
+        remainingDepth - 1,
+      );
+      results.push(...deeper);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Enrich a list of direct children with pageType and properties.
+ */
+async function enrichChildrenWithProperties(
+  storagePlugin: StoragePlugin,
+  children: PageSummary[],
+): Promise<PageChildDetail[]> {
+  return Promise.all(
+    children.map(async (child) => {
+      try {
+        const fullPage = await storagePlugin.loadPage(child.guid);
+        const detail: PageChildDetail = {
+          ...child,
+          ...(fullPage.pageType ? { pageType: fullPage.pageType } : {}),
+          ...(fullPage.properties && Object.keys(fullPage.properties).length > 0
+            ? { properties: fullPage.properties }
+            : {}),
+        };
+        return detail;
+      } catch {
+        return child as PageChildDetail;
+      }
+    })
+  );
+}
 
 /**
  * Lambda: pages-list-children
  * GET /pages/children or GET /pages/{guid}/children
- * 
- * Lists all child pages of a parent page, or root-level pages if no parent specified.
- * 
- * Path Parameters:
- * - guid: Parent page GUID (optional, if not provided or "root", lists root pages)
- * 
- * Response:
- * {
- *   "parentGuid": "parent-guid-or-null",
- *   "children": [
- *     {
- *       "guid": "child-guid",
- *       "title": "Child Page Title",
- *       "parentGuid": "parent-guid",
- *       "status": "published",
- *       "modifiedAt": "2026-02-06T12:00:00Z",
- *       "modifiedBy": "user-id",
- *       "hasChildren": true
- *     }
- *   ]
- * }
+ *
+ * Lists child pages of a parent page, or root-level pages if no parent specified.
+ *
+ * Query Parameters:
+ * - include=properties — enrich each child with pageType and properties
+ * - type={typeGuid} — filter to descendants matching this page type (requires include=properties)
+ * - depth={1-10} — how many levels deep to search (default 1, requires type)
  */
 export const handler = withAuth(async (
   event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
-    // Extract parent GUID from path parameters
-    // If not provided or "root", list root-level pages
     let parentGuid: string | null = event.pathParameters?.guid || null;
 
     if (parentGuid === 'root' || parentGuid === '') {
       parentGuid = null;
     }
 
-    // Validate GUID format if provided
     if (parentGuid !== null) {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(parentGuid)) {
+      if (!UUID_REGEX.test(parentGuid)) {
         return {
           statusCode: 400,
           headers: { 'Content-Type': 'application/json' },
@@ -51,16 +119,15 @@ export const handler = withAuth(async (
       }
     }
 
-    // Get authenticated user context
     const user = getUserContext(event);
-
-    // Get storage plugin instance
     const storagePlugin = getStoragePlugin();
 
-    // If parentGuid is provided, verify parent page exists
+    // Verify parent exists
+    let parentTitle = '';
     if (parentGuid !== null) {
       try {
-        await storagePlugin.loadPage(parentGuid);
+        const parentPage = await storagePlugin.loadPage(parentGuid);
+        parentTitle = parentPage.title;
       } catch (err: unknown) {
         const error = err as { code?: string; message?: string };
         if (error.code === 'PAGE_NOT_FOUND') {
@@ -74,33 +141,66 @@ export const handler = withAuth(async (
       }
     }
 
-    // List children, excluding archived/deleted pages
-    const allChildren = await storagePlugin.listChildren(parentGuid);
-    const children = allChildren.filter(child => child.status !== 'archived');
+    const includeProperties = event.queryStringParameters?.include === 'properties';
+    const targetTypeGuid = event.queryStringParameters?.type || null;
+    const depthParam = parseInt(event.queryStringParameters?.depth || '1', 10);
+    const depth = Math.min(Math.max(isNaN(depthParam) ? 1 : depthParam, 1), MAX_DEPTH);
 
-    // Log activity
+    // Validate type GUID format
+    if (targetTypeGuid && !UUID_REGEX.test(targetTypeGuid)) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid type GUID format' }),
+      };
+    }
+
+    let responseChildren: PageChildDetail[] | PageSummary[];
+
+    if (includeProperties && targetTypeGuid && depth > 1 && parentGuid) {
+      // Deep fetch: recursively collect descendants matching the target type
+      responseChildren = await collectDescendantsByType(
+        storagePlugin,
+        parentGuid,
+        parentTitle,
+        targetTypeGuid,
+        depth,
+      );
+    } else {
+      // Standard: list direct children
+      const allChildren = await storagePlugin.listChildren(parentGuid);
+      const children = allChildren.filter(child => child.status !== 'archived');
+
+      if (includeProperties) {
+        responseChildren = await enrichChildrenWithProperties(storagePlugin, children);
+      } else {
+        responseChildren = children;
+      }
+    }
+
     console.log('Children listed:', {
       parentGuid,
-      childCount: children.length,
+      childCount: responseChildren.length,
+      includeProperties,
+      targetTypeGuid,
+      depth,
       requestedBy: user.userId,
       timestamp: new Date().toISOString(),
     });
 
-    // Return children list
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         parentGuid,
-        children,
-        count: children.length,
+        children: responseChildren,
+        count: responseChildren.length,
       }),
     };
   } catch (err: unknown) {
     console.error('Error listing children:', err);
     const error = err as { code?: string; statusCode?: number; message?: string };
 
-    // Handle storage plugin errors
     if (error.code) {
       return {
         statusCode: error.statusCode || 500,
@@ -112,7 +212,6 @@ export const handler = withAuth(async (
       };
     }
 
-    // Generic error response
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },

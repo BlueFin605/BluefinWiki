@@ -62,6 +62,43 @@ export interface ActivityLogRecord {
   createdAt: string; // ISO 8601
 }
 
+export type PropertyType = 'string' | 'number' | 'date' | 'tags';
+
+export interface PageTypeProperty {
+  name: string;                    // Property name (kebab-case)
+  type: PropertyType;              // string | number | date | tags
+  required: boolean;               // Must be set when saving the page
+  defaultValue?: string | number | string[];  // Optional default
+}
+
+export interface PageTypeDefinition {
+  guid: string;                    // Immutable identifier (UUID v4)
+  name: string;                    // Display name (mutable, e.g. "TV Show")
+  icon: string;                    // Icon identifier (emoji or icon library key)
+  properties: PageTypeProperty[];  // Property schema
+  allowedChildTypes: string[];     // GUIDs of types that can be created as children
+  allowWikiPageChildren: boolean;  // Whether untyped wiki pages can be children (default true)
+  createdBy: string;               // Cognito sub
+  createdAt: string;               // ISO 8601
+  updatedAt: string;               // ISO 8601
+}
+
+export interface PageProperty {
+  type: PropertyType;
+  value: string | number | string[];
+}
+
+/** Board view configuration stored as a first-class frontmatter field */
+export interface BoardConfig {
+  columns?: string[];
+  colors?: Record<string, string>;
+  targetTypeGuid?: string;
+  depth?: number;
+  showParentTitle?: boolean;
+  swapTitles?: boolean;
+  defaultView?: 'content' | 'board';
+}
+
 export interface PageContent {
   guid: string;
   title: string;
@@ -70,6 +107,9 @@ export interface PageContent {
   tags: string[];
   status: 'draft' | 'published' | 'archived' | 'deleted';
   description?: string; // Optional page description
+  pageType?: string; // Page type GUID — references PageTypeDefinition
+  properties?: Record<string, PageProperty>;
+  boardConfig?: BoardConfig; // Kanban board view configuration
   createdBy: string; // Cognito sub
   modifiedBy: string; // Cognito sub
   createdAt: string; // ISO 8601
@@ -107,6 +147,14 @@ export interface PageSummary {
   modifiedAt: string; // ISO 8601
   modifiedBy: string; // Cognito sub
   hasChildren: boolean;
+  pageType?: string; // Page type GUID — included for type-aware UI (tree icons, board detection)
+}
+
+/** Extended child summary returned when ?include=properties is set on list-children */
+export interface PageChildDetail extends PageSummary {
+  pageType?: string;
+  properties?: Record<string, PageProperty>;
+  parentTitle?: string; // Populated for deep board fetches — title of the immediate parent
 }
 
 export interface AttachmentUploadInput {

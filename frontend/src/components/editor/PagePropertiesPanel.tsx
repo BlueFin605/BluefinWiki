@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { PageProperty } from '../../types/page';
+import { CustomPropertiesEditor } from './CustomPropertiesEditor';
+import { useTags, PAGE_TAGS_SCOPE } from '../../hooks/useTags';
+import { usePageTypes } from '../../hooks/usePageTypes';
 
 export interface PageMetadata {
   title: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   description?: string;
+  pageType?: string;
+  properties?: Record<string, PageProperty>;
   createdBy: string;
   modifiedBy: string;
   createdAt: string;
@@ -35,6 +41,44 @@ interface PagePropertiesPanelProps {
  * - Status dropdown with visual indicators
  * - Read-only display of author and timestamps
  */
+const PageTypeSelector: React.FC<{
+  pageType?: string;
+  onChange: (pageType: string | null) => void;
+  editable: boolean;
+}> = ({ pageType, onChange, editable }) => {
+  const { data: pageTypes = [] } = usePageTypes();
+
+  if (pageTypes.length === 0) return null;
+
+  const selected = pageTypes.find(pt => pt.guid === pageType);
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Page Type
+      </label>
+      {editable ? (
+        <select
+          value={pageType || ''}
+          onChange={(e) => onChange(e.target.value || null)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+        >
+          <option value="">None (Wiki Page)</option>
+          {pageTypes.map(pt => (
+            <option key={pt.guid} value={pt.guid}>
+              {pt.icon} {pt.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          {selected ? `${selected.icon} ${selected.name}` : 'None (Wiki Page)'}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
   metadata,
   onMetadataChange,
@@ -45,6 +89,7 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
   const [titleValue, setTitleValue] = useState(metadata.title);
   const [tagInput, setTagInput] = useState('');
   const [localTags, setLocalTags] = useState<string[]>(metadata.tags || []);
+  const { data: pageTagVocabulary } = useTags(PAGE_TAGS_SCOPE);
 
   // Sync local state with prop changes
   useEffect(() => {
@@ -173,6 +218,13 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
         )}
       </div>
 
+      {/* Page Type Selector */}
+      <PageTypeSelector
+        pageType={metadata.pageType}
+        onChange={(pageType) => onMetadataChange({ pageType: pageType || undefined })}
+        editable={editable}
+      />
+
       {/* Tags Input */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -198,17 +250,45 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
           ))}
         </div>
         {editable && (
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagInputKeyDown}
-            placeholder="Add tags (press Enter or comma)"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagInputKeyDown}
+              placeholder="Add tags (press Enter or comma)"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+            />
+            {tagInput && (() => {
+              const suggestions = pageTagVocabulary
+                ?.filter(t => !localTags.includes(t.tag) && t.tag.includes(tagInput.toLowerCase()))
+                .slice(0, 5) || [];
+              return suggestions.length > 0 ? (
+                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-32 overflow-y-auto">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.tag}
+                      onClick={() => {
+                        const newTag = s.tag;
+                        if (!localTags.includes(newTag)) {
+                          const updatedTags = [...localTags, newTag];
+                          setLocalTags(updatedTags);
+                          onMetadataChange({ tags: updatedTags });
+                        }
+                        setTagInput('');
+                      }}
+                      className="block w-full text-left px-2 py-1 text-sm hover:bg-blue-50 dark:hover:bg-gray-600 dark:text-gray-200"
+                    >
+                      {s.tag}
+                    </button>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+          </div>
         )}
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {editable 
+          {editable
             ? 'Type and press Enter or comma to add tags. Backspace on empty field removes last tag.'
             : 'Tags help organize and find pages'
           }
@@ -236,6 +316,13 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
           <p>Modified: {formatTimestamp(metadata.modifiedAt)}</p>
         </div>
       </div>
+
+      {/* Custom Properties */}
+      <CustomPropertiesEditor
+        properties={metadata.properties || {}}
+        onChange={(properties) => onMetadataChange({ properties })}
+        editable={editable}
+      />
 
       {/* Page GUID (Read-only, for debugging) */}
       {metadata.guid && (

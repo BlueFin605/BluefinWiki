@@ -10,6 +10,11 @@ import * as usePages from '../../../hooks/usePages';
 
 // Mock the hooks
 vi.mock('../../../hooks/usePages');
+vi.mock('../../../hooks/usePageTypes', () => ({
+  usePageTypes: () => ({ data: [], isLoading: false }),
+  usePageType: () => ({ data: undefined, isLoading: false }),
+  useAllowedChildTypes: () => ({ data: undefined, isLoading: false }),
+}));
 
 // Mock auth context hook used by PageEditor
 vi.mock('../../../contexts/AuthContext', () => ({
@@ -29,6 +34,11 @@ vi.mock('../../../contexts/AuthContext', () => ({
     canManageUsers: false,
     isAdmin: false,
   }),
+}));
+
+// Mock the BoardView component
+vi.mock('../../board/BoardView', () => ({
+  BoardView: () => <div data-testid="board-view">Board View</div>,
 }));
 
 // Mock the EditorPane component
@@ -53,6 +63,12 @@ describe('PageEditor', () => {
       },
     });
     vi.clearAllMocks();
+
+    // Default mock for board-related hook
+    vi.mocked(usePages.usePageChildrenWithProperties).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof usePages.usePageChildrenWithProperties>);
   });
 
   const renderPageEditor = (pageGuid: string) => {

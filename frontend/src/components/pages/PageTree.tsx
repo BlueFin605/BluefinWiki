@@ -9,10 +9,11 @@
  * - Keyboard navigation
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { PageTreeItem } from './PageTreeItem';
-import { PageTreeNode } from '../../types/page';
+import { PageTreeNode, PageTypeDefinition } from '../../types/page';
 import { usePageChildren, useMovePage } from '../../hooks/usePages';
+import { usePageTypes } from '../../hooks/usePageTypes';
 
 interface PageTreeProps {
   activePageGuid?: string;
@@ -34,6 +35,14 @@ export const PageTree: React.FC<PageTreeProps> = ({
 
   // Fetch root-level pages
   const { data: rootPages = [], isLoading, error } = usePageChildren(null);
+  const { data: pageTypesList = [] } = usePageTypes();
+
+  // Build page types lookup map
+  const pageTypesMap = useMemo(() => {
+    const map: Record<string, PageTypeDefinition> = {};
+    for (const pt of pageTypesList) map[pt.guid] = pt;
+    return map;
+  }, [pageTypesList]);
 
   // Move page mutation
   const movePage = useMovePage(draggedPage?.guid || '');
@@ -147,6 +156,7 @@ export const PageTree: React.FC<PageTreeProps> = ({
           level={0}
           isActive={page.guid === activePageGuid}
           expandedGuids={expandedGuids}
+          pageTypesMap={pageTypesMap}
           onSelect={onPageSelect}
           onContextMenu={onContextMenu}
           onDragStart={handleDragStart}
