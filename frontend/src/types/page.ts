@@ -75,6 +75,7 @@ export interface BoardConfig {
   targetTypeGuid?: string;  // Page type to collect from descendants (deep board)
   depth?: number;            // Max levels to recurse (default 1 = direct children; cap at 10)
   showParentTitle?: boolean; // Show parent page title as card subtitle (default true when targetTypeGuid set)
+  swapTitles?: boolean;      // Show parent title as primary, page title as subtitle
 }
 
 export interface CreatePageRequest {

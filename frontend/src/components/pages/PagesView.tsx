@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ResizeDivider } from '../editor/ResizeDivider';
 import { getLayout, setLayout } from '../../stores/layoutStore';
 import { PageTree } from './PageTree';
@@ -26,7 +26,15 @@ import { useDeletePage } from '../../hooks/usePages';
 
 export const PagesView: React.FC = () => {
   const navigate = useNavigate();
-  const [activePageGuid, setActivePageGuid] = useState<string | undefined>();
+  const location = useLocation();
+
+  // Extract page guid from URL path: /pages/:guid
+  const initialPageGuid = (() => {
+    const match = location.pathname.match(/^\/pages\/([a-f0-9-]+)/i);
+    return match ? match[1] : undefined;
+  })();
+
+  const [activePageGuid, setActivePageGuid] = useState<string | undefined>(initialPageGuid);
   const [contextMenu, setContextMenu] = useState<{
     page: PageTreeNode;
     position: { x: number; y: number };

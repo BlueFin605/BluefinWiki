@@ -4,7 +4,8 @@ import { PageChildDetail, PageTypeDefinition } from '../../types/page';
 interface BoardCardProps {
   card: PageChildDetail;
   pageType?: PageTypeDefinition;
-  onNavigate: (guid: string) => void;
+  swapTitles?: boolean;
+  onCardClick: (card: PageChildDetail) => void;
   onDragStart: (e: React.DragEvent, guid: string) => void;
 }
 
@@ -14,9 +15,12 @@ const MAX_DISPLAY_PROPERTIES = 3;
 export const BoardCard: React.FC<BoardCardProps> = ({
   card,
   pageType,
-  onNavigate,
+  swapTitles,
+  onCardClick,
   onDragStart,
 }) => {
+  const primaryTitle = swapTitles && card.parentTitle ? card.parentTitle : card.title;
+  const secondaryTitle = swapTitles && card.parentTitle ? card.title : card.parentTitle;
   // Collect display properties (exclude 'state' since it's shown by column)
   const displayProperties = card.properties
     ? Object.entries(card.properties)
@@ -34,10 +38,10 @@ export const BoardCard: React.FC<BoardCardProps> = ({
       className="bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
       draggable
       onDragStart={(e) => onDragStart(e, card.guid)}
-      onClick={() => onNavigate(card.guid)}
+      onClick={() => onCardClick(card)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter') onNavigate(card.guid); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') onCardClick(card); }}
     >
       {/* Type icon + title + parent subtitle */}
       <div className="flex items-start gap-2">
@@ -48,10 +52,10 @@ export const BoardCard: React.FC<BoardCardProps> = ({
         )}
         <div className="min-w-0">
           <span className="font-medium text-sm text-gray-900 leading-tight line-clamp-2 block">
-            {card.title}
+            {primaryTitle}
           </span>
-          {card.parentTitle && (
-            <span className="text-xs text-gray-400 truncate block">{card.parentTitle}</span>
+          {secondaryTitle && (
+            <span className="text-xs text-gray-400 truncate block">{secondaryTitle}</span>
           )}
         </div>
       </div>

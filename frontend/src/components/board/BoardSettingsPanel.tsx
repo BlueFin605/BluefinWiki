@@ -30,6 +30,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
 
   const [targetTypeGuid, setTargetTypeGuid] = useState(config?.targetTypeGuid || '');
   const [showParentTitle, setShowParentTitle] = useState(config?.showParentTitle ?? true);
+  const [swapTitles, setSwapTitles] = useState(config?.swapTitles ?? false);
   const [columns, setColumns] = useState<string[]>(config?.columns || []);
   const [colors, setColors] = useState<Record<string, string>>(config?.colors || {});
   const [newColumn, setNewColumn] = useState('');
@@ -54,6 +55,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
       newConfig.targetTypeGuid = targetTypeGuid;
       newConfig.depth = config?.depth || 10;
       newConfig.showParentTitle = showParentTitle;
+      if (swapTitles) newConfig.swapTitles = true;
     }
     onSave(newConfig);
   };
@@ -128,15 +130,28 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
 
         {/* Show parent title */}
         {targetTypeGuid && (
-          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showParentTitle}
-              onChange={(e) => setShowParentTitle(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
-            />
-            Show parent title on cards
-          </label>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showParentTitle}
+                onChange={(e) => setShowParentTitle(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+              />
+              Show parent title on cards
+            </label>
+            {showParentTitle && (
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer pl-6">
+                <input
+                  type="checkbox"
+                  checked={swapTitles}
+                  onChange={(e) => setSwapTitles(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                />
+                Use parent as primary title
+              </label>
+            )}
+          </div>
         )}
 
         {/* Columns */}
