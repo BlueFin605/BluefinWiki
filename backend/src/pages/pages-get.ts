@@ -59,6 +59,16 @@ export const handler = withAuth(async (
     // Load page from storage
     const pageContent = await storagePlugin.loadPage(guid);
 
+    // Draft visibility: only the author or admins can view draft pages
+    if (pageContent.status === 'draft' && user.role !== 'Admin' && pageContent.createdBy !== user.userId) {
+      // Return 404 (not 403) to avoid confirming existence of draft content
+      return {
+        statusCode: 404,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Page not found', code: 'PAGE_NOT_FOUND' }),
+      };
+    }
+
     // Log activity
     console.log('Page retrieved:', {
       guid,

@@ -242,6 +242,7 @@ export const handler = withAuth(async (
             title: page.title,
             parentGuid: page.folderId || null,
             status: (page.status === 'deleted' ? 'archived' : page.status) as 'draft' | 'published' | 'archived',
+            createdBy: page.createdBy,
             modifiedAt: page.modifiedAt,
             modifiedBy: page.modifiedBy,
             hasChildren: false

@@ -10,6 +10,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { PageTreeNode } from '../../types/page';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface PageContextMenuProps {
   page: PageTreeNode | null;
@@ -30,6 +31,8 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
   onMove,
   onNewChild,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'Admin';
   const menuRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = React.useState(position);
 
@@ -132,7 +135,8 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
       },
       shortcut: 'Ctrl+M',
     },
-    {
+    // Delete is admin-only (backend enforces this)
+    ...(isAdmin ? [{
       label: 'Delete',
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,7 +154,7 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
       },
       shortcut: 'Del',
       danger: true,
-    },
+    }] : []),
   ];
 
   return (
