@@ -23,7 +23,23 @@ export const ResizeDivider: React.FC<ResizeDividerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const dividerRef = useRef<HTMLDivElement>(null);
 
+  const getPosition = useCallback((clientX: number, clientY: number) => {
+    const container = dividerRef.current?.parentElement;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (orientation === 'vertical') {
+      onResize(clientX - rect.left);
+    } else {
+      onResize(clientY - rect.top);
+    }
+  }, [onResize, orientation]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     setIsDragging(true);
   }, []);
@@ -31,27 +47,27 @@ export const ResizeDivider: React.FC<ResizeDividerProps> = ({
   useEffect(() => {
     if (!isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
-      const container = dividerRef.current?.parentElement;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-
-      if (orientation === 'vertical') {
-        onResize(e.clientX - rect.left);
-      } else {
-        onResize(e.clientY - rect.top);
+    const handleMouseMove = (e: MouseEvent) => getPosition(e.clientX, e.clientY);
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        getPosition(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
-
-    const handleMouseUp = () => setIsDragging(false);
+    const handleEnd = () => setIsDragging(false);
 
     document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mouseup', handleEnd);
+    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('touchend', handleEnd);
+    document.addEventListener('touchcancel', handleEnd);
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mouseup', handleEnd);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleEnd);
+      document.removeEventListener('touchcancel', handleEnd);
     };
-  }, [isDragging, onResize, orientation]);
+  }, [isDragging, getPosition]);
 
   const isVertical = orientation === 'vertical';
 
@@ -59,6 +75,7 @@ export const ResizeDivider: React.FC<ResizeDividerProps> = ({
     <div
       ref={dividerRef}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
       className={`${isVertical ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}
         ${isDragging ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}
         hover:bg-blue-500 dark:hover:bg-blue-400 transition-colors shrink-0

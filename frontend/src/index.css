@@ -14,3 +14,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+
+/* iOS safe area padding for fixed bottom toolbars */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

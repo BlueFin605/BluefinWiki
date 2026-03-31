@@ -21,7 +21,6 @@ Implements: [Design](../design.md) — Frontend, Tailwind CSS
 
 **Does not cover:**
 - Native mobile app (web only)
-- Offline mode / PWA (post-MVP)
 - Accessibility beyond responsive layout (considered throughout but not dedicated plan)
 
 ## Enables
@@ -81,7 +80,7 @@ A family member picks up their phone, opens the wiki, and reads or edits a page 
 
 ## Constraints
 
-- **CSS-only responsive** — no JavaScript-based breakpoint detection. Tailwind responsive utilities only.
+- **CSS for styling, JS for behavioral mode switches** — Tailwind responsive utilities for layout, `useMediaQuery` hook for component variant selection (e.g., sidebar-to-drawer, split-to-single view).
 - **No feature removal on mobile** — all features available, just different layout. Exception: simplified editor toolbar.
 - **Testing scope** — iOS Safari and Android Chrome are the primary mobile targets.
 
