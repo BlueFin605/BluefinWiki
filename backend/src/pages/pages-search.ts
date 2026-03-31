@@ -23,10 +23,11 @@
  * }
  */
 
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { PageSummary } from '../types/index.js';
 import type { StoragePlugin } from '../storage/StoragePlugin.js';
 import { getStoragePlugin } from '../storage/index.js';
+import { withAuth, getUserContext, AuthenticatedEvent } from '../middleware/auth.js';
 
 interface SearchResult {
   guid: string;
@@ -140,14 +141,16 @@ function calculateScore(query: string, target: string): number {
   return Math.max(score, 0);
 }
 
-export const handler = async (
-  event: APIGatewayProxyEvent
+export const handler = withAuth(async (
+  event: AuthenticatedEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
+    const user = getUserContext(event);
+
     // Extract query parameters
     const query = event.queryStringParameters?.q;
     const limitParam = event.queryStringParameters?.limit;
-    
+
     if (!query || query.trim() === '') {
       return {
         statusCode: 400,
@@ -160,21 +163,22 @@ export const handler = async (
         }),
       };
     }
-    
+
     const limit = Math.min(
       parseInt(limitParam || '10', 10),
       50 // Max limit
     );
-    
+
     const storagePlugin = getStoragePlugin();
-    
+
     // Get all pages from storage
     const pageTree = await storagePlugin.buildPageTree();
     const allPages = flattenPageTree(pageTree);
-    
-    // Filter pages by fuzzy matching on title, excluding archived/deleted
+
+    // Filter pages by fuzzy matching on title, excluding archived/deleted and drafts the user can't see
     const matchedPages = allPages
       .filter(page => page.status !== 'archived')
+      .filter(page => page.status !== 'draft' || user.role === 'Admin' || page.createdBy === user.userId)
       .filter(page => fuzzyMatch(query, page.title))
       .map(page => ({
         page,
@@ -217,4 +221,4 @@ export const handler = async (
       }),
     };
   }
-};
+});

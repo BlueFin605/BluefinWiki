@@ -164,6 +164,7 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
             title: parentPage.title,
             parentGuid: parentPage.folderId || null,
             status: parentPage.status === 'deleted' ? 'archived' : parentPage.status,
+            createdBy: parentPage.createdBy,
             modifiedAt: parentPage.modifiedAt,
             modifiedBy: parentPage.modifiedBy,
             hasChildren: true, // Has at least one child (current page)

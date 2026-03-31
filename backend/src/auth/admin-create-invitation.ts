@@ -1,9 +1,10 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
+import { withAuth, withRole, getUserContext, AuthenticatedEvent } from '../middleware/auth.js';
 
 // Environment variables
 const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE || 'bluefinwiki-invitations-local';
@@ -180,54 +181,21 @@ BlueFinWiki - Your Family Knowledge Base
 }
 
 /**
- * Extract user information from JWT token in Authorization header
- */
-function extractUserFromToken(event: APIGatewayProxyEvent): { userId: string; email: string; name: string; role: string } {
-  const authorizer = event.requestContext?.authorizer;
-  
-  if (!authorizer) {
-    throw new Error('No authorizer context found');
-  }
-  
-  // API Gateway Lambda Authorizer puts claims in requestContext.authorizer
-  const userId = authorizer.claims?.sub || authorizer.sub;
-  const email = authorizer.claims?.email || authorizer.email;
-  const name = authorizer.claims?.name || authorizer.name || email;
-  const role = authorizer.claims?.['custom:role'] || authorizer['custom:role'] || 'Standard';
-  
-  if (!userId || !email) {
-    throw new Error('Invalid token: missing required claims');
-  }
-  
-  return { userId, email, name, role };
-}
-
-/**
  * Lambda handler for creating invitation codes
- * 
+ *
  * This function:
- * 1. Validates admin permissions
+ * 1. Validates admin permissions (via withAuth + withRole middleware)
  * 2. Generates a unique 8-character invitation code
  * 3. Stores the invitation in DynamoDB
  * 4. Sends an invitation email (if email provided)
- * 
+ *
  * Admin-only endpoint
  */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withAuth(withRole(['Admin'], async (event: AuthenticatedEvent): Promise<APIGatewayProxyResult> => {
   console.log('Create invitation request received');
-  
+
   try {
-    // Extract user from JWT token
-    const user = extractUserFromToken(event);
-    
-    // Check admin permissions
-    if (user.role !== 'Admin') {
-      return {
-        statusCode: 403,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Forbidden: Admin access required' }),
-      };
-    }
+    const user = getUserContext(event);
     
     // Parse and validate request body
     if (!event.body) {
@@ -275,7 +243,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         validatedData.email,
         inviteCode,
         validatedData.role,
-        user.name
+        user.displayName
       );
     }
     
@@ -322,4 +290,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       body: JSON.stringify({ error: 'Internal server error', message: error.message }),
     };
   }
-};
+}));
