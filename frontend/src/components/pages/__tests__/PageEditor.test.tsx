@@ -69,6 +69,12 @@ describe('PageEditor', () => {
       data: [],
       isLoading: false,
     } as unknown as ReturnType<typeof usePages.usePageChildrenWithProperties>);
+
+    // Default mock for breadcrumbs
+    vi.mocked(usePages.usePageAncestors).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof usePages.usePageAncestors>);
   });
 
   const renderPageEditor = (pageGuid: string) => {
