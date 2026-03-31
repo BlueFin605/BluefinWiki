@@ -200,6 +200,7 @@ jobs:
             "bluefinwiki-${ENV}-pages-move"
             "bluefinwiki-${ENV}-pages-search"
             "bluefinwiki-${ENV}-pages-backlinks"
+            "bluefinwiki-${ENV}-pages-ancestors"
             "bluefinwiki-${ENV}-pages-attachments-upload"
             "bluefinwiki-${ENV}-pages-attachments-presign"
             "bluefinwiki-${ENV}-pages-attachments-confirm"
