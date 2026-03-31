@@ -3,6 +3,8 @@ import React from 'react';
 interface MarkdownToolbarProps {
   onAction: (action: ToolbarAction, value?: string) => void;
   disabled?: boolean;
+  /** When true, shows a reduced button set positioned at the bottom of the screen */
+  compact?: boolean;
 }
 
 export type ToolbarAction =
@@ -35,6 +37,7 @@ export type ToolbarAction =
 export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
   onAction,
   disabled = false,
+  compact = false,
 }) => {
   const [showHeaderMenu, setShowHeaderMenu] = React.useState(false);
   const headerMenuRef = React.useRef<HTMLDivElement>(null);
@@ -54,17 +57,31 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
   }, []);
 
   const buttonClass = `
-    p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 
+    p-2.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700
     disabled:opacity-50 disabled:cursor-not-allowed
     transition-colors
   `;
 
   const iconClass = 'w-5 h-5';
 
+  // Header levels shown in dropdown
+  const headerLevels = compact
+    ? (['h1', 'h2', 'h3'] as const)
+    : (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const);
+
+  const containerClass = compact
+    ? 'flex items-center gap-1 px-2 py-1 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 fixed bottom-0 inset-x-0 z-40 safe-bottom overflow-x-auto'
+    : 'flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-wrap';
+
+  // In compact mode, the header dropdown opens upward
+  const headerMenuClass = compact
+    ? 'absolute bottom-full left-0 mb-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg z-10 min-w-[120px]'
+    : 'absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg z-10 min-w-[120px]';
+
   return (
-    <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-wrap">
-      {/* Text formatting */}
-      <div className="flex items-center gap-1 border-r border-gray-300 dark:border-gray-600 pr-2 mr-1">
+    <div className={containerClass}>
+      {/* Text formatting — bold & italic always shown, strikethrough hidden in compact */}
+      <div className={`flex items-center gap-1 ${compact ? '' : 'border-r border-gray-300 dark:border-gray-600 pr-2 mr-1'}`}>
         <button
           onClick={() => onAction('bold')}
           disabled={disabled}
@@ -89,21 +106,23 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
           </svg>
         </button>
 
-        <button
-          onClick={() => onAction('strikethrough')}
-          disabled={disabled}
-          className={buttonClass}
-          title="Strikethrough"
-          aria-label="Strikethrough"
-        >
-          <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18M8 5h8M9 19h6" />
-          </svg>
-        </button>
+        {!compact && (
+          <button
+            onClick={() => onAction('strikethrough')}
+            disabled={disabled}
+            className={buttonClass}
+            title="Strikethrough"
+            aria-label="Strikethrough"
+          >
+            <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h18M8 5h8M9 19h6" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Headers */}
-      <div className="relative flex items-center border-r border-gray-300 dark:border-gray-600 pr-2 mr-1">
+      <div className={`relative flex items-center ${compact ? '' : 'border-r border-gray-300 dark:border-gray-600 pr-2 mr-1'}`}>
         <button
           onClick={() => setShowHeaderMenu(!showHeaderMenu)}
           disabled={disabled}
@@ -117,11 +136,8 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
         </button>
 
         {showHeaderMenu && (
-          <div
-            ref={headerMenuRef}
-            className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg z-10 min-w-[120px]"
-          >
-            {(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const).map((header) => (
+          <div ref={headerMenuRef} className={headerMenuClass}>
+            {headerLevels.map((header) => (
               <button
                 key={header}
                 onClick={() => {
@@ -129,7 +145,7 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
                   setShowHeaderMenu(false);
                 }}
                 disabled={disabled}
-                className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t last:rounded-b"
+                className="w-full text-left px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t last:rounded-b"
               >
                 <span className="font-semibold">{header.toUpperCase()}</span>
                 <span className="text-gray-500 ml-2">Heading {header.charAt(1)}</span>
@@ -139,8 +155,8 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
         )}
       </div>
 
-      {/* Lists */}
-      <div className="flex items-center gap-1 border-r border-gray-300 dark:border-gray-600 pr-2 mr-1">
+      {/* Lists — compact: only unordered list */}
+      <div className={`flex items-center gap-1 ${compact ? '' : 'border-r border-gray-300 dark:border-gray-600 pr-2 mr-1'}`}>
         <button
           onClick={() => onAction('ul')}
           disabled={disabled}
@@ -153,33 +169,37 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
           </svg>
         </button>
 
-        <button
-          onClick={() => onAction('ol')}
-          disabled={disabled}
-          className={buttonClass}
-          title="Ordered list"
-          aria-label="Ordered list"
-        >
-          <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5h12M9 12h12M9 19h12M5 5v2m0 5v2m0 5v2" />
-          </svg>
-        </button>
+        {!compact && (
+          <>
+            <button
+              onClick={() => onAction('ol')}
+              disabled={disabled}
+              className={buttonClass}
+              title="Ordered list"
+              aria-label="Ordered list"
+            >
+              <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5h12M9 12h12M9 19h12M5 5v2m0 5v2m0 5v2" />
+              </svg>
+            </button>
 
-        <button
-          onClick={() => onAction('task')}
-          disabled={disabled}
-          className={buttonClass}
-          title="Task list"
-          aria-label="Task list"
-        >
-          <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-          </svg>
-        </button>
+            <button
+              onClick={() => onAction('task')}
+              disabled={disabled}
+              className={buttonClass}
+              title="Task list"
+              aria-label="Task list"
+            >
+              <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Links and media */}
-      <div className="flex items-center gap-1 border-r border-gray-300 dark:border-gray-600 pr-2 mr-1">
+      <div className={`flex items-center gap-1 ${compact ? '' : 'border-r border-gray-300 dark:border-gray-600 pr-2 mr-1'}`}>
         <button
           onClick={() => onAction('link')}
           disabled={disabled}
@@ -217,7 +237,7 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
         </button>
       </div>
 
-      {/* Code */}
+      {/* Code — inline code always, code block hidden in compact */}
       <div className="flex items-center gap-1">
         <button
           onClick={() => onAction('code')}
@@ -231,17 +251,19 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
           </svg>
         </button>
 
-        <button
-          onClick={() => onAction('codeblock')}
-          disabled={disabled}
-          className={buttonClass}
-          title="Code block"
-          aria-label="Code block"
-        >
-          <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </button>
+        {!compact && (
+          <button
+            onClick={() => onAction('codeblock')}
+            disabled={disabled}
+            className={buttonClass}
+            title="Code block"
+            aria-label="Code block"
+          >
+            <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );

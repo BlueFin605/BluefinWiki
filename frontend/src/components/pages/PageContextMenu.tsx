@@ -31,6 +31,26 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
   onNewChild,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [adjustedPosition, setAdjustedPosition] = React.useState(position);
+
+  // Adjust position if menu would overflow the viewport
+  useEffect(() => {
+    if (menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      let { x, y } = position;
+
+      if (y + rect.height > viewportHeight) {
+        y = viewportHeight - rect.height - 8;
+      }
+      if (x + rect.width > viewportWidth) {
+        x = viewportWidth - rect.width - 8;
+      }
+
+      setAdjustedPosition({ x, y });
+    }
+  }, [position]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -138,8 +158,8 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
       ref={menuRef}
       className="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[200px] z-50"
       style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
+        left: `${adjustedPosition.x}px`,
+        top: `${adjustedPosition.y}px`,
       }}
       role="menu"
       aria-label="Page actions"
