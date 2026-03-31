@@ -31,6 +31,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
   const [targetTypeGuid, setTargetTypeGuid] = useState(config?.targetTypeGuid || '');
   const [showParentTitle, setShowParentTitle] = useState(config?.showParentTitle ?? true);
   const [swapTitles, setSwapTitles] = useState(config?.swapTitles ?? false);
+  const [defaultView, setDefaultView] = useState(config?.defaultView ?? 'content');
   const [columns, setColumns] = useState<string[]>(config?.columns || []);
   const [colors, setColors] = useState<Record<string, string>>(config?.colors || {});
   const [newColumn, setNewColumn] = useState('');
@@ -57,6 +58,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
       newConfig.showParentTitle = showParentTitle;
       if (swapTitles) newConfig.swapTitles = true;
     }
+    if (defaultView === 'board') newConfig.defaultView = 'board';
     onSave(newConfig);
   };
 
@@ -153,6 +155,17 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
             )}
           </div>
         )}
+
+        {/* Default view */}
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={defaultView === 'board'}
+            onChange={(e) => setDefaultView(e.target.checked ? 'board' : 'content')}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+          />
+          Open in board view by default
+        </label>
 
         {/* Columns */}
         <div>

@@ -88,6 +88,15 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   const [activeView, setActiveView] = useState<'content' | 'board'>('content');
   const [showBoardSettings, setShowBoardSettings] = useState(false);
 
+  // Sync default view when boardConfig loads (async)
+  const appliedDefaultRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (boardConfig?.defaultView === 'board' && appliedDefaultRef.current !== pageGuid) {
+      appliedDefaultRef.current = pageGuid;
+      setActiveView('board');
+    }
+  }, [boardConfig, pageGuid]);
+
   // Persist board config as a first-class frontmatter field
   const saveBoardConfig = useCallback(
     async (newConfig: BoardConfig | null) => {

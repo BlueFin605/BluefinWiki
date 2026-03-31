@@ -96,6 +96,7 @@ export interface BoardConfig {
   depth?: number;
   showParentTitle?: boolean;
   swapTitles?: boolean;
+  defaultView?: 'content' | 'board';
 }
 
 export interface PageContent {
