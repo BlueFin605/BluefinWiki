@@ -2,6 +2,77 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PageChildDetail, PageTypeDefinition, PageProperty, PropertyType } from '../../types/page';
 import { apiClient } from '../../config/api';
+import { useTags } from '../../hooks/useTags';
+
+const TagPropertyInput: React.FC<{
+  propertyName: string;
+  tags: string[];
+  onChange: (tags: string[]) => void;
+}> = ({ propertyName, tags, onChange }) => {
+  const { data: vocabularyTags } = useTags(propertyName);
+  const [input, setInput] = useState('');
+
+  const suggestions = input
+    ? (vocabularyTags?.filter((t) => !tags.includes(t.tag) && t.tag.includes(input.toLowerCase())).slice(0, 5) ?? [])
+    : [];
+
+  const addTag = (tag: string) => {
+    const normalized = tag.toLowerCase().trim();
+    if (normalized && !tags.includes(normalized)) {
+      onChange([...tags, normalized]);
+    }
+    setInput('');
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1 mb-1">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 text-xs rounded"
+          >
+            {tag}
+            <button
+              onClick={() => onChange(tags.filter((t) => t !== tag))}
+              className="ml-0.5 hover:text-purple-600"
+              aria-label={`Remove ${tag}`}
+            >
+              x
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="relative">
+        <input
+          className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              addTag(input);
+            }
+          }}
+          placeholder="Add tag..."
+        />
+        {suggestions.length > 0 && (
+          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded shadow-lg max-h-32 overflow-y-auto">
+            {suggestions.map((s) => (
+              <button
+                key={s.tag}
+                onClick={() => addTag(s.tag)}
+                className="block w-full text-left px-2 py-1 text-sm hover:bg-blue-50"
+              >
+                {s.tag}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface CardSummaryDialogProps {
   card: PageChildDetail | null;
@@ -52,18 +123,16 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
     JSON.stringify(properties) !== JSON.stringify(card.properties ?? {});
 
   const handlePropertyChange = (name: string, value: string | number | string[]) => {
-    setProperties((prev) => ({
-      ...prev,
-      [name]: { ...prev[name], value },
-    }));
-  };
-
-  const handleTagsChange = (name: string, raw: string) => {
-    const tags = raw
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-    handlePropertyChange(name, tags);
+    setProperties((prev) => {
+      const existing = prev[name];
+      if (existing) {
+        return { ...prev, [name]: { ...existing, value } };
+      }
+      // Property from type definition not yet in saved properties — resolve its type
+      const typeProp = pageType?.properties.find((p) => p.name === name);
+      const type: PropertyType = typeProp?.type ?? (Array.isArray(value) ? 'tags' : typeof value === 'number' ? 'number' : 'string');
+      return { ...prev, [name]: { type, value } };
+    });
   };
 
   const handleSave = async () => {
@@ -74,9 +143,21 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
     setSaving(true);
     setError(null);
     try {
+      // Merge type-defined defaults into properties so new fields are saved
+      const mergedProps: Record<string, PageProperty> = { ...properties };
+      if (pageType) {
+        for (const ptProp of pageType.properties) {
+          if (!mergedProps[ptProp.name]) {
+            mergedProps[ptProp.name] = {
+              type: ptProp.type,
+              value: ptProp.defaultValue ?? (ptProp.type === 'tags' ? [] : ptProp.type === 'number' ? 0 : ''),
+            };
+          }
+        }
+      }
       await apiClient.put(`/pages/${card.guid}`, {
         title: title.trim(),
-        properties,
+        properties: mergedProps,
       });
       queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] });
       queryClient.invalidateQueries({ queryKey: ['pages', 'detail', card.guid] });
@@ -92,8 +173,9 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
     window.open(`/pages/${card.guid}`, '_blank');
   };
 
-  // Build ordered property list from page type definition if available
+  // Build ordered property list: type-defined properties first, then extras
   const propertyEntries: Array<{ name: string; type: PropertyType; value: string | number | string[] }> = [];
+  const seen = new Set<string>();
   if (pageType) {
     for (const ptProp of pageType.properties) {
       const current = properties[ptProp.name];
@@ -102,10 +184,12 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
         type: ptProp.type,
         value: current?.value ?? ptProp.defaultValue ?? (ptProp.type === 'tags' ? [] : ''),
       });
+      seen.add(ptProp.name);
     }
-  } else {
-    // No page type — show whatever properties exist
-    for (const [name, prop] of Object.entries(properties)) {
+  }
+  // Extra properties beyond the type definition (or all properties if no type)
+  for (const [name, prop] of Object.entries(properties)) {
+    if (!seen.has(name)) {
       propertyEntries.push({ name, type: prop.type, value: prop.value });
     }
   }
@@ -152,11 +236,10 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
                 </label>
                 <div className="flex-1">
                   {type === 'tags' ? (
-                    <input
-                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                      value={Array.isArray(value) ? value.join(', ') : String(value)}
-                      onChange={(e) => handleTagsChange(name, e.target.value)}
-                      placeholder="tag1, tag2, ..."
+                    <TagPropertyInput
+                      propertyName={name}
+                      tags={Array.isArray(value) ? value : []}
+                      onChange={(tags) => handlePropertyChange(name, tags)}
                     />
                   ) : type === 'number' ? (
                     <input
