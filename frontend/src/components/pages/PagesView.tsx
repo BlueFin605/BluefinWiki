@@ -190,8 +190,17 @@ export const PagesView: React.FC = () => {
         />
       </div>
 
-      {/* Settings link */}
-      <div className="border-t border-gray-200 p-2">
+      {/* Footer links */}
+      <div className="border-t border-gray-200 p-2 space-y-0.5">
+        <button
+          onClick={() => { navigate('/sitemap'); setIsDrawerOpen(false); }}
+          className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          Sitemap
+        </button>
         <button
           onClick={() => { navigate('/settings'); setIsDrawerOpen(false); }}
           className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -215,7 +224,7 @@ export const PagesView: React.FC = () => {
           <PageEditor
             pageGuid={activePageGuid}
             onPageDeleted={() => setActivePageGuid(undefined)}
-            onNavigateToPage={(guid) => setActivePageGuid(guid)}
+            onNavigateToPage={(guid) => setActivePageGuid(guid || undefined)}
           />
         </EditorErrorBoundary>
       ) : (
