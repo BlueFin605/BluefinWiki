@@ -7,7 +7,8 @@ interface BoardColumnProps {
   color: string;
   cards: PageChildDetail[];
   pageTypes: Record<string, PageTypeDefinition>;
-  onNavigate: (guid: string) => void;
+  swapTitles?: boolean;
+  onCardClick: (card: PageChildDetail) => void;
   onCardDragStart: (e: React.DragEvent, guid: string) => void;
   onCardDrop: (columnState: string) => void;
   onAddCard?: (state: string) => void;
@@ -20,7 +21,8 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   color,
   cards,
   pageTypes,
-  onNavigate,
+  swapTitles,
+  onCardClick,
   onCardDragStart,
   onCardDrop,
   onAddCard,
@@ -75,7 +77,8 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
             key={card.guid}
             card={card}
             pageType={card.pageType ? pageTypes[card.pageType] : undefined}
-            onNavigate={onNavigate}
+            swapTitles={swapTitles}
+            onCardClick={onCardClick}
             onDragStart={onCardDragStart}
           />
         ))}

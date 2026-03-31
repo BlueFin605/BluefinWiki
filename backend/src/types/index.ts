@@ -95,6 +95,7 @@ export interface BoardConfig {
   targetTypeGuid?: string;
   depth?: number;
   showParentTitle?: boolean;
+  swapTitles?: boolean;
 }
 
 export interface PageContent {

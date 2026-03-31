@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BoardColumn } from './BoardColumn';
+import { CardSummaryDialog } from './CardSummaryDialog';
 import { usePageChildrenWithProperties } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
 import { apiClient } from '../../config/api';
@@ -14,7 +15,7 @@ import {
 interface BoardViewProps {
   parentGuid: string;
   boardConfig?: BoardConfig;
-  onNavigateToPage: (guid: string) => void;
+  onNavigateToPage?: (guid: string) => void;
   onAddCard?: (state: string) => void;
 }
 
@@ -44,7 +45,6 @@ function getColumnColor(name: string, configColors?: Record<string, string>): st
 export const BoardView: React.FC<BoardViewProps> = ({
   parentGuid,
   boardConfig,
-  onNavigateToPage,
   onAddCard,
 }) => {
   // Deep fetch when boardConfig specifies a target type
@@ -57,6 +57,8 @@ export const BoardView: React.FC<BoardViewProps> = ({
 
   // Drag state
   const [draggedGuid, setDraggedGuid] = useState<string | null>(null);
+  // Card summary dialog
+  const [selectedCard, setSelectedCard] = useState<PageChildDetail | null>(null);
   // Toast notification for errors
   const [toast, setToast] = useState<string | null>(null);
 
@@ -235,7 +237,8 @@ export const BoardView: React.FC<BoardViewProps> = ({
               color={getColumnColor(colName, boardConfig?.colors)}
               cards={cardsByColumn[colName] || []}
               pageTypes={pageTypesMap}
-              onNavigate={onNavigateToPage}
+              swapTitles={boardConfig?.swapTitles}
+              onCardClick={setSelectedCard}
               onCardDragStart={handleDragStart}
               onCardDrop={handleDrop}
               onAddCard={onAddCard}
@@ -243,6 +246,14 @@ export const BoardView: React.FC<BoardViewProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Card summary dialog */}
+      <CardSummaryDialog
+        card={selectedCard}
+        pageType={selectedCard?.pageType ? pageTypesMap[selectedCard.pageType] : undefined}
+        onClose={() => setSelectedCard(null)}
+        parentGuid={parentGuid}
+      />
     </div>
   );
 };

@@ -32,6 +32,8 @@ const BoardConfigSchema = z.object({
   targetTypeGuid: z.string().uuid().optional(),
   depth: z.number().min(1).max(10).optional(),
   showParentTitle: z.boolean().optional(),
+  swapTitles: z.boolean().optional(),
+  defaultView: z.enum(['content', 'board']).optional(),
 }).nullable().optional();
 
 // Request validation schema
