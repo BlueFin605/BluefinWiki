@@ -219,7 +219,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-[15vh] z-50"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-0 md:pt-[15vh] z-50"
       onClick={handleBackdropClick}
       role="presentation"
     >
@@ -233,7 +233,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
       />
 
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[70vh] flex flex-col"
+        className="bg-white dark:bg-gray-800 shadow-2xl w-full h-full md:h-auto md:rounded-xl md:max-w-2xl md:max-h-[70vh] flex flex-col"
         role="dialog"
         aria-label="Search wiki"
         aria-modal="true"

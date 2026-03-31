@@ -112,9 +112,9 @@ No breadcrumbs, no table of contents, no sitemap view, no recent changes feed. T
 
 JWT contains role claims but no permission middleware enforces them on API endpoints. No draft visibility filtering. No UI role-based element visibility. The two-role model (Admin/Standard) is defined in Cognito but not enforced beyond basic auth.
 
-### Mobile Optimization (Spec 12) — Not Started
+### Mobile Optimization (Spec 12) — In Progress
 
-Tailwind is configured but no responsive breakpoints defined. No hamburger menu, no collapsible navigation drawer, no mobile-optimized editor toolbar, no touch-friendly sizing.
+Responsive layout implemented: `useMediaQuery` hook drives sidebar-to-drawer on mobile, `MobileDrawer` component for navigation and inspector panels, compact editor toolbar fixed at bottom on mobile, split view disabled on mobile (edit/preview toggle only), search dialog full-screen on mobile, 44px touch targets. PWA installed via `vite-plugin-pwa` with manifest, icons, service worker (precache + NetworkFirst API caching). Remaining: swipe gesture for drawer, full offline editing support, manual testing on iOS Safari and Android Chrome.
 
 ### Dashboard (Spec 13) — Not Started
 

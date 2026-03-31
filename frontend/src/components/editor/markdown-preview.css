@@ -107,10 +107,15 @@
   .markdown-preview table {
     font-size: 0.875rem;
   }
-  
+
   .markdown-preview th,
   .markdown-preview td {
     padding: 0.5rem;
+  }
+
+  .markdown-preview img {
+    max-width: 100%;
+    height: auto;
   }
 }
 
