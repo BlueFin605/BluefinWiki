@@ -981,6 +981,21 @@ namespace Infrastructure.Stacks
                 Description = "Get backlinks for a page"
             });
 
+            var pagesAncestorsFunction = new LambdaFunction(this, "PagesAncestorsFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-ancestors",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-ancestors.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Get ancestor pages for breadcrumb navigation"
+            });
+
             var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
             {
                 FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-upload",
@@ -1261,6 +1276,14 @@ namespace Infrastructure.Stacks
             // PUT /pages/{guid}/move - Move page to new parent
             var moveResource = pageGuidResource.AddResource("move");
             moveResource.AddMethod("PUT", new LambdaIntegration(pagesMoveFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // GET /pages/{guid}/ancestors - Get ancestor pages for breadcrumbs
+            var ancestorsResource = pageGuidResource.AddResource("ancestors");
+            ancestorsResource.AddMethod("GET", new LambdaIntegration(pagesAncestorsFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
