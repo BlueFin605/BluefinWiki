@@ -3,11 +3,19 @@ description: Plan for GUID-to-path index — eliminate full S3 bucket scans when
 tags: [bluefinwiki, plan, index, performance, s3, dynamodb]
 audience: { human: 30, agent: 70 }
 purpose: { plan: 95, design: 5 }
+status: completed
+completed: 2026-04-01
 ---
 
 # Plan: Page Index
 
 Implements: [Design](../design.md) — Storage architecture, performance
+
+## Status
+
+**Completed** — 2026-04-01
+
+All done criteria met: DynamoDB `page_index` table created, index maintained on create/move/delete, `findPageKey` uses index lookup with S3 scan fallback, rebuild utility available.
 
 ## Scope
 
