@@ -11,6 +11,7 @@ import { getLayout, setLayout } from '../../stores/layoutStore';
 import { Backlink } from '../../hooks/usePages';
 import { useMediaQuery, MOBILE } from '../../hooks/useMediaQuery';
 import { MobileDrawer } from '../common/MobileDrawer';
+import { TableOfContents } from '../common/TableOfContents';
 
 interface EditorPaneProps {
   initialContent?: string;
@@ -31,6 +32,10 @@ interface EditorPaneProps {
   backlinks?: Backlink[];
   backlinksLoading?: boolean;
   onPageClick?: (guid: string) => void;
+  /** When true, start in edit mode (e.g. newly created page) */
+  forceEditMode?: boolean;
+  /** Called after forceEditMode has been consumed */
+  onEditModeConsumed?: () => void;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -62,6 +67,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   backlinks = [],
   backlinksLoading = false,
   onPageClick,
+  forceEditMode,
+  onEditModeConsumed,
 }) => {
   const isMobile = useMediaQuery(MOBILE);
 
@@ -69,8 +76,13 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   // key={pageGuid} on this component ensures fresh state per page.
   const [content, setContent] = useState(draftContent ?? initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(
-    showPreview ? (draftContent != null ? 'split' : 'preview') : 'edit'
+    forceEditMode ? 'edit' : showPreview ? (draftContent != null ? 'split' : 'preview') : 'edit'
   );
+
+  // Consume the forceEditMode flag so it doesn't persist
+  React.useEffect(() => {
+    if (forceEditMode) onEditModeConsumed?.();
+  }, [forceEditMode, onEditModeConsumed]);
   const [dividerPosition, setDividerPosition] = useState(() => getLayout().editorSplitPosition);
   const [showInspector, setShowInspector] = useState(() => getLayout().inspectorVisible);
   const [inspectorWidth, setInspectorWidth] = useState(() => getLayout().inspectorWidth);
@@ -444,15 +456,25 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
           {(effectiveViewMode === 'preview' || effectiveViewMode === 'split') && (
             <div
-              className="overflow-hidden"
+              className="overflow-hidden flex flex-col"
               style={{ width: effectiveViewMode === 'split' ? `${100 - dividerPosition}%` : '100%' }}
             >
-              <MarkdownPreview
-                content={content}
-                onBrokenLinkClick={handleBrokenLinkClick}
-                pageGuid={pageGuid}
-                onImageResize={editable ? handleImageResize : undefined}
-              />
+              {isMobile && effectiveViewMode === 'preview' && (
+                <TableOfContents content={content} />
+              )}
+              <div className="flex-1 flex overflow-hidden min-h-0">
+                <div className="flex-1 overflow-hidden">
+                  <MarkdownPreview
+                    content={content}
+                    onBrokenLinkClick={handleBrokenLinkClick}
+                    pageGuid={pageGuid}
+                    onImageResize={editable ? handleImageResize : undefined}
+                  />
+                </div>
+                {!isMobile && effectiveViewMode === 'preview' && (
+                  <TableOfContents content={content} />
+                )}
+              </div>
             </div>
           )}
         </div>

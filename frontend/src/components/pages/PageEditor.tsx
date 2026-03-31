@@ -16,11 +16,16 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getDraft, saveDraft, clearDraft } from '../../stores/draftsStore';
 import { BoardView } from '../board/BoardView';
 import { BoardSettingsPanel } from '../board/BoardSettingsPanel';
+import { Breadcrumbs } from '../common/Breadcrumbs';
 
 interface PageEditorProps {
   pageGuid: string;
   onPageDeleted?: () => void;
   onNavigateToPage?: (guid: string) => void;
+  /** When true, open in edit mode (e.g. newly created page) */
+  initialEditMode?: boolean;
+  /** Called after initialEditMode has been consumed so it doesn't persist across navigations */
+  onEditModeConsumed?: () => void;
 }
 
 function metadataFromPage(page: {
@@ -47,6 +52,8 @@ function metadataFromPage(page: {
 export const PageEditor: React.FC<PageEditorProps> = ({
   pageGuid,
   onNavigateToPage,
+  initialEditMode,
+  onEditModeConsumed,
 }) => {
   const { user } = useAuth();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -224,6 +231,13 @@ export const PageEditor: React.FC<PageEditorProps> = ({
 
   return (
     <div className="h-full flex flex-col">
+      <Breadcrumbs
+        pageGuid={pageGuid}
+        pageTitle={metadata?.title || pageData?.title || 'Untitled'}
+        onNavigate={(guid) => onNavigateToPage?.(guid)}
+        onNavigateHome={() => onNavigateToPage?.('')}
+      />
+
       {saveError && (
         <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2 shrink-0">
           <div className="flex items-center justify-between">
@@ -327,6 +341,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             backlinks={backlinksData?.backlinks || []}
             backlinksLoading={backlinksLoading}
             onPageClick={onNavigateToPage}
+            forceEditMode={initialEditMode}
+            onEditModeConsumed={onEditModeConsumed}
           />
         )}
       </div>

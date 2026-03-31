@@ -1,22 +1,25 @@
 /**
  * NewPageModal Component
- * 
+ *
  * Modal for creating a new page with:
  * - Title input with validation
  * - Parent page selection (tree dropdown)
  * - Optional description field
- * - "Create as root page" checkbox
+ * - Page type selector (filtered by parent's allowed children)
+ * - Property inheritance from parent page
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CreatePageRequest, PageProperty, PropertyType } from '../../types/page';
-import { useCreatePage } from '../../hooks/usePages';
-import { usePageTypes } from '../../hooks/usePageTypes';
+import { useCreatePage, usePageDetail } from '../../hooks/usePages';
+import { usePageTypes, useAllowedChildTypes } from '../../hooks/usePageTypes';
 
 interface NewPageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultParentGuid?: string | null;  onPageCreated?: () => void;}
+  defaultParentGuid?: string | null;
+  onPageCreated?: (newPageGuid: string) => void;
+}
 
 export const NewPageModal: React.FC<NewPageModalProps> = ({
   isOpen,
@@ -30,12 +33,45 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const createPage = useCreatePage();
-  const { data: pageTypes = [] } = usePageTypes();
+  const { data: allPageTypes = [] } = usePageTypes();
 
-  // Build default properties from the selected page type definition
+  // Fetch parent page detail to get its pageType and properties
+  const { data: parentPage } = usePageDetail(defaultParentGuid || '');
+  const parentTypeGuid = parentPage?.pageType;
+
+  // Fetch allowed child types when parent has a page type
+  const { data: allowedChildData } = useAllowedChildTypes(parentTypeGuid);
+
+  // Determine which page types to show in the dropdown
+  const availablePageTypes = useMemo(() => {
+    if (!defaultParentGuid || !parentTypeGuid || !allowedChildData) {
+      // Root page or untyped parent — show all types
+      return allPageTypes;
+    }
+    // Filter to only allowed child types
+    return allowedChildData.allowedChildTypes;
+  }, [defaultParentGuid, parentTypeGuid, allowedChildData, allPageTypes]);
+
+  // Whether untyped wiki pages are allowed as children
+  const allowWikiPage = !defaultParentGuid || !parentTypeGuid || !allowedChildData || allowedChildData.allowWikiPageChildren;
+
+  // Auto-select when there's exactly one allowed type and no wiki page option
+  useEffect(() => {
+    if (!isOpen) return;
+    if (availablePageTypes.length === 1 && !allowWikiPage) {
+      setSelectedPageType(availablePageTypes[0].guid);
+    } else if (availablePageTypes.length === 1 && allowWikiPage) {
+      // One type + wiki page option — don't auto-select, let user choose
+    } else if (availablePageTypes.length === 0 && !allowWikiPage) {
+      // No types allowed — shouldn't happen but handle gracefully
+    }
+  }, [isOpen, availablePageTypes, allowWikiPage]);
+
+  // Build default properties from the selected page type, inheriting matching values from parent
   const defaultProperties = useMemo(() => {
     if (!selectedPageType) return undefined;
-    const typeDef = pageTypes.find((pt) => pt.guid === selectedPageType);
+    const typeDef = availablePageTypes.find((pt) => pt.guid === selectedPageType)
+      || allPageTypes.find((pt) => pt.guid === selectedPageType);
     if (!typeDef || typeDef.properties.length === 0) return undefined;
 
     const defaults = (t: PropertyType): string | number | string[] => {
@@ -47,12 +83,20 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
       }
     };
 
+    const parentProps = parentPage?.properties;
+
     const props: Record<string, PageProperty> = {};
     for (const p of typeDef.properties) {
-      props[p.name] = { type: p.type, value: p.defaultValue ?? defaults(p.type) };
+      // Inherit from parent if the parent has a property with the same name and type
+      const parentProp = parentProps?.[p.name];
+      if (parentProp && parentProp.type === p.type) {
+        props[p.name] = { type: p.type, value: parentProp.value };
+      } else {
+        props[p.name] = { type: p.type, value: p.defaultValue ?? defaults(p.type) };
+      }
     }
     return props;
-  }, [selectedPageType, pageTypes]);
+  }, [selectedPageType, availablePageTypes, allPageTypes, parentPage]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -84,10 +128,9 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
     };
 
     try {
-      await createPage.mutateAsync(request);
+      const newPage = await createPage.mutateAsync(request);
       handleClose();
-      // Trigger parent refresh
-      onPageCreated?.();
+      onPageCreated?.(newPage.guid);
     } catch (error) {
       console.error('Failed to create page:', error);
       setErrors({
@@ -177,10 +220,10 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
           </div>
 
           {/* Page Type Selector */}
-          {pageTypes.length > 0 && (
+          {(availablePageTypes.length > 0 || !allowWikiPage) && (
             <div className="mb-4">
               <label htmlFor="page-type" className="block text-sm font-medium text-gray-700 mb-1">
-                Page Type (optional)
+                Page Type{!allowWikiPage && availablePageTypes.length === 1 ? '' : ' (optional)'}
               </label>
               <select
                 id="page-type"
@@ -188,8 +231,8 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
                 onChange={(e) => setSelectedPageType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Wiki Page (no type)</option>
-                {pageTypes.map(pt => (
+                {allowWikiPage && <option value="">Wiki Page (no type)</option>}
+                {availablePageTypes.map(pt => (
                   <option key={pt.guid} value={pt.guid}>
                     {pt.icon} {pt.name}
                   </option>
