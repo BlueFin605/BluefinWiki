@@ -396,6 +396,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     if (content.pageType) {
       lines.push(`pageType: "${content.pageType}"`);
     }
+
+    // Add boardConfig if present (stored as single-line JSON)
+    if (content.boardConfig) {
+      lines.push(`boardConfig: '${JSON.stringify(content.boardConfig)}'`);
+    }
     
     // Add tags in YAML list format
     if (content.tags.length > 0) {
@@ -570,6 +575,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
         ...(metadata.pageType ? { pageType: Array.isArray(metadata.pageType) ? metadata.pageType[0] : metadata.pageType } : {}),
         ...(properties ? { properties } : {}),
+        ...(metadata.boardConfig ? (() => {
+          try {
+            const raw = Array.isArray(metadata.boardConfig) ? metadata.boardConfig[0] : metadata.boardConfig;
+            return { boardConfig: JSON.parse(raw) };
+          } catch { return {}; }
+        })() : {}),
         createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
         modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',
         createdAt: Array.isArray(metadata.createdAt) ? metadata.createdAt[0] : metadata.createdAt || this.formatDate(),

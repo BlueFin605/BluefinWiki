@@ -54,20 +54,33 @@ The wiki currently shows hierarchy only as a tree in the sidebar. For workflow-o
 - The board view is a sibling of the page content view (tab or toggle), not a replacement
 - The page's own content (Markdown) is still viewable and editable — the board is an additional view of its children
 
-### State Configuration
+### Board Configuration
 
-The parent page can configure the board via a `boardConfig` in its frontmatter properties:
+The parent page stores board settings as a first-class `boardConfig` field in frontmatter (not a custom property). This is a JSON object stored as a single-line string:
 
 ```yaml
-properties:
-  board-config:
-    type: string
-    value: '{"columns":["Backlog","In Progress","Done"],"colors":{"Backlog":"#gray","In Progress":"#blue","Done":"#green"}}'
+boardConfig: '{"columns":["Backlog","In Progress","Done"],"colors":{"Backlog":"#6b7280","In Progress":"#3b82f6","Done":"#22c55e"}}'
 ```
 
-- If no `board-config` property exists, columns are derived dynamically from the distinct `state` values of child pages
+- If no `boardConfig` exists, columns are derived dynamically from the distinct `state` values of child pages
 - Column order: configured order first, then any unconfigured states alphabetically at the end
 - An "Uncategorised" column appears for children with no `state` property (or children with no type)
+- A settings panel (gear icon in board header) provides a UI for configuring columns, colors, target type, and display options — no need to edit JSON directly
+
+### Deep Board (Descendants by Type)
+
+The board can display descendants at any depth, filtered by page type. This is configured via fields in `boardConfig`:
+
+```yaml
+boardConfig: '{"columns":["Unwatched","Watching","Completed"],"targetTypeGuid":"<season-type-guid>","depth":10,"showParentTitle":true}'
+```
+
+- `targetTypeGuid` (optional) — page type GUID to collect from descendants. When set, the board recursively walks children up to `depth` levels and shows only pages matching this type.
+- `depth` (optional, default 1, max 10) — how many hierarchy levels to search
+- `showParentTitle` (optional, default true when `targetTypeGuid` is set) — show the immediate parent's title as a subtitle on each card, providing context (e.g., "Severance" on a Season card)
+- The settings panel lets users switch between "Direct children" and any page type that has a `state` property
+- Settings persist in frontmatter so they apply for all users
+- When no `targetTypeGuid` is set, the board shows direct children (original behaviour)
 
 ### Board Layout
 
@@ -116,7 +129,7 @@ properties:
 - **Board is read-only for hierarchy** — you can change state by dragging between columns, but you cannot reparent pages on the board. Use the sidebar tree for that.
 - **Board does not create pages** — there should be a "+ Add" button at the bottom of each column that creates a new child page with the appropriate type and `state` pre-set. But the actual page creation uses the existing create flow.
 - **State is just a string property** — no workflow engine, no transitions, no state machine. Any card can move to any column. Workflow rules can come later.
-- **No swimlanes in MVP** — all cards in one row per column. Grouping by a second property (e.g., by season within a show) is a future enhancement.
+- **No swimlanes in MVP** — all cards in one row per column. Grouping by a second property is a future enhancement. Deep board (descendants by type) provides an alternative way to see nested content on a single board.
 - **No WIP limits in MVP** — columns accept unlimited cards.
 
 ## Error Policy
