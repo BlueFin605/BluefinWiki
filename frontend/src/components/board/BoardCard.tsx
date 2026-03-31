@@ -39,16 +39,21 @@ export const BoardCard: React.FC<BoardCardProps> = ({
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') onNavigate(card.guid); }}
     >
-      {/* Type icon + title */}
+      {/* Type icon + title + parent subtitle */}
       <div className="flex items-start gap-2">
         {pageType && (
           <span className="text-base shrink-0 mt-0.5" title={pageType.name}>
             {pageType.icon}
           </span>
         )}
-        <span className="font-medium text-sm text-gray-900 leading-tight line-clamp-2">
-          {card.title}
-        </span>
+        <div className="min-w-0">
+          <span className="font-medium text-sm text-gray-900 leading-tight line-clamp-2 block">
+            {card.title}
+          </span>
+          {card.parentTitle && (
+            <span className="text-xs text-gray-400 truncate block">{card.parentTitle}</span>
+          )}
+        </div>
       </div>
 
       {/* Key properties */}

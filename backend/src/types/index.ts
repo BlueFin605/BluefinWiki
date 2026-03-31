@@ -88,6 +88,15 @@ export interface PageProperty {
   value: string | number | string[];
 }
 
+/** Board view configuration stored as a first-class frontmatter field */
+export interface BoardConfig {
+  columns?: string[];
+  colors?: Record<string, string>;
+  targetTypeGuid?: string;
+  depth?: number;
+  showParentTitle?: boolean;
+}
+
 export interface PageContent {
   guid: string;
   title: string;
@@ -98,6 +107,7 @@ export interface PageContent {
   description?: string; // Optional page description
   pageType?: string; // Page type GUID — references PageTypeDefinition
   properties?: Record<string, PageProperty>;
+  boardConfig?: BoardConfig; // Kanban board view configuration
   createdBy: string; // Cognito sub
   modifiedBy: string; // Cognito sub
   createdAt: string; // ISO 8601
@@ -142,6 +152,7 @@ export interface PageSummary {
 export interface PageChildDetail extends PageSummary {
   pageType?: string;
   properties?: Record<string, PageProperty>;
+  parentTitle?: string; // Populated for deep board fetches — title of the immediate parent
 }
 
 export interface AttachmentUploadInput {

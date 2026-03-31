@@ -38,6 +38,7 @@ export interface PageContent {
   description?: string;
   pageType?: string;
   properties?: Record<string, PageProperty>;
+  boardConfig?: BoardConfig;
   createdBy: string;
   modifiedBy: string;
   createdAt: string;
@@ -64,12 +65,16 @@ export interface PageTreeNode extends PageSummary {
 export interface PageChildDetail extends PageSummary {
   pageType?: string;
   properties?: Record<string, PageProperty>;
+  parentTitle?: string; // Populated for deep board fetches — title of the immediate parent
 }
 
-/** Board configuration stored in parent page's board-config property */
+/** Board view configuration — stored as first-class frontmatter field on parent page */
 export interface BoardConfig {
-  columns: string[];
-  colors: Record<string, string>;
+  columns?: string[];
+  colors?: Record<string, string>;
+  targetTypeGuid?: string;  // Page type to collect from descendants (deep board)
+  depth?: number;            // Max levels to recurse (default 1 = direct children; cap at 10)
+  showParentTitle?: boolean; // Show parent page title as card subtitle (default true when targetTypeGuid set)
 }
 
 export interface CreatePageRequest {
@@ -88,6 +93,7 @@ export interface UpdatePageRequest {
   tags?: string[];
   pageType?: string | null;
   properties?: Record<string, PageProperty>;
+  boardConfig?: BoardConfig | null;
 }
 
 export interface MovePageRequest {

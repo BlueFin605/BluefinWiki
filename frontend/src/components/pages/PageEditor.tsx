@@ -11,9 +11,11 @@ import { PageMetadata } from '../editor/PagePropertiesPanel';
 import { usePageDetail, useUpdatePage, useBacklinks, usePageChildrenWithProperties } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
 import { UpdatePageRequest, BoardConfig } from '../../types/page';
+import { apiClient } from '../../config/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDraft, saveDraft, clearDraft } from '../../stores/draftsStore';
 import { BoardView } from '../board/BoardView';
+import { BoardSettingsPanel } from '../board/BoardSettingsPanel';
 
 interface PageEditorProps {
   pageGuid: string;
@@ -61,8 +63,12 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   const { data: childrenWithProps = [] } = usePageChildrenWithProperties(pageGuid);
   const { data: pageTypesList = [] } = usePageTypes();
 
-  // Check if any child has a page type with a 'state' property
+  // Board config is now a first-class frontmatter field
+  const boardConfig = pageData?.boardConfig;
+
+  // Check if board view is available
   const boardEligible = useMemo(() => {
+    if (boardConfig?.targetTypeGuid) return true;
     if (childrenWithProps.length === 0) return false;
     const typeGuids = new Set(pageTypesList.map((pt) => pt.guid));
     return childrenWithProps.some(
@@ -71,20 +77,29 @@ export const PageEditor: React.FC<PageEditorProps> = ({
         typeGuids.has(child.pageType) &&
         child.properties?.state !== undefined
     );
-  }, [childrenWithProps, pageTypesList]);
+  }, [childrenWithProps, pageTypesList, boardConfig]);
 
-  // Parse board-config from parent page properties
-  const boardConfig = useMemo((): BoardConfig | undefined => {
-    const configProp = pageData?.properties?.['board-config'];
-    if (!configProp || typeof configProp.value !== 'string') return undefined;
-    try {
-      const parsed = JSON.parse(configProp.value);
-      if (parsed.columns && Array.isArray(parsed.columns)) return parsed as BoardConfig;
-    } catch { /* fall back to dynamic columns */ }
-    return undefined;
-  }, [pageData?.properties]);
+  // Page types that have a 'state' property (candidates for board target type)
+  const boardableTypes = useMemo(
+    () => pageTypesList.filter((pt) => pt.properties.some((p) => p.name === 'state')),
+    [pageTypesList],
+  );
 
   const [activeView, setActiveView] = useState<'content' | 'board'>('content');
+  const [showBoardSettings, setShowBoardSettings] = useState(false);
+
+  // Persist board config as a first-class frontmatter field
+  const saveBoardConfig = useCallback(
+    async (newConfig: BoardConfig | null) => {
+      try {
+        await apiClient.put(`/pages/${pageGuid}`, { boardConfig: newConfig });
+        refetch();
+      } catch {
+        // Silently fail — the board still works, just won't persist
+      }
+    },
+    [pageGuid, refetch],
+  );
 
   // Update page mutation
   const updatePage = useUpdatePage(pageGuid);
@@ -245,6 +260,34 @@ export const PageEditor: React.FC<PageEditorProps> = ({
           >
             Board
           </button>
+
+          {/* Board settings — visible when board tab is active */}
+          {activeView === 'board' && (
+            <div className="ml-auto relative">
+              <button
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                onClick={() => setShowBoardSettings(!showBoardSettings)}
+                title="Board settings"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              {showBoardSettings && (
+                <BoardSettingsPanel
+                  config={boardConfig}
+                  boardableTypes={boardableTypes}
+                  currentColumns={[]}
+                  onSave={(config) => {
+                    saveBoardConfig(config);
+                    setShowBoardSettings(false);
+                  }}
+                  onClose={() => setShowBoardSettings(false)}
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
 

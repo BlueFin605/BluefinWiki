@@ -26,6 +26,14 @@ const PagePropertySchema = z.object({
 
 const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Property names must be kebab-case');
 
+const BoardConfigSchema = z.object({
+  columns: z.array(z.string()).optional(),
+  colors: z.record(z.string()).optional(),
+  targetTypeGuid: z.string().uuid().optional(),
+  depth: z.number().min(1).max(10).optional(),
+  showParentTitle: z.boolean().optional(),
+}).nullable().optional();
+
 // Request validation schema
 const UpdatePageRequestSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be 200 characters or less').optional(),
@@ -34,6 +42,7 @@ const UpdatePageRequestSchema = z.object({
   status: z.enum(['published', 'archived']).optional(),
   pageType: z.string().uuid().nullable().optional(),
   properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
+  boardConfig: BoardConfigSchema,
 });
 
 /**
@@ -144,13 +153,18 @@ export const handler = withAuth(async (
     const mergedPageType = updates.pageType === null
       ? undefined
       : (updates.pageType ?? existingPage.pageType);
+    // Handle boardConfig: explicit null removes it, undefined keeps existing
+    const mergedBoardConfig = updates.boardConfig === null
+      ? undefined
+      : (updates.boardConfig ?? existingPage.boardConfig);
     const updatedPage: PageContent = {
       ...existingPage,
       ...Object.fromEntries(
-        Object.entries(updates).filter(([k]) => k !== 'pageType' && k !== 'properties')
+        Object.entries(updates).filter(([k]) => k !== 'pageType' && k !== 'properties' && k !== 'boardConfig')
       ),
       ...(mergedProperties ? { properties: mergedProperties } : {}),
       ...(mergedPageType ? { pageType: mergedPageType } : {}),
+      ...(mergedBoardConfig ? { boardConfig: mergedBoardConfig } : {}),
       modifiedBy: user.userId,
       modifiedAt: now,
       // Preserve fields that should not be updated via this endpoint
@@ -162,6 +176,10 @@ export const handler = withAuth(async (
     // Remove pageType if it was explicitly set to null
     if (updates.pageType === null) {
       delete updatedPage.pageType;
+    }
+    // Remove boardConfig if it was explicitly set to null
+    if (updates.boardConfig === null) {
+      delete updatedPage.boardConfig;
     }
     // Remove properties key if it's now empty
     if (updatedPage.properties && Object.keys(updatedPage.properties).length === 0) {

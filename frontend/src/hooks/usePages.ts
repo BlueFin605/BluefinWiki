@@ -58,14 +58,24 @@ export const usePageChildren = (parentGuid: string | null) => {
 };
 
 /**
- * Fetch children with pageType and properties included (for board view)
+ * Fetch children with pageType and properties included (for board view).
+ * When options.targetTypeGuid and options.depth are set, recursively collects
+ * descendants matching the given type up to the specified depth.
  */
-export const usePageChildrenWithProperties = (parentGuid: string | null) => {
+export const usePageChildrenWithProperties = (
+  parentGuid: string | null,
+  options?: { targetTypeGuid?: string; depth?: number },
+) => {
+  const targetType = options?.targetTypeGuid;
+  const depth = options?.depth;
   return useQuery({
-    queryKey: ['pages', 'children', parentGuid, 'with-properties'],
+    queryKey: ['pages', 'children', parentGuid, 'with-properties', targetType ?? null, depth ?? null],
     queryFn: async (): Promise<PageChildDetail[]> => {
       if (!parentGuid) return [];
-      const response = await apiClient.get(`/pages/${parentGuid}/children?include=properties`);
+      let url = `/pages/${parentGuid}/children?include=properties`;
+      if (targetType) url += `&type=${targetType}`;
+      if (depth) url += `&depth=${depth}`;
+      const response = await apiClient.get(url);
       return response.data.children || [];
     },
     enabled: !!parentGuid,

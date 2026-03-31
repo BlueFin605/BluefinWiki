@@ -47,7 +47,11 @@ export const BoardView: React.FC<BoardViewProps> = ({
   onNavigateToPage,
   onAddCard,
 }) => {
-  const { data: children = [], isLoading, error } = usePageChildrenWithProperties(parentGuid);
+  // Deep fetch when boardConfig specifies a target type
+  const deepFetchOptions = boardConfig?.targetTypeGuid
+    ? { targetTypeGuid: boardConfig.targetTypeGuid, depth: boardConfig.depth ?? 10 }
+    : undefined;
+  const { data: children = [], isLoading, error } = usePageChildrenWithProperties(parentGuid, deepFetchOptions);
   const { data: pageTypesList = [] } = usePageTypes();
   const queryClient = useQueryClient();
 
@@ -135,7 +139,11 @@ export const BoardView: React.FC<BoardViewProps> = ({
       }
 
       // Optimistic update: patch the query cache
-      const queryKey = ['pages', 'children', parentGuid, 'with-properties'];
+      const queryKey = [
+        'pages', 'children', parentGuid, 'with-properties',
+        boardConfig?.targetTypeGuid ?? null,
+        deepFetchOptions?.depth ?? null,
+      ];
       const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
 
       queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) =>
