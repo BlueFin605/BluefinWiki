@@ -9,6 +9,8 @@ import { ResizeDivider } from './ResizeDivider';
 import { useAttachments } from '../../hooks/useAttachments';
 import { getLayout, setLayout } from '../../stores/layoutStore';
 import { Backlink } from '../../hooks/usePages';
+import { useMediaQuery, MOBILE } from '../../hooks/useMediaQuery';
+import { MobileDrawer } from '../common/MobileDrawer';
 
 interface EditorPaneProps {
   initialContent?: string;
@@ -61,6 +63,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   backlinksLoading = false,
   onPageClick,
 }) => {
+  const isMobile = useMediaQuery(MOBILE);
+
   // Initialize with draft content if available, otherwise server content.
   // key={pageGuid} on this component ensures fresh state per page.
   const [content, setContent] = useState(draftContent ?? initialContent);
@@ -70,6 +74,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const [dividerPosition, setDividerPosition] = useState(() => getLayout().editorSplitPosition);
   const [showInspector, setShowInspector] = useState(() => getLayout().inspectorVisible);
   const [inspectorWidth, setInspectorWidth] = useState(() => getLayout().inspectorWidth);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+
+  // On mobile, force edit or preview — never split
+  const effectiveViewMode: ViewMode = isMobile && viewMode === 'split' ? 'edit' : viewMode;
   const [showCreatePageModal, setShowCreatePageModal] = useState(false);
   const [brokenLinkData, setBrokenLinkData] = useState<{ text: string; target: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -248,8 +256,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded">
       <button
         onClick={() => setViewMode('edit')}
-        className={`px-3 py-1 text-sm rounded ${
-          viewMode === 'edit'
+        className={`px-3 py-1.5 text-sm rounded ${
+          effectiveViewMode === 'edit'
             ? 'bg-white dark:bg-gray-700 shadow'
             : 'hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
@@ -258,22 +266,24 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       >
         Edit
       </button>
-      <button
-        onClick={() => setViewMode('split')}
-        className={`px-3 py-1 text-sm rounded ${
-          viewMode === 'split'
-            ? 'bg-white dark:bg-gray-700 shadow'
-            : 'hover:bg-gray-200 dark:hover:bg-gray-700'
-        }`}
-        title="Split view"
-        aria-label="Split view mode"
-      >
-        Split
-      </button>
+      {!isMobile && (
+        <button
+          onClick={() => setViewMode('split')}
+          className={`px-3 py-1.5 text-sm rounded ${
+            effectiveViewMode === 'split'
+              ? 'bg-white dark:bg-gray-700 shadow'
+              : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+          }`}
+          title="Split view"
+          aria-label="Split view mode"
+        >
+          Split
+        </button>
+      )}
       <button
         onClick={() => setViewMode('preview')}
-        className={`px-3 py-1 text-sm rounded ${
-          viewMode === 'preview'
+        className={`px-3 py-1.5 text-sm rounded ${
+          effectiveViewMode === 'preview'
             ? 'bg-white dark:bg-gray-700 shadow'
             : 'hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
@@ -370,24 +380,37 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => { const next = !showInspector; setShowInspector(next); setLayout({ inspectorVisible: next }); }}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              showInspector
-                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-                : 'hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-            title={showInspector ? 'Hide inspector' : 'Show inspector'}
-          >
-            {showInspector ? 'Hide Inspector' : 'Inspector'}
-          </button>
+          {isMobile ? (
+            <button
+              onClick={() => setMobileInspectorOpen(true)}
+              className="p-2.5 text-gray-500 hover:bg-gray-200 rounded-lg transition-colors"
+              title="Page info"
+              aria-label="Open page inspector"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={() => { const next = !showInspector; setShowInspector(next); setLayout({ inspectorVisible: next }); }}
+              className={`px-3 py-1 text-sm rounded transition-colors ${
+                showInspector
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                  : 'hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title={showInspector ? 'Hide inspector' : 'Show inspector'}
+            >
+              {showInspector ? 'Hide Inspector' : 'Inspector'}
+            </button>
+          )}
           {renderViewModeButtons()}
         </div>
       </div>
 
       {/* Markdown formatting toolbar */}
-      {editable && (viewMode === 'edit' || viewMode === 'split') && (
-        <MarkdownToolbar onAction={handleToolbarAction} disabled={!editable} />
+      {editable && (effectiveViewMode === 'edit' || effectiveViewMode === 'split') && (
+        <MarkdownToolbar onAction={handleToolbarAction} disabled={!editable} compact={isMobile} />
       )}
 
       {attachmentActionError && (
@@ -400,10 +423,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       <div ref={mainAreaRef} className="flex-1 flex overflow-hidden min-h-0">
         {/* Editor and/or preview panes */}
         <div ref={containerRef} className="flex-1 flex overflow-hidden min-w-0">
-          {(viewMode === 'edit' || viewMode === 'split') && (
+          {(effectiveViewMode === 'edit' || effectiveViewMode === 'split') && (
             <div
               className="overflow-hidden"
-              style={{ width: viewMode === 'split' ? `${dividerPosition}%` : '100%' }}
+              style={{ width: effectiveViewMode === 'split' ? `${dividerPosition}%` : '100%' }}
             >
               <MarkdownEditor
                 ref={editorRef}
@@ -415,14 +438,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             </div>
           )}
 
-          {viewMode === 'split' && (
+          {effectiveViewMode === 'split' && (
             <ResizeDivider orientation="vertical" onResize={handleEditorPreviewResize} />
           )}
 
-          {(viewMode === 'preview' || viewMode === 'split') && (
+          {(effectiveViewMode === 'preview' || effectiveViewMode === 'split') && (
             <div
               className="overflow-hidden"
-              style={{ width: viewMode === 'split' ? `${100 - dividerPosition}%` : '100%' }}
+              style={{ width: effectiveViewMode === 'split' ? `${100 - dividerPosition}%` : '100%' }}
             >
               <MarkdownPreview
                 content={content}
@@ -434,8 +457,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           )}
         </div>
 
-        {/* Inspector panel (right side) */}
-        {showInspector && pageGuid && (
+        {/* Inspector panel — desktop: side panel; mobile: bottom sheet */}
+        {!isMobile && showInspector && pageGuid && (
           <>
           <ResizeDivider orientation="vertical" onResize={handleInspectorResize} />
           <div className="shrink-0 overflow-hidden" style={{ width: `${inspectorWidth}px` }}>
@@ -458,6 +481,41 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           </>
         )}
       </div>
+
+      {/* Mobile inspector bottom sheet */}
+      {isMobile && pageGuid && (
+        <MobileDrawer isOpen={mobileInspectorOpen} onClose={() => setMobileInspectorOpen(false)} side="bottom">
+          <div className="h-[75vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">Page Info</h3>
+              <button
+                onClick={() => setMobileInspectorOpen(false)}
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <InspectorPanel
+              metadata={metadata}
+              onMetadataChange={onMetadataChange}
+              editable={editable}
+              onTitleChange={handleTitleChange}
+              pageGuid={pageGuid}
+              currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
+              pageAuthorId={pageAuthorId}
+              onInsertMarkdown={handleAttachmentInsert}
+              attachmentRefreshKey={attachmentRefreshKey}
+              backlinks={backlinks}
+              backlinksLoading={backlinksLoading}
+              onPageClick={onPageClick}
+            />
+          </div>
+        </MobileDrawer>
+      )}
 
       <CreatePageFromLinkModal
         isOpen={showCreatePageModal}

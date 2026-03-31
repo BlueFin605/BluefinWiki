@@ -21,8 +21,10 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { EditorErrorBoundary } from '../common/EditorErrorBoundary';
 import { PageEditor } from './PageEditor';
 import { SearchDialog } from '../search/SearchDialog';
+import { MobileDrawer } from '../common/MobileDrawer';
 import { PageTreeNode } from '../../types/page';
 import { useDeletePage } from '../../hooks/usePages';
+import { useMediaQuery, DESKTOP } from '../../hooks/useMediaQuery';
 
 export const PagesView: React.FC = () => {
   const navigate = useNavigate();
@@ -51,6 +53,8 @@ export const PagesView: React.FC = () => {
   const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
   const [treeWidth, setTreeWidth] = useState(() => getLayout().treeWidth);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const isDesktop = useMediaQuery(DESKTOP);
 
   // Cmd/Ctrl+K to open search
   useEffect(() => {
@@ -74,7 +78,7 @@ export const PagesView: React.FC = () => {
 
   const handlePageSelect = (guid: string) => {
     setActivePageGuid(guid);
-    // TODO: Load and display page content
+    setIsDrawerOpen(false);
   };
 
   const handleContextMenu = (event: React.MouseEvent, page: PageTreeNode) => {
@@ -142,116 +146,161 @@ export const PagesView: React.FC = () => {
     setTreeRefreshTrigger(prev => prev + 1);
   };
 
-  return (
-      <div className="flex h-screen bg-gray-50">
-        {/* Sidebar with page tree */}
-        <div className="bg-white flex flex-col shrink-0" style={{ width: `${treeWidth}px` }}>
-          {/* Header */}
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold text-gray-900">Pages</h2>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setIsSearchOpen(true)}
-                  className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Search wiki (Ctrl+K)"
-                  title="Search wiki (Ctrl+K)"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleNewRootPage}
-                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  aria-label="New page"
-                  title="Create new root page"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Page Tree */}
-          <div className="flex-1 overflow-y-auto p-2">
-            <PageTree
-              key={treeRefreshTrigger}
-              activePageGuid={activePageGuid}
-              onPageSelect={handlePageSelect}
-              onContextMenu={handleContextMenu}
-              onNewChild={handleNewChild}
-              onPageMoved={handlePageMoved}
-            />
-          </div>
-
-          {/* Settings link */}
-          <div className="border-t border-gray-200 p-2">
+  // Sidebar content shared between desktop sidebar and mobile drawer
+  const sidebarContent = (
+    <>
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold text-gray-900">Pages</h2>
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => { setIsSearchOpen(true); setIsDrawerOpen(false); }}
+              className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Search wiki (Ctrl+K)"
+              title="Search wiki (Ctrl+K)"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              Settings
+            </button>
+            <button
+              onClick={handleNewRootPage}
+              className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              aria-label="New page"
+              title="Create new root page"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
             </button>
           </div>
         </div>
+      </div>
 
-        <ResizeDivider orientation="vertical" onResize={handleTreeResize} />
+      {/* Page Tree */}
+      <div className="flex-1 overflow-y-auto p-2">
+        <PageTree
+          key={treeRefreshTrigger}
+          activePageGuid={activePageGuid}
+          onPageSelect={handlePageSelect}
+          onContextMenu={handleContextMenu}
+          onNewChild={handleNewChild}
+          onPageMoved={handlePageMoved}
+        />
+      </div>
+
+      {/* Settings link */}
+      <div className="border-t border-gray-200 p-2">
+        <button
+          onClick={() => { navigate('/settings'); setIsDrawerOpen(false); }}
+          className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Settings
+        </button>
+      </div>
+    </>
+  );
+
+  const mainContent = (
+    <div className="flex-1 overflow-hidden min-w-0">
+      {activePageGuid ? (
+        <EditorErrorBoundary
+          onReset={() => setActivePageGuid(undefined)}
+        >
+          <PageEditor
+            pageGuid={activePageGuid}
+            onPageDeleted={() => setActivePageGuid(undefined)}
+            onNavigateToPage={(guid) => setActivePageGuid(guid)}
+          />
+        </EditorErrorBoundary>
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-gray-500">
+            <svg
+              className="w-16 h-16 mx-auto mb-4 text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            <p className="text-lg mb-2">No page selected</p>
+            <p className="text-sm">Select a page from the tree or create a new one</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+      <div className="flex flex-col h-screen bg-gray-50 lg:flex-row">
+        {/* Mobile header — visible below lg breakpoint */}
+        {!isDesktop && (
+          <header className="flex items-center justify-between px-3 py-2 bg-white border-b border-gray-200 shrink-0">
+            <button
+              onClick={() => setIsDrawerOpen(true)}
+              className="p-2.5 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Open navigation"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="text-sm font-semibold text-gray-900 truncate mx-3 flex-1 text-center">
+              BlueFinWiki
+            </h1>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Search"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+              <button
+                onClick={handleNewRootPage}
+                className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                aria-label="New page"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Mobile drawer for sidebar */}
+        {!isDesktop && (
+          <MobileDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
+            {sidebarContent}
+          </MobileDrawer>
+        )}
+
+        {/* Desktop sidebar — visible at lg and above */}
+        {isDesktop && (
+          <>
+            <div className="bg-white flex flex-col shrink-0" style={{ width: `${treeWidth}px` }}>
+              {sidebarContent}
+            </div>
+            <ResizeDivider orientation="vertical" onResize={handleTreeResize} />
+          </>
+        )}
 
         {/* Main content area */}
-        <div className="flex-1 overflow-hidden min-w-0">
-          {activePageGuid ? (
-            <EditorErrorBoundary
-              onReset={() => {
-                // Reset to no page selected on error
-                setActivePageGuid(undefined);
-              }}
-            >
-              <PageEditor
-                pageGuid={activePageGuid}
-                onPageDeleted={() => {
-                  // Clear selection when page is deleted
-                  setActivePageGuid(undefined);
-                }}
-                onNavigateToPage={(guid) => {
-                  // Navigate to a different page
-                  setActivePageGuid(guid);
-                }}
-              />
-            </EditorErrorBoundary>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center text-gray-500">
-                <svg
-                  className="w-16 h-16 mx-auto mb-4 text-gray-300"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                <p className="text-lg mb-2">No page selected</p>
-                <p className="text-sm">Select a page from the tree or create a new one</p>
-              </div>
-            </div>
-          )}
-        </div>
+        {mainContent}
 
         {/* Context Menu */}
         {contextMenu && (
