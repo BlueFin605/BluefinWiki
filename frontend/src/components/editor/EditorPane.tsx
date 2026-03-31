@@ -32,6 +32,10 @@ interface EditorPaneProps {
   backlinks?: Backlink[];
   backlinksLoading?: boolean;
   onPageClick?: (guid: string) => void;
+  /** When true, start in edit mode (e.g. newly created page) */
+  forceEditMode?: boolean;
+  /** Called after forceEditMode has been consumed */
+  onEditModeConsumed?: () => void;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -63,6 +67,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   backlinks = [],
   backlinksLoading = false,
   onPageClick,
+  forceEditMode,
+  onEditModeConsumed,
 }) => {
   const isMobile = useMediaQuery(MOBILE);
 
@@ -70,8 +76,13 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   // key={pageGuid} on this component ensures fresh state per page.
   const [content, setContent] = useState(draftContent ?? initialContent);
   const [viewMode, setViewMode] = useState<ViewMode>(
-    showPreview ? (draftContent != null ? 'split' : 'preview') : 'edit'
+    forceEditMode ? 'edit' : showPreview ? (draftContent != null ? 'split' : 'preview') : 'edit'
   );
+
+  // Consume the forceEditMode flag so it doesn't persist
+  React.useEffect(() => {
+    if (forceEditMode) onEditModeConsumed?.();
+  }, [forceEditMode, onEditModeConsumed]);
   const [dividerPosition, setDividerPosition] = useState(() => getLayout().editorSplitPosition);
   const [showInspector, setShowInspector] = useState(() => getLayout().inspectorVisible);
   const [inspectorWidth, setInspectorWidth] = useState(() => getLayout().inspectorWidth);
