@@ -11,6 +11,7 @@ import { getLayout, setLayout } from '../../stores/layoutStore';
 import { Backlink } from '../../hooks/usePages';
 import { useMediaQuery, MOBILE } from '../../hooks/useMediaQuery';
 import { MobileDrawer } from '../common/MobileDrawer';
+import { TableOfContents } from '../common/TableOfContents';
 
 interface EditorPaneProps {
   initialContent?: string;
@@ -444,15 +445,25 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
           {(effectiveViewMode === 'preview' || effectiveViewMode === 'split') && (
             <div
-              className="overflow-hidden"
+              className="overflow-hidden flex flex-col"
               style={{ width: effectiveViewMode === 'split' ? `${100 - dividerPosition}%` : '100%' }}
             >
-              <MarkdownPreview
-                content={content}
-                onBrokenLinkClick={handleBrokenLinkClick}
-                pageGuid={pageGuid}
-                onImageResize={editable ? handleImageResize : undefined}
-              />
+              {isMobile && effectiveViewMode === 'preview' && (
+                <TableOfContents content={content} />
+              )}
+              <div className="flex-1 flex overflow-hidden min-h-0">
+                <div className="flex-1 overflow-hidden">
+                  <MarkdownPreview
+                    content={content}
+                    onBrokenLinkClick={handleBrokenLinkClick}
+                    pageGuid={pageGuid}
+                    onImageResize={editable ? handleImageResize : undefined}
+                  />
+                </div>
+                {!isMobile && effectiveViewMode === 'preview' && (
+                  <TableOfContents content={content} />
+                )}
+              </div>
             </div>
           )}
         </div>
