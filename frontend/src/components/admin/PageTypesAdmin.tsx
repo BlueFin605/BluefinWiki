@@ -15,6 +15,27 @@ const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'tags', label: 'Tags' },
 ];
 
+function parseDefault(type: PropertyType, raw: string): string | number | string[] | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  switch (type) {
+    case 'number': {
+      const n = Number(trimmed);
+      return isNaN(n) ? undefined : n;
+    }
+    case 'tags':
+      return trimmed.split(',').map(t => t.trim()).filter(Boolean);
+    default:
+      return trimmed;
+  }
+}
+
+function formatDefault(prop: PageTypeProperty): string {
+  if (prop.defaultValue === undefined || prop.defaultValue === null) return '';
+  if (Array.isArray(prop.defaultValue)) return prop.defaultValue.join(', ');
+  return String(prop.defaultValue);
+}
+
 // ============================================================================
 // Property Schema Builder
 // ============================================================================
@@ -26,15 +47,30 @@ const PropertySchemaBuilder: React.FC<{
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<PropertyType>('string');
   const [newRequired, setNewRequired] = useState(false);
+  const [newDefault, setNewDefault] = useState('');
 
   const addProperty = () => {
     const kebabName = newName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     if (!kebabName || properties.some(p => p.name === kebabName)) return;
 
-    onChange([...properties, { name: kebabName, type: newType, required: newRequired }]);
+    const defaultValue = parseDefault(newType, newDefault);
+    onChange([...properties, {
+      name: kebabName,
+      type: newType,
+      required: newRequired,
+      ...(defaultValue !== undefined ? { defaultValue } : {}),
+    }]);
     setNewName('');
     setNewType('string');
     setNewRequired(false);
+    setNewDefault('');
+  };
+
+  const updateDefault = (index: number, raw: string) => {
+    const updated = [...properties];
+    const defaultValue = parseDefault(updated[index].type, raw);
+    updated[index] = { ...updated[index], defaultValue };
+    onChange(updated);
   };
 
   const removeProperty = (index: number) => {
@@ -54,76 +90,101 @@ const PropertySchemaBuilder: React.FC<{
       <label className="block text-sm font-medium text-gray-700">Property Schema</label>
 
       {properties.map((prop, index) => (
-        <div key={prop.name} className="flex items-center gap-2 bg-gray-50 rounded p-2">
-          <div className="flex flex-col gap-1">
+        <div key={prop.name} className="bg-gray-50 rounded p-2 space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => moveProperty(index, -1)}
+                disabled={index === 0}
+                className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30"
+              >
+                ^
+              </button>
+              <button
+                type="button"
+                onClick={() => moveProperty(index, 1)}
+                disabled={index === properties.length - 1}
+                className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30"
+              >
+                v
+              </button>
+            </div>
+            <span className="text-sm font-mono flex-1">{prop.name}</span>
+            <span className="text-xs text-gray-500">{prop.type}</span>
+            {prop.required && (
+              <span className="text-xs bg-red-100 text-red-700 px-1 rounded">required</span>
+            )}
             <button
               type="button"
-              onClick={() => moveProperty(index, -1)}
-              disabled={index === 0}
-              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30"
+              onClick={() => removeProperty(index)}
+              className="text-xs text-red-500 hover:text-red-700"
             >
-              ^
-            </button>
-            <button
-              type="button"
-              onClick={() => moveProperty(index, 1)}
-              disabled={index === properties.length - 1}
-              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30"
-            >
-              v
+              Remove
             </button>
           </div>
-          <span className="text-sm font-mono flex-1">{prop.name}</span>
-          <span className="text-xs text-gray-500">{prop.type}</span>
-          {prop.required && (
-            <span className="text-xs bg-red-100 text-red-700 px-1 rounded">required</span>
-          )}
-          <button
-            type="button"
-            onClick={() => removeProperty(index)}
-            className="text-xs text-red-500 hover:text-red-700"
-          >
-            Remove
-          </button>
+          <div className="flex items-center gap-2 pl-6">
+            <span className="text-xs text-gray-400 shrink-0">Default:</span>
+            <input
+              type={prop.type === 'number' ? 'number' : 'text'}
+              value={formatDefault(prop)}
+              onChange={(e) => updateDefault(index, e.target.value)}
+              placeholder={prop.type === 'tags' ? 'tag1, tag2, ...' : 'none'}
+              className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
         </div>
       ))}
 
-      <div className="flex items-end gap-2 mt-2">
-        <div className="flex-1">
+      <div className="space-y-2 mt-2 bg-blue-50 rounded p-2">
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Property name"
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProperty())}
+            />
+          </div>
+          <select
+            value={newType}
+            onChange={(e) => setNewType(e.target.value as PropertyType)}
+            className="px-2 py-1 text-sm border border-gray-300 rounded"
+          >
+            {PROPERTY_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+          <label className="flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={newRequired}
+              onChange={(e) => setNewRequired(e.target.checked)}
+            />
+            Required
+          </label>
+          <button
+            type="button"
+            onClick={addProperty}
+            disabled={!newName.trim()}
+            className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 shrink-0">Default:</span>
           <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Property name"
-            className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+            type={newType === 'number' ? 'number' : 'text'}
+            value={newDefault}
+            onChange={(e) => setNewDefault(e.target.value)}
+            placeholder={newType === 'tags' ? 'tag1, tag2, ...' : 'none'}
+            className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProperty())}
           />
         </div>
-        <select
-          value={newType}
-          onChange={(e) => setNewType(e.target.value as PropertyType)}
-          className="px-2 py-1 text-sm border border-gray-300 rounded"
-        >
-          {PROPERTY_TYPES.map(t => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
-        <label className="flex items-center gap-1 text-sm">
-          <input
-            type="checkbox"
-            checked={newRequired}
-            onChange={(e) => setNewRequired(e.target.checked)}
-          />
-          Required
-        </label>
-        <button
-          type="button"
-          onClick={addProperty}
-          disabled={!newName.trim()}
-          className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          Add
-        </button>
       </div>
     </div>
   );
