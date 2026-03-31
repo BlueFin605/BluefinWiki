@@ -22,6 +22,10 @@ interface PageEditorProps {
   pageGuid: string;
   onPageDeleted?: () => void;
   onNavigateToPage?: (guid: string) => void;
+  /** When true, open in edit mode (e.g. newly created page) */
+  initialEditMode?: boolean;
+  /** Called after initialEditMode has been consumed so it doesn't persist across navigations */
+  onEditModeConsumed?: () => void;
 }
 
 function metadataFromPage(page: {
@@ -48,6 +52,8 @@ function metadataFromPage(page: {
 export const PageEditor: React.FC<PageEditorProps> = ({
   pageGuid,
   onNavigateToPage,
+  initialEditMode,
+  onEditModeConsumed,
 }) => {
   const { user } = useAuth();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -335,6 +341,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             backlinks={backlinksData?.backlinks || []}
             backlinksLoading={backlinksLoading}
             onPageClick={onNavigateToPage}
+            forceEditMode={initialEditMode}
+            onEditModeConsumed={onEditModeConsumed}
           />
         )}
       </div>
