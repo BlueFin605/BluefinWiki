@@ -27,6 +27,7 @@ import { handler as pagesListChildren } from './pages/pages-list-children.js';
 import { handler as pagesMove } from './pages/pages-move.js';
 import { handler as pagesSearch } from './pages/pages-search.js';
 import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
+import { handler as pagesAncestors } from './pages/pages-ancestors.js';
 import {
   pagesAttachmentsUpload,
   pagesAttachmentsDownload,
@@ -208,6 +209,7 @@ app.put('/pages/:guid', wrapLambdaHandler(pagesUpdate));
 app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));
 app.get('/pages/:guid/children', wrapLambdaHandler(pagesListChildren));
 app.post('/pages/:guid/move', wrapLambdaHandler(pagesMove));
+app.get('/pages/:guid/ancestors', wrapLambdaHandler(pagesAncestors));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
 app.get('/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
@@ -559,6 +561,7 @@ async function startServer() {
   console.log('   DELETE /pages/:guid');
   console.log('   GET    /pages/:guid/children');
   console.log('   POST   /pages/:guid/move');
+  console.log('   GET    /pages/:guid/ancestors');
   console.log('   GET    /pages/:guid/backlinks');
   console.log('   GET    /search');
   console.log('   GET    /api/search-index.json');

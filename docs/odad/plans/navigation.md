@@ -3,11 +3,24 @@ description: Plan for navigation aids — breadcrumbs, table of contents, and si
 tags: [bluefinwiki, plan, navigation, breadcrumbs, toc, sitemap]
 audience: { human: 30, agent: 70 }
 purpose: { plan: 95, design: 5 }
+status: partially-completed
+completed: 2026-04-01
 ---
 
 # Plan: Navigation & Discovery
 
 Implements: [Design](../design.md) — Frontend navigation, page hierarchy traversal
+
+## Status
+
+**Partially completed** — 2026-04-01
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Breadcrumbs | **Done** | Ancestor API, component in PageEditor, mobile collapse |
+| Table of Contents | **Done** | Heading parser, IntersectionObserver active tracking, desktop sticky sidebar, mobile collapsible |
+| Sitemap | **Dropped** | Redundant with existing page tree sidebar — adds no value for a small wiki |
+| Recent Changes | Not started | P3 optional, requires activity_log table from User Management plan |
 
 ## Scope
 

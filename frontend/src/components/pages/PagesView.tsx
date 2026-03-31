@@ -50,7 +50,8 @@ export const PagesView: React.FC = () => {
     isOpen: boolean;
     page: PageTreeNode | null;
   }>({ isOpen: false, page: null });
-  const [treeRefreshTrigger, setTreeRefreshTrigger] = useState(0);
+  const [ensureExpanded, setEnsureExpanded] = useState<string[]>([]);
+  const [openInEditMode, setOpenInEditMode] = useState(false);
   const [treeWidth, setTreeWidth] = useState(() => getLayout().treeWidth);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -78,6 +79,7 @@ export const PagesView: React.FC = () => {
 
   const handlePageSelect = (guid: string) => {
     setActivePageGuid(guid);
+    setOpenInEditMode(false);
     setIsDrawerOpen(false);
   };
 
@@ -107,8 +109,6 @@ export const PagesView: React.FC = () => {
       });
       setDeleteConfirm({ isOpen: false, page: null });
       setActivePageGuid(undefined);
-      // Trigger tree refresh
-      setTreeRefreshTrigger(prev => prev + 1);
     } catch (error: unknown) {
       console.error('Failed to delete page:', error);
       const axiosError = error as { response?: { data?: { error?: string } } };
@@ -131,19 +131,22 @@ export const PagesView: React.FC = () => {
     setNewPageModal({ isOpen: true, parentGuid: null });
   };
 
-  const handlePageCreated = () => {
-    // Trigger tree refresh after page creation
-    setTreeRefreshTrigger(prev => prev + 1);
+  const handlePageCreated = (newPageGuid: string) => {
+    // Select the new page and open in edit mode
+    setActivePageGuid(newPageGuid);
+    setOpenInEditMode(true);
+    // Expand the parent so the new page is visible in the tree
+    if (newPageModal.parentGuid) {
+      setEnsureExpanded(prev => [...prev, newPageModal.parentGuid!]);
+    }
   };
 
   const handlePageMoved = () => {
-    // Trigger tree refresh after page move
-    setTreeRefreshTrigger(prev => prev + 1);
+    // Query cache invalidation from the mutation handles tree refresh
   };
 
   const handlePageRenamed = () => {
-    // Trigger tree refresh after rename
-    setTreeRefreshTrigger(prev => prev + 1);
+    // Query cache invalidation from the mutation handles tree refresh
   };
 
   // Sidebar content shared between desktop sidebar and mobile drawer
@@ -181,8 +184,8 @@ export const PagesView: React.FC = () => {
       {/* Page Tree */}
       <div className="flex-1 overflow-y-auto p-2">
         <PageTree
-          key={treeRefreshTrigger}
           activePageGuid={activePageGuid}
+          ensureExpanded={ensureExpanded}
           onPageSelect={handlePageSelect}
           onContextMenu={handleContextMenu}
           onNewChild={handleNewChild}
@@ -215,7 +218,9 @@ export const PagesView: React.FC = () => {
           <PageEditor
             pageGuid={activePageGuid}
             onPageDeleted={() => setActivePageGuid(undefined)}
-            onNavigateToPage={(guid) => setActivePageGuid(guid)}
+            onNavigateToPage={(guid) => setActivePageGuid(guid || undefined)}
+            initialEditMode={openInEditMode}
+            onEditModeConsumed={() => setOpenInEditMode(false)}
           />
         </EditorErrorBoundary>
       ) : (

@@ -21,6 +21,8 @@ interface PageTreeProps {
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
   onNewChild: (page: PageTreeNode) => void;
   onPageMoved?: () => void;
+  /** GUIDs to ensure are expanded (e.g. parent of a newly created page) */
+  ensureExpanded?: string[];
 }
 
 export const PageTree: React.FC<PageTreeProps> = ({
@@ -29,8 +31,20 @@ export const PageTree: React.FC<PageTreeProps> = ({
   onContextMenu,
   onNewChild,
   onPageMoved,
+  ensureExpanded,
 }) => {
   const [expandedGuids, setExpandedGuids] = useState<Set<string>>(new Set());
+
+  // Expand nodes requested by parent (e.g. after creating a child page)
+  React.useEffect(() => {
+    if (ensureExpanded && ensureExpanded.length > 0) {
+      setExpandedGuids(prev => {
+        const next = new Set(prev);
+        for (const guid of ensureExpanded) next.add(guid);
+        return next;
+      });
+    }
+  }, [ensureExpanded]);
   const [draggedPage, setDraggedPage] = useState<PageTreeNode | null>(null);
 
   // Fetch root-level pages
