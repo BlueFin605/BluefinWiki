@@ -28,7 +28,6 @@ import { handler as pagesMove } from './pages/pages-move.js';
 import { handler as pagesSearch } from './pages/pages-search.js';
 import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
 import { handler as pagesAncestors } from './pages/pages-ancestors.js';
-import { handler as pagesSitemap } from './pages/pages-sitemap.js';
 import {
   pagesAttachmentsUpload,
   pagesAttachmentsDownload,
@@ -261,8 +260,6 @@ app.delete('/page-types/:guid', wrapLambdaHandler(pageTypesDelete));
 // ============================================================================
 // API Routes - Search Index
 // ============================================================================
-
-app.get('/api/sitemap', wrapLambdaHandler(pagesSitemap));
 
 app.get('/api/search-index.json', ((_req, res) => {
   buildSearchIndexData()
@@ -566,7 +563,6 @@ async function startServer() {
   console.log('   POST   /pages/:guid/move');
   console.log('   GET    /pages/:guid/ancestors');
   console.log('   GET    /pages/:guid/backlinks');
-  console.log('   GET    /api/sitemap');
   console.log('   GET    /search');
   console.log('   GET    /api/search-index.json');
   console.log('   POST   /pages/links/resolve');
