@@ -8,8 +8,8 @@
  * - "Create as root page" checkbox
  */
 
-import React, { useState } from 'react';
-import { CreatePageRequest } from '../../types/page';
+import React, { useState, useMemo } from 'react';
+import { CreatePageRequest, PageProperty, PropertyType } from '../../types/page';
 import { useCreatePage } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
 
@@ -31,6 +31,28 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
 
   const createPage = useCreatePage();
   const { data: pageTypes = [] } = usePageTypes();
+
+  // Build default properties from the selected page type definition
+  const defaultProperties = useMemo(() => {
+    if (!selectedPageType) return undefined;
+    const typeDef = pageTypes.find((pt) => pt.guid === selectedPageType);
+    if (!typeDef || typeDef.properties.length === 0) return undefined;
+
+    const defaults = (t: PropertyType): string | number | string[] => {
+      switch (t) {
+        case 'tags': return [];
+        case 'number': return 0;
+        case 'date': return '';
+        default: return '';
+      }
+    };
+
+    const props: Record<string, PageProperty> = {};
+    for (const p of typeDef.properties) {
+      props[p.name] = { type: p.type, value: p.defaultValue ?? defaults(p.type) };
+    }
+    return props;
+  }, [selectedPageType, pageTypes]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -58,6 +80,7 @@ export const NewPageModal: React.FC<NewPageModalProps> = ({
       description: description.trim() || undefined,
       content: '# ' + title.trim() + '\n\nStart writing your page content here...',
       ...(selectedPageType ? { pageType: selectedPageType } : {}),
+      ...(defaultProperties ? { properties: defaultProperties } : {}),
     };
 
     try {
