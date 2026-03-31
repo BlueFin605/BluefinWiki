@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { PageProperty } from '../../types/page';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { PageProperty, PropertyType } from '../../types/page';
 import { CustomPropertiesEditor } from './CustomPropertiesEditor';
 import { useTags, PAGE_TAGS_SCOPE } from '../../hooks/useTags';
 import { usePageTypes } from '../../hooks/usePageTypes';
@@ -90,6 +90,40 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [localTags, setLocalTags] = useState<string[]>(metadata.tags || []);
   const { data: pageTagVocabulary } = useTags(PAGE_TAGS_SCOPE);
+  const { data: pageTypes = [] } = usePageTypes();
+
+  // Merge page type definition properties with saved properties so new
+  // type-defined properties appear automatically on existing pages.
+  const mergedProperties = useMemo(() => {
+    const saved = metadata.properties || {};
+    if (!metadata.pageType) return saved;
+    const typeDef = pageTypes.find((pt) => pt.guid === metadata.pageType);
+    if (!typeDef) return saved;
+
+    const defaultForType = (t: PropertyType): string | number | string[] => {
+      switch (t) {
+        case 'tags': return [];
+        case 'number': return 0;
+        case 'date': return '';
+        default: return '';
+      }
+    };
+
+    const merged: Record<string, PageProperty> = {};
+    // Type-defined properties first (preserves definition order)
+    for (const ptProp of typeDef.properties) {
+      const kebabName = ptProp.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      merged[kebabName] = saved[kebabName] ?? {
+        type: ptProp.type,
+        value: ptProp.defaultValue ?? defaultForType(ptProp.type),
+      };
+    }
+    // Then any extra properties the page has beyond the type definition
+    for (const [name, prop] of Object.entries(saved)) {
+      if (!merged[name]) merged[name] = prop;
+    }
+    return merged;
+  }, [metadata.properties, metadata.pageType, pageTypes]);
 
   // Sync local state with prop changes
   useEffect(() => {
@@ -317,9 +351,9 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
         </div>
       </div>
 
-      {/* Custom Properties */}
+      {/* Custom Properties — merge page type schema with saved values */}
       <CustomPropertiesEditor
-        properties={metadata.properties || {}}
+        properties={mergedProperties}
         onChange={(properties) => onMetadataChange({ properties })}
         editable={editable}
       />
