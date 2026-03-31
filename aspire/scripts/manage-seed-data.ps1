@@ -24,7 +24,7 @@
     Exports current data to ./seed-snapshots/my-snapshot
 
 .EXAMPLE
-    .\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-03"
+    .\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-30"
     Imports data from the specified snapshot
 
 .EXAMPLE
@@ -32,7 +32,7 @@
     Runs full setup: init tables + seed baseline data
 
 .EXAMPLE
-    .\manage-seed-data.ps1 -Action reset -Source "seed-snapshots/2026-03-03"
+    .\manage-seed-data.ps1 -Action reset -Source "seed-snapshots/2026-03-30"
     Resets environment and restores from snapshot
 #>
 
@@ -88,7 +88,7 @@ switch ($Action) {
         if (-not $Source) {
             Write-Host "Error: -Source parameter is required for import action" -ForegroundColor Red
             Write-Host ""
-            Write-Host "Usage: .\manage-seed-data.ps1 -Action import -Source 'seed-snapshots/2026-03-03'" -ForegroundColor Yellow
+            Write-Host "Usage: .\manage-seed-data.ps1 -Action import -Source 'seed-snapshots/2026-03-30'" -ForegroundColor Yellow
             exit 1
         }
         

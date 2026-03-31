@@ -8,6 +8,7 @@ import { apiClient } from '../config/api';
 import {
   PageContent,
   PageSummary,
+  PageChildDetail,
   CreatePageRequest,
   UpdatePageRequest,
   MovePageRequest,
@@ -53,6 +54,31 @@ export const usePageChildren = (parentGuid: string | null) => {
       const response = await apiClient.get(path);
       return response.data.children || [];
     },
+  });
+};
+
+/**
+ * Fetch children with pageType and properties included (for board view).
+ * When options.targetTypeGuid and options.depth are set, recursively collects
+ * descendants matching the given type up to the specified depth.
+ */
+export const usePageChildrenWithProperties = (
+  parentGuid: string | null,
+  options?: { targetTypeGuid?: string; depth?: number },
+) => {
+  const targetType = options?.targetTypeGuid;
+  const depth = options?.depth;
+  return useQuery({
+    queryKey: ['pages', 'children', parentGuid, 'with-properties', targetType ?? null, depth ?? null],
+    queryFn: async (): Promise<PageChildDetail[]> => {
+      if (!parentGuid) return [];
+      let url = `/pages/${parentGuid}/children?include=properties`;
+      if (targetType) url += `&type=${targetType}`;
+      if (depth) url += `&depth=${depth}`;
+      const response = await apiClient.get(url);
+      return response.data.children || [];
+    },
+    enabled: !!parentGuid,
   });
 };
 

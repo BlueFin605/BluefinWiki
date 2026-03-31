@@ -87,7 +87,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const isMetadataDirty = metadata !== undefined && savedMetadataRef.current !== undefined && (
     metadata.title !== savedMetadataRef.current.title ||
     metadata.status !== savedMetadataRef.current.status ||
-    JSON.stringify(metadata.tags) !== JSON.stringify(savedMetadataRef.current.tags)
+    JSON.stringify(metadata.tags) !== JSON.stringify(savedMetadataRef.current.tags) ||
+    JSON.stringify(metadata.properties) !== JSON.stringify(savedMetadataRef.current.properties)
   );
   const isDirty = isContentDirty || isMetadataDirty;
 

@@ -45,8 +45,36 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import { BaseStoragePlugin } from './BaseStoragePlugin.js';
+
+/**
+ * Page index interface — allows injection of the DynamoDB page index
+ * without creating a hard dependency on the DynamoDB SDK at import time.
+ */
+export interface PageIndexProvider {
+  getPageKey(guid: string): Promise<string | null>;
+  putPageKey(record: { guid: string; s3Key: string; parentGuid: string | null; title: string; updatedAt: string }): Promise<void>;
+  deletePageKey(guid: string): Promise<void>;
+  deletePageKeys(guids: string[]): Promise<void>;
+}
+
+// No-op index that does nothing (used when no index is configured)
+const noOpIndex: PageIndexProvider = {
+  getPageKey: async () => null,
+  putPageKey: async () => {},
+  deletePageKey: async () => {},
+  deletePageKeys: async () => {},
+};
+
+/**
+ * Derive the .md file key from a page folder path.
+ * "parent/child/" + guid → "parent/child/child.md"
+ */
+function folderToFileKey(folder: string, guid: string): string {
+  return `${folder}${guid}.md`;
+}
 import {
   PageContent,
+  PageProperty,
   Version,
   PageSummary,
   AttachmentUploadInput,
@@ -59,23 +87,31 @@ interface S3StorageConfig {
   bucketName: string;
   region?: string;
   endpoint?: string; // For LocalStack
+  pageIndex?: PageIndexProvider; // Optional page index for GUID → S3 key lookups
 }
 
 export class S3StoragePlugin extends BaseStoragePlugin {
   private s3Client: S3Client;
   private bucketName: string;
+  private pageIndex: PageIndexProvider;
+  private repairingGuids: Set<string> = new Set();
 
   constructor(config: S3StorageConfig) {
     super('s3');
-    
+
     this.bucketName = config.bucketName;
+    this.pageIndex = config.pageIndex || noOpIndex;
     
     // Initialize S3 client
     this.s3Client = new S3Client({
       region: config.region || process.env.AWS_REGION || 'us-east-1',
-      ...(config.endpoint && { 
+      ...(config.endpoint && {
         endpoint: config.endpoint,
-        forcePathStyle: true // Required for LocalStack
+        forcePathStyle: true, // Required for LocalStack
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
+        },
       }),
     });
 
@@ -136,10 +172,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    * This ensures attachments are in the same folder as the page's .md file
    */
   private async buildAttachmentPath(pageGuid: string): Promise<string> {
-    // Always derive from the actual page key in S3 so malformed frontmatter
+    // Always derive from the actual page folder in S3 so malformed frontmatter
     // (for example folderId = pageGuid) cannot produce duplicated segments.
-    const pageKey = await this.findPageKey(pageGuid);
-    if (!pageKey) {
+    const folder = await this.findPageFolder(pageGuid);
+    if (!folder) {
       throw this.createError(
         `Page not found: ${pageGuid}`,
         'PAGE_NOT_FOUND',
@@ -147,44 +183,24 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       );
     }
 
-    // Remove trailing filename and add _attachments/
-    // "parent/child/child.md" -> "parent/child/_attachments/"
-    // "root/root.md" -> "root/_attachments/"
-    const lastSlashIndex = pageKey.lastIndexOf('/');
-    const directory = lastSlashIndex === -1 ? '' : pageKey.substring(0, lastSlashIndex + 1);
-
-    const pathSegments = directory.split('/').filter(Boolean);
-    while (
-      pathSegments.length >= 2 &&
-      pathSegments[pathSegments.length - 1] === pageGuid &&
-      pathSegments[pathSegments.length - 2] === pageGuid
-    ) {
-      pathSegments.pop();
-    }
-
-    const normalizedDirectory = pathSegments.length > 0 ? `${pathSegments.join('/')}/` : '';
-    return `${normalizedDirectory}_attachments/`;
+    return `${folder}_attachments/`;
   }
 
-  private inferParentGuidFromPageKey(pageKey: string, pageGuid: string): string {
-    const keySegments = pageKey.split('/').filter(Boolean);
-    if (keySegments.length < 2) {
+  private inferParentGuidFromFolder(folder: string, pageGuid: string): string {
+    // Folder format: "grandparent/parent/child/" — segments are ancestor GUIDs
+    const segments = folder.split('/').filter(Boolean);
+    if (segments.length < 2) {
       return '';
     }
 
-    const filename = keySegments[keySegments.length - 1];
-    if (filename !== `${pageGuid}.md`) {
-      return '';
-    }
+    // Last segment is the page's own guid, parent is the one before it
+    let parentIndex = segments.length - 2;
 
-    const directorySegments = keySegments.slice(0, -1);
-    let parentIndex = directorySegments.length - 2;
-
-    while (parentIndex >= 0 && directorySegments[parentIndex] === pageGuid) {
+    while (parentIndex >= 0 && segments[parentIndex] === pageGuid) {
       parentIndex -= 1;
     }
 
-    return parentIndex >= 0 ? directorySegments[parentIndex] : '';
+    return parentIndex >= 0 ? segments[parentIndex] : '';
   }
 
 
@@ -192,7 +208,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Parse YAML frontmatter from markdown content
    */
-  private parseFrontmatter(rawContent: string): { metadata: Record<string, string | string[] | undefined>; body: string } {
+  private parseFrontmatter(rawContent: string): { metadata: Record<string, string | string[] | undefined>; body: string; properties?: Record<string, PageProperty> } {
     // Normalize Windows CRLF to LF so regex matching works regardless of line endings
     const content = rawContent.replace(/\r\n/g, '\n');
     const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
@@ -209,22 +225,101 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     const yamlContent = match[1];
     const body = match[2];
 
-    // Simple YAML parser (supports basic key: value format and arrays)
+    // Simple YAML parser (supports basic key: value format, arrays, and properties block)
     const metadata: Record<string, string | string[] | undefined> = {};
     const lines = yamlContent.split('\n');
     let currentKey: string | null = null;
     let currentArray: string[] = [];
+    let inProperties = false;
+    let currentPropName: string | null = null;
+    let currentProp: Partial<PageProperty> = {};
+    const properties: Record<string, PageProperty> = {};
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      
+      const indent = line.length - line.trimStart().length;
+
+      // Detect entering/leaving the properties block
+      if (indent === 0 && line.trimStart().startsWith('properties:')) {
+        const value = line.substring(line.indexOf(':') + 1).trim();
+        if (value === '{}' || value === '') {
+          inProperties = true;
+          // Flush any pending top-level array
+          if (currentKey && currentArray.length > 0) {
+            metadata[currentKey] = currentArray;
+            currentKey = null;
+            currentArray = [];
+          }
+          continue;
+        }
+      }
+
+      if (inProperties) {
+        // A non-indented line means we left the properties block
+        if (indent === 0 && line.trim() !== '') {
+          // Save pending property
+          if (currentPropName && currentProp.type) {
+            properties[currentPropName] = currentProp as PageProperty;
+          }
+          inProperties = false;
+          currentPropName = null;
+          currentProp = {};
+          // Fall through to normal parsing for this line
+        } else {
+          // Parse property entries (indent 2 = property name, indent 4 = type/value)
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          if (indent === 2 && trimmed.includes(':')) {
+            // Save previous property
+            if (currentPropName && currentProp.type) {
+              properties[currentPropName] = currentProp as PageProperty;
+            }
+            const propName = trimmed.substring(0, trimmed.indexOf(':')).trim();
+            currentPropName = propName;
+            currentProp = {};
+          } else if (indent >= 4 && trimmed.includes(':')) {
+            const key = trimmed.substring(0, trimmed.indexOf(':')).trim();
+            let val = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+            // Remove quotes
+            if ((val.startsWith('"') && val.endsWith('"')) ||
+                (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.substring(1, val.length - 1);
+            }
+            if (key === 'type') {
+              currentProp.type = val as PageProperty['type'];
+            } else if (key === 'value') {
+              if (val.startsWith('[') && val.endsWith(']')) {
+                // Inline array
+                currentProp.value = val.substring(1, val.length - 1)
+                  .split(',')
+                  .map(item => item.trim().replace(/^["']|["']$/g, ''))
+                  .filter(item => item.length > 0);
+              } else if (currentProp.type === 'number') {
+                currentProp.value = parseFloat(val) || 0;
+              } else if (val === '' || val === '[]') {
+                // Multi-line array values follow on subsequent lines
+                currentProp.value = [];
+              } else {
+                currentProp.value = val;
+              }
+            }
+          } else if (indent >= 6 && trimmed.startsWith('-') && Array.isArray(currentProp.value)) {
+            // Multi-line array item for a property value
+            const item = trimmed.substring(1).trim().replace(/^["']|["']$/g, '');
+            (currentProp.value as string[]).push(item);
+          }
+          continue;
+        }
+      }
+
       // Check if this is an array item (starts with -)
       if (line.trim().startsWith('-') && currentKey) {
         const item = line.trim().substring(1).trim();
         currentArray.push(item);
         continue;
       }
-      
+
       // If we were building an array, save it now
       if (currentKey && currentArray.length > 0) {
         metadata[currentKey] = currentArray;
@@ -259,13 +354,19 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         metadata[key] = value;
       }
     }
-    
+
     // Save any remaining array
     if (currentKey && currentArray.length > 0) {
       metadata[currentKey] = currentArray;
     }
 
-    return { metadata, body };
+    // Save any remaining property
+    if (inProperties && currentPropName && currentProp.type) {
+      properties[currentPropName] = currentProp as PageProperty;
+    }
+
+    const hasProperties = Object.keys(properties).length > 0;
+    return { metadata, body, ...(hasProperties ? { properties } : {}) };
   }
 
   /**
@@ -290,6 +391,16 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     if (content.description) {
       lines.push(`description: "${content.description}"`);
     }
+
+    // Add pageType if present
+    if (content.pageType) {
+      lines.push(`pageType: "${content.pageType}"`);
+    }
+
+    // Add boardConfig if present (stored as single-line JSON)
+    if (content.boardConfig) {
+      lines.push(`boardConfig: '${JSON.stringify(content.boardConfig)}'`);
+    }
     
     // Add tags in YAML list format
     if (content.tags.length > 0) {
@@ -301,6 +412,26 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       lines.push('tags: []');
     }
     
+    // Add properties block if present and non-empty
+    if (content.properties && Object.keys(content.properties).length > 0) {
+      lines.push('properties:');
+      for (const [name, prop] of Object.entries(content.properties)) {
+        lines.push(`  ${name}:`);
+        lines.push(`    type: ${prop.type}`);
+        if (Array.isArray(prop.value)) {
+          if (prop.value.length === 0) {
+            lines.push('    value: []');
+          } else {
+            lines.push(`    value: [${prop.value.map(v => `"${v}"`).join(', ')}]`);
+          }
+        } else if (typeof prop.value === 'number') {
+          lines.push(`    value: ${prop.value}`);
+        } else {
+          lines.push(`    value: "${prop.value}"`);
+        }
+      }
+    }
+
     lines.push(
       `createdBy: "${content.createdBy}"`,
       `modifiedBy: "${content.modifiedBy}"`,
@@ -308,7 +439,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       `modifiedAt: "${content.modifiedAt}"`,
       '---'
     );
-    
+
     return lines.join('\n') + '\n' + content.content;
   }
 
@@ -353,6 +484,16 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       });
 
       await this.s3Client.send(command);
+
+      // Update the page index with the folder path (fire-and-forget — don't block the save)
+      const folder = key.substring(0, key.lastIndexOf('/') + 1);
+      this.pageIndex.putPageKey({
+        guid,
+        s3Key: folder,
+        parentGuid: parentGuid || null,
+        title: content.title,
+        updatedAt: content.modifiedAt || new Date().toISOString(),
+      });
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
       if (error.code && error.code.startsWith('INVALID_')) {
@@ -379,10 +520,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      // Try to find the page by searching
-      const key = await this.findPageKey(guid);
+      // Try to find the page folder
+      const folder = await this.findPageFolder(guid);
 
-      if (!key) {
+      if (!folder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -391,13 +532,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // Fetch from S3
+      const fileKey = folderToFileKey(folder, guid);
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
-        Key: key,
+        Key: fileKey,
       });
 
       const response = await this.s3Client.send(command);
-      
+
       if (!response.Body) {
         throw this.createError(
           'Empty response from S3',
@@ -410,19 +552,19 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const markdown = await this.readBodyAsString(response.Body);
 
       // Parse frontmatter
-      const { metadata, body } = this.parseFrontmatter(markdown);
+      const { metadata, body, properties } = this.parseFrontmatter(markdown);
 
       // Build PageContent object
       const folderId = Array.isArray(metadata.folderId) ? metadata.folderId[0] : metadata.folderId;
       const parentGuid = Array.isArray(metadata.parentGuid) ? metadata.parentGuid[0] : metadata.parentGuid;
       const effectiveFolderId = folderId || parentGuid || '';
       const pageGuid = Array.isArray(metadata.guid) ? metadata.guid[0] : metadata.guid || guid;
-      const inferredParentGuid = this.inferParentGuidFromPageKey(key, pageGuid);
+      const inferredParentGuid = this.inferParentGuidFromFolder(folder, pageGuid);
       const normalizedFolderId =
         (effectiveFolderId === null || effectiveFolderId === 'null')
           ? ''
           : (effectiveFolderId === pageGuid ? inferredParentGuid : effectiveFolderId);
-      
+
       const pageContent: PageContent = {
         guid: pageGuid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
@@ -431,6 +573,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
+        ...(metadata.pageType ? { pageType: Array.isArray(metadata.pageType) ? metadata.pageType[0] : metadata.pageType } : {}),
+        ...(properties ? { properties } : {}),
+        ...(metadata.boardConfig ? (() => {
+          try {
+            const raw = Array.isArray(metadata.boardConfig) ? metadata.boardConfig[0] : metadata.boardConfig;
+            return { boardConfig: JSON.parse(raw) };
+          } catch { return {}; }
+        })() : {}),
         createdBy: Array.isArray(metadata.createdBy) ? metadata.createdBy[0] : metadata.createdBy || '',
         modifiedBy: Array.isArray(metadata.modifiedBy) ? metadata.modifiedBy[0] : metadata.modifiedBy || '',
         createdAt: Array.isArray(metadata.createdAt) ? metadata.createdAt[0] : metadata.createdAt || this.formatDate(),
@@ -462,19 +612,33 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   }
 
   /**
-   * Find a page's S3 key by searching for its GUID
-   * This is needed because we don't store the full path separately
+   * Find a page's folder path in S3 by its GUID.
+   * Returns the folder path (e.g., "parent-guid/child-guid/"), not the .md file key.
+   * Use folderToFileKey() to derive the .md path when needed.
    */
-  private async findPageKey(guid: string): Promise<string | null> {
+  private async findPageFolder(guid: string): Promise<string | null> {
     try {
-      // First, try as a root page (new structure: {guid}/{guid}.md)
-      const rootKey = `${guid}/${guid}.md`;
+      // 1. Try the DynamoDB page index first — O(1) lookup
+      try {
+        const indexedFolder = await this.pageIndex.getPageKey(guid);
+        if (indexedFolder) {
+          return indexedFolder;
+        }
+      } catch {
+        // Index unavailable — fall through to S3 scan
+        console.warn(`[PageIndex] Index lookup failed for ${guid}, falling back to S3 scan`);
+      }
+
+      // 2. Fallback: try as a root page (HeadObject — fast)
+      const rootFolder = `${guid}/`;
       try {
         await this.s3Client.send(new HeadObjectCommand({
           Bucket: this.bucketName,
-          Key: rootKey,
+          Key: folderToFileKey(rootFolder, guid),
         }));
-        return rootKey;
+        // Repair the index with this folder
+        this.repairIndex(guid, rootFolder);
+        return rootFolder;
       } catch (err: unknown) {
         const error = err as { name?: string; message?: string };
         if (error.name !== 'NotFound') {
@@ -482,9 +646,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         }
       }
 
-      // Search for the page in all folders (new structure: {parent}/{guid}/{guid}.md)
+      // 3. Fallback: full bucket scan — O(n), slow
       let continuationToken: string | undefined = undefined;
-      
+
       do {
         const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
           Bucket: this.bucketName,
@@ -492,11 +656,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         });
 
         const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
-        
+
         if (response.Contents) {
           for (const obj of response.Contents) {
             if (obj.Key && obj.Key.endsWith(`/${guid}/${guid}.md`)) {
-              return obj.Key;
+              // Extract folder from the discovered .md key
+              const folder = obj.Key.substring(0, obj.Key.lastIndexOf('/') + 1);
+              this.repairIndex(guid, folder);
+              return folder;
             }
           }
         }
@@ -516,6 +683,31 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   }
 
   /**
+   * Repair a missing or stale index entry (fire-and-forget).
+   * Called when findPageFolder falls back to S3 scan and finds the page.
+   */
+  private repairIndex(guid: string, s3Folder: string): void {
+    // Guard against infinite recursion: loadPage → findPageFolder → repairIndex → loadPage
+    if (this.repairingGuids.has(guid)) return;
+    this.repairingGuids.add(guid);
+
+    // Load the page to get metadata for the index entry, but don't block on it
+    this.loadPage(guid).then(page => {
+      this.pageIndex.putPageKey({
+        guid,
+        s3Key: s3Folder,
+        parentGuid: page.folderId || null,
+        title: page.title,
+        updatedAt: page.modifiedAt || new Date().toISOString(),
+      });
+    }).catch(() => {
+      // Best-effort repair — if it fails, the next request will try again
+    }).finally(() => {
+      this.repairingGuids.delete(guid);
+    });
+  }
+
+  /**
    * Delete a page from S3
    */
   async deletePage(guid: string, recursive: boolean = false): Promise<void> {
@@ -525,10 +717,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      // Find the page key
-      const key = await this.findPageKey(guid);
-      
-      if (!key) {
+      // Find the page folder
+      const folder = await this.findPageFolder(guid);
+
+      if (!folder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -548,15 +740,25 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       if (recursive && hasChildPages) {
-        // Delete all children recursively
-        await this.deletePageAndChildren(guid, key);
+        // Collect child GUIDs for index cleanup before deleting
+        const children = await this.listChildren(guid);
+        const childGuids = await this.collectDescendantGuids(children);
+
+        // Delete all children recursively from S3
+        await this.deletePageAndChildren(guid, folderToFileKey(folder, guid));
+
+        // Clean up index for deleted page and all descendants
+        this.pageIndex.deletePageKeys([guid, ...childGuids]);
       } else {
         // Delete single page
         const deleteCommand = new DeleteObjectCommand({
           Bucket: this.bucketName,
-          Key: key,
+          Key: folderToFileKey(folder, guid),
         });
         await this.s3Client.send(deleteCommand);
+
+        // Clean up index for deleted page
+        this.pageIndex.deletePageKey(guid);
       }
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
@@ -569,6 +771,21 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         500
       );
     }
+  }
+
+  /**
+   * Collect GUIDs from a list of page summaries and their descendants (for index cleanup on recursive delete).
+   */
+  private async collectDescendantGuids(children: PageSummary[]): Promise<string[]> {
+    const guids: string[] = [];
+    for (const child of children) {
+      guids.push(child.guid);
+      if (child.hasChildren) {
+        const grandchildren = await this.listChildren(child.guid);
+        guids.push(...await this.collectDescendantGuids(grandchildren));
+      }
+    }
+    return guids;
   }
 
   /**
@@ -631,10 +848,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
-      // Find the page key
-      const key = await this.findPageKey(guid);
-      
-      if (!key) {
+      // Find the page folder
+      const folder = await this.findPageFolder(guid);
+
+      if (!folder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -643,9 +860,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // List object versions
+      const fileKey = folderToFileKey(folder, guid);
       const command = new ListObjectVersionsCommand({
         Bucket: this.bucketName,
-        Prefix: key,
+        Prefix: fileKey,
       });
 
       const response = await this.s3Client.send(command);
@@ -656,7 +874,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       // Convert to Version objects
       const versions: Version[] = response.Versions
-        .filter(v => v.Key === key) // Only exact matches
+        .filter(v => v.Key === fileKey) // Only exact matches
         .map(v => ({
           versionId: v.VersionId || '',
           timestamp: v.LastModified ? v.LastModified.toISOString() : this.formatDate(),
@@ -686,16 +904,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    */
   private async hasChildrenDirect(guid: string): Promise<boolean> {
     try {
-      // Find the page's location
-      const pageKey = await this.findPageKey(guid);
-      if (!pageKey) {
+      // Find the page's folder
+      const pageFolder = await this.findPageFolder(guid);
+      if (!pageFolder) {
         return false;
       }
-      
-      // Extract the page's folder path from its key
-      // Key format: {ancestor-path}/{guid}/{guid}.md
-      // We want: {ancestor-path}/{guid}/
-      const pageFolder = pageKey.substring(0, pageKey.lastIndexOf('/') + 1);
       
       const listCommand = new ListObjectsV2Command({
         Bucket: this.bucketName,
@@ -761,6 +974,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                       modifiedAt: page.modifiedAt,
                       modifiedBy: page.modifiedBy,
                       hasChildren: await this.hasChildrenDirect(guid),
+                      ...(page.pageType ? { pageType: page.pageType } : {}),
                     });
                   }
                 } catch (err) {
@@ -778,19 +992,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         // In new structure: need to find where parent is located first
         // Then list its immediate child folders
         
-        // First, find the parent's location to build the correct prefix
-        const parentKey = await this.findPageKey(parentGuid);
-        if (!parentKey) {
+        // First, find the parent's folder
+        const parentFolder = await this.findPageFolder(parentGuid);
+        if (!parentFolder) {
           // Parent not found, return empty
           return [];
         }
-        
-        // Extract the parent's folder path from its key
-        // Key format: {ancestor-path}/{parentGuid}/{parentGuid}.md
-        // We want: {ancestor-path}/{parentGuid}/
-        const parentFolder = parentKey.substring(0, parentKey.lastIndexOf('/') + 1);
-        
-        console.log(`[listChildren] Parent: ${parentGuid}, ParentKey: ${parentKey}, ParentFolder: ${parentFolder}`);
+
+        console.log(`[listChildren] Parent: ${parentGuid}, ParentFolder: ${parentFolder}`);
         
         let continuationToken: string | undefined = undefined;
 
@@ -831,6 +1040,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                     modifiedAt: page.modifiedAt,
                     modifiedBy: page.modifiedBy,
                     hasChildren: await this.hasChildrenDirect(guid),
+                    ...(page.pageType ? { pageType: page.pageType } : {}),
                   });
                 } catch (err) {
                   console.warn(`Failed to load page ${guid}:`, err);
@@ -876,9 +1086,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       // Load current page
       const page = await this.loadPage(guid);
-      const oldKey = await this.findPageKey(guid);
+      const oldFolder = await this.findPageFolder(guid);
 
-      if (!oldKey) {
+      if (!oldFolder) {
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -888,6 +1098,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       // Build new key
       const newKey = await this.buildPageKey(guid, newParentGuid);
+      const oldKey = folderToFileKey(oldFolder, guid);
 
       // If keys are the same, nothing to do
       if (oldKey === newKey) {
@@ -927,11 +1138,13 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       // Move children if any
       const children = await this.listChildren(guid);
       for (const child of children) {
-        const childOldKey = await this.findPageKey(child.guid);
-        if (childOldKey) {
+        const childOldFolder = await this.findPageFolder(child.guid);
+        if (childOldFolder) {
           // Copy child to new location
+          const childOldKey = folderToFileKey(childOldFolder, child.guid);
           const childNewKey = await this.buildPageKey(child.guid, guid);
-          
+          const childNewFolder = childNewKey.substring(0, childNewKey.lastIndexOf('/') + 1);
+
           const childCopyCommand = new CopyObjectCommand({
             Bucket: this.bucketName,
             CopySource: `${this.bucketName}/${childOldKey}`,
@@ -948,6 +1161,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
             Key: childOldKey,
           });
           await this.s3Client.send(childDeleteCommand);
+
+          // Update child index entry with new folder
+          this.pageIndex.putPageKey({
+            guid: child.guid,
+            s3Key: childNewFolder,
+            parentGuid: guid,
+            title: child.title,
+            updatedAt: new Date().toISOString(),
+          });
         }
       }
     } catch (err: unknown) {

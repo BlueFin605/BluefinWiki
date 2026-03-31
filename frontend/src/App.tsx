@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CognitoUser } from 'amazon-cognito-identity-js';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PagesView } from './components/pages/PagesView';
+import { PageTypesAdmin } from './components/admin/PageTypesAdmin';
+import { SettingsPage } from './components/admin/SettingsPage';
 import userPool from './config/cognitoConfig';
 import { handleOAuthCallback, redirectToLogin } from './utils/cognitoAuth';
 
@@ -132,6 +134,8 @@ function App() {
             <Route path="/dashboard" element={<AuthGate><Dashboard /></AuthGate>} />
             <Route path="/pages" element={<AuthGate><PagesView /></AuthGate>} />
             <Route path="/pages/*" element={<AuthGate><PagesView /></AuthGate>} />
+            <Route path="/settings" element={<AuthGate><SettingsPage /></AuthGate>} />
+            <Route path="/admin/page-types" element={<AuthGate><PageTypesAdmin /></AuthGate>} />
 
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/pages" replace />} />

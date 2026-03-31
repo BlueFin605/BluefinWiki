@@ -1,0 +1,51 @@
+[
+  {
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "value": [
+      "welcome",
+      "recent",
+      "favorites",
+      "stats"
+    ],
+    "preferenceKey": "dashboardLayout"
+  },
+  {
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "value": true,
+    "preferenceKey": "emailNotifications"
+  },
+  {
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "value": "en",
+    "preferenceKey": "language"
+  },
+  {
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "value": "light",
+    "preferenceKey": "theme"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "value": [
+      "welcome",
+      "recent",
+      "favorites"
+    ],
+    "preferenceKey": "dashboardLayout"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "value": true,
+    "preferenceKey": "emailNotifications"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "value": "en",
+    "preferenceKey": "language"
+  },
+  {
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "value": "light",
+    "preferenceKey": "theme"
+  }
+]

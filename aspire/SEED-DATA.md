@@ -29,7 +29,7 @@ cd aspire/scripts
 .\manage-seed-data.ps1 -Action list
 
 # Import specific snapshot
-.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-03"
+.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-30"
 ```
 
 ### Full Reset to Known State
@@ -37,7 +37,7 @@ cd aspire/scripts
 cd aspire/scripts
 
 # Step 1: Reset (removes LocalStack data)
-.\manage-seed-data.ps1 -Action reset -Source "seed-snapshots/2026-03-03"
+.\manage-seed-data.ps1 -Action reset -Source "seed-snapshots/2026-03-30"
 
 # Step 2: Restart Aspire
 cd ..
@@ -46,7 +46,7 @@ cd ..
 # Step 3: Initialize and restore
 cd scripts
 npm run init-db
-.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-03"
+.\manage-seed-data.ps1 -Action import -Source "seed-snapshots/2026-03-30"
 ```
 
 ## 📦 What Gets Captured
@@ -94,7 +94,7 @@ npm run export-seed
 npm run export-seed -- --output ./seed-snapshots/my-snapshot
 
 # Import  
-npm run import-seed -- --source ./seed-snapshots/2026-03-03
+npm run import-seed -- --source ./seed-snapshots/2026-03-30
 
 # Baseline setup
 npm run setup
@@ -104,7 +104,7 @@ npm run setup
 
 ```
 aspire/scripts/seed-snapshots/
-  2026-03-03/
+  2026-03-30/
     dynamodb/          # JSON files for each table
     s3/
       pages/           # Wiki pages with folder hierarchy

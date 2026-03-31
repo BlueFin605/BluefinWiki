@@ -5,6 +5,28 @@ import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
+import { autoRegisterTagsFromProperties, autoRegisterPageTags } from '../tags/tags-service.js';
+import { validatePageType, validateChildTypeConstraint } from './page-type-validation.js';
+
+// Property validation schema
+const PagePropertySchema = z.object({
+  type: z.enum(['string', 'number', 'date', 'tags']),
+  value: z.union([z.string(), z.number(), z.array(z.string())]),
+}).refine(
+  (prop) => {
+    switch (prop.type) {
+      case 'string': return typeof prop.value === 'string';
+      case 'number': return typeof prop.value === 'number';
+      case 'date': return typeof prop.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(prop.value);
+      case 'tags': return Array.isArray(prop.value);
+      default: return false;
+    }
+  },
+  { message: 'Property value does not match its declared type' }
+);
+
+// Property name must be kebab-case
+const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Property names must be kebab-case');
 
 // Request validation schema
 const CreatePageRequestSchema = z.object({
@@ -13,6 +35,8 @@ const CreatePageRequestSchema = z.object({
   parentGuid: z.string().uuid().nullable().optional(),
   tags: z.array(z.string()).default([]),
   status: z.enum(['published', 'archived']).default('published'),
+  pageType: z.string().uuid().optional(),
+  properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
 });
 
 /**
@@ -64,7 +88,7 @@ export const handler = withAuth(async (
       };
     }
 
-    const { title, content, parentGuid = null, tags, status } = validationResult.data;
+    const { title, content, parentGuid = null, tags, status, pageType, properties } = validationResult.data;
 
     // Get authenticated user context
     const user = getUserContext(event);
@@ -72,6 +96,22 @@ export const handler = withAuth(async (
     // Generate new page GUID
     const guid = uuidv4();
     const now = new Date().toISOString();
+
+    // Validate page type constraints (advisory — warns but doesn't hard-block)
+    if (pageType) {
+      const typeValidation = await validatePageType(pageType, properties || {});
+      if (typeValidation.warnings.length > 0) {
+        console.warn('Page type validation warnings:', typeValidation.warnings);
+      }
+    }
+
+    // Validate child type constraint if parent exists
+    if (parentGuid && pageType) {
+      const childValidation = await validateChildTypeConstraint(parentGuid, pageType);
+      if (childValidation.warnings.length > 0) {
+        console.warn('Child type constraint warnings:', childValidation.warnings);
+      }
+    }
 
     // Build PageContent object
     const pageContent: PageContent = {
@@ -81,6 +121,8 @@ export const handler = withAuth(async (
       folderId: parentGuid || '',
       tags,
       status,
+      ...(pageType ? { pageType } : {}),
+      ...(properties ? { properties } : {}),
       createdBy: user.userId,
       modifiedBy: user.userId,
       createdAt: now,
@@ -101,6 +143,18 @@ export const handler = withAuth(async (
         guid,
         linkCount: wikiLinks.length,
       });
+    }
+
+    // Auto-register tags (best-effort)
+    if (tags.length > 0) {
+      autoRegisterPageTags(tags, user.userId).catch(err =>
+        console.warn('Page tag auto-registration failed:', err)
+      );
+    }
+    if (properties) {
+      autoRegisterTagsFromProperties(properties, user.userId).catch(err =>
+        console.warn('Property tag auto-registration failed:', err)
+      );
     }
 
     // Log activity

@@ -4,6 +4,37 @@ import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
+import { autoRegisterTagsFromProperties, autoRegisterPageTags } from '../tags/tags-service.js';
+import { validatePageType } from './page-type-validation.js';
+
+// Property validation schema
+const PagePropertySchema = z.object({
+  type: z.enum(['string', 'number', 'date', 'tags']),
+  value: z.union([z.string(), z.number(), z.array(z.string())]),
+}).refine(
+  (prop) => {
+    switch (prop.type) {
+      case 'string': return typeof prop.value === 'string';
+      case 'number': return typeof prop.value === 'number';
+      case 'date': return typeof prop.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(prop.value);
+      case 'tags': return Array.isArray(prop.value);
+      default: return false;
+    }
+  },
+  { message: 'Property value does not match its declared type' }
+);
+
+const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Property names must be kebab-case');
+
+const BoardConfigSchema = z.object({
+  columns: z.array(z.string()).optional(),
+  colors: z.record(z.string()).optional(),
+  targetTypeGuid: z.string().uuid().optional(),
+  depth: z.number().min(1).max(10).optional(),
+  showParentTitle: z.boolean().optional(),
+  swapTitles: z.boolean().optional(),
+  defaultView: z.enum(['content', 'board']).optional(),
+}).nullable().optional();
 
 // Request validation schema
 const UpdatePageRequestSchema = z.object({
@@ -11,6 +42,9 @@ const UpdatePageRequestSchema = z.object({
   content: z.string().optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(['published', 'archived']).optional(),
+  pageType: z.string().uuid().nullable().optional(),
+  properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
+  boardConfig: BoardConfigSchema,
 });
 
 /**
@@ -113,9 +147,26 @@ export const handler = withAuth(async (
 
     // Build updated page content (merge existing with updates)
     const now = new Date().toISOString();
+    // If properties are provided, replace entirely (not merged field-by-field)
+    const mergedProperties = updates.properties !== undefined
+      ? (Object.keys(updates.properties).length > 0 ? updates.properties : undefined)
+      : existingPage.properties;
+    // Handle pageType: explicit null removes it, undefined keeps existing
+    const mergedPageType = updates.pageType === null
+      ? undefined
+      : (updates.pageType ?? existingPage.pageType);
+    // Handle boardConfig: explicit null removes it, undefined keeps existing
+    const mergedBoardConfig = updates.boardConfig === null
+      ? undefined
+      : (updates.boardConfig ?? existingPage.boardConfig);
     const updatedPage: PageContent = {
       ...existingPage,
-      ...updates,
+      ...Object.fromEntries(
+        Object.entries(updates).filter(([k]) => k !== 'pageType' && k !== 'properties' && k !== 'boardConfig')
+      ),
+      ...(mergedProperties ? { properties: mergedProperties } : {}),
+      ...(mergedPageType ? { pageType: mergedPageType } : {}),
+      ...(mergedBoardConfig ? { boardConfig: mergedBoardConfig } : {}),
       modifiedBy: user.userId,
       modifiedAt: now,
       // Preserve fields that should not be updated via this endpoint
@@ -124,6 +175,26 @@ export const handler = withAuth(async (
       createdBy: existingPage.createdBy,
       createdAt: existingPage.createdAt,
     };
+    // Remove pageType if it was explicitly set to null
+    if (updates.pageType === null) {
+      delete updatedPage.pageType;
+    }
+    // Remove boardConfig if it was explicitly set to null
+    if (updates.boardConfig === null) {
+      delete updatedPage.boardConfig;
+    }
+    // Remove properties key if it's now empty
+    if (updatedPage.properties && Object.keys(updatedPage.properties).length === 0) {
+      delete updatedPage.properties;
+    }
+
+    // Validate page type constraints (advisory — warns but doesn't hard-block)
+    if (updatedPage.pageType) {
+      const typeValidation = await validatePageType(updatedPage.pageType, updatedPage.properties || {});
+      if (typeValidation.warnings.length > 0) {
+        console.warn('Page type validation warnings:', typeValidation.warnings);
+      }
+    }
 
     // Determine parentGuid from folderId
     const parentGuid = updatedPage.folderId || null;
@@ -139,6 +210,18 @@ export const handler = withAuth(async (
         guid,
         linkCount: wikiLinks.length,
       });
+    }
+
+    // Auto-register tags (best-effort)
+    if (updates.tags && updates.tags.length > 0) {
+      autoRegisterPageTags(updates.tags, user.userId).catch(err =>
+        console.warn('Page tag auto-registration failed:', err)
+      );
+    }
+    if (updates.properties) {
+      autoRegisterTagsFromProperties(updates.properties, user.userId).catch(err =>
+        console.warn('Property tag auto-registration failed:', err)
+      );
     }
 
     // Log activity

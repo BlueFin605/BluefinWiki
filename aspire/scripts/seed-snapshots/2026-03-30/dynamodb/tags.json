@@ -1,0 +1,44 @@
+[
+  {
+    "createdAt": "2026-03-30T10:01:51.667Z",
+    "tag": "cookies",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 1,
+    "scope": "_page"
+  },
+  {
+    "createdAt": "2026-03-30T10:01:51.667Z",
+    "tag": "dessert",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 1,
+    "scope": "_page"
+  },
+  {
+    "createdAt": "2026-03-30T10:02:15.442Z",
+    "tag": "food",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 1,
+    "scope": "_page"
+  },
+  {
+    "createdAt": "2026-03-30T10:01:51.667Z",
+    "tag": "grandma",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 1,
+    "scope": "_page"
+  },
+  {
+    "createdAt": "2026-03-30T10:02:15.442Z",
+    "tag": "recipes",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 1,
+    "scope": "_page"
+  },
+  {
+    "createdAt": "2026-03-30T10:01:51.667Z",
+    "tag": "5 star",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 1,
+    "scope": "rating"
+  }
+]

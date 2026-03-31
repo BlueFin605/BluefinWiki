@@ -5,13 +5,17 @@
  * Preserves unsaved edits when navigating between pages (in-memory drafts).
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { EditorPane } from '../editor/EditorPane';
 import { PageMetadata } from '../editor/PagePropertiesPanel';
-import { usePageDetail, useUpdatePage, useBacklinks } from '../../hooks/usePages';
-import { UpdatePageRequest } from '../../types/page';
+import { usePageDetail, useUpdatePage, useBacklinks, usePageChildrenWithProperties } from '../../hooks/usePages';
+import { usePageTypes } from '../../hooks/usePageTypes';
+import { UpdatePageRequest, BoardConfig } from '../../types/page';
+import { apiClient } from '../../config/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDraft, saveDraft, clearDraft } from '../../stores/draftsStore';
+import { BoardView } from '../board/BoardView';
+import { BoardSettingsPanel } from '../board/BoardSettingsPanel';
 
 interface PageEditorProps {
   pageGuid: string;
@@ -21,6 +25,8 @@ interface PageEditorProps {
 
 function metadataFromPage(page: {
   title: string; tags: string[]; status: 'draft' | 'published' | 'archived';
+  pageType?: string;
+  properties?: Record<string, import('../../types/page').PageProperty>;
   createdBy: string; modifiedBy: string;
   createdAt: string; modifiedAt: string; guid: string;
 }): PageMetadata {
@@ -28,6 +34,8 @@ function metadataFromPage(page: {
     title: page.title,
     tags: page.tags,
     status: page.status,
+    ...(page.pageType ? { pageType: page.pageType } : {}),
+    ...(page.properties ? { properties: page.properties } : {}),
     createdBy: page.createdBy,
     modifiedBy: page.modifiedBy,
     createdAt: page.createdAt,
@@ -50,6 +58,57 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   const backlinksQuery = useBacklinks(pageGuid);
   const backlinksData = backlinksQuery?.data;
   const backlinksLoading = backlinksQuery?.isLoading ?? false;
+
+  // Board view: fetch children with properties to detect board eligibility
+  const { data: childrenWithProps = [] } = usePageChildrenWithProperties(pageGuid);
+  const { data: pageTypesList = [] } = usePageTypes();
+
+  // Board config is now a first-class frontmatter field
+  const boardConfig = pageData?.boardConfig;
+
+  // Check if board view is available
+  const boardEligible = useMemo(() => {
+    if (boardConfig?.targetTypeGuid) return true;
+    if (childrenWithProps.length === 0) return false;
+    const typeGuids = new Set(pageTypesList.map((pt) => pt.guid));
+    return childrenWithProps.some(
+      (child) =>
+        child.pageType &&
+        typeGuids.has(child.pageType) &&
+        child.properties?.state !== undefined
+    );
+  }, [childrenWithProps, pageTypesList, boardConfig]);
+
+  // Page types that have a 'state' property (candidates for board target type)
+  const boardableTypes = useMemo(
+    () => pageTypesList.filter((pt) => pt.properties.some((p) => p.name === 'state')),
+    [pageTypesList],
+  );
+
+  const [activeView, setActiveView] = useState<'content' | 'board'>('content');
+  const [showBoardSettings, setShowBoardSettings] = useState(false);
+
+  // Sync default view when boardConfig loads (async)
+  const appliedDefaultRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (boardConfig?.defaultView === 'board' && appliedDefaultRef.current !== pageGuid) {
+      appliedDefaultRef.current = pageGuid;
+      setActiveView('board');
+    }
+  }, [boardConfig, pageGuid]);
+
+  // Persist board config as a first-class frontmatter field
+  const saveBoardConfig = useCallback(
+    async (newConfig: BoardConfig | null) => {
+      try {
+        await apiClient.put(`/pages/${pageGuid}`, { boardConfig: newConfig });
+        refetch();
+      } catch {
+        // Silently fail — the board still works, just won't persist
+      }
+    },
+    [pageGuid, refetch],
+  );
 
   // Update page mutation
   const updatePage = useUpdatePage(pageGuid);
@@ -114,6 +173,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       title: meta.title,
       tags: meta.tags,
       status: meta.status,
+      ...(meta.pageType !== undefined ? { pageType: meta.pageType || null } : {}),
+      ...(meta.properties ? { properties: meta.properties } : {}),
     };
 
     try {
@@ -185,27 +246,89 @@ export const PageEditor: React.FC<PageEditorProps> = ({
         </div>
       )}
 
+      {/* Content / Board view toggle */}
+      {boardEligible && (
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-200 bg-white shrink-0">
+          <button
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              activeView === 'content'
+                ? 'bg-blue-100 text-blue-700 font-medium'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+            onClick={() => setActiveView('content')}
+          >
+            Content
+          </button>
+          <button
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              activeView === 'board'
+                ? 'bg-blue-100 text-blue-700 font-medium'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+            onClick={() => setActiveView('board')}
+          >
+            Board
+          </button>
+
+          {/* Board settings — visible when board tab is active */}
+          {activeView === 'board' && (
+            <div className="ml-auto relative">
+              <button
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                onClick={() => setShowBoardSettings(!showBoardSettings)}
+                title="Board settings"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              {showBoardSettings && (
+                <BoardSettingsPanel
+                  config={boardConfig}
+                  boardableTypes={boardableTypes}
+                  currentColumns={[]}
+                  onSave={(config) => {
+                    saveBoardConfig(config);
+                    setShowBoardSettings(false);
+                  }}
+                  onClose={() => setShowBoardSettings(false)}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 overflow-hidden">
-        <EditorPane
-          key={pageGuid}
-          initialContent={serverContent}
-          draftContent={draft && draft.content !== serverContent ? draft.content : undefined}
-          onContentChange={handleContentChange}
-          onSave={handleSave}
-          editable={true}
-          showPreview={true}
-          metadata={metadata}
-          serverMetadata={serverMeta}
-          onMetadataChange={handleMetadataChange}
-          pageGuid={pageGuid}
-          isSaving={updatePage.isPending}
-          currentUserId={user?.userId}
-          currentUserRole={user?.role}
-          pageAuthorId={metadata?.createdBy}
-          backlinks={backlinksData?.backlinks || []}
-          backlinksLoading={backlinksLoading}
-          onPageClick={onNavigateToPage}
-        />
+        {activeView === 'board' && boardEligible ? (
+          <BoardView
+            parentGuid={pageGuid}
+            boardConfig={boardConfig}
+            onNavigateToPage={(guid) => onNavigateToPage?.(guid)}
+          />
+        ) : (
+          <EditorPane
+            key={pageGuid}
+            initialContent={serverContent}
+            draftContent={draft && draft.content !== serverContent ? draft.content : undefined}
+            onContentChange={handleContentChange}
+            onSave={handleSave}
+            editable={true}
+            showPreview={true}
+            metadata={metadata}
+            serverMetadata={serverMeta}
+            onMetadataChange={handleMetadataChange}
+            pageGuid={pageGuid}
+            isSaving={updatePage.isPending}
+            currentUserId={user?.userId}
+            currentUserRole={user?.role}
+            pageAuthorId={metadata?.createdBy}
+            backlinks={backlinksData?.backlinks || []}
+            backlinksLoading={backlinksLoading}
+            onPageClick={onNavigateToPage}
+          />
+        )}
       </div>
     </div>
   );

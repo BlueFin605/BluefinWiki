@@ -1,0 +1,24 @@
+[
+  {
+    "createdAt": "2026-03-30T09:28:25.686Z",
+    "role": "Admin",
+    "lastLoginAt": null,
+    "displayName": "Admin User",
+    "userId": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "email": "admin@bluefinwiki.local",
+    "passwordHash": "$2a$10$My9zvrq.iJ6P4icsk0JMkuQPYPwrMixoo1D5gO.VC/blCvnwuy3HO",
+    "status": "active",
+    "updatedAt": "2026-03-30T09:28:25.686Z"
+  },
+  {
+    "createdAt": "2026-03-30T09:28:25.686Z",
+    "role": "Standard",
+    "lastLoginAt": null,
+    "displayName": "Standard User",
+    "userId": "f556b874-cb6d-4974-8cc2-e9d2a92ca246",
+    "email": "user@bluefinwiki.local",
+    "passwordHash": "$2a$10$My9zvrq.iJ6P4icsk0JMkuQPYPwrMixoo1D5gO.VC/blCvnwuy3HO",
+    "status": "active",
+    "updatedAt": "2026-03-30T09:28:25.686Z"
+  }
+]

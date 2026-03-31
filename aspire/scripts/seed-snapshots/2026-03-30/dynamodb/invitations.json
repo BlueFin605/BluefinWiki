@@ -1,0 +1,24 @@
+[
+  {
+    "createdAt": "2026-03-30T09:28:25.764Z",
+    "role": "Standard",
+    "createdBy": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "inviteCode": "WELCOME2",
+    "usedAt": null,
+    "email": "newuser2@bluefinwiki.local",
+    "expiresAt": 1775467705,
+    "usedBy": null,
+    "status": "pending"
+  },
+  {
+    "createdAt": "2026-03-30T09:28:25.764Z",
+    "role": "Standard",
+    "createdBy": "9c49397d-702f-4182-8236-69e0d7a9b9c6",
+    "inviteCode": "WELCOME1",
+    "usedAt": null,
+    "email": "newuser1@bluefinwiki.local",
+    "expiresAt": 1775467705,
+    "usedBy": null,
+    "status": "pending"
+  }
+]
