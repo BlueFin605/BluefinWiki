@@ -85,6 +85,7 @@ export interface CreatePageRequest {
   description?: string;
   content?: string;
   pageType?: string;
+  properties?: Record<string, PageProperty>;
 }
 
 export interface UpdatePageRequest {
