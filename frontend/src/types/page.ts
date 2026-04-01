@@ -36,6 +36,7 @@ export interface PageContent {
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   sortOrder?: number;
+  boardOrder?: number;
   description?: string;
   pageType?: string;
   properties?: Record<string, PageProperty>;
@@ -52,6 +53,7 @@ export interface PageSummary {
   parentGuid: string | null;
   status: 'draft' | 'published' | 'archived';
   sortOrder?: number;
+  boardOrder?: number;
   modifiedAt: string;
   modifiedBy: string;
   hasChildren: boolean;
@@ -99,6 +101,7 @@ export interface UpdatePageRequest {
   pageType?: string | null;
   properties?: Record<string, PageProperty>;
   boardConfig?: BoardConfig | null;
+  boardOrder?: number;
 }
 
 export interface MovePageRequest {
