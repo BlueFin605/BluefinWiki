@@ -386,7 +386,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     }
     
     lines.push(`status: "${content.status}"`);
-    
+
+    // Add sortOrder if present
+    if (content.sortOrder !== undefined) {
+      lines.push(`sortOrder: ${content.sortOrder}`);
+    }
+
     // Add description if present
     if (content.description) {
       lines.push(`description: "${content.description}"`);
@@ -565,6 +570,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           ? ''
           : (effectiveFolderId === pageGuid ? inferredParentGuid : effectiveFolderId);
 
+      // Parse sortOrder if present
+      const rawSortOrder = Array.isArray(metadata.sortOrder) ? metadata.sortOrder[0] : metadata.sortOrder;
+      const parsedSortOrder = rawSortOrder !== undefined ? parseInt(rawSortOrder, 10) : undefined;
+      const sortOrder = parsedSortOrder !== undefined && !isNaN(parsedSortOrder) ? parsedSortOrder : undefined;
+
       const pageContent: PageContent = {
         guid: pageGuid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
@@ -572,6 +582,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         folderId: normalizedFolderId,
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
+        ...(sortOrder !== undefined ? { sortOrder } : {}),
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
         ...(metadata.pageType ? { pageType: Array.isArray(metadata.pageType) ? metadata.pageType[0] : metadata.pageType } : {}),
         ...(properties ? { properties } : {}),
@@ -971,6 +982,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                       title: page.title,
                       parentGuid: null,
                       status: page.status === 'deleted' ? 'archived' : page.status,
+                      ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
                       createdBy: page.createdBy,
                       modifiedAt: page.modifiedAt,
                       modifiedBy: page.modifiedBy,
@@ -1038,6 +1050,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                     title: page.title,
                     parentGuid: parentGuid,
                     status: page.status === 'deleted' ? 'archived' : page.status,
+                    ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
                     createdBy: page.createdBy,
                     modifiedAt: page.modifiedAt,
                     modifiedBy: page.modifiedBy,
@@ -1055,8 +1068,16 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         } while (continuationToken);
       }
 
-      // Sort by title
-      children.sort((a, b) => a.title.localeCompare(b.title));
+      // Sort by sortOrder (ascending), then by title for ties/unordered pages
+      // Pages without sortOrder sort after all ordered pages
+      children.sort((a, b) => {
+        const aHasOrder = a.sortOrder !== undefined;
+        const bHasOrder = b.sortOrder !== undefined;
+        if (aHasOrder && bHasOrder) return a.sortOrder! - b.sortOrder!;
+        if (aHasOrder && !bHasOrder) return -1;
+        if (!aHasOrder && bHasOrder) return 1;
+        return a.title.localeCompare(b.title);
+      });
 
       return children;
     } catch (err: unknown) {

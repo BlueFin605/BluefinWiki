@@ -106,6 +106,7 @@ export interface PageContent {
   folderId: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived' | 'deleted';
+  sortOrder?: number; // Position among siblings — lower values first
   description?: string; // Optional page description
   pageType?: string; // Page type GUID — references PageTypeDefinition
   properties?: Record<string, PageProperty>;
@@ -144,6 +145,7 @@ export interface PageSummary {
   title: string;
   parentGuid: string | null;
   status: 'draft' | 'published' | 'archived';
+  sortOrder?: number; // Position among siblings — lower values first
   createdBy: string; // Cognito sub — needed for draft visibility filtering
   modifiedAt: string; // ISO 8601
   modifiedBy: string; // Cognito sub

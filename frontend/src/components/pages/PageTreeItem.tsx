@@ -1,13 +1,15 @@
 /**
  * PageTreeItem Component
- * 
+ *
  * Displays a single page in the tree with expand/collapse functionality
- * and support for context menu and drag-and-drop
+ * and support for context menu and drag-and-drop (both reparent and reorder)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { PageTreeNode, PageTypeDefinition } from '../../types/page';
 import { usePageChildren } from '../../hooks/usePages';
+
+export type DropPosition = 'before' | 'after' | 'onto';
 
 interface PageTreeItemProps {
   page: PageTreeNode;
@@ -19,9 +21,18 @@ interface PageTreeItemProps {
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
   onDragStart: (event: React.DragEvent, page: PageTreeNode) => void;
   onDragOver: (event: React.DragEvent, page: PageTreeNode) => void;
-  onDrop: (event: React.DragEvent, page: PageTreeNode) => void;
+  onDrop: (event: React.DragEvent, page: PageTreeNode, position: DropPosition) => void;
   onToggleExpand: (guid: string) => void;
   onNewChild: (page: PageTreeNode) => void;
+}
+
+function getDropPosition(e: React.DragEvent, el: HTMLElement): DropPosition {
+  const rect = el.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  const threshold = rect.height * 0.25;
+  if (y < threshold) return 'before';
+  if (y > rect.height - threshold) return 'after';
+  return 'onto';
 }
 
 export const PageTreeItem: React.FC<PageTreeItemProps> = ({
@@ -38,7 +49,8 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
   onToggleExpand,
   onNewChild,
 }) => {
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
 
   // Check if this page is expanded
   const isExpanded = expandedGuids.has(page.guid);
@@ -48,18 +60,25 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
 
   const handleDragOver = (event: React.DragEvent) => {
     event.preventDefault();
-    setIsDragOver(true);
+    if (rowRef.current) {
+      setDropPosition(getDropPosition(event, rowRef.current));
+    }
     onDragOver(event, page);
   };
 
-  const handleDragLeave = () => {
-    setIsDragOver(false);
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only count as leave if we actually left this element
+    if (rowRef.current && !rowRef.current.contains(e.relatedTarget as Node)) {
+      setDropPosition(null);
+    }
   };
 
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
-    setIsDragOver(false);
-    onDrop(event, page);
+    event.stopPropagation();
+    const pos = rowRef.current ? getDropPosition(event, rowRef.current) : 'onto';
+    setDropPosition(null);
+    onDrop(event, page, pos);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -74,13 +93,23 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
 
   const paddingLeft = level * 16 + 8; // 16px per level + 8px base
 
+  const dropIndicatorClass =
+    dropPosition === 'before'
+      ? 'border-t-2 border-blue-500'
+      : dropPosition === 'after'
+        ? 'border-b-2 border-blue-500'
+        : dropPosition === 'onto'
+          ? 'bg-blue-100 border-2 border-blue-400 border-dashed'
+          : '';
+
   return (
     <div>
       <div
+        ref={rowRef}
         className={`
           group flex items-center py-2 px-2 cursor-pointer hover:bg-gray-100 rounded
           ${isActive ? 'bg-blue-50 border-l-4 border-blue-600' : ''}
-          ${isDragOver ? 'bg-blue-100 border-2 border-blue-400 border-dashed' : ''}
+          ${dropIndicatorClass}
         `}
         style={{ paddingLeft: `${paddingLeft}px` }}
         onClick={() => onSelect(page.guid)}
