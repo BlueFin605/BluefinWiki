@@ -82,7 +82,7 @@ const dynamoClient = new DynamoDBClient({
 });
 
 const DYNAMODB_TABLES = {
-  users: 'bluefinwiki-users-local',
+  users: 'bluefinwiki-user-profiles-local',
   invitations: 'bluefinwiki-invitations-local',
   attachments: 'bluefinwiki-attachments-local',
   comments: 'bluefinwiki-comments-local',

@@ -219,6 +219,14 @@ jobs:
             "bluefinwiki-${ENV}-page-types-update"
             "bluefinwiki-${ENV}-page-types-delete"
             "bluefinwiki-${ENV}-page-types-allowed-children"
+            "bluefinwiki-${ENV}-admin-users-list"
+            "bluefinwiki-${ENV}-admin-users-get"
+            "bluefinwiki-${ENV}-admin-users-update"
+            "bluefinwiki-${ENV}-admin-users-suspend"
+            "bluefinwiki-${ENV}-admin-users-activate"
+            "bluefinwiki-${ENV}-admin-users-delete"
+            "bluefinwiki-${ENV}-auth-profile-update"
+            "bluefinwiki-${ENV}-auth-change-password"
           )
 
           # Package the backend dist into a zip

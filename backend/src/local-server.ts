@@ -42,6 +42,14 @@ import { handler as authMe } from './auth/auth-me.js';
 import { handler as adminCreateInvitation } from './auth/admin-create-invitation.js';
 import { handler as adminListInvitations } from './auth/admin-list-invitations.js';
 import { handler as adminRevokeInvitation } from './auth/admin-revoke-invitation.js';
+import { handler as adminUsersList } from './auth/admin-users-list.js';
+import { handler as adminUsersGet } from './auth/admin-users-get.js';
+import { handler as adminUsersUpdate } from './auth/admin-users-update.js';
+import { handler as adminUsersSuspend } from './auth/admin-users-suspend.js';
+import { handler as adminUsersActivate } from './auth/admin-users-activate.js';
+import { handler as adminUsersDelete } from './auth/admin-users-delete.js';
+import { handler as authProfileUpdate } from './auth/auth-profile-update.js';
+import { handler as authChangePassword } from './auth/auth-change-password.js';
 import { buildSearchIndexData } from './search/search-build-index.js';
 import { handler as tagsList } from './tags/tags-list.js';
 import { handler as tagsCreate } from './tags/tags-create.js';
@@ -230,6 +238,8 @@ app.delete('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAtta
 
 app.post('/auth/register', wrapLambdaHandler(authRegister));
 app.get('/auth/me', wrapLambdaHandler(authMe));
+app.put('/auth/profile', wrapLambdaHandler(authProfileUpdate));
+app.post('/auth/change-password', wrapLambdaHandler(authChangePassword));
 
 // ============================================================================
 // API Routes - Admin
@@ -238,6 +248,17 @@ app.get('/auth/me', wrapLambdaHandler(authMe));
 app.post('/admin/invitations', wrapLambdaHandler(adminCreateInvitation));
 app.get('/admin/invitations', wrapLambdaHandler(adminListInvitations));
 app.delete('/admin/invitations/:invitationCode', wrapLambdaHandler(adminRevokeInvitation));
+
+// ============================================================================
+// API Routes - Admin User Management
+// ============================================================================
+
+app.get('/admin/users', wrapLambdaHandler(adminUsersList));
+app.get('/admin/users/:userId', wrapLambdaHandler(adminUsersGet));
+app.put('/admin/users/:userId', wrapLambdaHandler(adminUsersUpdate));
+app.post('/admin/users/:userId/suspend', wrapLambdaHandler(adminUsersSuspend));
+app.post('/admin/users/:userId/activate', wrapLambdaHandler(adminUsersActivate));
+app.delete('/admin/users/:userId', wrapLambdaHandler(adminUsersDelete));
 
 // ============================================================================
 // API Routes - Tags
@@ -400,10 +421,10 @@ async function startServer() {
 
       const tableDefinitions: CreateTableInput[] = [
         {
-          TableName: process.env.DYNAMODB_USERS_TABLE || 'bluefinwiki-users-local',
-          KeySchema: [{ AttributeName: 'userId', KeyType: 'HASH' }],
+          TableName: process.env.USER_PROFILES_TABLE || 'bluefinwiki-user-profiles-local',
+          KeySchema: [{ AttributeName: 'cognitoUserId', KeyType: 'HASH' }],
           AttributeDefinitions: [
-            { AttributeName: 'userId', AttributeType: 'S' },
+            { AttributeName: 'cognitoUserId', AttributeType: 'S' },
             { AttributeName: 'email', AttributeType: 'S' },
           ],
           GlobalSecondaryIndexes: [{
@@ -568,6 +589,14 @@ async function startServer() {
   console.log('   POST   /pages/links/resolve');
   console.log('   POST   /auth/register');
   console.log('   GET    /auth/me');
+  console.log('   PUT    /auth/profile');
+  console.log('   POST   /auth/change-password');
+  console.log('   GET    /admin/users');
+  console.log('   GET    /admin/users/:userId');
+  console.log('   PUT    /admin/users/:userId');
+  console.log('   POST   /admin/users/:userId/suspend');
+  console.log('   POST   /admin/users/:userId/activate');
+  console.log('   DELETE /admin/users/:userId');
   console.log('   POST   /admin/invitations');
   console.log('   GET    /admin/invitations');
   console.log('   DELETE /admin/invitations/:invitationCode');
