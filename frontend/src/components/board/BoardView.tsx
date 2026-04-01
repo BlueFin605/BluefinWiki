@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BoardColumn, CardDropPosition } from './BoardColumn';
 import { CardSummaryDialog } from './CardSummaryDialog';
-import { usePageChildrenWithProperties, useReorderPages } from '../../hooks/usePages';
+import { usePageChildrenWithProperties } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
 import { apiClient } from '../../config/api';
 import {
@@ -54,8 +54,6 @@ export const BoardView: React.FC<BoardViewProps> = ({
   const { data: children = [], isLoading, error } = usePageChildrenWithProperties(parentGuid, deepFetchOptions);
   const { data: pageTypesList = [] } = usePageTypes();
   const queryClient = useQueryClient();
-  const reorderPages = useReorderPages();
-
   // Drag state
   const [draggedGuid, setDraggedGuid] = useState<string | null>(null);
   // Card summary dialog
@@ -81,12 +79,12 @@ export const BoardView: React.FC<BoardViewProps> = ({
       byState[state].push(child);
     }
 
-    // Sort cards within each column by sortOrder (ascending), then modifiedAt (most recent first)
+    // Sort cards within each column by boardOrder (ascending), then modifiedAt (most recent first)
     for (const state of Object.keys(byState)) {
       byState[state].sort((a, b) => {
-        const aHasOrder = a.sortOrder !== undefined;
-        const bHasOrder = b.sortOrder !== undefined;
-        if (aHasOrder && bHasOrder) return a.sortOrder! - b.sortOrder!;
+        const aHasOrder = a.boardOrder !== undefined;
+        const bHasOrder = b.boardOrder !== undefined;
+        if (aHasOrder && bHasOrder) return a.boardOrder! - b.boardOrder!;
         if (aHasOrder && !bHasOrder) return -1;
         if (!aHasOrder && bHasOrder) return 1;
         return new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime();
@@ -195,97 +193,58 @@ export const BoardView: React.FC<BoardViewProps> = ({
     [draggedGuid, children, parentGuid, queryClient]
   );
 
-  // Within-column card reorder
+  // Compute a boardOrder for a card being inserted at a specific position
+  // in the column. Uses gap-based insertion — only the dragged card is updated.
+  const computeBoardOrder = useCallback(
+    (columnCards: PageChildDetail[], targetGuid: string, position: CardDropPosition, draggedGuid: string): number => {
+      // Build the list without the dragged card
+      const others = columnCards.filter(c => c.guid !== draggedGuid);
+      const targetIdx = others.findIndex(c => c.guid === targetGuid);
+      const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+
+      // Neighbours in the final order
+      const prev = insertIdx > 0 ? others[insertIdx - 1] : null;
+      const next = insertIdx < others.length ? others[insertIdx] : null;
+
+      const prevOrder = prev?.boardOrder;
+      const nextOrder = next?.boardOrder;
+
+      if (prevOrder === undefined && nextOrder === undefined) {
+        return 0; // only card
+      }
+      if (prevOrder === undefined) {
+        return nextOrder! - 1000; // before first
+      }
+      if (nextOrder === undefined) {
+        return prevOrder + 1000; // after last
+      }
+      // Between two cards
+      const gap = nextOrder - prevOrder;
+      if (gap >= 2) {
+        return Math.floor((prevOrder + nextOrder) / 2);
+      }
+      // Gap exhausted — renumber entire column
+      // Return a sentinel; caller will detect and renumber
+      return -Infinity;
+    },
+    []
+  );
+
+  // Within-column card reorder (or cross-column with position)
   const handleCardReorder = useCallback(
     async (columnState: string, targetGuid: string, position: CardDropPosition) => {
-      console.log('[board-reorder] handleCardReorder called:', {
-        columnState, targetGuid, position, draggedGuid,
-      });
-
       if (!draggedGuid || draggedGuid === targetGuid) {
         setDraggedGuid(null);
         return;
       }
 
       const card = children.find((c) => c.guid === draggedGuid);
-      if (!card) {
-        console.warn('[board-reorder] Dragged card not found in children');
-        return;
-      }
+      if (!card) return;
 
       const currentState = typeof card.properties?.state?.value === 'string'
         ? card.properties.state.value
         : UNCATEGORISED;
 
-      console.log('[board-reorder] State check:', { currentState, columnState, sameColumn: currentState === columnState });
-
-      // If card is from a different column, this is a state change + position
-      if (currentState !== columnState) {
-        // Change state first, then reorder
-        const queryKey = [
-          'pages', 'children', parentGuid, 'with-properties',
-          boardConfig?.targetTypeGuid ?? null,
-          deepFetchOptions?.depth ?? null,
-        ];
-        const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
-
-        // Optimistic state change
-        queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) =>
-          old?.map((c) =>
-            c.guid === draggedGuid
-              ? {
-                  ...c,
-                  properties: {
-                    ...c.properties,
-                    state: { type: 'string' as const, value: columnState },
-                  },
-                }
-              : c
-          )
-        );
-
-        setDraggedGuid(null);
-
-        try {
-          const updateRequest: UpdatePageRequest = {
-            properties: {
-              ...(card.properties || {}),
-              state: { type: 'string', value: columnState },
-            },
-          };
-          await apiClient.put(`/pages/${draggedGuid}`, updateRequest);
-          queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] });
-        } catch {
-          queryClient.setQueryData(queryKey, previousData);
-          setToast('Failed to update state. Please try again.');
-          setTimeout(() => setToast(null), 3000);
-        }
-        return;
-      }
-
-      // Same column — reorder
-      // Build the new visual order for cards in this column
-      const columnCards = cardsByColumn[columnState] || [];
-      const reorderedCards = columnCards.filter(c => c.guid !== draggedGuid);
-      const targetIndex = reorderedCards.findIndex(c => c.guid === targetGuid);
-      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-      const draggedCard = columnCards.find(c => c.guid === draggedGuid);
-      if (draggedCard) {
-        reorderedCards.splice(insertIndex, 0, draggedCard);
-      }
-
-      // Group reordered cards by their actual parent — each group is a
-      // separate reorder call because siblings must share a parent.
-      // For non-deep boards all cards share parentGuid; for deep boards
-      // cards may come from different parents.
-      const byParent = new Map<string, string[]>();
-      for (const c of reorderedCards) {
-        const pGuid = c.parentGuid ?? '__root__';
-        if (!byParent.has(pGuid)) byParent.set(pGuid, []);
-        byParent.get(pGuid)!.push(c.guid);
-      }
-
-      // Optimistic reorder in cache
       const queryKey = [
         'pages', 'children', parentGuid, 'with-properties',
         boardConfig?.targetTypeGuid ?? null,
@@ -293,42 +252,74 @@ export const BoardView: React.FC<BoardViewProps> = ({
       ];
       const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
 
-      // Update sortOrder optimistically based on new visual position
+      // Compute the new boardOrder for the dragged card
+      const targetColumnCards = cardsByColumn[columnState] || [];
+      let newBoardOrder = computeBoardOrder(targetColumnCards, targetGuid, position, draggedGuid);
+
+      // If gap exhausted, renumber the entire column
+      let renumberList: { guid: string; boardOrder: number }[] | null = null;
+      if (newBoardOrder === -Infinity) {
+        const others = targetColumnCards.filter(c => c.guid !== draggedGuid);
+        const targetIdx = others.findIndex(c => c.guid === targetGuid);
+        const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+        others.splice(insertIdx, 0, card);
+        renumberList = others.map((c, i) => ({ guid: c.guid, boardOrder: i * 1000 }));
+        newBoardOrder = insertIdx * 1000;
+      }
+
+      // Build the update — may also include a state change for cross-column drops
+      const updatePayload: UpdatePageRequest = { boardOrder: newBoardOrder };
+      if (currentState !== columnState) {
+        updatePayload.properties = {
+          ...(card.properties || {}),
+          state: { type: 'string', value: columnState },
+        };
+      }
+
+      // Optimistic update
       queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) => {
         if (!old) return old;
-        const updated = [...old];
-        for (let i = 0; i < reorderedCards.length; i++) {
-          const idx = updated.findIndex(c => c.guid === reorderedCards[i].guid);
-          if (idx !== -1) {
-            updated[idx] = { ...updated[idx], sortOrder: i * 1000 };
+        return old.map((c) => {
+          if (c.guid === draggedGuid) {
+            return {
+              ...c,
+              boardOrder: newBoardOrder,
+              ...(currentState !== columnState
+                ? { properties: { ...c.properties, state: { type: 'string' as const, value: columnState } } }
+                : {}),
+            };
           }
-        }
-        return updated;
+          // Apply renumber if needed
+          if (renumberList) {
+            const entry = renumberList.find(r => r.guid === c.guid);
+            if (entry) return { ...c, boardOrder: entry.boardOrder };
+          }
+          return c;
+        });
       });
 
       setDraggedGuid(null);
 
       try {
-        // Send one reorder request per parent group (skip single-card groups — nothing to reorder)
-        const reorderRequests = Array.from(byParent.entries())
-          .filter(([, guids]) => guids.length >= 2)
-          .map(([pGuid, guids]) => ({
-            parentGuid: pGuid === '__root__' ? null : pGuid,
-            orderedGuids: guids,
-          }));
-        if (reorderRequests.length > 0) {
-          console.log('[board-reorder] Sending reorder requests:', reorderRequests);
-          await Promise.all(reorderRequests.map(req => reorderPages.mutateAsync(req)));
+        // Single API call for the dragged card
+        await apiClient.put(`/pages/${draggedGuid}`, updatePayload);
+
+        // If we had to renumber, update the other cards too
+        if (renumberList) {
+          const otherUpdates = renumberList.filter(r => r.guid !== draggedGuid);
+          await Promise.all(
+            otherUpdates.map(r => apiClient.put(`/pages/${r.guid}`, { boardOrder: r.boardOrder }))
+          );
         }
+
         queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] });
-      } catch (err) {
-        console.error('[board-reorder] Reorder failed:', err);
+      } catch {
         queryClient.setQueryData(queryKey, previousData);
-        setToast('Failed to reorder cards. Please try again.');
+        setToast('Failed to reorder card. Please try again.');
         setTimeout(() => setToast(null), 3000);
       }
     },
-    [draggedGuid, children, cardsByColumn, parentGuid, queryClient, reorderPages, boardConfig, deepFetchOptions]
+    [draggedGuid, children, cardsByColumn, parentGuid, queryClient, computeBoardOrder, boardConfig, deepFetchOptions]
   );
 
   if (isLoading) {

@@ -392,6 +392,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       lines.push(`sortOrder: ${content.sortOrder}`);
     }
 
+    // Add boardOrder if present
+    if (content.boardOrder !== undefined) {
+      lines.push(`boardOrder: ${content.boardOrder}`);
+    }
+
     // Add description if present
     if (content.description) {
       lines.push(`description: "${content.description}"`);
@@ -575,6 +580,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const parsedSortOrder = rawSortOrder !== undefined ? parseInt(rawSortOrder, 10) : undefined;
       const sortOrder = parsedSortOrder !== undefined && !isNaN(parsedSortOrder) ? parsedSortOrder : undefined;
 
+      // Parse boardOrder if present
+      const rawBoardOrder = Array.isArray(metadata.boardOrder) ? metadata.boardOrder[0] : metadata.boardOrder;
+      const parsedBoardOrder = rawBoardOrder !== undefined ? parseInt(rawBoardOrder, 10) : undefined;
+      const boardOrder = parsedBoardOrder !== undefined && !isNaN(parsedBoardOrder) ? parsedBoardOrder : undefined;
+
       const pageContent: PageContent = {
         guid: pageGuid,
         title: Array.isArray(metadata.title) ? metadata.title[0] : metadata.title || 'Untitled',
@@ -583,6 +593,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         tags: Array.isArray(metadata.tags) ? metadata.tags : metadata.tags ? [metadata.tags] : [],
         status: (Array.isArray(metadata.status) ? metadata.status[0] : metadata.status || 'draft') as 'draft' | 'published' | 'archived' | 'deleted',
         ...(sortOrder !== undefined ? { sortOrder } : {}),
+        ...(boardOrder !== undefined ? { boardOrder } : {}),
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
         ...(metadata.pageType ? { pageType: Array.isArray(metadata.pageType) ? metadata.pageType[0] : metadata.pageType } : {}),
         ...(properties ? { properties } : {}),
@@ -983,6 +994,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                       parentGuid: null,
                       status: page.status === 'deleted' ? 'archived' : page.status,
                       ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
+                      ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
                       createdBy: page.createdBy,
                       modifiedAt: page.modifiedAt,
                       modifiedBy: page.modifiedBy,
@@ -1051,6 +1063,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                     parentGuid: parentGuid,
                     status: page.status === 'deleted' ? 'archived' : page.status,
                     ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
+                    ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
                     createdBy: page.createdBy,
                     modifiedAt: page.modifiedAt,
                     modifiedBy: page.modifiedBy,
