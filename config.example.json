@@ -1,0 +1,12 @@
+{
+  "bluefinwiki": {
+    "prefix": "bluefinwiki",
+    "region": "ap-southeast-2",
+    "environment": "production",
+    "domain": "",
+    "certificateArnUsEast1": "",
+    "certificateArnRegional": "",
+    "enableCognitoCustomDomain": false,
+    "enableGoogleLogin": false
+  }
+}

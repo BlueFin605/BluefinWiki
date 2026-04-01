@@ -1,6 +1,9 @@
 .repoql/
 .claude/
 
+# Environment config (use config.example.json as template)
+config.json
+
 # Secrets / credentials
 client_secret*.json
 *.pem
