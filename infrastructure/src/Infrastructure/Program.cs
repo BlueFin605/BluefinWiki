@@ -1,6 +1,8 @@
-﻿using Amazon.CDK;
+using Amazon.CDK;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 using Infrastructure.Stacks;
 
 namespace Infrastructure
@@ -10,28 +12,46 @@ namespace Infrastructure
         public static void Main(string[] args)
         {
             var app = new App();
-            const string defaultRegion = "ap-southeast-2";
-            
-            // Get environment from context or default to production
-            var environmentName = app.Node.TryGetContext("environment")?.ToString() ?? "production";
-            var frontendDomain = app.Node.TryGetContext("frontendDomain")?.ToString();
-            var domainName = app.Node.TryGetContext("domainName")?.ToString();
-            var certArnUsEast1 = app.Node.TryGetContext("certificateArnUsEast1")?.ToString();
-            var certArnRegional = app.Node.TryGetContext("certificateArnRegional")?.ToString();
-            var enableCognitoCustomDomain = app.Node.TryGetContext("enableCognitoCustomDomain")?.ToString() == "true";
-            var enableGoogleLogin = app.Node.TryGetContext("enableGoogleLogin")?.ToString() == "true";
+
+            // Try to load config from config.json (preferred) or fall back to --context params
+            var configFile = app.Node.TryGetContext("configFile")?.ToString() ?? "../config.json";
+            var config = LoadConfigFromFile(configFile);
+
+            var environmentName = config?.GetProperty("environment").GetString()
+                ?? app.Node.TryGetContext("environment")?.ToString()
+                ?? "production";
+
+            var region = config?.GetProperty("region").GetString()
+                ?? "ap-southeast-2";
+
+            var frontendDomain = app.Node.TryGetContext("frontendDomain")?.ToString()
+                ?? TryGetConfigString(config, "frontendDomain");
+
+            var domainName = TryGetConfigString(config, "domain")
+                ?? app.Node.TryGetContext("domainName")?.ToString();
+
+            var certArnUsEast1 = app.Node.TryGetContext("certificateArnUsEast1")?.ToString()
+                ?? TryGetConfigString(config, "certificateArnUsEast1");
+
+            var certArnRegional = app.Node.TryGetContext("certificateArnRegional")?.ToString()
+                ?? TryGetConfigString(config, "certificateArnRegional");
+
+            var enableCognitoCustomDomain = app.Node.TryGetContext("enableCognitoCustomDomain")?.ToString() == "true"
+                || TryGetConfigBool(config, "enableCognitoCustomDomain");
+
+            var enableGoogleLogin = app.Node.TryGetContext("enableGoogleLogin")?.ToString() == "true"
+                || TryGetConfigBool(config, "enableGoogleLogin");
 
             // Configure environment-specific settings
             var envConfig = GetEnvironmentConfig(environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain, enableGoogleLogin);
-            
+
             var env = new Amazon.CDK.Environment
             {
                 Account = System.Environment.GetEnvironmentVariable("CDK_DEFAULT_ACCOUNT"),
-                Region = defaultRegion
+                Region = region
             };
-            
+
             // Create unified stack for the specified environment
-            // This single stack contains all Auth, Storage, Database, Compute, and CDN resources
             var unifiedStack = new UnifiedStack(app, $"BlueFinWiki-{envConfig.Name}", new StackProps
             {
                 Env = env,
@@ -42,10 +62,59 @@ namespace Infrastructure
                     { "Environment", envConfig.DisplayName }
                 }
             }, envConfig);
-            
+
             app.Synth();
         }
-        
+
+        /// <summary>
+        /// Loads the project config section from a JSON file.
+        /// Returns null if the file doesn't exist (backwards compatible with --context params).
+        /// </summary>
+        private static JsonElement? LoadConfigFromFile(string path)
+        {
+            if (!File.Exists(path))
+                return null;
+
+            try
+            {
+                var json = File.ReadAllText(path);
+                var doc = JsonDocument.Parse(json);
+
+                // Look for the "bluefinwiki" section
+                if (doc.RootElement.TryGetProperty("bluefinwiki", out var section))
+                    return section;
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Warning: Could not read config file '{path}': {ex.Message}");
+                return null;
+            }
+        }
+
+        private static string TryGetConfigString(JsonElement? config, string property)
+        {
+            if (config == null) return null;
+            if (config.Value.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String)
+            {
+                var str = value.GetString();
+                return string.IsNullOrWhiteSpace(str) ? null : str;
+            }
+            return null;
+        }
+
+        private static bool TryGetConfigBool(JsonElement? config, string property)
+        {
+            if (config == null) return false;
+            if (config.Value.TryGetProperty(property, out var value))
+            {
+                if (value.ValueKind == JsonValueKind.True) return true;
+                if (value.ValueKind == JsonValueKind.String) return value.GetString() == "true";
+            }
+            return false;
+        }
+
         private static EnvironmentConfig GetEnvironmentConfig(
             string environmentName, string frontendDomain,
             string domainName, string certArnUsEast1, string certArnRegional,
@@ -98,7 +167,7 @@ namespace Infrastructure
             };
         }
     }
-    
+
     public class EnvironmentConfig
     {
         public string Name { get; set; }
@@ -110,7 +179,7 @@ namespace Infrastructure
         public int LogRetentionDays { get; set; }
         public string CloudFrontPriceClass { get; set; }
         public string FrontendDomain { get; set; }
-        /// <summary>Base domain for the wiki, e.g. "wiki.bluefin605.com"</summary>
+        /// <summary>Base domain for the wiki, e.g. "wiki.yourdomain.com"</summary>
         public string DomainName { get; set; }
         /// <summary>ACM certificate ARN in us-east-1 (for CloudFront &amp; Cognito custom domain)</summary>
         public string CertificateArnUsEast1 { get; set; }

@@ -60,20 +60,22 @@ cdk deploy --context environment=staging --all
 
 ### Production Environment (with custom domains)
 
-For production with custom domains (wiki.bluefin605.com, api.bluefin605.com, auth.bluefin605.com), use the production deployment script:
+For production with custom domains, create a `config.json` from `config.example.json` in the repo root with your domain, certificate ARNs, and feature flags. Then deploy:
 
 ```powershell
-cd infrastructure
-./deploy-production.ps1
+cdk deploy --context environment=production --context configFile=../config.json --all --require-approval broadening
 ```
 
-The script handles:
-1. **ACM Certificate Management**: Creates/validates certificates in us-east-1 (for CloudFront and Cognito custom domain) and ap-southeast-2 (for API Gateway)
-2. **Google OAuth**: Retrieves Google OAuth client secret from AWS Secrets Manager
-3. **CDK Deploy**: Runs `cdk deploy` with all required context parameters (certificateArns, domainName, enableCognitoCustomDomain, enableGoogleLogin)
-4. **Cognito Custom Domain**: Configures auth.bluefin605.com as the Cognito Hosted UI domain
-5. **Lambda Trigger Wiring**: Connects the pre-signup Lambda trigger to the Cognito User Pool
-6. **DNS Validation**: Prompts for Route53 DNS record creation for certificate validation
+You can also pass individual context parameters:
+
+```powershell
+cdk deploy --context environment=production `
+    --context domainName=wiki.yourdomain.com `
+    --context certificateArnUsEast1=arn:aws:acm:us-east-1:... `
+    --context certificateArnRegional=arn:aws:acm:ap-southeast-2:... `
+    --context enableCognitoCustomDomain=true `
+    --all --require-approval broadening
+```
 
 For a basic production deploy without custom domains:
 ```powershell
@@ -123,7 +125,7 @@ cdk destroy --context environment=dev --all
 ### Issue: Cognito Hosted UI not working after deploy
 **Solution**: Ensure the deploy workflow's Cognito discovery step found the correct domain. Check:
 - User Pool has a configured domain (prefix or custom)
-- Web client has correct callback URLs (e.g., `https://wiki.bluefin605.com/callback`)
+- Web client has correct callback URLs (e.g., `https://wiki.yourdomain.com/callback`)
 - Frontend env vars match the deployed Cognito configuration
 
 ### Issue: Google login not working
