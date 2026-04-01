@@ -1,8 +1,17 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
-import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
+import { withAuth, AuthenticatedEvent, getUserContext, UserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageChildDetail, PageSummary, PageContent } from '../types/index.js';
 import { StoragePlugin } from '../storage/StoragePlugin.js';
+
+/**
+ * Filter out draft pages unless the user is the author or an admin.
+ */
+function filterDrafts<T extends PageSummary>(pages: T[], user: UserContext): T[] {
+  return pages.filter(page =>
+    page.status !== 'draft' || user.role === 'Admin' || page.createdBy === user.userId
+  );
+}
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_DEPTH = 10;
@@ -17,11 +26,12 @@ async function collectDescendantsByType(
   parentTitle: string,
   targetTypeGuid: string,
   remainingDepth: number,
+  user: UserContext,
 ): Promise<PageChildDetail[]> {
   if (remainingDepth <= 0) return [];
 
   const allChildren = await storagePlugin.listChildren(parentGuid);
-  const children = allChildren.filter(child => child.status !== 'archived');
+  const children = filterDrafts(allChildren.filter(child => child.status !== 'archived'), user);
 
   const results: PageChildDetail[] = [];
 
@@ -54,6 +64,7 @@ async function collectDescendantsByType(
         fullPage.title,
         targetTypeGuid,
         remainingDepth - 1,
+        user,
       );
       results.push(...deeper);
     }
@@ -165,11 +176,12 @@ export const handler = withAuth(async (
         parentTitle,
         targetTypeGuid,
         depth,
+        user,
       );
     } else {
       // Standard: list direct children
       const allChildren = await storagePlugin.listChildren(parentGuid);
-      const children = allChildren.filter(child => child.status !== 'archived');
+      const children = filterDrafts(allChildren.filter(child => child.status !== 'archived'), user);
 
       if (includeProperties) {
         responseChildren = await enrichChildrenWithProperties(storagePlugin, children);

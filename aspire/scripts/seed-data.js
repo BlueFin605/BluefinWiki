@@ -56,7 +56,7 @@ async function seedUsers() {
 
   const users = [
     {
-      userId: ADMIN_USER_ID,
+      cognitoUserId: ADMIN_USER_ID,
       email: 'admin@bluefinwiki.local',
       passwordHash,
       role: 'Admin',
@@ -67,7 +67,7 @@ async function seedUsers() {
       lastLoginAt: null,
     },
     {
-      userId: STANDARD_USER_ID,
+      cognitoUserId: STANDARD_USER_ID,
       email: 'user@bluefinwiki.local',
       passwordHash,
       role: 'Standard',
@@ -81,7 +81,7 @@ async function seedUsers() {
 
   for (const user of users) {
     const command = new PutCommand({
-      TableName: 'bluefinwiki-users-local',
+      TableName: 'bluefinwiki-user-profiles-local',
       Item: user,
     });
     await docClient.send(command);

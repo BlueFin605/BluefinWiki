@@ -1211,6 +1211,236 @@ namespace Infrastructure.Stacks
             });
 
             // =============================================================================
+            // Auth Lambda Functions (register, me)
+            // =============================================================================
+
+            var authRegisterFunction = new LambdaFunction(this, "AuthRegisterFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-register",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/auth-register.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Register new user with invitation code"
+            });
+
+            var authMeFunction = new LambdaFunction(this, "AuthMeFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-me",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/auth-me.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Get current user profile"
+            });
+
+            // =============================================================================
+            // Admin Invitation Lambda Functions
+            // =============================================================================
+
+            var adminCreateInvitationFunction = new LambdaFunction(this, "AdminCreateInvitationFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-create-invitation",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-create-invitation.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Create invitation code (admin only)"
+            });
+
+            var adminListInvitationsFunction = new LambdaFunction(this, "AdminListInvitationsFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-list-invitations",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-list-invitations.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List invitation codes (admin only)"
+            });
+
+            var adminRevokeInvitationFunction = new LambdaFunction(this, "AdminRevokeInvitationFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-revoke-invitation",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-revoke-invitation.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Revoke invitation code (admin only)"
+            });
+
+            // =============================================================================
+            // Pages Links Resolve Lambda Function
+            // =============================================================================
+
+            var pagesLinksResolveFunction = new LambdaFunction(this, "PagesLinksResolveFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-links-resolve",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/links-resolve.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Resolve page links by title"
+            });
+
+            // =============================================================================
+            // Admin User Management Lambda Functions
+            // =============================================================================
+
+            var adminUsersListFunction = new LambdaFunction(this, "AdminUsersListFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-users-list",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-users-list.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List all users (admin only)"
+            });
+
+            var adminUsersGetFunction = new LambdaFunction(this, "AdminUsersGetFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-users-get",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-users-get.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Get user details (admin only)"
+            });
+
+            var adminUsersUpdateFunction = new LambdaFunction(this, "AdminUsersUpdateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-users-update",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-users-update.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Update user role or display name (admin only)"
+            });
+
+            var adminUsersSuspendFunction = new LambdaFunction(this, "AdminUsersSuspendFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-users-suspend",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-users-suspend.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Suspend a user (admin only)"
+            });
+
+            var adminUsersActivateFunction = new LambdaFunction(this, "AdminUsersActivateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-users-activate",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-users-activate.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Activate a suspended user (admin only)"
+            });
+
+            var adminUsersDeleteFunction = new LambdaFunction(this, "AdminUsersDeleteFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-admin-users-delete",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/admin-users-delete.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Delete a user (admin only)"
+            });
+
+            // =============================================================================
+            // Self-Service Profile Lambda Functions
+            // =============================================================================
+
+            var authProfileUpdateFunction = new LambdaFunction(this, "AuthProfileUpdateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-profile-update",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/auth-profile-update.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Update own display name"
+            });
+
+            var authChangePasswordFunction = new LambdaFunction(this, "AuthChangePasswordFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-auth-change-password",
+                Runtime = lambdaProps.Runtime,
+                Handler = "auth/auth-change-password.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Change own password"
+            });
+
+            // =============================================================================
             // API Gateway Routes - /pages
             // =============================================================================
             
@@ -1292,6 +1522,15 @@ namespace Infrastructure.Stacks
             // GET /pages/{guid}/backlinks - Get pages that link to this page
             var backlinksResource = pageGuidResource.AddResource("backlinks");
             backlinksResource.AddMethod("GET", new LambdaIntegration(pagesBacklinksFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /pages/links/resolve - Resolve page links by title
+            var linksResource = pagesResource.AddResource("links");
+            var linksResolveResource = linksResource.AddResource("resolve");
+            linksResolveResource.AddMethod("POST", new LambdaIntegration(pagesLinksResolveFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
@@ -1418,6 +1657,124 @@ namespace Infrastructure.Stacks
             // GET /page-types/{guid}/allowed-children - Get allowed child types
             var allowedChildrenResource = pageTypeGuidResource.AddResource("allowed-children");
             allowedChildrenResource.AddMethod("GET", new LambdaIntegration(pageTypesAllowedChildrenFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // =============================================================================
+            // API Gateway Routes - /admin/users
+            // =============================================================================
+
+            var adminResource = Api.Root.AddResource("admin");
+            var adminUsersResource = adminResource.AddResource("users");
+
+            // GET /admin/users - List all users
+            adminUsersResource.AddMethod("GET", new LambdaIntegration(adminUsersListFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // /admin/users/{userId} resource
+            var adminUserIdResource = adminUsersResource.AddResource("{userId}");
+
+            // GET /admin/users/{userId} - Get user details
+            adminUserIdResource.AddMethod("GET", new LambdaIntegration(adminUsersGetFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // PUT /admin/users/{userId} - Update user
+            adminUserIdResource.AddMethod("PUT", new LambdaIntegration(adminUsersUpdateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // DELETE /admin/users/{userId} - Delete user
+            adminUserIdResource.AddMethod("DELETE", new LambdaIntegration(adminUsersDeleteFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /admin/users/{userId}/suspend - Suspend user
+            var adminUserSuspendResource = adminUserIdResource.AddResource("suspend");
+            adminUserSuspendResource.AddMethod("POST", new LambdaIntegration(adminUsersSuspendFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /admin/users/{userId}/activate - Activate user
+            var adminUserActivateResource = adminUserIdResource.AddResource("activate");
+            adminUserActivateResource.AddMethod("POST", new LambdaIntegration(adminUsersActivateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // =============================================================================
+            // API Gateway Routes - /admin/invitations
+            // =============================================================================
+
+            var adminInvitationsResource = adminResource.AddResource("invitations");
+
+            // GET /admin/invitations - List invitations
+            adminInvitationsResource.AddMethod("GET", new LambdaIntegration(adminListInvitationsFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /admin/invitations - Create invitation
+            adminInvitationsResource.AddMethod("POST", new LambdaIntegration(adminCreateInvitationFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // /admin/invitations/{invitationCode}
+            var adminInvitationCodeResource = adminInvitationsResource.AddResource("{invitationCode}");
+
+            // DELETE /admin/invitations/{invitationCode} - Revoke invitation
+            adminInvitationCodeResource.AddMethod("DELETE", new LambdaIntegration(adminRevokeInvitationFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // =============================================================================
+            // API Gateway Routes - /auth/profile and /auth/change-password
+            // =============================================================================
+
+            var authResource = Api.Root.AddResource("auth");
+
+            // POST /auth/register - Register new user (public, no auth required)
+            var authRegisterResource = authResource.AddResource("register");
+            authRegisterResource.AddMethod("POST", new LambdaIntegration(authRegisterFunction));
+
+            // GET /auth/me - Get current user profile
+            var authMeResource = authResource.AddResource("me");
+            authMeResource.AddMethod("GET", new LambdaIntegration(authMeFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // PUT /auth/profile - Update own profile
+            var authProfileResource = authResource.AddResource("profile");
+            authProfileResource.AddMethod("PUT", new LambdaIntegration(authProfileUpdateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /auth/change-password - Change own password
+            var authChangePasswordResource = authResource.AddResource("change-password");
+            authChangePasswordResource.AddMethod("POST", new LambdaIntegration(authChangePasswordFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
