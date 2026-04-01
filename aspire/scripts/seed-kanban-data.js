@@ -48,12 +48,12 @@ const TAGS_TABLE = 'bluefinwiki-tags-local';
 
 async function getAdminUserId() {
   const result = await docClient.send(new ScanCommand({
-    TableName: 'bluefinwiki-users-local',
+    TableName: 'bluefinwiki-user-profiles-local',
     FilterExpression: '#r = :admin',
     ExpressionAttributeNames: { '#r': 'role' },
     ExpressionAttributeValues: { ':admin': 'Admin' },
   }));
-  if (result.Items && result.Items.length > 0) return result.Items[0].userId;
+  if (result.Items && result.Items.length > 0) return result.Items[0].cognitoUserId;
   return uuidv4();
 }
 
