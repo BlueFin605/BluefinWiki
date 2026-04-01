@@ -171,7 +171,7 @@ Markdown content here...
 | `invitations` | `inviteCode` | TTL: `expiresAt` | Invitation codes with 7-day expiry |
 | `page_links` | `sourceGuid` | SK: `targetGuid`, GSI: `targetGuid-index` | Wiki link tracking for backlinks |
 | `tags` | `scope` | SK: `tag` | Scoped tag vocabulary — `scope` is the property name (e.g., `genre`) or `_page` for page-level tags. Each scope has its own autocomplete list. |
-| `page_types` | `guid` | — | Page type definitions — name, icon, property schema (JSON), allowed child types (JSON) |
+| `page_types` | `guid` | — | Page type definitions — name, icon, property schema (JSON), allowed child types (JSON), allowed parent types (JSON) |
 | `user_preferences` | `userId` | SK: `preferenceKey` | **Not yet created** — theme, dashboard layout, favorites, tour completion |
 | `activity_log` | `userId` | SK: `timestamp`, TTL: 90 days | Created in CDK. Post-confirmation trigger writes to it. No UI or query APIs yet. |
 | `comments` | `guid` | GSI: `pageGuid-createdAt-index` | **Not yet created** — page comments |

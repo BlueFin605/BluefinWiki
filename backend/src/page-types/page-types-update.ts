@@ -16,6 +16,8 @@ const UpdatePageTypeSchema = z.object({
   properties: z.array(PageTypePropertySchema).optional(),
   allowedChildTypes: z.array(z.string().uuid()).optional(),
   allowWikiPageChildren: z.boolean().optional(),
+  allowedParentTypes: z.array(z.string().uuid()).optional(),
+  allowAnyParent: z.boolean().optional(),
 });
 
 /**

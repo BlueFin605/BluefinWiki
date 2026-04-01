@@ -11,7 +11,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { PageTreeItem, DropPosition } from './PageTreeItem';
+import { PageTreeItem, DropPosition, checkTypeConstraints } from './PageTreeItem';
 import { PageTreeNode, PageTypeDefinition } from '../../types/page';
 import { usePageChildren, useMovePage, useReorderPages } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
@@ -101,7 +101,7 @@ export const PageTree: React.FC<PageTreeProps> = ({
         return;
       }
 
-      event.dataTransfer.dropEffect = 'move';
+      // dropEffect is set by PageTreeItem.handleDragOver which has full context
     },
     [draggedPage]
   );
@@ -112,6 +112,16 @@ export const PageTree: React.FC<PageTreeProps> = ({
 
       if (!draggedPage) return;
       if (draggedPage.guid === targetPage.guid) return;
+
+      // For reparent (onto) operations, block if type constraints are violated
+      if (position === 'onto') {
+        const warnings = checkTypeConstraints(draggedPage, targetPage, pageTypesMap);
+        if (warnings.length > 0) {
+          window.alert(`Cannot move here:\n\n${warnings.join('\n')}`);
+          setDraggedPage(null);
+          return;
+        }
+      }
 
       const sameParent = draggedPage.parentGuid === targetPage.parentGuid;
 
@@ -166,6 +176,20 @@ export const PageTree: React.FC<PageTreeProps> = ({
         // then reorder (two operations)
         try {
           const targetParent = targetPage.parentGuid;
+
+          // Check type constraints against the target's parent before moving
+          if (targetParent !== null) {
+            const { apiClient } = await import('../../config/api');
+            const parentResp = await apiClient.get(`/pages/${targetParent}`);
+            const parentPageType = parentResp.data?.pageType;
+            const syntheticParent = { pageType: parentPageType } as PageTreeNode;
+            const warnings = checkTypeConstraints(draggedPage, syntheticParent, pageTypesMap);
+            if (warnings.length > 0) {
+              window.alert(`Cannot move here:\n\n${warnings.join('\n')}`);
+              setDraggedPage(null);
+              return;
+            }
+          }
 
           // First move to the same parent
           await movePage.mutateAsync({
@@ -239,6 +263,7 @@ export const PageTree: React.FC<PageTreeProps> = ({
           isActive={page.guid === activePageGuid}
           expandedGuids={expandedGuids}
           pageTypesMap={pageTypesMap}
+          draggedPage={draggedPage}
           onSelect={onPageSelect}
           onContextMenu={onContextMenu}
           onDragStart={handleDragStart}
