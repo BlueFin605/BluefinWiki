@@ -45,6 +45,7 @@ const UpdatePageRequestSchema = z.object({
   pageType: z.string().uuid().nullable().optional(),
   properties: z.record(PropertyNameSchema, PagePropertySchema).optional(),
   boardConfig: BoardConfigSchema,
+  boardOrder: z.number().int().optional(),
 });
 
 /**

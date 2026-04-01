@@ -12,6 +12,7 @@ import {
   CreatePageRequest,
   UpdatePageRequest,
   MovePageRequest,
+  ReorderRequest,
 } from '../types/page';
 
 /**
@@ -154,6 +155,19 @@ export const useMovePage = (guid: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
+    },
+  });
+};
+
+/**
+ * Reorder sibling pages under a shared parent.
+ * Does NOT auto-invalidate — callers should invalidate after batch operations.
+ */
+export const useReorderPages = () => {
+  return useMutation({
+    mutationFn: async (request: ReorderRequest): Promise<{ updated: number }> => {
+      const response = await apiClient.put('/pages/reorder', request);
+      return response.data;
     },
   });
 };

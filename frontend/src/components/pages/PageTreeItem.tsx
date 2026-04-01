@@ -1,13 +1,55 @@
 /**
  * PageTreeItem Component
- * 
+ *
  * Displays a single page in the tree with expand/collapse functionality
- * and support for context menu and drag-and-drop
+ * and support for context menu and drag-and-drop (both reparent and reorder)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { PageTreeNode, PageTypeDefinition } from '../../types/page';
 import { usePageChildren } from '../../hooks/usePages';
+
+export type DropPosition = 'before' | 'after' | 'onto';
+
+/** Check if dropping draggedPage onto targetPage violates type constraints. */
+export function checkTypeConstraints(
+  draggedPage: PageTreeNode,
+  targetPage: PageTreeNode,
+  pageTypesMap: Record<string, PageTypeDefinition>,
+): string[] {
+  const warnings: string[] = [];
+  const parentType = targetPage.pageType ? pageTypesMap[targetPage.pageType] : null;
+  const childType = draggedPage.pageType ? pageTypesMap[draggedPage.pageType] : null;
+
+  // CHECK 1: Parent's perspective — does the parent allow this child type?
+  if (parentType) {
+    if (draggedPage.pageType) {
+      if (parentType.allowedChildTypes.length > 0 &&
+          !parentType.allowedChildTypes.includes(draggedPage.pageType)) {
+        warnings.push(`${parentType.name} does not allow ${childType?.name || 'this type'} as a child`);
+      }
+    } else {
+      if (!parentType.allowWikiPageChildren) {
+        warnings.push(`${parentType.name} does not allow untyped wiki pages as children`);
+      }
+    }
+  }
+
+  // CHECK 2: Child's perspective — does the child allow this parent type?
+  if (childType && childType.allowedParentTypes.length > 0) {
+    if (targetPage.pageType) {
+      if (!childType.allowedParentTypes.includes(targetPage.pageType)) {
+        warnings.push(`${childType.name} cannot be placed under ${parentType?.name || 'this type'}`);
+      }
+    } else {
+      if (!childType.allowAnyParent) {
+        warnings.push(`${childType.name} cannot be placed under an untyped wiki page`);
+      }
+    }
+  }
+
+  return warnings;
+}
 
 interface PageTreeItemProps {
   page: PageTreeNode;
@@ -15,13 +57,24 @@ interface PageTreeItemProps {
   isActive?: boolean;
   expandedGuids: Set<string>;
   pageTypesMap: Record<string, PageTypeDefinition>;
+  draggedPage?: PageTreeNode | null;
+  parentPageType?: string;  // pageType of this item's parent (for before/after constraint checks)
   onSelect: (guid: string) => void;
   onContextMenu: (event: React.MouseEvent, page: PageTreeNode) => void;
   onDragStart: (event: React.DragEvent, page: PageTreeNode) => void;
   onDragOver: (event: React.DragEvent, page: PageTreeNode) => void;
-  onDrop: (event: React.DragEvent, page: PageTreeNode) => void;
+  onDrop: (event: React.DragEvent, page: PageTreeNode, position: DropPosition) => void;
   onToggleExpand: (guid: string) => void;
   onNewChild: (page: PageTreeNode) => void;
+}
+
+function getDropPosition(e: React.DragEvent, el: HTMLElement): DropPosition {
+  const rect = el.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  const threshold = rect.height * 0.25;
+  if (y < threshold) return 'before';
+  if (y > rect.height - threshold) return 'after';
+  return 'onto';
 }
 
 export const PageTreeItem: React.FC<PageTreeItemProps> = ({
@@ -30,6 +83,8 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
   isActive = false,
   expandedGuids,
   pageTypesMap,
+  draggedPage,
+  parentPageType,
   onSelect,
   onContextMenu,
   onDragStart,
@@ -38,7 +93,8 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
   onToggleExpand,
   onNewChild,
 }) => {
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
 
   // Check if this page is expanded
   const isExpanded = expandedGuids.has(page.guid);
@@ -48,18 +104,38 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
 
   const handleDragOver = (event: React.DragEvent) => {
     event.preventDefault();
-    setIsDragOver(true);
+    if (rowRef.current) {
+      const pos = getDropPosition(event, rowRef.current);
+      setDropPosition(pos);
+
+      // Set dropEffect based on type constraints
+      if (draggedPage && draggedPage.guid !== page.guid) {
+        let warnings: string[] = [];
+        if (pos === 'onto') {
+          warnings = checkTypeConstraints(draggedPage, page, pageTypesMap);
+        } else if (draggedPage.parentGuid !== page.parentGuid) {
+          const syntheticParent = { pageType: parentPageType } as PageTreeNode;
+          warnings = checkTypeConstraints(draggedPage, syntheticParent, pageTypesMap);
+        }
+        event.dataTransfer.dropEffect = warnings.length > 0 ? 'none' : 'move';
+      }
+    }
     onDragOver(event, page);
   };
 
-  const handleDragLeave = () => {
-    setIsDragOver(false);
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only count as leave if we actually left this element
+    if (rowRef.current && !rowRef.current.contains(e.relatedTarget as Node)) {
+      setDropPosition(null);
+    }
   };
 
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
-    setIsDragOver(false);
-    onDrop(event, page);
+    event.stopPropagation();
+    const pos = rowRef.current ? getDropPosition(event, rowRef.current) : 'onto';
+    setDropPosition(null);
+    onDrop(event, page, pos);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -74,13 +150,44 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
 
   const paddingLeft = level * 16 + 8; // 16px per level + 8px base
 
+  // Check type constraints during drag
+  const typeWarnings = (() => {
+    if (!draggedPage || draggedPage.guid === page.guid || !dropPosition) return [];
+    if (dropPosition === 'onto') {
+      return checkTypeConstraints(draggedPage, page, pageTypesMap);
+    }
+    // before/after with a different parent — check against this item's parent
+    if (draggedPage.parentGuid !== page.parentGuid) {
+      const syntheticParent = { pageType: parentPageType } as PageTreeNode;
+      return checkTypeConstraints(draggedPage, syntheticParent, pageTypesMap);
+    }
+    return [];
+  })();
+  const hasTypeWarning = typeWarnings.length > 0;
+
+  const dropIndicatorClass =
+    dropPosition === 'before'
+      ? hasTypeWarning
+        ? 'border-t-2 border-amber-400'
+        : 'border-t-2 border-blue-500'
+      : dropPosition === 'after'
+        ? hasTypeWarning
+          ? 'border-b-2 border-amber-400'
+          : 'border-b-2 border-blue-500'
+        : dropPosition === 'onto'
+          ? hasTypeWarning
+            ? 'bg-amber-50 border-2 border-amber-400 border-dashed'
+            : 'bg-blue-100 border-2 border-blue-400 border-dashed'
+          : '';
+
   return (
     <div>
       <div
+        ref={rowRef}
         className={`
           group flex items-center py-2 px-2 cursor-pointer hover:bg-gray-100 rounded
           ${isActive ? 'bg-blue-50 border-l-4 border-blue-600' : ''}
-          ${isDragOver ? 'bg-blue-100 border-2 border-blue-400 border-dashed' : ''}
+          ${dropIndicatorClass}
         `}
         style={{ paddingLeft: `${paddingLeft}px` }}
         onClick={() => onSelect(page.guid)}
@@ -148,6 +255,15 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
           {page.title}
         </span>
 
+        {/* Type constraint warning indicator */}
+        {hasTypeWarning && dropPosition && (
+          <span className="mr-1 text-amber-500 shrink-0" title={typeWarnings.join('\n')}>
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </span>
+        )}
+
         {/* Add Child Page Button */}
         <button
           className="ml-1 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
@@ -184,6 +300,8 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
               isActive={isActive}
               expandedGuids={expandedGuids}
               pageTypesMap={pageTypesMap}
+              draggedPage={draggedPage}
+              parentPageType={page.pageType}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
               onDragStart={onDragStart}

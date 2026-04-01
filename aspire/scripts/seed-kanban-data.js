@@ -139,8 +139,23 @@ async function seedKanbanData() {
   // -----------------------------------------------------------------------
   console.log('Creating page types...');
 
+  const kanbanTypeGuid = uuidv4();
   const tvShowTypeGuid = uuidv4();
   const seasonTypeGuid = uuidv4();
+
+  const kanbanType = {
+    guid: kanbanTypeGuid,
+    name: 'Kanban',
+    icon: '📋',
+    properties: JSON.stringify([]),
+    allowedChildTypes: JSON.stringify([tvShowTypeGuid]),
+    allowWikiPageChildren: false,
+    allowedParentTypes: JSON.stringify([]),
+    allowAnyParent: true,
+    createdBy: adminUserId,
+    createdAt: now,
+    updatedAt: now,
+  };
 
   const tvShowType = {
     guid: tvShowTypeGuid,
@@ -152,7 +167,9 @@ async function seedKanbanData() {
       { name: 'genre', type: 'tags', required: false, defaultValue: [] },
     ]),
     allowedChildTypes: JSON.stringify([seasonTypeGuid]),
-    allowWikiPageChildren: true,
+    allowWikiPageChildren: false,
+    allowedParentTypes: JSON.stringify([kanbanTypeGuid]),
+    allowAnyParent: false,
     createdBy: adminUserId,
     createdAt: now,
     updatedAt: now,
@@ -168,13 +185,15 @@ async function seedKanbanData() {
       { name: 'episodes', type: 'number', required: false },
     ]),
     allowedChildTypes: JSON.stringify([]),
-    allowWikiPageChildren: true,
+    allowWikiPageChildren: false,
+    allowedParentTypes: JSON.stringify([tvShowTypeGuid]),
+    allowAnyParent: false,
     createdBy: adminUserId,
     createdAt: now,
     updatedAt: now,
   };
 
-  for (const pt of [tvShowType, seasonType]) {
+  for (const pt of [kanbanType, tvShowType, seasonType]) {
     await docClient.send(new PutCommand({ TableName: PAGE_TYPES_TABLE, Item: pt }));
     console.log(`  ✓ Page type: ${pt.name} (${pt.icon})`);
   }
@@ -212,6 +231,7 @@ Track what the family is watching. Switch to **Board** view to see all seasons a
 Each show has its own page with seasons underneath — open a show and switch to Board view to track season progress too.
 `,
     status: 'published',
+    pageType: kanbanTypeGuid,
     tags: ['tv', 'tracker'],
     boardConfig: {
       columns: ['Unwatched', 'Watching', 'Completed', 'Dropped'],

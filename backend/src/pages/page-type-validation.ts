@@ -50,8 +50,10 @@ export async function validatePageType(
 }
 
 /**
- * Validate that a new child page's type is allowed by the parent's type constraints.
- * If the parent has no type, anything is allowed (standard wiki behaviour).
+ * Validate that a child page's type is allowed by the parent's type constraints
+ * AND that the parent's type is allowed by the child's type constraints.
+ * Both checks must pass. Used for both creation and move (drag-drop reparent).
+ * If neither page has a type, anything is allowed (standard wiki behaviour).
  */
 export async function validateChildTypeConstraint(
   parentGuid: string,
@@ -68,31 +70,46 @@ export async function validateChildTypeConstraint(
     return { valid: true, warnings: [] };
   }
 
-  if (!parentPage.pageType) {
-    // Untyped parent — no constraints
-    return { valid: true, warnings: [] };
-  }
+  // CHECK 1: Parent's perspective — does the parent allow this child type?
+  const parentType = parentPage.pageType ? await getPageType(parentPage.pageType) : null;
 
-  const parentType = await getPageType(parentPage.pageType);
-  if (!parentType) {
-    // Parent type was deleted — no constraints
-    return { valid: true, warnings: [] };
-  }
-
-  if (childPageTypeGuid) {
-    // Typed child — check allowedChildTypes
-    if (parentType.allowedChildTypes.length > 0 &&
-        !parentType.allowedChildTypes.includes(childPageTypeGuid)) {
-      warnings.push(
-        `Page type is not in the allowed child types for parent type '${parentType.name}'`
-      );
+  if (parentType) {
+    if (childPageTypeGuid) {
+      // Typed child — check allowedChildTypes
+      if (parentType.allowedChildTypes.length > 0 &&
+          !parentType.allowedChildTypes.includes(childPageTypeGuid)) {
+        warnings.push(
+          `Page type is not in the allowed child types for parent type '${parentType.name}'`
+        );
+      }
+    } else {
+      // Untyped child — check allowWikiPageChildren
+      if (!parentType.allowWikiPageChildren) {
+        warnings.push(
+          `Parent type '${parentType.name}' does not allow untyped wiki page children`
+        );
+      }
     }
-  } else {
-    // Untyped child — check allowWikiPageChildren
-    if (!parentType.allowWikiPageChildren) {
-      warnings.push(
-        `Parent type '${parentType.name}' does not allow untyped wiki page children`
-      );
+  }
+
+  // CHECK 2: Child's perspective — does the child allow this parent type?
+  if (childPageTypeGuid) {
+    const childType = await getPageType(childPageTypeGuid);
+    if (childType && childType.allowedParentTypes.length > 0) {
+      if (parentPage.pageType) {
+        if (!childType.allowedParentTypes.includes(parentPage.pageType)) {
+          warnings.push(
+            `Type '${childType.name}' cannot be placed under parent type '${parentType?.name || 'unknown'}'`
+          );
+        }
+      } else {
+        // Untyped parent — check allowAnyParent
+        if (!childType.allowAnyParent) {
+          warnings.push(
+            `Type '${childType.name}' cannot be placed under an untyped wiki page`
+          );
+        }
+      }
     }
   }
 

@@ -7,6 +7,7 @@ interface BoardCardProps {
   swapTitles?: boolean;
   onCardClick: (card: PageChildDetail) => void;
   onDragStart: (e: React.DragEvent, guid: string) => void;
+  dropIndicator?: 'before' | 'after' | null;
 }
 
 /** Max number of properties to show on a card */
@@ -18,6 +19,7 @@ export const BoardCard: React.FC<BoardCardProps> = ({
   swapTitles,
   onCardClick,
   onDragStart,
+  dropIndicator,
 }) => {
   const primaryTitle = swapTitles && card.parentTitle ? card.parentTitle : card.title;
   const secondaryTitle = swapTitles && card.parentTitle ? card.title : card.parentTitle;
@@ -33,9 +35,17 @@ export const BoardCard: React.FC<BoardCardProps> = ({
     return String(value);
   };
 
+  const indicatorClass =
+    dropIndicator === 'before'
+      ? 'border-t-2 border-blue-500'
+      : dropIndicator === 'after'
+        ? 'border-b-2 border-blue-500'
+        : '';
+
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
+      data-card-guid={card.guid}
+      className={`bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all ${indicatorClass}`}
       draggable
       onDragStart={(e) => onDragStart(e, card.guid)}
       onClick={() => onCardClick(card)}

@@ -52,6 +52,8 @@ export interface CreatePageTypeRequest {
   properties?: PageTypeProperty[];
   allowedChildTypes?: string[];
   allowWikiPageChildren?: boolean;
+  allowedParentTypes?: string[];
+  allowAnyParent?: boolean;
 }
 
 export interface UpdatePageTypeRequest {
@@ -60,6 +62,8 @@ export interface UpdatePageTypeRequest {
   properties?: PageTypeProperty[];
   allowedChildTypes?: string[];
   allowWikiPageChildren?: boolean;
+  allowedParentTypes?: string[];
+  allowAnyParent?: boolean;
 }
 
 export const useCreatePageType = () => {

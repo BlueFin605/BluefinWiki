@@ -138,6 +138,8 @@ guid: <page-guid>
 parentGuid: <parent-guid or null>
 folderId: <same as parentGuid — legacy/redundant field>
 status: Draft | Published | Archived
+sortOrder: <integer — position among siblings in page tree, lower first>
+boardOrder: <integer — position within board column, lower first>
 description: Optional description
 tags: [tag1, tag2]
 createdBy: <cognito-sub>
@@ -154,6 +156,7 @@ Markdown content here...
 - GUIDs for all identifiers — titles stored in frontmatter, renames don't break paths
 - S3 versioning for page history — no custom version management
 - Sidecar `.meta.json` for attachment metadata — not a DynamoDB table
+- Sort order — two independent integer fields in frontmatter: `sortOrder` controls sibling ordering in the page tree, `boardOrder` controls card position within board columns. Pages/cards without these fields sort after ordered ones. Tree reorder uses a batch endpoint; board reorder uses gap-based single-card updates via the page update endpoint.
 - Hard delete — no trash/restore mechanism. Deleted pages are permanently removed from S3. Recoverability via S3 versioning only.
 - Move is copy + delete — not atomic. If copy succeeds but delete fails, duplicates exist. No detection or cleanup mechanism yet.
 - Page size — no enforced limit. Large pages may cause editor performance issues and Lambda timeout on export. Consider a warning at 50K characters.
@@ -168,7 +171,7 @@ Markdown content here...
 | `invitations` | `inviteCode` | TTL: `expiresAt` | Invitation codes with 7-day expiry |
 | `page_links` | `sourceGuid` | SK: `targetGuid`, GSI: `targetGuid-index` | Wiki link tracking for backlinks |
 | `tags` | `scope` | SK: `tag` | Scoped tag vocabulary — `scope` is the property name (e.g., `genre`) or `_page` for page-level tags. Each scope has its own autocomplete list. |
-| `page_types` | `guid` | — | Page type definitions — name, icon, property schema (JSON), allowed child types (JSON) |
+| `page_types` | `guid` | — | Page type definitions — name, icon, property schema (JSON), allowed child types (JSON), allowed parent types (JSON) |
 | `user_preferences` | `userId` | SK: `preferenceKey` | **Not yet created** — theme, dashboard layout, favorites, tour completion |
 | `activity_log` | `userId` | SK: `timestamp`, TTL: 90 days | Created in CDK. Post-confirmation trigger writes to it. No UI or query APIs yet. |
 | `comments` | `guid` | GSI: `pageGuid-createdAt-index` | **Not yet created** — page comments |
