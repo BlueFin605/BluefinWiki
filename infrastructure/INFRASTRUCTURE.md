@@ -19,7 +19,6 @@ This directory contains the AWS CDK C# infrastructure code for BlueFinWiki. The 
 infrastructure/
 ├── cdk.json                       # CDK app configuration
 ├── README.md                      # This file
-├── deploy-production.ps1          # Production deployment script (ACM certs, Cognito domain, Google OAuth)
 └── src/
     └── Infrastructure/
         ├── Program.cs             # CDK app entry point with environment and context configuration
@@ -52,7 +51,7 @@ DynamoDB tables for metadata and user data:
 ### Auth Resources (Cognito)
 AWS Cognito for authentication:
 - **User Pool**: Email/password auth with configurable password policy
-- **User Pool Domain**: Custom domain (auth.bluefin605.com) or Cognito prefix domain
+- **User Pool Domain**: Custom domain (auth.yourdomain.com) or Cognito prefix domain
 - **Web Client**: OAuth2 app client for frontend (authorization code flow)
 - **Native Client**: App client for backend/admin operations
 - **Google Identity Provider**: Federated login via Google OAuth (optional, controlled by `enableGoogleLogin` context)
@@ -60,7 +59,7 @@ AWS Cognito for authentication:
 
 ### Compute Resources
 Serverless compute:
-- **API Gateway REST API**: Public API endpoints with custom domain support (api.bluefin605.com)
+- **API Gateway REST API**: Public API endpoints with custom domain support (api.yourdomain.com)
 - **Lambda Functions**: Backend logic (Node.js handlers)
 - **Secrets Manager**: Google OAuth client secret (when Google login enabled)
 - **IAM Roles**: Lambda execution roles with least privilege
@@ -68,7 +67,7 @@ Serverless compute:
 ### CDN Resources
 Content delivery and frontend hosting:
 - **Frontend S3 Bucket**: React SPA static files
-- **CloudFront Distribution**: Global CDN with caching policies, custom domain (wiki.bluefin605.com)
+- **CloudFront Distribution**: Global CDN with caching policies, custom domain (wiki.yourdomain.com)
 - **Origin Access Identity**: Secure S3 access
 
 ### CDK Context Parameters
@@ -78,7 +77,7 @@ The stack accepts these context parameters via `--context`:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `environment` | Deployment environment | `dev`, `staging`, `production` |
-| `domainName` | Custom domain name | `bluefin605.com` |
+| `domainName` | Custom domain name | `yourdomain.com` |
 | `certificateArnUsEast1` | ACM cert ARN in us-east-1 (for CloudFront/Cognito) | `arn:aws:acm:us-east-1:...` |
 | `certificateArnRegional` | ACM cert ARN in deployment region (for API Gateway) | `arn:aws:acm:ap-southeast-2:...` |
 | `enableCognitoCustomDomain` | Enable custom Cognito domain | `true`/`false` |
@@ -131,19 +130,11 @@ cdk deploy --context environment=dev --all
 
 #### Deploy to Production
 
-For production deployment with custom domains, ACM certificates, Cognito domain, and Google OAuth, use the production deployment script:
+For production deployment with custom domains, create a `config.json` from `config.example.json` in the repo root:
 
-```powershell
-# From infrastructure directory
-./deploy-production.ps1
+```bash
+cdk deploy --context environment=production --context configFile=../config.json --all --require-approval broadening
 ```
-
-The script handles:
-- ACM certificate creation/validation in us-east-1 (for CloudFront/Cognito) and regional (for API Gateway)
-- Google OAuth secret retrieval from AWS Secrets Manager
-- CDK deploy with all context parameters
-- Cognito custom domain configuration with DNS validation
-- Lambda trigger wiring post-deployment
 
 For a basic production deploy without custom domains:
 ```bash
@@ -164,13 +155,13 @@ cdk destroy --context environment=production --all
 
 After deployment, the unified stack exports these resource identifiers:
 
-- `ApiUrl`: API Gateway endpoint URL (or custom domain api.bluefin605.com)
+- `ApiUrl`: API Gateway endpoint URL (or custom domain api.yourdomain.com)
 - `UserPoolId`: Cognito User Pool ID
 - `WebClientId`: Cognito Web App Client ID
 - `FrontendBucket`: Frontend S3 bucket name
 - `DistributionId`: CloudFront distribution ID
-- `FrontendUrl`: Full frontend URL (https://wiki.bluefin605.com or CloudFront domain)
-- `CognitoDomain`: Cognito Hosted UI domain (auth.bluefin605.com or prefix domain)
+- `FrontendUrl`: Full frontend URL (https://wiki.yourdomain.com or CloudFront domain)
+- `CognitoDomain`: Cognito Hosted UI domain (auth.yourdomain.com or prefix domain)
 
 ## Cost Estimation
 
