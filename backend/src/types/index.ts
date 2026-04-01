@@ -144,6 +144,7 @@ export interface PageSummary {
   title: string;
   parentGuid: string | null;
   status: 'draft' | 'published' | 'archived';
+  createdBy: string; // Cognito sub — needed for draft visibility filtering
   modifiedAt: string; // ISO 8601
   modifiedBy: string; // Cognito sub
   hasChildren: boolean;

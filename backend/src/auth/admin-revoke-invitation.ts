@@ -1,6 +1,7 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { withAuth, withRole, getUserContext, AuthenticatedEvent } from '../middleware/auth.js';
 
 // Environment variables
 const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE || 'bluefinwiki-invitations-local';
@@ -22,52 +23,22 @@ interface InvitationRecord {
 }
 
 /**
- * Extract user information from JWT token in Authorization header
- */
-function extractUserFromToken(event: APIGatewayProxyEvent): { userId: string; role: string } {
-  const authorizer = event.requestContext?.authorizer;
-  
-  if (!authorizer) {
-    throw new Error('No authorizer context found');
-  }
-  
-  const userId = authorizer.claims?.sub || authorizer.sub;
-  const role = authorizer.claims?.['custom:role'] || authorizer['custom:role'] || 'Standard';
-  
-  if (!userId) {
-    throw new Error('Invalid token: missing user ID');
-  }
-  
-  return { userId, role };
-}
-
-/**
  * Lambda handler for revoking invitation codes
- * 
+ *
  * This function:
- * 1. Validates admin permissions
+ * 1. Validates admin permissions (via withAuth + withRole middleware)
  * 2. Checks if invitation exists and is revokable
  * 3. Marks invitation as revoked in DynamoDB
  * 4. Prevents future use in registration flow
- * 
+ *
  * Admin-only endpoint
  */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withAuth(withRole(['Admin'], async (event: AuthenticatedEvent): Promise<APIGatewayProxyResult> => {
   console.log('Revoke invitation request received');
-  
+
   try {
-    // Extract user from JWT token
-    const user = extractUserFromToken(event);
-    
-    // Check admin permissions
-    if (user.role !== 'Admin') {
-      return {
-        statusCode: 403,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Forbidden: Admin access required' }),
-      };
-    }
-    
+    const user = getUserContext(event);
+
     // Extract invite code from path parameters
     const inviteCode = event.pathParameters?.code;
     
@@ -185,4 +156,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       body: JSON.stringify({ error: 'Internal server error', message: error.message }),
     };
   }
-};
+}));

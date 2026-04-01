@@ -6,6 +6,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PagesView } from './components/pages/PagesView';
 import { PageTypesAdmin } from './components/admin/PageTypesAdmin';
 import { SettingsPage } from './components/admin/SettingsPage';
+import { UserManagement } from './components/admin/UserManagement';
+import { InvitationManagement } from './components/admin/InvitationManagement';
+import { ProfilePage } from './components/admin/ProfilePage';
+import { PermissionGuard } from './components/common/PermissionGuard';
 import userPool from './config/cognitoConfig';
 import { handleOAuthCallback, redirectToLogin } from './utils/cognitoAuth';
 
@@ -134,8 +138,11 @@ function App() {
             <Route path="/dashboard" element={<AuthGate><Dashboard /></AuthGate>} />
             <Route path="/pages" element={<AuthGate><PagesView /></AuthGate>} />
             <Route path="/pages/*" element={<AuthGate><PagesView /></AuthGate>} />
-            <Route path="/settings" element={<AuthGate><SettingsPage /></AuthGate>} />
-            <Route path="/admin/page-types" element={<AuthGate><PageTypesAdmin /></AuthGate>} />
+            <Route path="/settings" element={<AuthGate><PermissionGuard requiredRole="Admin"><SettingsPage /></PermissionGuard></AuthGate>} />
+            <Route path="/admin/page-types" element={<AuthGate><PermissionGuard requiredRole="Admin"><PageTypesAdmin /></PermissionGuard></AuthGate>} />
+            <Route path="/admin/users" element={<AuthGate><PermissionGuard requiredRole="Admin"><UserManagement /></PermissionGuard></AuthGate>} />
+            <Route path="/admin/invitations" element={<AuthGate><PermissionGuard requiredRole="Admin"><InvitationManagement /></PermissionGuard></AuthGate>} />
+            <Route path="/profile" element={<AuthGate><ProfilePage /></AuthGate>} />
 
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/pages" replace />} />

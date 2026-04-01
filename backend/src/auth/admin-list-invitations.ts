@@ -1,7 +1,8 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { z } from 'zod';
+import { withAuth, withRole, AuthenticatedEvent } from '../middleware/auth.js';
 
 // Environment variables
 const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE || 'bluefinwiki-invitations-local';
@@ -88,53 +89,21 @@ function isExpired(expiresAt: string): boolean {
 }
 
 /**
- * Extract user information from JWT token in Authorization header
- */
-function extractUserFromToken(event: APIGatewayProxyEvent): { userId: string; role: string } {
-  const authorizer = event.requestContext?.authorizer;
-  
-  if (!authorizer) {
-    throw new Error('No authorizer context found');
-  }
-  
-  const userId = authorizer.claims?.sub || authorizer.sub;
-  const role = authorizer.claims?.['custom:role'] || authorizer['custom:role'] || 'Standard';
-  
-  if (!userId) {
-    throw new Error('Invalid token: missing user ID');
-  }
-  
-  return { userId, role };
-}
-
-/**
  * Lambda handler for listing invitation codes
- * 
+ *
  * This function:
- * 1. Validates admin permissions
+ * 1. Validates admin permissions (via withAuth + withRole middleware)
  * 2. Queries all invitations from DynamoDB
  * 3. Filters by status (pending, used, expired, revoked, or all)
  * 4. Enriches with creator and user information
  * 5. Returns sorted list (newest first)
- * 
+ *
  * Admin-only endpoint
  */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const handler = withAuth(withRole(['Admin'], async (event: AuthenticatedEvent): Promise<APIGatewayProxyResult> => {
   console.log('List invitations request received');
-  
+
   try {
-    // Extract user from JWT token
-    const user = extractUserFromToken(event);
-    
-    // Check admin permissions
-    if (user.role !== 'Admin') {
-      return {
-        statusCode: 403,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Forbidden: Admin access required' }),
-      };
-    }
-    
     // Parse and validate query parameters
     const queryParams = ListInvitationsQuerySchema.parse({
       status: event.queryStringParameters?.status,
@@ -241,4 +210,4 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       body: JSON.stringify({ error: 'Internal server error', message: error.message }),
     };
   }
-};
+}));

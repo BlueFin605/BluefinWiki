@@ -11,41 +11,68 @@ on:
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
+  workflow_call:
+    inputs:
+      api_base_url:
+        type: string
+        required: false
+      cognito_region:
+        type: string
+        required: false
+      cognito_user_pool_id:
+        type: string
+        required: false
+      cognito_client_id:
+        type: string
+        required: false
+      cognito_domain:
+        type: string
+        required: false
+      cognito_redirect_uri:
+        type: string
+        required: false
   workflow_dispatch:
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     defaults:
       run:
         working-directory: frontend
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Lint
         run: npm run lint
-      
+
       - name: Type check
         run: npm run type-check
-      
+
       - name: Run tests
         run: npm test
-      
+
       - name: Build
+        env:
+          VITE_API_BASE_URL: ${{ inputs.api_base_url || '' }}
+          VITE_COGNITO_REGION: ${{ inputs.cognito_region || '' }}
+          VITE_COGNITO_USER_POOL_ID: ${{ inputs.cognito_user_pool_id || '' }}
+          VITE_COGNITO_CLIENT_ID: ${{ inputs.cognito_client_id || '' }}
+          VITE_COGNITO_DOMAIN: ${{ inputs.cognito_domain || '' }}
+          VITE_COGNITO_REDIRECT_URI: ${{ inputs.cognito_redirect_uri || '' }}
         run: npm run build
-      
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

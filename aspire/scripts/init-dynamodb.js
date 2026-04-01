@@ -21,14 +21,14 @@ const client = new DynamoDBClient({
 
 const tableDefinitions = [
   {
-    name: 'bluefinwiki-users-local',
+    name: 'bluefinwiki-user-profiles-local',
     schema: {
-      TableName: 'bluefinwiki-users-local',
+      TableName: 'bluefinwiki-user-profiles-local',
       KeySchema: [
-        { AttributeName: 'userId', KeyType: 'HASH' }, // Partition key
+        { AttributeName: 'cognitoUserId', KeyType: 'HASH' }, // Partition key
       ],
       AttributeDefinitions: [
-        { AttributeName: 'userId', AttributeType: 'S' },
+        { AttributeName: 'cognitoUserId', AttributeType: 'S' },
         { AttributeName: 'email', AttributeType: 'S' },
       ],
       GlobalSecondaryIndexes: [

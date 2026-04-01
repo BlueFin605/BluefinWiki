@@ -4,14 +4,25 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
-import { handler } from '../pages-search.js';
 import { S3StoragePlugin } from '../../storage/S3StoragePlugin.js';
+
+// Mock the auth middleware to pass through
+vi.mock('../../middleware/auth.js', () => ({
+  withAuth: (fn: any) => fn,
+  getUserContext: () => ({
+    userId: 'test-user-id',
+    email: 'test@example.com',
+    role: 'Admin',
+    displayName: 'Test User',
+  }),
+}));
 
 // Mock the storage plugin
 vi.mock('../../storage/index.js', () => ({
   getStoragePlugin: vi.fn(),
 }));
 
+const { handler } = await import('../pages-search.js');
 const { getStoragePlugin } = await import('../../storage/index.js');
 
 describe('pages-search', () => {
