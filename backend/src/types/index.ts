@@ -78,6 +78,8 @@ export interface PageTypeDefinition {
   properties: PageTypeProperty[];  // Property schema
   allowedChildTypes: string[];     // GUIDs of types that can be created as children
   allowWikiPageChildren: boolean;  // Whether untyped wiki pages can be children (default true)
+  allowedParentTypes: string[];    // GUIDs of types this page type can be a child of (empty = any parent)
+  allowAnyParent: boolean;         // Whether this type can be placed under untyped wiki pages (default true)
   createdBy: string;               // Cognito sub
   createdAt: string;               // ISO 8601
   updatedAt: string;               // ISO 8601

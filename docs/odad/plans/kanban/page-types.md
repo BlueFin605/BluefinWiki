@@ -58,6 +58,8 @@ interface PageTypeDefinition {
   properties: PageTypeProperty[];  // Property schema
   allowedChildTypes: string[];     // GUIDs of types that can be created as children
   allowWikiPageChildren: boolean;  // Whether untyped wiki pages can be children (default true)
+  allowedParentTypes: string[];    // GUIDs of types this page type can be a child of (empty = any parent)
+  allowAnyParent: boolean;         // Whether this type can be placed under untyped wiki pages (default true)
   createdBy: string;               // Cognito sub
   createdAt: string;               // ISO 8601
   updatedAt: string;               // ISO 8601
@@ -73,7 +75,8 @@ interface PageTypeProperty {
 
 - A type's GUID is immutable — renaming a type changes `name`, not `guid`
 - `allowedChildTypes: []` means no typed children can be created (but untyped wiki pages still can, unless `allowWikiPageChildren` is false)
-- `allowedChildTypes` does not constrain *moving* pages — only *creating* new children. This keeps drag-and-drop flexible.
+- `allowedParentTypes: []` means this type can be placed under any parent. When non-empty, only the listed parent types are allowed. `allowAnyParent: false` additionally prevents placing under untyped wiki pages.
+- Type constraints are checked on both *creation* and *drag-drop move*. Violations are advisory — the UI warns but does not hard-block. See [Drag-Drop Type Validation flow](../../flows/drag-drop-type-validation.md).
 
 ### DynamoDB: Page Types Table
 
@@ -85,6 +88,8 @@ interface PageTypeProperty {
 | `properties` | String (JSON) | Serialised `PageTypeProperty[]` |
 | `allowedChildTypes` | String (JSON) | Serialised `string[]` of type GUIDs |
 | `allowWikiPageChildren` | Boolean | Whether untyped children are allowed |
+| `allowedParentTypes` | String (JSON) | Serialised `string[]` of parent type GUIDs (empty = any parent) |
+| `allowAnyParent` | Boolean | Whether this type can be placed under untyped wiki pages (default true) |
 | `createdBy` | String | Cognito sub |
 | `createdAt` | String | ISO 8601 |
 | `updatedAt` | String | ISO 8601 |
@@ -134,10 +139,11 @@ properties:
   - Validate all `required: true` properties are present in the page's `properties`
   - Validate property types match the schema
   - If type definition not found (deleted type), skip validation — page saves normally
-- On `createPage` as child of a typed parent:
-  - If the new page has a `pageType`, check it appears in the parent type's `allowedChildTypes`
-  - If the new page has no `pageType`, check the parent type's `allowWikiPageChildren` is true
-  - If parent has no type, allow anything (standard wiki behaviour)
+- On `createPage` or `movePage` (including drag-drop reparent) as child of a typed parent:
+  - **Parent's perspective (allowedChildTypes):** If the target parent has a `pageType`, check that the child's type appears in the parent type's `allowedChildTypes`. If the child has no type, check `allowWikiPageChildren`.
+  - **Child's perspective (allowedParentTypes):** If the child has a `pageType` with non-empty `allowedParentTypes`, check the target parent's type appears in the list. If the target parent has no type, check `allowAnyParent`.
+  - If neither page has a type, allow anything (standard wiki behaviour).
+  - Both checks must pass. A violation from either direction produces a warning.
 - These constraints are advisory in MVP — warn but don't hard-block. This prevents data loss from overly strict enforcement during early use.
 
 ### Frontend: Type Management
@@ -145,7 +151,7 @@ properties:
 - **Admin page** (`/admin/page-types`):
   - List all types with icon and name
   - Create new type: name, icon picker, property schema builder
-  - Edit type: change name, icon, add/remove/reorder properties, set allowed children
+  - Edit type: change name, icon, add/remove/reorder properties, set allowed children, set allowed parents
   - Delete type (with warning about existing pages)
 - **Property schema builder**:
   - Add property: name, type dropdown, required checkbox, default value
@@ -162,6 +168,11 @@ properties:
 - **Create page dialog**: when creating a child of a typed page, show only allowed child types
   - If the parent allows wiki pages too, include "Wiki Page" as an option
 - **Sidebar tree**: typed pages show their type icon next to the page title
+- **Drag-drop type validation** (see [flow](../../flows/drag-drop-type-validation.md)):
+  - While dragging onto a target page, validate both `allowedChildTypes` (parent's constraint) and `allowedParentTypes` (child's constraint)
+  - If either constraint fails: change the drop indicator to a warning style (amber/orange border, warning icon) instead of the normal blue indicator
+  - If the user drops anyway: show a confirmation toast/dialog ("Episode is not an allowed child of Show — move anyway?") — the move proceeds if confirmed, cancelled otherwise
+  - Constraint checks use the pre-fetched `pageTypesMap` already available in the tree — no extra API calls during drag
 
 ## Constraints
 
@@ -172,7 +183,7 @@ properties:
 
 ## Error Policy
 
-Type not found on page load: ignore `pageType`, return page normally. Required property missing on save: return 400 with list of missing required properties (advisory in MVP — configurable to warn vs block). Child type not allowed: return 400 with descriptive error. Type creation with duplicate name: allowed (names are not unique, GUIDs are).
+Type not found on page load: ignore `pageType`, return page normally. Required property missing on save: return 400 with list of missing required properties (advisory in MVP — configurable to warn vs block). Child type not allowed or parent type not allowed: return warnings in the response (advisory — move/create still succeeds). Type creation with duplicate name: allowed (names are not unique, GUIDs are).
 
 ## References
 

@@ -92,11 +92,11 @@ export async function createPageType(pageType: PageTypeDefinition): Promise<Page
 
 /**
  * Update an existing page type definition.
- * Only updates mutable fields (name, icon, properties, allowedChildTypes, allowWikiPageChildren).
+ * Only updates mutable fields (name, icon, properties, allowedChildTypes, allowWikiPageChildren, allowedParentTypes, allowAnyParent).
  */
 export async function updatePageType(
   guid: string,
-  updates: Partial<Pick<PageTypeDefinition, 'name' | 'icon' | 'properties' | 'allowedChildTypes' | 'allowWikiPageChildren'>>
+  updates: Partial<Pick<PageTypeDefinition, 'name' | 'icon' | 'properties' | 'allowedChildTypes' | 'allowWikiPageChildren' | 'allowedParentTypes' | 'allowAnyParent'>>
 ): Promise<PageTypeDefinition | null> {
   const expressionParts: string[] = [];
   const names: Record<string, string> = {};
@@ -122,6 +122,14 @@ export async function updatePageType(
   if (updates.allowWikiPageChildren !== undefined) {
     expressionParts.push('allowWikiPageChildren = :allowWikiPageChildren');
     values[':allowWikiPageChildren'] = updates.allowWikiPageChildren;
+  }
+  if (updates.allowedParentTypes !== undefined) {
+    expressionParts.push('allowedParentTypes = :allowedParentTypes');
+    values[':allowedParentTypes'] = JSON.stringify(updates.allowedParentTypes);
+  }
+  if (updates.allowAnyParent !== undefined) {
+    expressionParts.push('allowAnyParent = :allowAnyParent');
+    values[':allowAnyParent'] = updates.allowAnyParent;
   }
 
   if (expressionParts.length === 0) {
@@ -200,6 +208,8 @@ function serializePageType(pageType: PageTypeDefinition): Record<string, unknown
     properties: JSON.stringify(pageType.properties),
     allowedChildTypes: JSON.stringify(pageType.allowedChildTypes),
     allowWikiPageChildren: pageType.allowWikiPageChildren,
+    allowedParentTypes: JSON.stringify(pageType.allowedParentTypes),
+    allowAnyParent: pageType.allowAnyParent,
     createdBy: pageType.createdBy,
     createdAt: pageType.createdAt,
     updatedAt: pageType.updatedAt,
@@ -219,6 +229,10 @@ function deserializePageType(record: Record<string, unknown>): PageTypeDefinitio
       ? JSON.parse(record.allowedChildTypes)
       : (record.allowedChildTypes as string[]) || [],
     allowWikiPageChildren: record.allowWikiPageChildren !== false,
+    allowedParentTypes: typeof record.allowedParentTypes === 'string'
+      ? JSON.parse(record.allowedParentTypes)
+      : (record.allowedParentTypes as string[]) || [],
+    allowAnyParent: record.allowAnyParent !== false,
     createdBy: record.createdBy as string,
     createdAt: record.createdAt as string,
     updatedAt: record.updatedAt as string,

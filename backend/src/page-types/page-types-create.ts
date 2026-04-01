@@ -18,6 +18,8 @@ const CreatePageTypeSchema = z.object({
   properties: z.array(PageTypePropertySchema).default([]),
   allowedChildTypes: z.array(z.string().uuid()).default([]),
   allowWikiPageChildren: z.boolean().default(true),
+  allowedParentTypes: z.array(z.string().uuid()).default([]),
+  allowAnyParent: z.boolean().default(true),
 });
 
 /**

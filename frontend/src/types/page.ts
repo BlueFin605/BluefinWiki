@@ -18,6 +18,8 @@ export interface PageTypeDefinition {
   properties: PageTypeProperty[];
   allowedChildTypes: string[];
   allowWikiPageChildren: boolean;
+  allowedParentTypes: string[];
+  allowAnyParent: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
