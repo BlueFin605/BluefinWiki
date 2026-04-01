@@ -8,27 +8,23 @@ env:
   DEPLOY_ENVIRONMENT: production
 
 jobs:
-  deploy:
+  # =========================================================================
+  # Phase 1: Resolve production config from AWS (needed for frontend build)
+  # =========================================================================
+  resolve-config:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read
+    outputs:
+      api_base_url: ${{ steps.config.outputs.api_base_url }}
+      cognito_user_pool_id: ${{ steps.config.outputs.cognito_user_pool_id }}
+      cognito_client_id: ${{ steps.config.outputs.cognito_client_id }}
+      cognito_domain: ${{ steps.config.outputs.cognito_domain }}
+      cognito_redirect_uri: ${{ steps.config.outputs.cognito_redirect_uri }}
+      s3_bucket: ${{ steps.config.outputs.s3_bucket }}
+      distribution_id: ${{ steps.config.outputs.distribution_id }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download backend artifact from Backend CI
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: backend.yml
-          workflow_conclusion: success
-          branch: ${{ github.ref_name }}
-          name: backend-build
-          path: backend/dist
-          if_no_artifact_found: fail
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -36,79 +32,38 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get CloudFront Distribution ID
-        id: distribution
+      - name: Resolve stack outputs and Cognito config
+        id: config
         run: |
-          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
-            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
-            --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
-            --output text)
+          STACK="BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}"
 
-          echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
-          echo "bucket_name=bluefinwiki-frontend-${{ env.DEPLOY_ENVIRONMENT }}" >> $GITHUB_OUTPUT
+          API_BASE_URL=$(aws cloudformation describe-stacks --stack-name "${STACK}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
 
-      - name: Get frontend build configuration
-        id: frontend_config
-        run: |
-          API_BASE_URL=$(aws cloudformation describe-stacks \
-            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
-            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
-            --output text)
+          COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "${STACK}" \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
 
-          COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks \
-            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
-            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
-            --output text)
+          COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "${STACK}" \
+            --query "Stacks[0].Outputs[?OutputKey=='WebClientId'].OutputValue" --output text)
 
-          COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks \
-            --stack-name "BlueFinWiki-${{ env.DEPLOY_ENVIRONMENT }}" \
-            --query "Stacks[0].Outputs[?OutputKey=='WebClientId'].OutputValue" \
-            --output text)
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name "${STACK}" \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text)
 
-          if [ -z "${API_BASE_URL}" ] || [ "${API_BASE_URL}" = "None" ]; then
-            echo "ApiUrl output not found" >&2
-            exit 1
-          fi
-
-          if [ -z "${COGNITO_USER_POOL_ID}" ] || [ "${COGNITO_USER_POOL_ID}" = "None" ]; then
-            echo "UserPoolId output not found" >&2
-            exit 1
-          fi
-
-          if [ -z "${COGNITO_CLIENT_ID}" ] || [ "${COGNITO_CLIENT_ID}" = "None" ]; then
-            echo "WebClientId output not found" >&2
-            exit 1
-          fi
-
+          # Resolve Cognito domain
           COGNITO_DOMAIN_VALUE=$(aws cognito-idp describe-user-pool \
             --user-pool-id "${COGNITO_USER_POOL_ID}" \
-            --query "UserPool.Domain" \
-            --output text)
-
-          if [ -z "${COGNITO_DOMAIN_VALUE}" ] || [ "${COGNITO_DOMAIN_VALUE}" = "None" ]; then
-            echo "Cognito Hosted UI domain is not configured on the user pool" >&2
-            exit 1
-          fi
+            --query "UserPool.Domain" --output text)
 
           case "${COGNITO_DOMAIN_VALUE}" in
-            *.*)
-              COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}"
-              ;;
-            *)
-              COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}.auth.${{ env.AWS_REGION }}.amazoncognito.com"
-              ;;
+            *.*) COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}" ;;
+            *)   COGNITO_DOMAIN="${COGNITO_DOMAIN_VALUE}.auth.${{ env.AWS_REGION }}.amazoncognito.com" ;;
           esac
 
+          # Resolve redirect URI from Cognito client callback URLs
           CALLBACK_URLS=$(aws cognito-idp describe-user-pool-client \
             --user-pool-id "${COGNITO_USER_POOL_ID}" \
             --client-id "${COGNITO_CLIENT_ID}" \
-            --query "UserPoolClient.CallbackURLs" \
-            --output text)
-
-          if [ -z "${CALLBACK_URLS}" ] || [ "${CALLBACK_URLS}" = "None" ]; then
-            echo "No callback URLs configured on Cognito web app client" >&2
-            exit 1
-          fi
+            --query "UserPoolClient.CallbackURLs" --output text)
 
           COGNITO_REDIRECT_URI=""
           for url in ${CALLBACK_URLS}; do
@@ -117,123 +72,86 @@ jobs:
               break
             fi
           done
-
           if [ -z "${COGNITO_REDIRECT_URI}" ]; then
             COGNITO_REDIRECT_URI=$(echo "${CALLBACK_URLS}" | awk '{print $1}')
           fi
 
-          if [ -z "${COGNITO_REDIRECT_URI}" ] || [ "${COGNITO_REDIRECT_URI}" = "None" ]; then
-            echo "Unable to resolve VITE_COGNITO_REDIRECT_URI from Cognito app client callback URLs" >&2
-            exit 1
-          fi
+          # Validate
+          for var in API_BASE_URL COGNITO_USER_POOL_ID COGNITO_CLIENT_ID COGNITO_DOMAIN COGNITO_REDIRECT_URI; do
+            val="${!var}"
+            if [ -z "${val}" ] || [ "${val}" = "None" ]; then
+              echo "::error::${var} could not be resolved from AWS" && exit 1
+            fi
+          done
 
           echo "api_base_url=${API_BASE_URL}" >> $GITHUB_OUTPUT
           echo "cognito_user_pool_id=${COGNITO_USER_POOL_ID}" >> $GITHUB_OUTPUT
           echo "cognito_client_id=${COGNITO_CLIENT_ID}" >> $GITHUB_OUTPUT
           echo "cognito_domain=${COGNITO_DOMAIN}" >> $GITHUB_OUTPUT
           echo "cognito_redirect_uri=${COGNITO_REDIRECT_URI}" >> $GITHUB_OUTPUT
+          echo "s3_bucket=bluefinwiki-frontend-${{ env.DEPLOY_ENVIRONMENT }}" >> $GITHUB_OUTPUT
+          echo "distribution_id=${DISTRIBUTION_ID}" >> $GITHUB_OUTPUT
 
-      - name: Validate frontend auth env values
-        run: |
-          API_BASE_URL="${{ steps.frontend_config.outputs.api_base_url }}"
-          COGNITO_USER_POOL_ID="${{ steps.frontend_config.outputs.cognito_user_pool_id }}"
-          COGNITO_CLIENT_ID="${{ steps.frontend_config.outputs.cognito_client_id }}"
-          COGNITO_DOMAIN="${{ steps.frontend_config.outputs.cognito_domain }}"
-          COGNITO_REDIRECT_URI="${{ steps.frontend_config.outputs.cognito_redirect_uri }}"
+  # =========================================================================
+  # Phase 2: Build backend and frontend in parallel
+  # =========================================================================
+  build-backend:
+    uses: ./.github/workflows/backend.yml
 
-          if [ -z "${API_BASE_URL}" ] || [ "${API_BASE_URL}" = "None" ]; then
-            echo "Invalid VITE_API_BASE_URL from stack outputs" >&2
-            exit 1
-          fi
+  build-frontend:
+    needs: resolve-config
+    uses: ./.github/workflows/frontend.yml
+    with:
+      api_base_url: ${{ needs.resolve-config.outputs.api_base_url }}
+      cognito_region: ap-southeast-2
+      cognito_user_pool_id: ${{ needs.resolve-config.outputs.cognito_user_pool_id }}
+      cognito_client_id: ${{ needs.resolve-config.outputs.cognito_client_id }}
+      cognito_domain: ${{ needs.resolve-config.outputs.cognito_domain }}
+      cognito_redirect_uri: ${{ needs.resolve-config.outputs.cognito_redirect_uri }}
 
-          if [ -z "${COGNITO_USER_POOL_ID}" ] || [ "${COGNITO_USER_POOL_ID}" = "None" ] || [ "${COGNITO_USER_POOL_ID}" = "local_abc123" ]; then
-            echo "Invalid VITE_COGNITO_USER_POOL_ID from stack outputs" >&2
-            exit 1
-          fi
+  # =========================================================================
+  # Phase 3: Deploy artifacts to AWS
+  # =========================================================================
+  deploy:
+    needs: [resolve-config, build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
 
-          if [ -z "${COGNITO_CLIENT_ID}" ] || [ "${COGNITO_CLIENT_ID}" = "None" ] || [ "${COGNITO_CLIENT_ID}" = "local-client-id" ]; then
-            echo "Invalid VITE_COGNITO_CLIENT_ID from stack outputs" >&2
-            exit 1
-          fi
-
-          if [ -z "${COGNITO_DOMAIN}" ] || [ "${COGNITO_DOMAIN}" = "None" ] || [ "${COGNITO_DOMAIN}" = "localhost:9229" ]; then
-            echo "Invalid VITE_COGNITO_DOMAIN from secrets" >&2
-            exit 1
-          fi
-
-          if [ -z "${COGNITO_REDIRECT_URI}" ] || [ "${COGNITO_REDIRECT_URI}" = "None" ] || [ "${COGNITO_REDIRECT_URI}" = "http://localhost:5173/callback" ]; then
-            echo "Invalid VITE_COGNITO_REDIRECT_URI from secrets" >&2
-            exit 1
-          fi
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+    steps:
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
+          name: backend-build
+          path: backend/dist
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
 
-      - name: Build frontend
-        working-directory: frontend
-        env:
-          VITE_API_BASE_URL: ${{ steps.frontend_config.outputs.api_base_url }}
-          VITE_COGNITO_REGION: ${{ env.AWS_REGION }}
-          VITE_COGNITO_USER_POOL_ID: ${{ steps.frontend_config.outputs.cognito_user_pool_id }}
-          VITE_COGNITO_CLIENT_ID: ${{ steps.frontend_config.outputs.cognito_client_id }}
-          VITE_COGNITO_DOMAIN: ${{ steps.frontend_config.outputs.cognito_domain }}
-          VITE_COGNITO_REDIRECT_URI: ${{ steps.frontend_config.outputs.cognito_redirect_uri }}
-        run: npm run build
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy backend Lambdas
         run: |
           ENV="${{ env.DEPLOY_ENVIRONMENT }}"
-          FUNCTIONS=(
-            "bluefinwiki-${ENV}-pages-create"
-            "bluefinwiki-${ENV}-pages-get"
-            "bluefinwiki-${ENV}-pages-update"
-            "bluefinwiki-${ENV}-pages-delete"
-            "bluefinwiki-${ENV}-pages-list-children"
-            "bluefinwiki-${ENV}-pages-move"
-            "bluefinwiki-${ENV}-pages-search"
-            "bluefinwiki-${ENV}-pages-backlinks"
-            "bluefinwiki-${ENV}-pages-ancestors"
-            "bluefinwiki-${ENV}-pages-attachments-upload"
-            "bluefinwiki-${ENV}-pages-attachments-presign"
-            "bluefinwiki-${ENV}-pages-attachments-confirm"
-            "bluefinwiki-${ENV}-pages-attachments-download"
-            "bluefinwiki-${ENV}-pages-attachments-list"
-            "bluefinwiki-${ENV}-pages-attachments-delete"
-            "bluefinwiki-${ENV}-auth-pre-signup"
-            "bluefinwiki-${ENV}-auth-post-confirmation"
-            "bluefinwiki-${ENV}-auth-pre-token-gen"
-            "bluefinwiki-${ENV}-auth-custom-message"
-            "bluefinwiki-${ENV}-auth-register"
-            "bluefinwiki-${ENV}-auth-me"
-            "bluefinwiki-${ENV}-admin-create-invitation"
-            "bluefinwiki-${ENV}-admin-list-invitations"
-            "bluefinwiki-${ENV}-admin-revoke-invitation"
-            "bluefinwiki-${ENV}-pages-links-resolve"
-            "bluefinwiki-${ENV}-tags-create"
-            "bluefinwiki-${ENV}-tags-list"
-            "bluefinwiki-${ENV}-page-types-list"
-            "bluefinwiki-${ENV}-page-types-get"
-            "bluefinwiki-${ENV}-page-types-create"
-            "bluefinwiki-${ENV}-page-types-update"
-            "bluefinwiki-${ENV}-page-types-delete"
-            "bluefinwiki-${ENV}-page-types-allowed-children"
-            "bluefinwiki-${ENV}-admin-users-list"
-            "bluefinwiki-${ENV}-admin-users-get"
-            "bluefinwiki-${ENV}-admin-users-update"
-            "bluefinwiki-${ENV}-admin-users-suspend"
-            "bluefinwiki-${ENV}-admin-users-activate"
-            "bluefinwiki-${ENV}-admin-users-delete"
-            "bluefinwiki-${ENV}-auth-profile-update"
-            "bluefinwiki-${ENV}-auth-change-password"
-          )
+
+          # Discover all Lambda functions belonging to this stack
+          FUNCTIONS=$(aws lambda list-functions \
+            --query "Functions[?starts_with(FunctionName, 'bluefinwiki-${ENV}-')].FunctionName" \
+            --output text)
+
+          if [ -z "${FUNCTIONS}" ]; then
+            echo "::error::No Lambda functions found with prefix bluefinwiki-${ENV}-"
+            exit 1
+          fi
 
           # Package the backend dist into a zip
           cd backend/dist
@@ -241,13 +159,15 @@ jobs:
           cd ../..
 
           FAILED=0
-          for FUNC in "${FUNCTIONS[@]}"; do
+          COUNT=0
+          for FUNC in ${FUNCTIONS}; do
             echo "Deploying ${FUNC}..."
             OUTPUT=$(aws lambda update-function-code \
               --function-name "${FUNC}" \
               --zip-file fileb://backend-lambda.zip \
               --publish 2>&1) && {
               echo "  ✓ ${FUNC}"
+              COUNT=$((COUNT + 1))
             } || {
               echo "  ✗ ${FUNC} - FAILED"
               echo "    ${OUTPUT}"
@@ -257,14 +177,15 @@ jobs:
 
           rm backend-lambda.zip
 
+          echo "Deployed ${COUNT} Lambda functions"
           if [ "${FAILED}" -eq 1 ]; then
-            echo "One or more Lambda deployments failed"
+            echo "::error::One or more Lambda deployments failed"
             exit 1
           fi
 
       - name: Deploy frontend to S3
         env:
-          S3_BUCKET: ${{ steps.distribution.outputs.bucket_name }}
+          S3_BUCKET: ${{ needs.resolve-config.outputs.s3_bucket }}
         run: |
           aws s3 sync frontend/dist/ "s3://${S3_BUCKET}/" \
             --delete \
@@ -281,7 +202,7 @@ jobs:
 
       - name: Invalidate CloudFront cache
         env:
-          DISTRIBUTION_ID: ${{ steps.distribution.outputs.distribution_id }}
+          DISTRIBUTION_ID: ${{ needs.resolve-config.outputs.distribution_id }}
         run: |
           if [ -z "${DISTRIBUTION_ID}" ] || [ "${DISTRIBUTION_ID}" = "None" ]; then
             echo "CloudFront Distribution ID not found. Skipping cache invalidation."
@@ -298,6 +219,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ env.DEPLOY_ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
           echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
-          echo "**S3 Bucket:** ${{ steps.distribution.outputs.bucket_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Distribution ID:** ${{ steps.distribution.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Lambda Functions:** 12 (bluefinwiki-${{ env.DEPLOY_ENVIRONMENT }}-pages-*)" >> $GITHUB_STEP_SUMMARY
+          echo "**API:** ${{ needs.resolve-config.outputs.api_base_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**S3 Bucket:** ${{ needs.resolve-config.outputs.s3_bucket }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Distribution ID:** ${{ needs.resolve-config.outputs.distribution_id }}" >> $GITHUB_STEP_SUMMARY
