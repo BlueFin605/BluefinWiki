@@ -78,6 +78,8 @@ export interface PageTypeDefinition {
   properties: PageTypeProperty[];  // Property schema
   allowedChildTypes: string[];     // GUIDs of types that can be created as children
   allowWikiPageChildren: boolean;  // Whether untyped wiki pages can be children (default true)
+  allowedParentTypes: string[];    // GUIDs of types this page type can be a child of (empty = any parent)
+  allowAnyParent: boolean;         // Whether this type can be placed under untyped wiki pages (default true)
   createdBy: string;               // Cognito sub
   createdAt: string;               // ISO 8601
   updatedAt: string;               // ISO 8601
@@ -106,6 +108,8 @@ export interface PageContent {
   folderId: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived' | 'deleted';
+  sortOrder?: number; // Position among siblings in the page tree — lower values first
+  boardOrder?: number; // Position within a board column — lower values first
   description?: string; // Optional page description
   pageType?: string; // Page type GUID — references PageTypeDefinition
   properties?: Record<string, PageProperty>;
@@ -144,6 +148,8 @@ export interface PageSummary {
   title: string;
   parentGuid: string | null;
   status: 'draft' | 'published' | 'archived';
+  sortOrder?: number; // Position among siblings in the page tree — lower values first
+  boardOrder?: number; // Position within a board column — lower values first
   createdBy: string; // Cognito sub — needed for draft visibility filtering
   modifiedAt: string; // ISO 8601
   modifiedBy: string; // Cognito sub

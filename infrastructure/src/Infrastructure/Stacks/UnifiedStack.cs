@@ -951,6 +951,21 @@ namespace Infrastructure.Stacks
                 Description = "Move page to new parent location"
             });
             
+            var pagesReorderFunction = new LambdaFunction(this, "PagesReorderFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"bluefinwiki-{config.Name}-pages-reorder",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-reorder.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Reorder sibling pages under a shared parent"
+            });
+
             var pagesSearchFunction = new LambdaFunction(this, "PagesSearchFunction", new LambdaFunctionProps
             {
                 FunctionName = $"bluefinwiki-{config.Name}-pages-search",
@@ -1539,6 +1554,14 @@ namespace Infrastructure.Stacks
             // GET /pages/search - Search pages by title
             var searchResource = pagesResource.AddResource("search");
             searchResource.AddMethod("GET", new LambdaIntegration(pagesSearchFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // PUT /pages/reorder - Reorder sibling pages
+            var reorderResource = pagesResource.AddResource("reorder");
+            reorderResource.AddMethod("PUT", new LambdaIntegration(pagesReorderFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer

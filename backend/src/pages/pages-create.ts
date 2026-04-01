@@ -113,6 +113,16 @@ export const handler = withAuth(async (
       }
     }
 
+    // Get storage plugin instance
+    const storagePlugin = getStoragePlugin();
+
+    // Determine sortOrder — place new page at end of siblings
+    const siblings = await storagePlugin.listChildren(parentGuid);
+    const maxSortOrder = siblings.reduce((max, s) => {
+      return s.sortOrder !== undefined && s.sortOrder > max ? s.sortOrder : max;
+    }, -1000);
+    const sortOrder = maxSortOrder + 1000;
+
     // Build PageContent object
     const pageContent: PageContent = {
       guid,
@@ -121,6 +131,7 @@ export const handler = withAuth(async (
       folderId: parentGuid || '',
       tags,
       status,
+      sortOrder,
       ...(pageType ? { pageType } : {}),
       ...(properties ? { properties } : {}),
       createdBy: user.userId,
@@ -128,9 +139,6 @@ export const handler = withAuth(async (
       createdAt: now,
       modifiedAt: now,
     };
-
-    // Get storage plugin instance
-    const storagePlugin = getStoragePlugin();
 
     // Save page to storage
     await storagePlugin.savePage(guid, parentGuid, pageContent);

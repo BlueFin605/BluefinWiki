@@ -30,6 +30,7 @@ A family member opens their wiki and sees what's changed since they last visited
 
 - A family member should be able to organize pages into a hierarchy — nesting pages under other pages like folders
 - A family member should be able to move a page to a different location in the hierarchy by dragging it
+- A family member should be able to reorder pages within the same level of the tree by dragging them above or below siblings
 - A family member should be able to rename a page without breaking any links to it
 - A family member should be able to see the full path to any page (breadcrumbs) and navigate up the hierarchy
 - A family member should be able to view a table of contents generated from the headings on any page
@@ -108,6 +109,7 @@ A family member opens their wiki and sees what's changed since they last visited
 - A family member should be able to view a page's children as a Kanban board, with cards grouped by state
 - A family member should be able to view descendants at any depth on a board, filtered by page type — e.g., see all seasons across all shows, with the parent show name on each card
 - A family member should be able to drag a card between columns to change its state
+- A family member should be able to reorder cards within a board column by dragging them up or down
 - A family member should be able to set up a TV tracker, task board, or similar structured hierarchy from a template in one action
 - Tags should have a shared vocabulary across the wiki, with autocomplete suggestions — scoped per property name so that e.g. "channel" tags are separate from "director" tags
 - Page-level tags should have their own autocomplete vocabulary, separate from custom property tags

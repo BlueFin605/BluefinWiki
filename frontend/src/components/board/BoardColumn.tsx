@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { PageChildDetail, PageTypeDefinition } from '../../types/page';
 import { BoardCard } from './BoardCard';
+
+export type CardDropPosition = 'before' | 'after';
+
+export interface CardDropTarget {
+  guid: string;
+  position: CardDropPosition;
+}
 
 interface BoardColumnProps {
   name: string;
@@ -11,6 +18,7 @@ interface BoardColumnProps {
   onCardClick: (card: PageChildDetail) => void;
   onCardDragStart: (e: React.DragEvent, guid: string) => void;
   onCardDrop: (columnState: string) => void;
+  onCardReorder?: (columnState: string, targetGuid: string, position: CardDropPosition) => void;
   onAddCard?: (state: string) => void;
 }
 
@@ -25,26 +33,64 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
   onCardClick,
   onCardDragStart,
   onCardDrop,
+  onCardReorder,
   onAddCard,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [dropTarget, setDropTarget] = useState<CardDropTarget | null>(null);
+  const cardsContainerRef = useRef<HTMLDivElement>(null);
+
+  // Determine which card the cursor is closest to during drag
+  const computeDropTarget = useCallback((e: React.DragEvent): CardDropTarget | null => {
+    if (!cardsContainerRef.current || cards.length === 0) return null;
+
+    const cardElements = cardsContainerRef.current.querySelectorAll('[data-card-guid]');
+    let closestGuid: string | null = null;
+    let closestPosition: CardDropPosition = 'after';
+    let closestDistance = Infinity;
+
+    for (const el of cardElements) {
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const distance = Math.abs(e.clientY - midY);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestGuid = el.getAttribute('data-card-guid');
+        closestPosition = e.clientY < midY ? 'before' : 'after';
+      }
+    }
+
+    if (!closestGuid) return null;
+    return { guid: closestGuid, position: closestPosition };
+  }, [cards]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setIsDragOver(true);
+    setDropTarget(computeDropTarget(e));
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    // Only count as leave if we actually left the column (not a child element)
     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOver(false);
+    setDropTarget(null);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    const target = computeDropTarget(e);
     setIsDragOver(false);
-    onCardDrop(name);
+    setDropTarget(null);
+
+    // If we have a precise card target and a reorder handler, use reorder
+    if (target && onCardReorder) {
+      onCardReorder(name, target.guid, target.position);
+    } else {
+      // Fallback: column-level drop (cross-column state change)
+      onCardDrop(name);
+    }
   };
 
   const resolvedColor = color || DEFAULT_COLOR;
@@ -71,7 +117,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
       </div>
 
       {/* Cards */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[100px]">
+      <div ref={cardsContainerRef} className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[100px]">
         {cards.map((card) => (
           <BoardCard
             key={card.guid}
@@ -80,6 +126,9 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
             swapTitles={swapTitles}
             onCardClick={onCardClick}
             onDragStart={onCardDragStart}
+            dropIndicator={
+              dropTarget?.guid === card.guid ? dropTarget.position : null
+            }
           />
         ))}
 

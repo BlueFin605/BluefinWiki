@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { BoardColumn } from './BoardColumn';
+import { BoardColumn, CardDropPosition } from './BoardColumn';
 import { CardSummaryDialog } from './CardSummaryDialog';
 import { usePageChildrenWithProperties } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
@@ -54,7 +54,6 @@ export const BoardView: React.FC<BoardViewProps> = ({
   const { data: children = [], isLoading, error } = usePageChildrenWithProperties(parentGuid, deepFetchOptions);
   const { data: pageTypesList = [] } = usePageTypes();
   const queryClient = useQueryClient();
-
   // Drag state
   const [draggedGuid, setDraggedGuid] = useState<string | null>(null);
   // Card summary dialog
@@ -80,9 +79,16 @@ export const BoardView: React.FC<BoardViewProps> = ({
       byState[state].push(child);
     }
 
-    // Sort cards within each column by modifiedAt (most recent first)
+    // Sort cards within each column by boardOrder (ascending), then modifiedAt (most recent first)
     for (const state of Object.keys(byState)) {
-      byState[state].sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime());
+      byState[state].sort((a, b) => {
+        const aHasOrder = a.boardOrder !== undefined;
+        const bHasOrder = b.boardOrder !== undefined;
+        if (aHasOrder && bHasOrder) return a.boardOrder! - b.boardOrder!;
+        if (aHasOrder && !bHasOrder) return -1;
+        if (!aHasOrder && bHasOrder) return 1;
+        return new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime();
+      });
     }
 
     // Determine column order
@@ -125,6 +131,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
 
   const handleDrop = useCallback(
     async (targetState: string) => {
+      console.log('[board-drop] Column-level handleDrop called:', { targetState, draggedGuid });
       if (!draggedGuid) return;
 
       const card = children.find((c) => c.guid === draggedGuid);
@@ -134,7 +141,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
         ? card.properties.state.value
         : UNCATEGORISED;
 
-      // No-op if dropping in same column
+      // No-op if dropping in same column (column-level drop = just state change)
       if (currentState === targetState) {
         setDraggedGuid(null);
         return;
@@ -184,6 +191,135 @@ export const BoardView: React.FC<BoardViewProps> = ({
       }
     },
     [draggedGuid, children, parentGuid, queryClient]
+  );
+
+  // Compute a boardOrder for a card being inserted at a specific position
+  // in the column. Uses gap-based insertion — only the dragged card is updated.
+  const computeBoardOrder = useCallback(
+    (columnCards: PageChildDetail[], targetGuid: string, position: CardDropPosition, draggedGuid: string): number => {
+      // Build the list without the dragged card
+      const others = columnCards.filter(c => c.guid !== draggedGuid);
+      const targetIdx = others.findIndex(c => c.guid === targetGuid);
+      const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+
+      // Neighbours in the final order
+      const prev = insertIdx > 0 ? others[insertIdx - 1] : null;
+      const next = insertIdx < others.length ? others[insertIdx] : null;
+
+      const prevOrder = prev?.boardOrder;
+      const nextOrder = next?.boardOrder;
+
+      if (prevOrder === undefined && nextOrder === undefined) {
+        return 0; // only card
+      }
+      if (prevOrder === undefined) {
+        return nextOrder! - 1000; // before first
+      }
+      if (nextOrder === undefined) {
+        return prevOrder + 1000; // after last
+      }
+      // Between two cards
+      const gap = nextOrder - prevOrder;
+      if (gap >= 2) {
+        return Math.floor((prevOrder + nextOrder) / 2);
+      }
+      // Gap exhausted — renumber entire column
+      // Return a sentinel; caller will detect and renumber
+      return -Infinity;
+    },
+    []
+  );
+
+  // Within-column card reorder (or cross-column with position)
+  const handleCardReorder = useCallback(
+    async (columnState: string, targetGuid: string, position: CardDropPosition) => {
+      if (!draggedGuid || draggedGuid === targetGuid) {
+        setDraggedGuid(null);
+        return;
+      }
+
+      const card = children.find((c) => c.guid === draggedGuid);
+      if (!card) return;
+
+      const currentState = typeof card.properties?.state?.value === 'string'
+        ? card.properties.state.value
+        : UNCATEGORISED;
+
+      const queryKey = [
+        'pages', 'children', parentGuid, 'with-properties',
+        boardConfig?.targetTypeGuid ?? null,
+        deepFetchOptions?.depth ?? null,
+      ];
+      const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
+
+      // Compute the new boardOrder for the dragged card
+      const targetColumnCards = cardsByColumn[columnState] || [];
+      let newBoardOrder = computeBoardOrder(targetColumnCards, targetGuid, position, draggedGuid);
+
+      // If gap exhausted, renumber the entire column
+      let renumberList: { guid: string; boardOrder: number }[] | null = null;
+      if (newBoardOrder === -Infinity) {
+        const others = targetColumnCards.filter(c => c.guid !== draggedGuid);
+        const targetIdx = others.findIndex(c => c.guid === targetGuid);
+        const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+        others.splice(insertIdx, 0, card);
+        renumberList = others.map((c, i) => ({ guid: c.guid, boardOrder: i * 1000 }));
+        newBoardOrder = insertIdx * 1000;
+      }
+
+      // Build the update — may also include a state change for cross-column drops
+      const updatePayload: UpdatePageRequest = { boardOrder: newBoardOrder };
+      if (currentState !== columnState) {
+        updatePayload.properties = {
+          ...(card.properties || {}),
+          state: { type: 'string', value: columnState },
+        };
+      }
+
+      // Optimistic update
+      queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) => {
+        if (!old) return old;
+        return old.map((c) => {
+          if (c.guid === draggedGuid) {
+            return {
+              ...c,
+              boardOrder: newBoardOrder,
+              ...(currentState !== columnState
+                ? { properties: { ...c.properties, state: { type: 'string' as const, value: columnState } } }
+                : {}),
+            };
+          }
+          // Apply renumber if needed
+          if (renumberList) {
+            const entry = renumberList.find(r => r.guid === c.guid);
+            if (entry) return { ...c, boardOrder: entry.boardOrder };
+          }
+          return c;
+        });
+      });
+
+      setDraggedGuid(null);
+
+      try {
+        // Single API call for the dragged card
+        await apiClient.put(`/pages/${draggedGuid}`, updatePayload);
+
+        // If we had to renumber, update the other cards too
+        if (renumberList) {
+          const otherUpdates = renumberList.filter(r => r.guid !== draggedGuid);
+          await Promise.all(
+            otherUpdates.map(r => apiClient.put(`/pages/${r.guid}`, { boardOrder: r.boardOrder }))
+          );
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] });
+      } catch {
+        queryClient.setQueryData(queryKey, previousData);
+        setToast('Failed to reorder card. Please try again.');
+        setTimeout(() => setToast(null), 3000);
+      }
+    },
+    [draggedGuid, children, cardsByColumn, parentGuid, queryClient, computeBoardOrder, boardConfig, deepFetchOptions]
   );
 
   if (isLoading) {
@@ -241,6 +377,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
               onCardClick={setSelectedCard}
               onCardDragStart={handleDragStart}
               onCardDrop={handleDrop}
+              onCardReorder={handleCardReorder}
               onAddCard={onAddCard}
             />
           ))}

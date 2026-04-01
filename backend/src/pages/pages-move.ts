@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import type { StoragePlugin } from '../storage/StoragePlugin.js';
+import { validateChildTypeConstraint } from './page-type-validation.js';
 
 // Request validation schema
 const MovePageRequestSchema = z.object({
@@ -142,6 +143,14 @@ export const handler = withAuth(async (
       }
     }
 
+    // Advisory type constraint validation (warn but don't block)
+    let typeWarnings: string[] = [];
+    if (newParentGuid !== null) {
+      const page = await storagePlugin.loadPage(guid);
+      const typeValidation = await validateChildTypeConstraint(newParentGuid, page.pageType);
+      typeWarnings = typeValidation.warnings;
+    }
+
     // Move page
     await storagePlugin.movePage(guid, newParentGuid);
 
@@ -153,9 +162,10 @@ export const handler = withAuth(async (
       newParentGuid,
       movedBy: user.userId,
       timestamp: now,
+      ...(typeWarnings.length > 0 && { typeWarnings }),
     });
 
-    // Return success response
+    // Return success response (include warnings if any)
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -163,6 +173,7 @@ export const handler = withAuth(async (
         guid,
         newParentGuid,
         movedAt: now,
+        ...(typeWarnings.length > 0 && { warnings: typeWarnings }),
       }),
     };
   } catch (err: unknown) {

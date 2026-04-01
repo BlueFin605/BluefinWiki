@@ -18,6 +18,8 @@ export interface PageTypeDefinition {
   properties: PageTypeProperty[];
   allowedChildTypes: string[];
   allowWikiPageChildren: boolean;
+  allowedParentTypes: string[];
+  allowAnyParent: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -35,6 +37,8 @@ export interface PageContent {
   folderId: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived';
+  sortOrder?: number;
+  boardOrder?: number;
   description?: string;
   pageType?: string;
   properties?: Record<string, PageProperty>;
@@ -50,6 +54,8 @@ export interface PageSummary {
   title: string;
   parentGuid: string | null;
   status: 'draft' | 'published' | 'archived';
+  sortOrder?: number;
+  boardOrder?: number;
   modifiedAt: string;
   modifiedBy: string;
   hasChildren: boolean;
@@ -97,10 +103,16 @@ export interface UpdatePageRequest {
   pageType?: string | null;
   properties?: Record<string, PageProperty>;
   boardConfig?: BoardConfig | null;
+  boardOrder?: number;
 }
 
 export interface MovePageRequest {
   newParentGuid: string | null;
+}
+
+export interface ReorderRequest {
+  parentGuid: string | null;
+  orderedGuids: string[];
 }
 
 export interface DeletePageRequest {

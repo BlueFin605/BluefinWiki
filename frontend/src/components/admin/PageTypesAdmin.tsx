@@ -203,6 +203,8 @@ const PageTypeForm: React.FC<{
     properties: PageTypeProperty[];
     allowedChildTypes: string[];
     allowWikiPageChildren: boolean;
+    allowedParentTypes: string[];
+    allowAnyParent: boolean;
   }) => void;
   onCancel: () => void;
   saving?: boolean;
@@ -212,15 +214,23 @@ const PageTypeForm: React.FC<{
   const [properties, setProperties] = useState<PageTypeProperty[]>(initial?.properties || []);
   const [allowedChildTypes, setAllowedChildTypes] = useState<string[]>(initial?.allowedChildTypes || []);
   const [allowWikiPageChildren, setAllowWikiPageChildren] = useState(initial?.allowWikiPageChildren ?? true);
+  const [allowedParentTypes, setAllowedParentTypes] = useState<string[]>(initial?.allowedParentTypes || []);
+  const [allowAnyParent, setAllowAnyParent] = useState(initial?.allowAnyParent ?? true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !icon.trim()) return;
-    onSave({ name: name.trim(), icon: icon.trim(), properties, allowedChildTypes, allowWikiPageChildren });
+    onSave({ name: name.trim(), icon: icon.trim(), properties, allowedChildTypes, allowWikiPageChildren, allowedParentTypes, allowAnyParent });
   };
 
   const toggleChildType = (guid: string) => {
     setAllowedChildTypes(prev =>
+      prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
+    );
+  };
+
+  const toggleParentType = (guid: string) => {
+    setAllowedParentTypes(prev =>
       prev.includes(guid) ? prev.filter(g => g !== guid) : [...prev, guid]
     );
   };
@@ -284,6 +294,38 @@ const PageTypeForm: React.FC<{
         Allow untyped wiki pages as children
       </label>
 
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Allowed Parent Types</label>
+        <p className="text-xs text-gray-500 mb-1">Restrict which page types this type can be placed under. Leave all unchecked to allow any parent.</p>
+        <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-200 rounded p-2">
+          {allTypes
+            .filter(t => t.guid !== initial?.guid)
+            .map(t => (
+              <label key={t.guid} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={allowedParentTypes.includes(t.guid)}
+                  onChange={() => toggleParentType(t.guid)}
+                />
+                <span>{t.icon}</span>
+                <span>{t.name}</span>
+              </label>
+            ))}
+          {allTypes.filter(t => t.guid !== initial?.guid).length === 0 && (
+            <p className="text-xs text-gray-500">No other types available yet.</p>
+          )}
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={allowAnyParent}
+          onChange={(e) => setAllowAnyParent(e.target.checked)}
+        />
+        Allow placement under untyped wiki pages
+      </label>
+
       <div className="flex justify-end gap-3 pt-2">
         <button
           type="button"
@@ -325,6 +367,8 @@ export const PageTypesAdmin: React.FC = () => {
     properties: PageTypeProperty[];
     allowedChildTypes: string[];
     allowWikiPageChildren: boolean;
+    allowedParentTypes: string[];
+    allowAnyParent: boolean;
   }) => {
     await createPageType.mutateAsync(data);
     setShowForm(false);
@@ -336,6 +380,8 @@ export const PageTypesAdmin: React.FC = () => {
     properties: PageTypeProperty[];
     allowedChildTypes: string[];
     allowWikiPageChildren: boolean;
+    allowedParentTypes: string[];
+    allowAnyParent: boolean;
   }) => {
     if (!editingType) return;
     await updatePageType.mutateAsync({ guid: editingType.guid, ...data });
@@ -418,6 +464,7 @@ export const PageTypesAdmin: React.FC = () => {
                 <p className="text-sm text-gray-500">
                   {pt.properties.length} properties
                   {pt.allowedChildTypes.length > 0 && ` | ${pt.allowedChildTypes.length} child types`}
+                  {pt.allowedParentTypes.length > 0 && ` | ${pt.allowedParentTypes.length} parent types`}
                 </p>
               </div>
               <div className="flex gap-2">

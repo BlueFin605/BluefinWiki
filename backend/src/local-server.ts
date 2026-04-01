@@ -25,6 +25,7 @@ import { handler as pagesUpdate } from './pages/pages-update.js';
 import { handler as pagesDelete } from './pages/pages-delete.js';
 import { handler as pagesListChildren } from './pages/pages-list-children.js';
 import { handler as pagesMove } from './pages/pages-move.js';
+import { handler as pagesReorder } from './pages/pages-reorder.js';
 import { handler as pagesSearch } from './pages/pages-search.js';
 import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
 import { handler as pagesAncestors } from './pages/pages-ancestors.js';
@@ -212,6 +213,7 @@ function wrapLambdaHandler(handler: (event: APIGatewayProxyEvent, context: Conte
 app.post('/pages', wrapLambdaHandler(pagesCreate));
 app.get('/pages/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages
 app.get('/pages/root/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages alias
+app.put('/pages/reorder', wrapLambdaHandler(pagesReorder));
 app.get('/pages/:guid', wrapLambdaHandler(pagesGet));
 app.put('/pages/:guid', wrapLambdaHandler(pagesUpdate));
 app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));
