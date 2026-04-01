@@ -1,5 +1,6 @@
 .repoql/
 .claude/
+.vscode/
 
 # Environment config (use config.example.json as template)
 config.json
