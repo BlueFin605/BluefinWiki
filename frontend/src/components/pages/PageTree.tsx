@@ -1,18 +1,19 @@
 /**
  * PageTree Component
- * 
+ *
  * Displays a hierarchical tree of pages with support for:
  * - Recursive rendering of nested pages
  * - Expand/collapse functionality
  * - Context menu for page operations
- * - Drag-and-drop to move pages
+ * - Drag-and-drop to move pages (reparent) and reorder siblings
  * - Keyboard navigation
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { PageTreeItem } from './PageTreeItem';
+import { useQueryClient } from '@tanstack/react-query';
+import { PageTreeItem, DropPosition } from './PageTreeItem';
 import { PageTreeNode, PageTypeDefinition } from '../../types/page';
-import { usePageChildren, useMovePage } from '../../hooks/usePages';
+import { usePageChildren, useMovePage, useReorderPages } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
 
 interface PageTreeProps {
@@ -60,6 +61,8 @@ export const PageTree: React.FC<PageTreeProps> = ({
 
   // Move page mutation
   const movePage = useMovePage(draggedPage?.guid || '');
+  const reorderPages = useReorderPages();
+  const queryClient = useQueryClient();
 
   // Build tree structure from root pages
   const treeData = React.useMemo(() => {
@@ -98,37 +101,102 @@ export const PageTree: React.FC<PageTreeProps> = ({
         return;
       }
 
-      // Prevent dropping a parent page on its descendant
-      // For now, we'll allow all moves and let the backend validate
       event.dataTransfer.dropEffect = 'move';
     },
     [draggedPage]
   );
 
   const handleDrop = useCallback(
-    async (event: React.DragEvent, targetPage: PageTreeNode) => {
+    async (event: React.DragEvent, targetPage: PageTreeNode, position: DropPosition) => {
       event.preventDefault();
 
       if (!draggedPage) return;
-
-      // Don't drop on itself
       if (draggedPage.guid === targetPage.guid) return;
 
-      try {
-        // Move the dragged page to be a child of the target page
-        await movePage.mutateAsync({
-          newParentGuid: targetPage.guid,
-        });
+      const sameParent = draggedPage.parentGuid === targetPage.parentGuid;
 
-        setDraggedPage(null);
-        // Trigger parent refresh
-        onPageMoved?.();
-      } catch (error) {
-        console.error('Failed to move page:', error);
-        alert('Failed to move page. Please try again.');
+      if ((position === 'before' || position === 'after') && sameParent) {
+        // Reorder: the dragged page and target share the same parent
+        // We need the full sibling list for the shared parent
+        const parentGuid = targetPage.parentGuid;
+        const siblings = parentGuid === null ? rootPages : [];
+
+        // For non-root siblings we need to get from cache or refetch
+        // Use rootPages for root level, otherwise we'll build from what we know
+        let siblingGuids: string[];
+        if (parentGuid === null) {
+          siblingGuids = siblings.map(s => s.guid);
+        } else {
+          const { apiClient } = await import('../../config/api');
+          const resp = await apiClient.get(`/pages/${parentGuid}/children`);
+          const childrenData = resp.data.children || [];
+          siblingGuids = childrenData.map((c: { guid: string }) => c.guid);
+        }
+
+        // Remove dragged from current position and insert at new position
+        const filtered = siblingGuids.filter(g => g !== draggedPage.guid);
+        const targetIndex = filtered.indexOf(targetPage.guid);
+        const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+        filtered.splice(insertIndex, 0, draggedPage.guid);
+
+        try {
+          await reorderPages.mutateAsync({
+            parentGuid: parentGuid,
+            orderedGuids: filtered,
+          });
+          queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
+          setDraggedPage(null);
+          onPageMoved?.();
+        } catch (error) {
+          console.error('Failed to reorder pages:', error);
+        }
+      } else if (position === 'onto') {
+        // Reparent: move dragged page into target page
+        try {
+          await movePage.mutateAsync({
+            newParentGuid: targetPage.guid,
+          });
+          setDraggedPage(null);
+          onPageMoved?.();
+        } catch (error) {
+          console.error('Failed to move page:', error);
+        }
+      } else {
+        // before/after but different parent — move to target's parent first,
+        // then reorder (two operations)
+        try {
+          const targetParent = targetPage.parentGuid;
+
+          // First move to the same parent
+          await movePage.mutateAsync({
+            newParentGuid: targetParent,
+          });
+
+          // Then reorder among the new siblings
+          const { apiClient } = await import('../../config/api');
+          const path = targetParent ? `/pages/${targetParent}/children` : '/pages/root/children';
+          const resp = await apiClient.get(path);
+          const newSiblings: string[] = (resp.data.children || []).map((c: { guid: string }) => c.guid);
+
+          const filtered = newSiblings.filter(g => g !== draggedPage.guid);
+          const targetIndex = filtered.indexOf(targetPage.guid);
+          const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+          filtered.splice(insertIndex, 0, draggedPage.guid);
+
+          await reorderPages.mutateAsync({
+            parentGuid: targetParent,
+            orderedGuids: filtered,
+          });
+
+          queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
+          setDraggedPage(null);
+          onPageMoved?.();
+        } catch (error) {
+          console.error('Failed to move and reorder page:', error);
+        }
       }
     },
-    [draggedPage, movePage]
+    [draggedPage, movePage, reorderPages, rootPages, onPageMoved]
   );
 
   if (isLoading) {

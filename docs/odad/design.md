@@ -138,6 +138,7 @@ guid: <page-guid>
 parentGuid: <parent-guid or null>
 folderId: <same as parentGuid — legacy/redundant field>
 status: Draft | Published | Archived
+sortOrder: <integer — position among siblings, lower first>
 description: Optional description
 tags: [tag1, tag2]
 createdBy: <cognito-sub>
@@ -154,6 +155,7 @@ Markdown content here...
 - GUIDs for all identifiers — titles stored in frontmatter, renames don't break paths
 - S3 versioning for page history — no custom version management
 - Sidecar `.meta.json` for attachment metadata — not a DynamoDB table
+- Sort order — integer `sortOrder` field in frontmatter controls sibling ordering. Pages without `sortOrder` sort after ordered pages, by title. Reorder endpoint accepts an ordered list of sibling GUIDs and assigns sequential values.
 - Hard delete — no trash/restore mechanism. Deleted pages are permanently removed from S3. Recoverability via S3 versioning only.
 - Move is copy + delete — not atomic. If copy succeeds but delete fails, duplicates exist. No detection or cleanup mechanism yet.
 - Page size — no enforced limit. Large pages may cause editor performance issues and Lambda timeout on export. Consider a warning at 50K characters.

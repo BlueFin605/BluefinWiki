@@ -35,6 +35,7 @@ export interface PageContent {
   folderId: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived';
+  sortOrder?: number;
   description?: string;
   pageType?: string;
   properties?: Record<string, PageProperty>;
@@ -50,6 +51,7 @@ export interface PageSummary {
   title: string;
   parentGuid: string | null;
   status: 'draft' | 'published' | 'archived';
+  sortOrder?: number;
   modifiedAt: string;
   modifiedBy: string;
   hasChildren: boolean;
@@ -101,6 +103,11 @@ export interface UpdatePageRequest {
 
 export interface MovePageRequest {
   newParentGuid: string | null;
+}
+
+export interface ReorderRequest {
+  parentGuid: string | null;
+  orderedGuids: string[];
 }
 
 export interface DeletePageRequest {

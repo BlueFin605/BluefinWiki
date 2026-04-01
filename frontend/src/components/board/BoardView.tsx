@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { BoardColumn } from './BoardColumn';
+import { BoardColumn, CardDropPosition } from './BoardColumn';
 import { CardSummaryDialog } from './CardSummaryDialog';
-import { usePageChildrenWithProperties } from '../../hooks/usePages';
+import { usePageChildrenWithProperties, useReorderPages } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
 import { apiClient } from '../../config/api';
 import {
@@ -54,6 +54,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
   const { data: children = [], isLoading, error } = usePageChildrenWithProperties(parentGuid, deepFetchOptions);
   const { data: pageTypesList = [] } = usePageTypes();
   const queryClient = useQueryClient();
+  const reorderPages = useReorderPages();
 
   // Drag state
   const [draggedGuid, setDraggedGuid] = useState<string | null>(null);
@@ -80,9 +81,16 @@ export const BoardView: React.FC<BoardViewProps> = ({
       byState[state].push(child);
     }
 
-    // Sort cards within each column by modifiedAt (most recent first)
+    // Sort cards within each column by sortOrder (ascending), then modifiedAt (most recent first)
     for (const state of Object.keys(byState)) {
-      byState[state].sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime());
+      byState[state].sort((a, b) => {
+        const aHasOrder = a.sortOrder !== undefined;
+        const bHasOrder = b.sortOrder !== undefined;
+        if (aHasOrder && bHasOrder) return a.sortOrder! - b.sortOrder!;
+        if (aHasOrder && !bHasOrder) return -1;
+        if (!aHasOrder && bHasOrder) return 1;
+        return new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime();
+      });
     }
 
     // Determine column order
@@ -125,6 +133,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
 
   const handleDrop = useCallback(
     async (targetState: string) => {
+      console.log('[board-drop] Column-level handleDrop called:', { targetState, draggedGuid });
       if (!draggedGuid) return;
 
       const card = children.find((c) => c.guid === draggedGuid);
@@ -134,7 +143,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
         ? card.properties.state.value
         : UNCATEGORISED;
 
-      // No-op if dropping in same column
+      // No-op if dropping in same column (column-level drop = just state change)
       if (currentState === targetState) {
         setDraggedGuid(null);
         return;
@@ -184,6 +193,142 @@ export const BoardView: React.FC<BoardViewProps> = ({
       }
     },
     [draggedGuid, children, parentGuid, queryClient]
+  );
+
+  // Within-column card reorder
+  const handleCardReorder = useCallback(
+    async (columnState: string, targetGuid: string, position: CardDropPosition) => {
+      console.log('[board-reorder] handleCardReorder called:', {
+        columnState, targetGuid, position, draggedGuid,
+      });
+
+      if (!draggedGuid || draggedGuid === targetGuid) {
+        setDraggedGuid(null);
+        return;
+      }
+
+      const card = children.find((c) => c.guid === draggedGuid);
+      if (!card) {
+        console.warn('[board-reorder] Dragged card not found in children');
+        return;
+      }
+
+      const currentState = typeof card.properties?.state?.value === 'string'
+        ? card.properties.state.value
+        : UNCATEGORISED;
+
+      console.log('[board-reorder] State check:', { currentState, columnState, sameColumn: currentState === columnState });
+
+      // If card is from a different column, this is a state change + position
+      if (currentState !== columnState) {
+        // Change state first, then reorder
+        const queryKey = [
+          'pages', 'children', parentGuid, 'with-properties',
+          boardConfig?.targetTypeGuid ?? null,
+          deepFetchOptions?.depth ?? null,
+        ];
+        const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
+
+        // Optimistic state change
+        queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) =>
+          old?.map((c) =>
+            c.guid === draggedGuid
+              ? {
+                  ...c,
+                  properties: {
+                    ...c.properties,
+                    state: { type: 'string' as const, value: columnState },
+                  },
+                }
+              : c
+          )
+        );
+
+        setDraggedGuid(null);
+
+        try {
+          const updateRequest: UpdatePageRequest = {
+            properties: {
+              ...(card.properties || {}),
+              state: { type: 'string', value: columnState },
+            },
+          };
+          await apiClient.put(`/pages/${draggedGuid}`, updateRequest);
+          queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] });
+        } catch {
+          queryClient.setQueryData(queryKey, previousData);
+          setToast('Failed to update state. Please try again.');
+          setTimeout(() => setToast(null), 3000);
+        }
+        return;
+      }
+
+      // Same column — reorder
+      // Build the new visual order for cards in this column
+      const columnCards = cardsByColumn[columnState] || [];
+      const reorderedCards = columnCards.filter(c => c.guid !== draggedGuid);
+      const targetIndex = reorderedCards.findIndex(c => c.guid === targetGuid);
+      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+      const draggedCard = columnCards.find(c => c.guid === draggedGuid);
+      if (draggedCard) {
+        reorderedCards.splice(insertIndex, 0, draggedCard);
+      }
+
+      // Group reordered cards by their actual parent — each group is a
+      // separate reorder call because siblings must share a parent.
+      // For non-deep boards all cards share parentGuid; for deep boards
+      // cards may come from different parents.
+      const byParent = new Map<string, string[]>();
+      for (const c of reorderedCards) {
+        const pGuid = c.parentGuid ?? '__root__';
+        if (!byParent.has(pGuid)) byParent.set(pGuid, []);
+        byParent.get(pGuid)!.push(c.guid);
+      }
+
+      // Optimistic reorder in cache
+      const queryKey = [
+        'pages', 'children', parentGuid, 'with-properties',
+        boardConfig?.targetTypeGuid ?? null,
+        deepFetchOptions?.depth ?? null,
+      ];
+      const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
+
+      // Update sortOrder optimistically based on new visual position
+      queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) => {
+        if (!old) return old;
+        const updated = [...old];
+        for (let i = 0; i < reorderedCards.length; i++) {
+          const idx = updated.findIndex(c => c.guid === reorderedCards[i].guid);
+          if (idx !== -1) {
+            updated[idx] = { ...updated[idx], sortOrder: i * 1000 };
+          }
+        }
+        return updated;
+      });
+
+      setDraggedGuid(null);
+
+      try {
+        // Send one reorder request per parent group (skip single-card groups — nothing to reorder)
+        const reorderRequests = Array.from(byParent.entries())
+          .filter(([, guids]) => guids.length >= 2)
+          .map(([pGuid, guids]) => ({
+            parentGuid: pGuid === '__root__' ? null : pGuid,
+            orderedGuids: guids,
+          }));
+        if (reorderRequests.length > 0) {
+          console.log('[board-reorder] Sending reorder requests:', reorderRequests);
+          await Promise.all(reorderRequests.map(req => reorderPages.mutateAsync(req)));
+        }
+        queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] });
+      } catch (err) {
+        console.error('[board-reorder] Reorder failed:', err);
+        queryClient.setQueryData(queryKey, previousData);
+        setToast('Failed to reorder cards. Please try again.');
+        setTimeout(() => setToast(null), 3000);
+      }
+    },
+    [draggedGuid, children, cardsByColumn, parentGuid, queryClient, reorderPages, boardConfig, deepFetchOptions]
   );
 
   if (isLoading) {
@@ -241,6 +386,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
               onCardClick={setSelectedCard}
               onCardDragStart={handleDragStart}
               onCardDrop={handleDrop}
+              onCardReorder={handleCardReorder}
               onAddCard={onAddCard}
             />
           ))}
