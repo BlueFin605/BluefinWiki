@@ -6,9 +6,11 @@ using Amazon.CDK.AWS.CloudFront.Origins;
 using Amazon.CDK.AWS.DynamoDB;
 using Amazon.CDK.AWS.IAM;
 using Amazon.CDK.AWS.Lambda;
+using Amazon.CDK.AWS.Lambda.EventSources;
 using Amazon.CDK.AWS.APIGateway;
 using Amazon.CDK.AWS.Logs;
 using Amazon.CDK.AWS.S3;
+using Amazon.CDK.AWS.S3.Notifications;
 using Amazon.CDK.AWS.SecretsManager;
 using Constructs;
 using System.Collections.Generic;
@@ -1824,12 +1826,58 @@ namespace Infrastructure.Stacks
             PageIndexTable.GrantReadWriteData(mcpLambdaRole);
             PageTypesTable.GrantReadData(mcpLambdaRole);
 
+            // S3 Vectors for semantic search (derived data — DESTROY on stack deletion)
+            var vectorBucketName = $"{config.Prefix}-vectors-{config.Name}";
+            var vectorIndexName = "wiki-pages";
+            var stackRegion = Stack.Of(this).Region;
+
+            var vectorBucket = new Amazon.CDK.CfnResource(this, "VectorBucket", new Amazon.CDK.CfnResourceProps
+            {
+                Type = "AWS::S3Vectors::VectorBucket",
+                Properties = new Dictionary<string, object>
+                {
+                    ["VectorBucketName"] = vectorBucketName
+                }
+            });
+            vectorBucket.ApplyRemovalPolicy(RemovalPolicy.DESTROY);
+
+            var vectorIndex = new Amazon.CDK.CfnResource(this, "VectorIndex", new Amazon.CDK.CfnResourceProps
+            {
+                Type = "AWS::S3Vectors::Index",
+                Properties = new Dictionary<string, object>
+                {
+                    ["VectorBucketName"] = vectorBucketName,
+                    ["IndexName"] = vectorIndexName,
+                    ["DataType"] = "float32",
+                    ["Dimension"] = 256,
+                    ["DistanceMetric"] = "cosine"
+                }
+            });
+            vectorIndex.AddDependency(vectorBucket);
+
+            // MCP Lambda needs S3 Vectors query + Bedrock embed permissions
+            mcpLambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Effect = Effect.ALLOW,
+                Actions = new[] { "s3vectors:QueryVectors" },
+                Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:bucket/{vectorBucketName}/*" }
+            }));
+            mcpLambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Effect = Effect.ALLOW,
+                Actions = new[] { "bedrock:InvokeModel" },
+                Resources = new[] { $"arn:aws:bedrock:{stackRegion}::foundation-model/amazon.titan-embed-text-v2:0" }
+            }));
+
             var mcpEnvVars = new Dictionary<string, string>
             {
                 { "PAGES_BUCKET", PagesBucket.BucketName },
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
                 { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
                 { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
+                { "VECTOR_BUCKET_NAME", vectorBucketName },
+                { "VECTOR_INDEX_NAME", vectorIndexName },
+                { "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0" },
                 { "ENVIRONMENT", config.Name }
             };
 
@@ -1892,6 +1940,78 @@ namespace Infrastructure.Stacks
                 Description = "MCP API Key ID (use 'aws apigateway get-api-key --api-key <id> --include-value' to retrieve the key value)",
                 ExportName = $"{config.Name}-mcp-api-key-id"
             });
+
+            // =============================================================================
+            // Vector Index Builder (Semantic Search)
+            // =============================================================================
+
+            var vectorIndexBuilderRole = new Role(this, "VectorIndexBuilderRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+                    ManagedPolicy.FromAwsManagedPolicyName("AWSXRayDaemonWriteAccess")
+                }
+            });
+
+            // Read pages from S3, read page index for path building
+            PagesBucket.GrantRead(vectorIndexBuilderRole);
+            PageIndexTable.GrantReadData(vectorIndexBuilderRole);
+
+            // S3 Vectors write permissions
+            vectorIndexBuilderRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Effect = Effect.ALLOW,
+                Actions = new[] { "s3vectors:PutVectors", "s3vectors:DeleteVectors" },
+                Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:bucket/{vectorBucketName}/*" }
+            }));
+
+            // Bedrock embedding permissions
+            vectorIndexBuilderRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Effect = Effect.ALLOW,
+                Actions = new[] { "bedrock:InvokeModel" },
+                Resources = new[] { $"arn:aws:bedrock:{stackRegion}::foundation-model/amazon.titan-embed-text-v2:0" }
+            }));
+
+            var vectorIndexBuilderEnvVars = new Dictionary<string, string>
+            {
+                { "PAGES_BUCKET", PagesBucket.BucketName },
+                { "S3_PAGES_BUCKET", PagesBucket.BucketName },
+                { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
+                { "VECTOR_BUCKET_NAME", vectorBucketName },
+                { "VECTOR_INDEX_NAME", vectorIndexName },
+                { "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0" },
+                { "ENVIRONMENT", config.Name }
+            };
+
+            var vectorIndexBuilderFunction = new LambdaFunction(this, "VectorIndexBuilderFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-vector-index-builder",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "search/vector-index-builder.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = vectorIndexBuilderRole,
+                Environment = vectorIndexBuilderEnvVars,
+                Timeout = Duration.Minutes(5),
+                MemorySize = 512,
+                Tracing = Tracing.ACTIVE,
+                LogRetention = (RetentionDays)config.LogRetentionDays,
+                Description = "Maintains S3 Vectors index for semantic search — triggered by S3 page events"
+            });
+
+            // Trigger on page create/update/delete in S3
+            PagesBucket.AddEventNotification(
+                EventType.OBJECT_CREATED,
+                new LambdaDestination(vectorIndexBuilderFunction),
+                new NotificationKeyFilter { Suffix = ".md" }
+            );
+            PagesBucket.AddEventNotification(
+                EventType.OBJECT_REMOVED,
+                new LambdaDestination(vectorIndexBuilderFunction),
+                new NotificationKeyFilter { Suffix = ".md" }
+            );
 
             // Compute Stack outputs
             var apiUrl = !string.IsNullOrWhiteSpace(config.DomainName)

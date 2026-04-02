@@ -1,25 +1,28 @@
 /**
  * MCP Tool: search_pages
  *
- * Search for wiki pages by title or content using the pre-built Fuse.js search index.
- * The search index already excludes non-published pages.
+ * Semantic search for wiki pages using S3 Vectors and Bedrock Titan V2 embeddings.
+ * Replaces the previous Fuse.js keyword search with meaning-based similarity search.
+ *
+ * Flow: query string → Bedrock embed → S3 Vectors QueryVectors → results from metadata
  */
 
-import { S3Client, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import Fuse from 'fuse.js';
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from '@aws-sdk/client-bedrock-runtime';
+import {
+  S3VectorsClient,
+  QueryVectorsCommand,
+} from '@aws-sdk/client-s3vectors';
 
-const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
-const bucket = process.env.PAGES_BUCKET!;
+const region = process.env.AWS_REGION || 'ap-southeast-2';
+const vectorBucketName = process.env.VECTOR_BUCKET_NAME!;
+const vectorIndexName = process.env.VECTOR_INDEX_NAME || 'wiki-pages';
+const embeddingModelId = process.env.EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0';
 
-interface SearchIndexEntry {
-  id: string;
-  title: string;
-  content: string;
-  path: string;
-  tags: string[];
-  modifiedDate: string;
-  author: string;
-}
+const bedrockClient = new BedrockRuntimeClient({ region });
+const s3VectorsClient = new S3VectorsClient({ region });
 
 interface SearchResult {
   title: string;
@@ -29,81 +32,57 @@ interface SearchResult {
   score: number;
 }
 
-// Module-level cache for warm Lambda invocations
-let cachedFuse: Fuse<SearchIndexEntry> | null = null;
-
-async function getSearchIndex(): Promise<Fuse<SearchIndexEntry>> {
-  if (cachedFuse) return cachedFuse;
-
-  const result = await s3.send(new GetObjectCommand({
-    Bucket: bucket,
-    Key: 'search-index.json',
-  }));
-
-  const entries: SearchIndexEntry[] = JSON.parse(await result.Body!.transformToString());
-  cachedFuse = new Fuse(entries, {
-    keys: ['title', 'content', 'tags'],
-    threshold: 0.4,
-    includeScore: true,
-  });
-
-  return cachedFuse;
-}
-
 /**
- * Find the S3 key for a page by its GUID.
- * Pages are stored as {guid}/{guid}.md (root) or {parent}/{guid}/{guid}.md (nested).
- * We search for files matching the GUID pattern.
+ * Generate an embedding for the given text using Bedrock Titan V2.
  */
-async function findS3KeyByGuid(guid: string): Promise<string | null> {
-  // Try root-level first (most common)
-  const rootKey = `${guid}/${guid}.md`;
-  try {
-    await s3.send(new GetObjectCommand({
-      Bucket: bucket,
-      Key: rootKey,
-      Range: 'bytes=0-0', // HEAD-like check
-    }));
-    return rootKey;
-  } catch {
-    // Not at root, search deeper
-  }
-
-  // Scan for the file anywhere in the bucket
-  const result = await s3.send(new ListObjectsV2Command({
-    Bucket: bucket,
-    Prefix: '',
+async function generateEmbedding(text: string): Promise<number[]> {
+  const response = await bedrockClient.send(new InvokeModelCommand({
+    modelId: embeddingModelId,
+    contentType: 'application/json',
+    accept: 'application/json',
+    body: JSON.stringify({
+      inputText: text,
+      dimensions: 256,
+      normalize: true,
+    }),
   }));
 
-  const match = (result.Contents || []).find(obj =>
-    obj.Key?.endsWith(`${guid}/${guid}.md`)
-  );
-
-  return match?.Key || null;
+  const result = JSON.parse(new TextDecoder().decode(response.body));
+  return result.embedding;
 }
 
 /**
- * Search for pages matching a query string.
+ * Search for pages matching a query string using semantic similarity.
  */
 export async function searchPages(query: string): Promise<SearchResult[]> {
-  const fuse = await getSearchIndex();
-  const results = fuse.search(query, { limit: 20 });
+  if (!query || query.trim() === '') {
+    return [];
+  }
 
-  // Resolve S3 keys for matches in parallel
-  const resolved = await Promise.all(
-    results.map(async (result) => {
-      const s3Key = await findS3KeyByGuid(result.item.id);
-      if (!s3Key) return null;
+  const queryEmbedding = await generateEmbedding(query);
 
-      return {
-        title: result.item.title,
-        guid: result.item.id,
-        s3Key,
-        displayPath: result.item.path,
-        score: result.score ?? 0,
-      } as SearchResult;
-    })
-  );
+  const response = await s3VectorsClient.send(new QueryVectorsCommand({
+    vectorBucketName,
+    indexName: vectorIndexName,
+    queryVector: { float32: queryEmbedding },
+    topK: 20,
+    returnDistance: true,
+    returnMetadata: true,
+  }));
 
-  return resolved.filter((r): r is SearchResult => r !== null);
+  if (!response.vectors) {
+    return [];
+  }
+
+  return response.vectors.map(vector => {
+    const meta = vector.metadata as Record<string, string> | undefined;
+    return {
+      title: meta?.title ?? '',
+      guid: meta?.guid ?? vector.key ?? '',
+      s3Key: meta?.s3Key ?? '',
+      displayPath: meta?.displayPath ?? '',
+      // Cosine distance: 0 = identical, 2 = opposite. Convert to score where higher = more relevant.
+      score: vector.distance != null ? 1 - (vector.distance / 2) : 0,
+    };
+  });
 }
