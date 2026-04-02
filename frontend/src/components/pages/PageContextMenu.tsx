@@ -20,6 +20,7 @@ interface PageContextMenuProps {
   onDelete: (page: PageTreeNode) => void;
   onMove: (page: PageTreeNode) => void;
   onNewChild: (page: PageTreeNode) => void;
+  onSortChildren: (page: PageTreeNode, direction: 'asc' | 'desc') => void;
 }
 
 export const PageContextMenu: React.FC<PageContextMenuProps> = ({
@@ -30,6 +31,7 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
   onDelete,
   onMove,
   onNewChild,
+  onSortChildren,
 }) => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'Admin';
@@ -117,8 +119,34 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
       },
       shortcut: 'Ctrl+N',
     },
+    ...(page.hasChildren ? [{
+      label: 'Sort Children A\u2013Z',
+      separator: true,
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+        </svg>
+      ),
+      onClick: () => {
+        onSortChildren(page, 'asc');
+        onClose();
+      },
+    },
+    {
+      label: 'Sort Children Z\u2013A',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+        </svg>
+      ),
+      onClick: () => {
+        onSortChildren(page, 'desc');
+        onClose();
+      },
+    }] : []),
     {
       label: 'Move',
+      separator: !page.hasChildren,
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -175,6 +203,7 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
             w-full text-left px-4 py-2 flex items-center justify-between
             hover:bg-gray-100 transition-colors
             ${item.danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700'}
+            ${item.separator ? 'border-t border-gray-200 mt-1 pt-2' : ''}
           `}
           onClick={item.onClick}
           role="menuitem"

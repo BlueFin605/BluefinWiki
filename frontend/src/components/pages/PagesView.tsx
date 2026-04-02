@@ -23,7 +23,10 @@ import { PageEditor } from './PageEditor';
 import { SearchDialog } from '../search/SearchDialog';
 import { MobileDrawer } from '../common/MobileDrawer';
 import { PageTreeNode } from '../../types/page';
-import { useDeletePage } from '../../hooks/usePages';
+import { useDeletePage, useReorderPages } from '../../hooks/usePages';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../../config/api';
+import { PageSummary } from '../../types/page';
 import { useMediaQuery, DESKTOP } from '../../hooks/useMediaQuery';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -79,6 +82,8 @@ export const PagesView: React.FC = () => {
   }, []);
 
   const deletePage = useDeletePage();
+  const reorderPages = useReorderPages();
+  const queryClient = useQueryClient();
 
   const handlePageSelect = (guid: string) => {
     setActivePageGuid(guid);
@@ -128,6 +133,27 @@ export const PagesView: React.FC = () => {
 
   const handleNewChild = (page: PageTreeNode) => {
     setNewPageModal({ isOpen: true, parentGuid: page.guid });
+  };
+
+  const handleSortChildren = async (page: PageTreeNode, direction: 'asc' | 'desc') => {
+    try {
+      const response = await apiClient.get(`/pages/${page.guid}/children`);
+      const children: PageSummary[] = response.data.children || [];
+      if (children.length < 2) return;
+
+      const sorted = [...children].sort((a, b) => {
+        const cmp = a.title.localeCompare(b.title);
+        return direction === 'asc' ? cmp : -cmp;
+      });
+
+      await reorderPages.mutateAsync({
+        parentGuid: page.guid,
+        orderedGuids: sorted.map(c => c.guid),
+      });
+      queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
+    } catch (error) {
+      console.error('Failed to sort children:', error);
+    }
   };
 
   const handleNewRootPage = () => {
@@ -322,6 +348,7 @@ export const PagesView: React.FC = () => {
             onDelete={handleDelete}
             onMove={handleMove}
             onNewChild={handleNewChild}
+            onSortChildren={handleSortChildren}
           />
         )}
 
