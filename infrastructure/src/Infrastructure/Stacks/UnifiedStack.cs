@@ -1803,6 +1803,96 @@ namespace Infrastructure.Stacks
                 Authorizer = cognitoAuthorizer
             });
 
+            // =============================================================================
+            // MCP Server (AI Access)
+            // =============================================================================
+
+            // Dedicated read-only IAM role for MCP Lambda
+            var mcpLambdaRole = new Role(this, "McpLambdaExecutionRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+                    ManagedPolicy.FromAwsManagedPolicyName("AWSXRayDaemonWriteAccess")
+                }
+            });
+
+            // Read/write grants for page updates; read-only for types
+            PagesBucket.GrantReadWrite(mcpLambdaRole);
+            PageLinksTable.GrantReadWriteData(mcpLambdaRole);
+            PageIndexTable.GrantReadWriteData(mcpLambdaRole);
+            PageTypesTable.GrantReadData(mcpLambdaRole);
+
+            var mcpEnvVars = new Dictionary<string, string>
+            {
+                { "PAGES_BUCKET", PagesBucket.BucketName },
+                { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
+                { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
+                { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
+                { "ENVIRONMENT", config.Name }
+            };
+
+            var mcpFunction = new LambdaFunction(this, "McpFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-mcp",
+                Runtime = Runtime.NODEJS_20_X,
+                Handler = "mcp/mcp-handler.handler",
+                Code = Code.FromAsset("../backend/dist"),
+                Role = mcpLambdaRole,
+                Environment = mcpEnvVars,
+                Timeout = Duration.Seconds(30),
+                MemorySize = 512,
+                Tracing = Tracing.ACTIVE,
+                LogRetention = (RetentionDays)config.LogRetentionDays,
+                Description = "MCP server for AI read/write access to wiki pages"
+            });
+
+            // API Gateway route: /mcp (POST and GET) with API key auth
+            var mcpResource = Api.Root.AddResource("mcp");
+
+            mcpResource.AddMethod("POST", new LambdaIntegration(mcpFunction), new MethodOptions
+            {
+                ApiKeyRequired = true
+            });
+
+            mcpResource.AddMethod("GET", new LambdaIntegration(mcpFunction), new MethodOptions
+            {
+                ApiKeyRequired = true
+            });
+
+            // Usage plan and API key for MCP access
+            var mcpApiKey = Api.AddApiKey("McpApiKey", new ApiKeyOptions
+            {
+                ApiKeyName = $"{config.Prefix}-mcp-key-{config.Name}",
+                Description = "API key for MCP AI access to BlueFinWiki"
+            });
+
+            var mcpUsagePlan = Api.AddUsagePlan("McpUsagePlan", new UsagePlanProps
+            {
+                Name = $"{config.Prefix}-mcp-plan-{config.Name}",
+                Description = "Usage plan for MCP AI access",
+                Throttle = new ThrottleSettings
+                {
+                    RateLimit = 10,
+                    BurstLimit = 20
+                }
+            });
+
+            mcpUsagePlan.AddApiKey(mcpApiKey);
+            mcpUsagePlan.AddApiStage(new UsagePlanPerApiStage
+            {
+                Api = Api,
+                Stage = Api.DeploymentStage
+            });
+
+            new CfnOutput(this, "McpApiKeyId", new CfnOutputProps
+            {
+                Value = mcpApiKey.KeyId,
+                Description = "MCP API Key ID (use 'aws apigateway get-api-key --api-key <id> --include-value' to retrieve the key value)",
+                ExportName = $"{config.Name}-mcp-api-key-id"
+            });
+
             // Compute Stack outputs
             var apiUrl = !string.IsNullOrWhiteSpace(config.DomainName)
                 ? $"https://api.{config.DomainName}/"

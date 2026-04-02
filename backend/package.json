@@ -21,10 +21,12 @@
     "@aws-sdk/client-ses": "^3.511.0",
     "@aws-sdk/lib-dynamodb": "^3.511.0",
     "@aws-sdk/s3-request-presigner": "^3.511.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "aws-jwt-verify": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "fuse.js": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
