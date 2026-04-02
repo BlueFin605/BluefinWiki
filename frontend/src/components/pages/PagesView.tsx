@@ -141,8 +141,11 @@ export const PagesView: React.FC = () => {
       const children: PageSummary[] = response.data.children || [];
       if (children.length < 2) return;
 
+      const sortKey = (title: string) =>
+        title.replace(/^(the|a|an)\s+/i, '');
+
       const sorted = [...children].sort((a, b) => {
-        const cmp = a.title.localeCompare(b.title);
+        const cmp = sortKey(a.title).localeCompare(sortKey(b.title));
         return direction === 'asc' ? cmp : -cmp;
       });
 
