@@ -1860,7 +1860,7 @@ namespace Infrastructure.Stacks
             {
                 Effect = Effect.ALLOW,
                 Actions = new[] { "s3vectors:QueryVectors" },
-                Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:vector-bucket/{vectorBucketName}/*" }
+                Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:bucket/{vectorBucketName}/*" }
             }));
             mcpLambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
             {
@@ -1964,7 +1964,7 @@ namespace Infrastructure.Stacks
             {
                 Effect = Effect.ALLOW,
                 Actions = new[] { "s3vectors:PutVectors", "s3vectors:DeleteVectors" },
-                Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:vector-bucket/{vectorBucketName}/*" }
+                Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:bucket/{vectorBucketName}/*" }
             }));
 
             // Bedrock embedding permissions
