@@ -2,10 +2,10 @@
  * Lambda: mcp-handler
  *
  * MCP server endpoint for AI clients (Claude Desktop, Claude Code, GitHub Copilot).
- * Provides read-only access to wiki pages via Streamable HTTP protocol.
+ * Provides read/write access to wiki pages via Streamable HTTP protocol.
  *
  * Secured by API Gateway API key — no Cognito auth.
- * Five tools: list_pages, get_page, search_pages, list_page_types, get_backlinks.
+ * Six tools: list_pages, get_page, search_pages, list_page_types, get_backlinks, update_page.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -20,6 +20,7 @@ import { getPage } from './tools/get-page.js';
 import { searchPages } from './tools/search-pages.js';
 import { listPageTypes } from './tools/list-page-types.js';
 import { getBacklinks } from './tools/get-backlinks.js';
+import { updatePage, UpdatePageInput } from './tools/update-page.js';
 
 const TOOLS = [
   {
@@ -85,6 +86,46 @@ const TOOLS = [
       required: ['pageGuid'],
     },
   },
+  {
+    name: 'update_page',
+    description: 'Update an existing wiki page. Modify the title, markdown content, tags, status, page type, or structured properties. Only published pages can be updated. The page GUID is found in the YAML frontmatter returned by get_page. All fields except pageGuid are optional — only send the fields you want to change. Properties replace entirely (not merged).',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pageGuid: {
+          type: 'string',
+          description: 'The GUID of the page to update (from the "guid" field in page frontmatter)',
+        },
+        title: {
+          type: 'string',
+          description: 'New page title (1-200 characters)',
+        },
+        content: {
+          type: 'string',
+          description: 'New markdown content (replaces the entire body)',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'New tags array (replaces all existing tags)',
+        },
+        status: {
+          type: 'string',
+          enum: ['published', 'archived'],
+          description: 'Page status — "published" or "archived"',
+        },
+        pageType: {
+          type: ['string', 'null'],
+          description: 'Page type GUID to set, or null to remove the page type',
+        },
+        properties: {
+          type: 'object',
+          description: 'Structured properties object — replaces all existing properties. Each key is a property name (kebab-case), value is { type, value }.',
+        },
+      },
+      required: ['pageGuid'],
+    },
+  },
 ];
 
 /**
@@ -124,6 +165,10 @@ function createServer(): Server {
         case 'get_backlinks': {
           const backlinks = await getBacklinks((args as { pageGuid: string }).pageGuid);
           return { content: [{ type: 'text', text: JSON.stringify(backlinks, null, 2) }] };
+        }
+        case 'update_page': {
+          const result = await updatePage(args as unknown as UpdatePageInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
         default:
           return {

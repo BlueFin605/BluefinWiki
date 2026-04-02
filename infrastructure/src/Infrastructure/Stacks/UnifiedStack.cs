@@ -1818,9 +1818,10 @@ namespace Infrastructure.Stacks
                 }
             });
 
-            // Read-only grants — no write access to any resource
-            PagesBucket.GrantRead(mcpLambdaRole);
-            PageLinksTable.GrantReadData(mcpLambdaRole);
+            // Read/write grants for page updates; read-only for types
+            PagesBucket.GrantReadWrite(mcpLambdaRole);
+            PageLinksTable.GrantReadWriteData(mcpLambdaRole);
+            PageIndexTable.GrantReadWriteData(mcpLambdaRole);
             PageTypesTable.GrantReadData(mcpLambdaRole);
 
             var mcpEnvVars = new Dictionary<string, string>
@@ -1828,6 +1829,7 @@ namespace Infrastructure.Stacks
                 { "PAGES_BUCKET", PagesBucket.BucketName },
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
                 { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
+                { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
                 { "ENVIRONMENT", config.Name }
             };
 
@@ -1843,7 +1845,7 @@ namespace Infrastructure.Stacks
                 MemorySize = 512,
                 Tracing = Tracing.ACTIVE,
                 LogRetention = (RetentionDays)config.LogRetentionDays,
-                Description = "MCP server for AI read access to wiki pages"
+                Description = "MCP server for AI read/write access to wiki pages"
             });
 
             // API Gateway route: /mcp (POST and GET) with API key auth
