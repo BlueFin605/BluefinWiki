@@ -17,6 +17,10 @@ namespace Infrastructure
             var configFile = app.Node.TryGetContext("configFile")?.ToString() ?? "../config.json";
             var config = LoadConfigFromFile(configFile);
 
+            var prefix = TryGetConfigString(config, "prefix")
+                ?? app.Node.TryGetContext("prefix")?.ToString()
+                ?? "bluefinwiki";
+
             var environmentName = config?.GetProperty("environment").GetString()
                 ?? app.Node.TryGetContext("environment")?.ToString()
                 ?? "production";
@@ -43,7 +47,7 @@ namespace Infrastructure
                 || TryGetConfigBool(config, "enableGoogleLogin");
 
             // Configure environment-specific settings
-            var envConfig = GetEnvironmentConfig(environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain, enableGoogleLogin);
+            var envConfig = GetEnvironmentConfig(prefix, environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain, enableGoogleLogin);
 
             var env = new Amazon.CDK.Environment
             {
@@ -52,13 +56,16 @@ namespace Infrastructure
             };
 
             // Create unified stack for the specified environment
-            var unifiedStack = new UnifiedStack(app, $"BlueFinWiki-{envConfig.Name}", new StackProps
+            // Stack ID is always "BlueFinWiki-{env}" for CloudFormation compatibility —
+            // the prefix controls resource names inside the stack, not the stack name itself.
+            var stackId = $"BlueFinWiki-{envConfig.Name}";
+            var unifiedStack = new UnifiedStack(app, stackId, new StackProps
             {
                 Env = env,
-                Description = $"BlueFinWiki infrastructure for {envConfig.Name} environment (all resources in single stack)",
+                Description = $"{envConfig.Prefix} infrastructure for {envConfig.Name} environment (all resources in single stack)",
                 Tags = new Dictionary<string, string>
                 {
-                    { "Project", "BlueFinWiki" },
+                    { "Project", envConfig.Prefix },
                     { "Environment", envConfig.DisplayName }
                 }
             }, envConfig);
@@ -116,7 +123,7 @@ namespace Infrastructure
         }
 
         private static EnvironmentConfig GetEnvironmentConfig(
-            string environmentName, string frontendDomain,
+            string prefix, string environmentName, string frontendDomain,
             string domainName, string certArnUsEast1, string certArnRegional,
             bool enableCognitoCustomDomain, bool enableGoogleLogin)
         {
@@ -124,6 +131,7 @@ namespace Infrastructure
             {
                 "dev" => new EnvironmentConfig
                 {
+                    Prefix = prefix,
                     Name = "dev",
                     DisplayName = "Development",
                     IsProd = false,
@@ -136,6 +144,7 @@ namespace Infrastructure
                 },
                 "staging" => new EnvironmentConfig
                 {
+                    Prefix = prefix,
                     Name = "staging",
                     DisplayName = "Test",
                     IsProd = false,
@@ -148,6 +157,7 @@ namespace Infrastructure
                 },
                 "production" => new EnvironmentConfig
                 {
+                    Prefix = prefix,
                     Name = "production",
                     DisplayName = "Production",
                     IsProd = true,
@@ -170,6 +180,8 @@ namespace Infrastructure
 
     public class EnvironmentConfig
     {
+        /// <summary>Resource naming prefix (e.g. "bluefinwiki", "familywiki"). Used for all AWS resource names.</summary>
+        public string Prefix { get; set; } = "bluefinwiki";
         public string Name { get; set; }
         public string DisplayName { get; set; }
         public bool IsProd { get; set; }
@@ -187,7 +199,7 @@ namespace Infrastructure
         public string CertificateArnRegional { get; set; }
         /// <summary>Enable Cognito custom domain (requires parent domain A record to exist first)</summary>
         public bool EnableCognitoCustomDomain { get; set; }
-        /// <summary>Enable Google federated login (requires secret bluefinwiki/{env}/google-oauth in Secrets Manager)</summary>
+        /// <summary>Enable Google federated login (requires secret {prefix}/{env}/google-oauth in Secrets Manager)</summary>
         public bool EnableGoogleLogin { get; set; }
     }
 }

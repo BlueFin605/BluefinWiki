@@ -89,7 +89,7 @@ namespace Infrastructure.Stacks
             // Create Cognito User Pool
             UserPool = new UserPool(this, "UserPool", new UserPoolProps
             {
-                UserPoolName = $"bluefinwiki-users-{config.Name}",
+                UserPoolName = $"{config.Prefix}-users-{config.Name}",
                 
                 // Sign-in configuration
                 SignInAliases = new SignInAliases
@@ -209,7 +209,7 @@ namespace Infrastructure.Stacks
             WebClient = new UserPoolClient(this, "WebClient", new UserPoolClientProps
             {
                 UserPool = UserPool,
-                UserPoolClientName = $"bluefinwiki-web-{config.Name}",
+                UserPoolClientName = $"{config.Prefix}-web-{config.Name}",
 
                 // OAuth flows
                 AuthFlows = new AuthFlow
@@ -292,7 +292,7 @@ namespace Infrastructure.Stacks
             NativeClient = new UserPoolClient(this, "NativeClient", new UserPoolClientProps
             {
                 UserPool = UserPool,
-                UserPoolClientName = $"bluefinwiki-mobile-{config.Name}",
+                UserPoolClientName = $"{config.Prefix}-mobile-{config.Name}",
                 
                 AuthFlows = new AuthFlow
                 {
@@ -328,7 +328,7 @@ namespace Infrastructure.Stacks
             // Create Identity Pool (for AWS credential access if needed)
             IdentityPool = new CfnIdentityPool(this, "IdentityPool", new CfnIdentityPoolProps
             {
-                IdentityPoolName = $"bluefinwiki_identity_{config.Name}",
+                IdentityPoolName = $"{config.Prefix}_identity_{config.Name}",
                 AllowUnauthenticatedIdentities = false,
                 CognitoIdentityProviders = new[]
                 {
@@ -433,7 +433,7 @@ namespace Infrastructure.Stacks
             // Pre Sign-Up trigger — links federated identities to existing users
             var preSignUpFunction = new LambdaFunction(this, "PreSignUpFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-pre-signup",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-pre-signup",
                 Runtime = Runtime.NODEJS_20_X,
                 Handler = "auth/auth-pre-signup.handler",
                 Code = Code.FromAsset("../backend/dist"),
@@ -456,7 +456,7 @@ namespace Infrastructure.Stacks
             // Post Confirmation trigger — activates user profile
             var postConfirmationFunction = new LambdaFunction(this, "PostConfirmationFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-post-confirmation",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-post-confirmation",
                 Runtime = Runtime.NODEJS_20_X,
                 Handler = "auth/auth-post-confirmation.handler",
                 Code = Code.FromAsset("../backend/dist"),
@@ -469,7 +469,7 @@ namespace Infrastructure.Stacks
             // Pre Token Generation trigger — adds custom claims to JWT
             var preTokenGenFunction = new LambdaFunction(this, "PreTokenGenFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-pre-token-gen",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-pre-token-gen",
                 Runtime = Runtime.NODEJS_20_X,
                 Handler = "auth/auth-pre-token-generation.handler",
                 Code = Code.FromAsset("../backend/dist"),
@@ -482,7 +482,7 @@ namespace Infrastructure.Stacks
             // Custom Message trigger — customizes email templates
             var customMessageFunction = new LambdaFunction(this, "CustomMessageFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-custom-message",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-custom-message",
                 Runtime = Runtime.NODEJS_20_X,
                 Handler = "auth/auth-custom-message.handler",
                 Code = Code.FromAsset("../backend/dist"),
@@ -501,14 +501,14 @@ namespace Infrastructure.Stacks
             // =============================================================================
             // GOOGLE IDENTITY PROVIDER
             // Optional — reads credentials from Secrets Manager secret:
-            //   bluefinwiki/{environment}/google-oauth
+            //   {prefix}/{environment}/google-oauth
             // with JSON keys: { "clientId": "...", "clientSecret": "..." }
             // Create the secret manually, then CDK picks it up automatically.
             // =============================================================================
 
             if (config.EnableGoogleLogin)
             {
-                var googleSecretName = $"bluefinwiki/{config.Name}/google-oauth";
+                var googleSecretName = $"{config.Prefix}/{config.Name}/google-oauth";
                 var googleSecret = Secret.FromSecretNameV2(this, "GoogleOAuthSecret", googleSecretName);
 
                 var googleProvider = new UserPoolIdentityProviderGoogle(this, "GoogleProvider", new UserPoolIdentityProviderGoogleProps
@@ -546,7 +546,7 @@ namespace Infrastructure.Stacks
             // S3 Bucket for page content storage
             PagesBucket = new Bucket(this, "PagesBucket", new BucketProps
             {
-                BucketName = $"bluefinwiki-pages-{config.Name}",
+                BucketName = $"{config.Prefix}-pages-{config.Name}",
                 Versioned = config.EnableVersioning,
                 Encryption = BucketEncryption.S3_MANAGED,
                 BlockPublicAccess = BlockPublicAccess.BLOCK_ALL,
@@ -589,7 +589,7 @@ namespace Infrastructure.Stacks
             // Stores: email, displayName, role, inviteCode, status, createdAt, lastLogin
             UserProfilesTable = new Table(this, "UserProfilesTable", new TableProps
             {
-                TableName = $"bluefinwiki-user-profiles-{config.Name}",
+                TableName = $"{config.Prefix}-user-profiles-{config.Name}",
                 PartitionKey = new Attribute { Name = "cognitoUserId", Type = AttributeType.STRING },
                 BillingMode = config.DynamoDbBillingMode == "PAY_PER_REQUEST" 
                     ? BillingMode.PAY_PER_REQUEST 
@@ -617,7 +617,7 @@ namespace Infrastructure.Stacks
             // TTL on expiresAt for auto-cleanup after 30 days
             InvitationsTable = new Table(this, "InvitationsTable", new TableProps
             {
-                TableName = $"bluefinwiki-invitations-{config.Name}",
+                TableName = $"{config.Prefix}-invitations-{config.Name}",
                 PartitionKey = new Attribute { Name = "inviteCode", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
                 RemovalPolicy = RemovalPolicy.DESTROY,
@@ -628,7 +628,7 @@ namespace Infrastructure.Stacks
             // Page Links table - for backlinks tracking
             PageLinksTable = new Table(this, "PageLinksTable", new TableProps
             {
-                TableName = $"bluefinwiki-page-links-{config.Name}",
+                TableName = $"{config.Prefix}-page-links-{config.Name}",
                 PartitionKey = new Attribute { Name = "sourceGuid", Type = AttributeType.STRING },
                 SortKey = new Attribute { Name = "targetGuid", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
@@ -648,7 +648,7 @@ namespace Infrastructure.Stacks
             // Note: userId references Cognito sub (UUID from Cognito tokens)
             ActivityLogTable = new Table(this, "ActivityLogTable", new TableProps
             {
-                TableName = $"bluefinwiki-activity-log-{config.Name}",
+                TableName = $"{config.Prefix}-activity-log-{config.Name}",
                 PartitionKey = new Attribute { Name = "userId", Type = AttributeType.STRING },
                 SortKey = new Attribute { Name = "timestamp", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
@@ -660,7 +660,7 @@ namespace Infrastructure.Stacks
             // Eliminates full bucket scans in findPageKey()
             PageIndexTable = new Table(this, "PageIndexTable", new TableProps
             {
-                TableName = $"bluefinwiki-page-index-{config.Name}",
+                TableName = $"{config.Prefix}-page-index-{config.Name}",
                 PartitionKey = new Attribute { Name = "guid", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
                 RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
@@ -671,7 +671,7 @@ namespace Infrastructure.Stacks
             // SK: tag (the tag value)
             TagsTable = new Table(this, "TagsTable", new TableProps
             {
-                TableName = $"bluefinwiki-tags-{config.Name}",
+                TableName = $"{config.Prefix}-tags-{config.Name}",
                 PartitionKey = new Attribute { Name = "scope", Type = AttributeType.STRING },
                 SortKey = new Attribute { Name = "tag", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
@@ -682,7 +682,7 @@ namespace Infrastructure.Stacks
             // PK: guid (UUID v4)
             PageTypesTable = new Table(this, "PageTypesTable", new TableProps
             {
-                TableName = $"bluefinwiki-page-types-{config.Name}",
+                TableName = $"{config.Prefix}-page-types-{config.Name}",
                 PartitionKey = new Attribute { Name = "guid", Type = AttributeType.STRING },
                 BillingMode = BillingMode.PAY_PER_REQUEST,
                 RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
@@ -737,7 +737,7 @@ namespace Infrastructure.Stacks
             // Create JWT secret in Secrets Manager
             JwtSecret = new Secret(this, "JwtSecret", new SecretProps
             {
-                SecretName = $"bluefinwiki/{config.Name}/jwt-secret",
+                SecretName = $"{config.Prefix}/{config.Name}/jwt-secret",
                 Description = "JWT signing secret for authentication",
                 GenerateSecretString = new SecretStringGenerator
                 {
@@ -751,7 +751,7 @@ namespace Infrastructure.Stacks
             // API Gateway REST API
             Api = new RestApi(this, "BlueFinWikiApi", new RestApiProps
             {
-                RestApiName = $"bluefinwiki-api-{config.Name}",
+                RestApiName = $"{config.Prefix}-api-{config.Name}",
                 Description = $"BlueFinWiki API for {config.Name} environment",
                 BinaryMediaTypes = new[] { "multipart/form-data" },
                 DeployOptions = new StageOptions
@@ -863,7 +863,7 @@ namespace Infrastructure.Stacks
             
             var pagesCreateFunction = new LambdaFunction(this, "PagesCreateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-create",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-create",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-create.handler",
                 Code = lambdaProps.Code,
@@ -878,7 +878,7 @@ namespace Infrastructure.Stacks
             
             var pagesGetFunction = new LambdaFunction(this, "PagesGetFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-get",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-get",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-get.handler",
                 Code = lambdaProps.Code,
@@ -893,7 +893,7 @@ namespace Infrastructure.Stacks
             
             var pagesUpdateFunction = new LambdaFunction(this, "PagesUpdateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-update",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-update",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-update.handler",
                 Code = lambdaProps.Code,
@@ -908,7 +908,7 @@ namespace Infrastructure.Stacks
             
             var pagesDeleteFunction = new LambdaFunction(this, "PagesDeleteFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-delete",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-delete",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-delete.handler",
                 Code = lambdaProps.Code,
@@ -923,7 +923,7 @@ namespace Infrastructure.Stacks
             
             var pagesListChildrenFunction = new LambdaFunction(this, "PagesListChildrenFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-list-children",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-list-children",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-list-children.handler",
                 Code = lambdaProps.Code,
@@ -938,7 +938,7 @@ namespace Infrastructure.Stacks
             
             var pagesMoveFunction = new LambdaFunction(this, "PagesMoveFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-move",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-move",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-move.handler",
                 Code = lambdaProps.Code,
@@ -953,7 +953,7 @@ namespace Infrastructure.Stacks
             
             var pagesReorderFunction = new LambdaFunction(this, "PagesReorderFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-reorder",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-reorder",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-reorder.handler",
                 Code = lambdaProps.Code,
@@ -968,7 +968,7 @@ namespace Infrastructure.Stacks
 
             var pagesSearchFunction = new LambdaFunction(this, "PagesSearchFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-search",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-search",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-search.handler",
                 Code = lambdaProps.Code,
@@ -983,7 +983,7 @@ namespace Infrastructure.Stacks
 
             var pagesBacklinksFunction = new LambdaFunction(this, "PagesBacklinksFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-backlinks",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-backlinks",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-backlinks.handler",
                 Code = lambdaProps.Code,
@@ -998,7 +998,7 @@ namespace Infrastructure.Stacks
 
             var pagesAncestorsFunction = new LambdaFunction(this, "PagesAncestorsFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-ancestors",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-ancestors",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-ancestors.handler",
                 Code = lambdaProps.Code,
@@ -1013,7 +1013,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-upload",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-upload",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-upload.handler",
                 Code = lambdaProps.Code,
@@ -1028,7 +1028,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsPresignFunction = new LambdaFunction(this, "PagesAttachmentsPresignFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-presign",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-presign",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-presign.handler",
                 Code = lambdaProps.Code,
@@ -1043,7 +1043,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsConfirmFunction = new LambdaFunction(this, "PagesAttachmentsConfirmFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-confirm",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-confirm",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-confirm.handler",
                 Code = lambdaProps.Code,
@@ -1058,7 +1058,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsDownloadFunction = new LambdaFunction(this, "PagesAttachmentsDownloadFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-download",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-download",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-download.handler",
                 Code = lambdaProps.Code,
@@ -1073,7 +1073,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsListFunction = new LambdaFunction(this, "PagesAttachmentsListFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-list",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-list",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-list.handler",
                 Code = lambdaProps.Code,
@@ -1088,7 +1088,7 @@ namespace Infrastructure.Stacks
 
             var pagesAttachmentsDeleteFunction = new LambdaFunction(this, "PagesAttachmentsDeleteFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-attachments-delete",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-delete",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/pages-attachments-delete.handler",
                 Code = lambdaProps.Code,
@@ -1103,7 +1103,7 @@ namespace Infrastructure.Stacks
             
             var tagsListFunction = new LambdaFunction(this, "TagsListFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-tags-list",
+                FunctionName = $"{config.Prefix}-{config.Name}-tags-list",
                 Runtime = lambdaProps.Runtime,
                 Handler = "tags/tags-list.handler",
                 Code = lambdaProps.Code,
@@ -1118,7 +1118,7 @@ namespace Infrastructure.Stacks
 
             var tagsCreateFunction = new LambdaFunction(this, "TagsCreateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-tags-create",
+                FunctionName = $"{config.Prefix}-{config.Name}-tags-create",
                 Runtime = lambdaProps.Runtime,
                 Handler = "tags/tags-create.handler",
                 Code = lambdaProps.Code,
@@ -1137,7 +1137,7 @@ namespace Infrastructure.Stacks
 
             var pageTypesListFunction = new LambdaFunction(this, "PageTypesListFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-page-types-list",
+                FunctionName = $"{config.Prefix}-{config.Name}-page-types-list",
                 Runtime = lambdaProps.Runtime,
                 Handler = "page-types/page-types-list.handler",
                 Code = lambdaProps.Code,
@@ -1152,7 +1152,7 @@ namespace Infrastructure.Stacks
 
             var pageTypesGetFunction = new LambdaFunction(this, "PageTypesGetFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-page-types-get",
+                FunctionName = $"{config.Prefix}-{config.Name}-page-types-get",
                 Runtime = lambdaProps.Runtime,
                 Handler = "page-types/page-types-get.handler",
                 Code = lambdaProps.Code,
@@ -1167,7 +1167,7 @@ namespace Infrastructure.Stacks
 
             var pageTypesCreateFunction = new LambdaFunction(this, "PageTypesCreateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-page-types-create",
+                FunctionName = $"{config.Prefix}-{config.Name}-page-types-create",
                 Runtime = lambdaProps.Runtime,
                 Handler = "page-types/page-types-create.handler",
                 Code = lambdaProps.Code,
@@ -1182,7 +1182,7 @@ namespace Infrastructure.Stacks
 
             var pageTypesUpdateFunction = new LambdaFunction(this, "PageTypesUpdateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-page-types-update",
+                FunctionName = $"{config.Prefix}-{config.Name}-page-types-update",
                 Runtime = lambdaProps.Runtime,
                 Handler = "page-types/page-types-update.handler",
                 Code = lambdaProps.Code,
@@ -1197,7 +1197,7 @@ namespace Infrastructure.Stacks
 
             var pageTypesDeleteFunction = new LambdaFunction(this, "PageTypesDeleteFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-page-types-delete",
+                FunctionName = $"{config.Prefix}-{config.Name}-page-types-delete",
                 Runtime = lambdaProps.Runtime,
                 Handler = "page-types/page-types-delete.handler",
                 Code = lambdaProps.Code,
@@ -1212,7 +1212,7 @@ namespace Infrastructure.Stacks
 
             var pageTypesAllowedChildrenFunction = new LambdaFunction(this, "PageTypesAllowedChildrenFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-page-types-allowed-children",
+                FunctionName = $"{config.Prefix}-{config.Name}-page-types-allowed-children",
                 Runtime = lambdaProps.Runtime,
                 Handler = "page-types/page-types-allowed-children.handler",
                 Code = lambdaProps.Code,
@@ -1231,7 +1231,7 @@ namespace Infrastructure.Stacks
 
             var authRegisterFunction = new LambdaFunction(this, "AuthRegisterFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-register",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-register",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/auth-register.handler",
                 Code = lambdaProps.Code,
@@ -1246,7 +1246,7 @@ namespace Infrastructure.Stacks
 
             var authMeFunction = new LambdaFunction(this, "AuthMeFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-me",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-me",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/auth-me.handler",
                 Code = lambdaProps.Code,
@@ -1265,7 +1265,7 @@ namespace Infrastructure.Stacks
 
             var adminCreateInvitationFunction = new LambdaFunction(this, "AdminCreateInvitationFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-create-invitation",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-create-invitation",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-create-invitation.handler",
                 Code = lambdaProps.Code,
@@ -1280,7 +1280,7 @@ namespace Infrastructure.Stacks
 
             var adminListInvitationsFunction = new LambdaFunction(this, "AdminListInvitationsFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-list-invitations",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-list-invitations",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-list-invitations.handler",
                 Code = lambdaProps.Code,
@@ -1295,7 +1295,7 @@ namespace Infrastructure.Stacks
 
             var adminRevokeInvitationFunction = new LambdaFunction(this, "AdminRevokeInvitationFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-revoke-invitation",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-revoke-invitation",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-revoke-invitation.handler",
                 Code = lambdaProps.Code,
@@ -1314,7 +1314,7 @@ namespace Infrastructure.Stacks
 
             var pagesLinksResolveFunction = new LambdaFunction(this, "PagesLinksResolveFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-pages-links-resolve",
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-links-resolve",
                 Runtime = lambdaProps.Runtime,
                 Handler = "pages/links-resolve.handler",
                 Code = lambdaProps.Code,
@@ -1333,7 +1333,7 @@ namespace Infrastructure.Stacks
 
             var adminUsersListFunction = new LambdaFunction(this, "AdminUsersListFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-users-list",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-list",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-users-list.handler",
                 Code = lambdaProps.Code,
@@ -1348,7 +1348,7 @@ namespace Infrastructure.Stacks
 
             var adminUsersGetFunction = new LambdaFunction(this, "AdminUsersGetFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-users-get",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-get",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-users-get.handler",
                 Code = lambdaProps.Code,
@@ -1363,7 +1363,7 @@ namespace Infrastructure.Stacks
 
             var adminUsersUpdateFunction = new LambdaFunction(this, "AdminUsersUpdateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-users-update",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-update",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-users-update.handler",
                 Code = lambdaProps.Code,
@@ -1378,7 +1378,7 @@ namespace Infrastructure.Stacks
 
             var adminUsersSuspendFunction = new LambdaFunction(this, "AdminUsersSuspendFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-users-suspend",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-suspend",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-users-suspend.handler",
                 Code = lambdaProps.Code,
@@ -1393,7 +1393,7 @@ namespace Infrastructure.Stacks
 
             var adminUsersActivateFunction = new LambdaFunction(this, "AdminUsersActivateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-users-activate",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-activate",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-users-activate.handler",
                 Code = lambdaProps.Code,
@@ -1408,7 +1408,7 @@ namespace Infrastructure.Stacks
 
             var adminUsersDeleteFunction = new LambdaFunction(this, "AdminUsersDeleteFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-admin-users-delete",
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-delete",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/admin-users-delete.handler",
                 Code = lambdaProps.Code,
@@ -1427,7 +1427,7 @@ namespace Infrastructure.Stacks
 
             var authProfileUpdateFunction = new LambdaFunction(this, "AuthProfileUpdateFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-profile-update",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-profile-update",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/auth-profile-update.handler",
                 Code = lambdaProps.Code,
@@ -1442,7 +1442,7 @@ namespace Infrastructure.Stacks
 
             var authChangePasswordFunction = new LambdaFunction(this, "AuthChangePasswordFunction", new LambdaFunctionProps
             {
-                FunctionName = $"bluefinwiki-{config.Name}-auth-change-password",
+                FunctionName = $"{config.Prefix}-{config.Name}-auth-change-password",
                 Runtime = lambdaProps.Runtime,
                 Handler = "auth/auth-change-password.handler",
                 Code = lambdaProps.Code,
@@ -1835,7 +1835,7 @@ namespace Infrastructure.Stacks
             // S3 Bucket for frontend static hosting (SPA)
             FrontendBucket = new Bucket(this, "FrontendBucket", new BucketProps
             {
-                BucketName = $"bluefinwiki-frontend-{config.Name}",
+                BucketName = $"{config.Prefix}-frontend-{config.Name}",
                 Versioned = false,
                 Encryption = BucketEncryption.S3_MANAGED,
                 PublicReadAccess = false,
@@ -1855,7 +1855,7 @@ namespace Infrastructure.Stacks
             // Cache policy for static assets (long TTL)
             var staticCachePolicy = new CachePolicy(this, "StaticCachePolicy", new CachePolicyProps
             {
-                CachePolicyName = $"bluefinwiki-static-{config.Name}",
+                CachePolicyName = $"{config.Prefix}-static-{config.Name}",
                 Comment = "Cache policy for static assets (JS, CSS, images)",
                 DefaultTtl = Duration.Days(30),
                 MinTtl = Duration.Days(1),
@@ -1870,7 +1870,7 @@ namespace Infrastructure.Stacks
             // Cache policy for SPA routing (no caching for index.html)
             var noCachePolicy = new CachePolicy(this, "NoCachePolicy", new CachePolicyProps
             {
-                CachePolicyName = $"bluefinwiki-no-cache-{config.Name}",
+                CachePolicyName = $"{config.Prefix}-no-cache-{config.Name}",
                 Comment = "No cache policy for SPA routing",
                 DefaultTtl = Duration.Seconds(0),
                 MinTtl = Duration.Seconds(0),
@@ -2028,7 +2028,7 @@ namespace Infrastructure.Stacks
 
         private string GetHostedUiDomainPrefix(EnvironmentConfig config)
         {
-            return $"bluefinwiki-{config.Name}-{Aws.ACCOUNT_ID}";
+            return $"{config.Prefix}-{config.Name}-{Aws.ACCOUNT_ID}";
         }
     }
 }

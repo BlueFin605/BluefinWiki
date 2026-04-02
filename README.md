@@ -1,405 +1,218 @@
 # BlueFinWiki
 
-**Family Wiki Platform** - A serverless, AWS-based wiki system designed for families (3-20 users)
+A private, serverless family wiki with a built-in Kanban board system — designed for small groups (3–20 users), running on AWS for under $5/month.
 
-## 🌟 Features
+## What Is BlueFinWiki?
 
-- **Invite-only Authentication** - Secure, family-only access
-- **S3-based Storage** - GUID-based file system with versioning
-- **Markdown Editor** - Rich text editing with live preview
-- **Full-text Search** - Fast search across all pages
-- **Mobile-responsive** - Works on all devices
-- **Zero-knowledge Deployment** - Infrastructure as Code
+BlueFinWiki is a wiki platform where families and small teams can capture, organize, and find shared knowledge. It runs entirely on AWS serverless infrastructure, requires no server maintenance, and stores content as portable Markdown files in S3 — never locked into a proprietary format.
 
-## 🏗️ Architecture
+Create a page about the family holiday, drag photos into the editor, link it to the trip planning page, and nest it under "Holidays." Search for a recipe Grandma wrote last month and find it instantly. Define page types with custom properties, then view your TV watchlist or project tasks as a Kanban board — cards grouped by state, draggable between columns. The admin invites a new family member with one click. Nobody thinks about servers, backups, or AWS bills.
 
-BlueFinWiki is a monorepo containing four main packages:
+<!-- TODO: Add screenshots
+![Editor](docs/screenshots/editor.png)
+![Kanban Board](docs/screenshots/kanban.png)
+![Page Tree](docs/screenshots/page-tree.png)
+-->
 
-- **frontend** - React 18 + TypeScript + Vite + Tailwind CSS
-- **backend** - AWS Lambda functions (Node.js 20)
-- **infrastructure** - AWS CDK (C#)
-- **aspire** - Microsoft Aspire for local development orchestration
+## Features
 
-### Tech Stack
+### Kanban Boards
 
-#### Production
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, React Query
-- **Backend**: AWS Lambda, Node.js 20, TypeScript
-- **Database**: AWS DynamoDB
-- **Storage**: AWS S3
-- **Search**: AWS CloudSearch / OpenSearch Serverless
-- **CDN**: AWS CloudFront
-- **IaC**: AWS CDK (C#)
+BlueFinWiki's standout feature: any page with typed children becomes a Kanban board. Define a page type with a `state` property (e.g. "To Watch", "Watching", "Watched"), assign it to child pages, and the parent page gains a board view where children appear as cards grouped into columns by state.
 
-#### Local Development
-- **Orchestration**: Microsoft Aspire (.NET 8)
-- **AWS Emulation**: LocalStack (S3, DynamoDB, SES)
-- **Email Testing**: MailHog
-- **Observability**: Aspire Dashboard (OpenTelemetry)
+This isn't a bolt-on task tracker — it's built directly on the wiki's page type system. A TV show tracker, a project task board, and a recipe collection pipeline all work the same way: define the type, set the states, switch to board view.
 
-## 📋 Prerequisites
+- **Drag-and-drop** cards between columns to change state, or reorder within a column
+- **Deep boards** — aggregate pages from an entire subtree (e.g. see all episodes across all seasons of all TV shows), not just direct children, with configurable depth up to 10 levels
+- **Configurable columns** — custom order, custom colors, auto-generated color palette for new states, plus an "Uncategorised" column for untyped pages
+- **Card detail dialog** — view and edit tags and custom properties inline without leaving the board
+- **Board settings** — configure target page type, subtree depth, default view (content or board), column layout, and whether to show parent titles on cards
+- **Add cards** directly from a column to create a new child page pre-set to that state
 
-### For Local Development
-- **.NET 8.0 SDK** or later
-- **Node.js** >= 20.0.0
-- **npm** >= 10.0.0
-- **Docker Desktop** (for LocalStack)
-- **Git** for version control
+### Content Creation
 
-### For Cloud Deployment
-- **AWS Account** with CLI configured
-- **AWS CDK** installed globally
+- **Markdown editor** with live side-by-side preview (split view on desktop, toggle on mobile)
+- **Formatting toolbar** — bold, italic, headings, lists, task lists, code blocks, links, images — no Markdown knowledge required
+- **Keyboard shortcuts** — Ctrl+S to save, Ctrl+B for bold, Ctrl+I for italic
+- **Mermaid diagrams** rendered in preview
+- **Draft persistence** — unsaved edits are stashed when navigating away and restored when you return
+- **Syntax highlighting** in code blocks
 
-## 🚀 Getting Started
+### File Attachments
 
-### Quick Start (3 Steps)
+- Upload files via toolbar button or the Inspector panel (up to 60 MB per file)
+- Uploaded images show thumbnails; inserting from the inspector adds the Markdown link at cursor position
+- Secure presigned-URL upload flow — files go directly to S3
+- Delete attachments (author or admin)
 
-1. **First-Time Setup** (one time only):
-   ```powershell
-   .\setup-aspire.ps1
-   ```
+### Page Organization
 
-2. **Start Development**:
-   ```powershell
-   dotnet run --project aspire/BlueFinWiki.AppHost
-   ```
+- **Hierarchical page tree** in a resizable sidebar — nest pages like folders
+- **Drag-and-drop** to reorder pages within a level or reparent to a different location
+- **Page type constraints** enforced on drag — invalid moves are blocked with a warning
+- **Breadcrumb navigation** showing full ancestor path
+- **Table of contents** auto-generated from headings (sticky sidebar on desktop, collapsible on mobile)
+- **Right-click context menu** — rename, create child page, delete (admin only)
 
-3. **Open Your Browser**:
-   - Frontend: http://localhost:5173
-   - Aspire Dashboard: http://localhost:15888
+### Wiki Linking & Search
 
-📖 **See [QUICKSTART.md](QUICKSTART.md) for detailed quick start guide**
+- **`[[double bracket]]` wiki links** with autocomplete suggestions as you type
+- **Backlinks** — the Inspector shows all pages that link to the current page
+- **Broken link creation** — click a red broken link in preview to create the missing page; the link auto-updates
+- **Full-text search** (Ctrl/Cmd+K) — client-side search index with debounced input, scope filtering, title-only mode, and recent search history
 
----
+### Page Types & Custom Properties
 
-### Detailed Setup
+- Admins define page type schemas — each with a name, icon, and typed properties (`string`, `number`, `date`, `tags`)
+- Properties can have default values and be marked required
+- **Hierarchy rules** — control which page types can be children or parents of other types
+- Assign a type to any page; its custom properties become editable in the Inspector
+- Tags use a shared global vocabulary with autocomplete, scoped per property name
 
-#### Option 1: Automated Setup (Recommended)
+### Page Status & Tags
 
-Run the setup script from the project root:
+- Three statuses: **draft**, **published**, **archived** — selectable per page
+- Draft pages visible only to the author and admins; archived pages excluded from search
+- Global tag registry with autocomplete across the wiki
 
-```powershell
-.\setup-aspire.ps1
-```
+### Access Control
 
-This will:
-- ✅ Install .NET Aspire workload
-- ✅ Verify Docker Desktop is running
-- ✅ Build the Aspire AppHost
-- ✅ Install Node.js dependencies
+- **Invite-only** — admins generate single-use invitation codes; new members register with a code
+- **AWS Cognito** authentication (OAuth 2.0 with PKCE) with optional Google login
+- **Role-based access** — Admin and Standard roles
+- Admin panel for user management (view, update roles, suspend, activate, delete users)
+- Invitation management (create, list, revoke codes)
+- User profiles with display name and change password
 
-Then start development:
+### Mobile Responsive
 
-```powershell
-dotnet run --project aspire/BlueFinWiki.AppHost
-```
+- Sidebar becomes a slide-in drawer on mobile
+- Editor toolbar switches to a compact fixed bottom bar
+- Inspector opens as a bottom sheet
+- Table of contents collapses to an accordion
+- Touch-friendly throughout
 
-#### Option 2: Manual Setup
+## Architecture
 
-##### 1. Clone and Install
-
-```bash
-git clone https://github.com/your-org/bluefinwiki.git
-cd bluefinwiki
-```
-
-##### 2. Install .NET and Aspire
-
-```bash
-# Install .NET 8.0 SDK from https://dotnet.microsoft.com/download
-# Then install Aspire workload
-dotnet workload install aspire
-```
-
-##### 3. Start Docker Desktop
-
-Ensure Docker Desktop is running (required for LocalStack and MailHog).
-
-##### 4. Install Node.js Dependencies
-
-```bash
-# Frontend
-cd frontend
-npm install
-
-# Backend
-cd ../backend
-npm install
-```
-
-##### 5. Run with Aspire
-dotnet run --project aspire/BlueFinWiki.AppHost
-```
-
-This single command starts:
-- Frontend (http://localhost:5173)
-- Backend (http://localhost:3000)
-- LocalStack (AWS services emulation)
-- MailHog (email testing at http://localhost:8025)
-- Aspire Dashboard (http://localhost:15888)
-
-See [ASPIRE-SETUP.md](ASPIRE-SETUP.md) for detailed configuration.
-
-### Option 2: Manual Development Setup
-
-If you prefer not to use Aspire:
-
-#### 1. Install Dependencies
-
-```bash
-# Install root dependencies and all workspace dependencies
-npm install
-
-# Or install individually
-npm install --workspace=frontend
-npm install --workspace=backend
-npm install --workspace=infrastructure
-```
-
-#### 2. Set Up Git Hooks
-
-```bash
-# Initialize Husky for pre-commit hooks
-npm run prepare
-```
-
-#### 3. Start LocalStack (Optional)
-
-```bash
-docker run -d \
-  -p 4566:4566 \
-  -p 4571:4571 \
-  -e SERVICES=s3,dynamodb,ses \
-  localstack/localstack
-```
-
-#### 4. Run Services Manually
-
-```bash
-# Terminal 1: Backend
-cd backend
-npm run dev
-
-# Terminal 2: Frontend
-cd frontend
-npm run dev
-```
-
-### Option 3: Deploy to AWS
-
-#### 1. Configure AWS Credentials
-
-```bash
-# Configure AWS CLI
-aws configure
-
-# Or set environment variables
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_DEFAULT_REGION=us-east-1
-```
-
-#### 2. Deploy Infrastructure (Dev Environment)
-
-```bash
-cd infrastructure
-npm run deploy:dev
-```
-
-#### 3. Run Frontend Locally
-
-```bash
-cd frontend
-npm run dev
-```
-
-The frontend will be available at `http://localhost:3000`
-
-## 🧪 Development
-
-### Running Tests
-
-```bash
-# Run all tests
-npm test
-
-# Run tests for specific workspace
-npm test --workspace=frontend
-npm test --workspace=backend
-```
-
-### Linting and Type Checking
-
-```bash
-# Lint all workspaces
-npm run lint
-
-# Type check all workspaces
-npm run type-check
-```
-
-### Building for Production
-
-```bash
-# Build all workspaces
-npm run build --workspaces
-
-# Build specific workspace
-npm run build --workspace=frontend
-```
-
-## 📦 Project Structure
+BlueFinWiki is a monorepo with four packages:
 
 ```
 bluefinwiki/
-├── .github/
-│   └── workflows/          # GitHub Actions CI/CD
-│       ├── frontend.yml
-│       ├── backend.yml
-│       ├── infrastructure.yml
-│       └── deploy-dev.yml
-├── .husky/
-│   └── pre-commit          # Git hooks
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   └── index.css
-│   ├── index.html
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   └── tailwind.config.js
-├── backend/
-│   ├── src/
-│   │   └── index.ts        # Lambda functions
-│   ├── package.json
-│   └── tsconfig.json
-├── infrastructure/
-│   ├── bin/
-│   │   └── bluefinwiki.ts  # CDK app entry point
-│   ├── lib/
-│   │   └── bluefinwiki-stack.ts
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── cdk.json
-├── package.json            # Root workspace config
-├── .gitignore
-├── .lintstagedrc.json
-└── README.md
+├── frontend/         React 18 + TypeScript + Vite + Tailwind CSS
+├── backend/          AWS Lambda functions (Node.js 20, TypeScript)
+├── infrastructure/   AWS CDK (C#) — Infrastructure as Code
+└── aspire/           Microsoft Aspire for local dev orchestration
 ```
 
-## 🔧 Configuration
+### Production Stack
 
-### Environment Variables
-
-Create `.env` files in each workspace:
-
-**frontend/.env**
-```env
-VITE_API_URL=https://your-api.execute-api.us-east-1.amazonaws.com
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│  CloudFront │────▶│  S3 (static) │     │   API Gateway    │
+│    (CDN)    │     │  React SPA   │     │   REST API       │
+└─────────────┘     └──────────────┘     └────────┬────────┘
+                                                   │
+                                          ┌────────▼────────┐
+                                          │  Lambda (Node)   │
+                                          │  Backend Logic   │
+                                          └──┬─────┬─────┬──┘
+                                             │     │     │
+                                    ┌────────▼┐ ┌──▼──┐ ┌▼────────┐
+                                    │ DynamoDB │ │ S3  │ │ Cognito │
+                                    │ Metadata │ │Pages│ │  Auth   │
+                                    └─────────┘ └─────┘ └─────────┘
 ```
 
-**backend/.env**
-```env
-AWS_REGION=us-east-1
-DYNAMODB_TABLE_PREFIX=bluefinwiki-dev
-S3_BUCKET_PREFIX=bluefinwiki-dev
+- **Frontend**: React SPA served via CloudFront CDN
+- **Backend**: Lambda functions behind API Gateway — each endpoint is a separate handler
+- **Storage**: S3 for page content (Markdown + YAML frontmatter), DynamoDB for metadata, indexes, page types, tags, user profiles, invitations, and activity logs
+- **Auth**: AWS Cognito with invite-only registration and optional Google login
+- **Search**: Client-side full-text index built from backend data, with background refresh
+
+### Local Development
+
+Microsoft Aspire orchestrates the full local stack with a single command:
+- **LocalStack** emulates S3, DynamoDB, and SES
+- **MailHog** captures emails for testing
+- **Aspire Dashboard** provides OpenTelemetry traces, logs, and metrics
+
+No AWS account needed for local development.
+
+## Pluggable Storage
+
+The application never talks to S3 directly — it talks to the `StoragePlugin` interface:
+
+```
+┌─────────────────────────────────────────┐
+│   Application Layer (Lambda Functions)  │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│      StoragePlugin Interface            │
+│  (savePage, loadPage, deletePage, etc.) │
+└──────────────┬──────────────────────────┘
+               │
+      ┌────────┴────────┬──────────┐
+      ▼                 ▼          ▼
+┌───────────┐   ┌─────────────┐  ┌────────────┐
+│ S3Storage │   │  Your Own   │  │  Your Own  │
+│  Plugin   │   │   Plugin    │  │   Plugin   │
+└───────────┘   └─────────────┘  └────────────┘
 ```
 
-### AWS CDK Context
+The S3 plugin ships production-ready. To add a new backend (GitHub, Azure Blob, local filesystem), implement the `StoragePlugin` interface and register it — no changes to the rest of the system. Pages are stored as Markdown with YAML frontmatter using GUID-based paths, so hierarchy and metadata work identically regardless of backend.
 
-Configure environments in `infrastructure/cdk.json`:
+See the [Plugin Developer Guide](backend/src/storage/PLUGIN-DEVELOPER-GUIDE.md) for details.
 
-```json
-{
-  "context": {
-    "dev": {
-      "account": "123456789012",
-      "region": "us-east-1"
-    }
-  }
-}
-```
-
-## 🚢 Deployment
-
-### Deploy to Development
-
-```bash
-cd infrastructure
-npm run deploy:dev
-```
-
-### Deploy to Staging
-
-```bash
-cd infrastructure
-npm run deploy:staging
-```
-
-### Deploy to Production
-
-```bash
-cd infrastructure
-npm run deploy:prod
-```
-
-### CI/CD Pipeline
-
-Commits to `main` branch automatically deploy to the dev environment via GitHub Actions.
-
-If deploys fail during frontend auth configuration validation, see [GITHUB-ENVIRONMENTS-SETUP.md](./GITHUB-ENVIRONMENTS-SETUP.md#frontend-auth-env-validation-failed).
-
-## 🧪 Testing Strategy
-
-- **Unit Tests**: Vitest for both frontend and backend
-- **Integration Tests**: Vitest + MSW (Mock Service Worker)
-- **E2E Tests**: Playwright (to be implemented)
-
-## 📚 Documentation
-
-Detailed specifications and implementation plans:
-
-- [SPECIFICATIONS.md](./SPECIFICATIONS.md) - Feature specifications
-- [TECHNICAL-PLAN.md](./TECHNICAL-PLAN.md) - Technical implementation details
-- [TASKS.md](./TASKS.md) - Implementation tasks and timeline
-- [MVP-SIMPLIFICATIONS.md](./MVP-SIMPLIFICATIONS.md) - MVP simplifications and post-MVP roadmap
-- [gaps.md](./gaps.md) - Feature gaps and future enhancements
-- [CONTRIBUTING.md](./CONTRIBUTING.md) - Contributing guidelines
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-## 📄 License
-
-Private - Family Use Only
-
-## 🐛 Issues and Support
-
-For issues, questions, or feature requests, please create an issue in the GitHub repository.
-
-## 🗓️ Project Status
-
-- **Current Phase**: Phase 1 - Foundation (Weeks 1-3)
-- **Status**: In Development
-- **Target MVP**: Week 12
-- **Target Launch**: Week 16
-
-## 📊 Cost Estimation
+## Cost
 
 Expected AWS costs for typical family usage:
-- **S3 Storage**: $0.50-1.00/month
-- **DynamoDB**: $0.50-1.00/month
-- **Lambda**: $0.20-0.50/month
-- **CloudFront**: $0.50-1.00/month
-- **CloudSearch**: $2.00-3.00/month
 
-**Total**: ~$5/month for 5-user family with 500 pages
+| Users | Monthly Cost |
+|-------|-------------|
+| 5 users, 500 pages | ~$5/month |
+| 20 users, moderate usage | ~$20/month |
 
-## 👥 Team
+Entirely pay-as-you-go — Lambda, DynamoDB, S3, CloudFront, Cognito. No always-on infrastructure.
 
-- 2-3 developers
-- 12-16 week timeline
-- Agile methodology with 2-week sprints
+## Getting Started
+
+**Local development** — get running in 3 steps:
+
+> See **[QUICKSTART.md](QUICKSTART.md)** for the full guide
+
+```powershell
+# 1. First-time setup (one time only)
+.\setup-aspire.ps1
+
+# 2. Start everything
+dotnet run --project aspire/BlueFinWiki.AppHost
+
+# 3. Open http://localhost:5173
+```
+
+**Deploy to AWS** — get your wiki live:
+
+> See **[DEPLOY-AWS.md](DEPLOY-AWS.md)** for the full deployment guide
+
+```bash
+cp config.example.json config.json  # Edit with your prefix, region, environment
+cd infrastructure
+cdk bootstrap                       # First time only
+cdk deploy --all
+```
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [QUICKSTART.md](QUICKSTART.md) | Local development setup and common commands |
+| [DEPLOY-AWS.md](DEPLOY-AWS.md) | Deploy to AWS step-by-step |
+| [ASPIRE-SETUP.md](ASPIRE-SETUP.md) | Detailed Aspire configuration |
+| [INFRASTRUCTURE.md](infrastructure/INFRASTRUCTURE.md) | AWS infrastructure details |
+| [Plugin Developer Guide](backend/src/storage/PLUGIN-DEVELOPER-GUIDE.md) | Build custom storage plugins |
+
+## License
+
+MIT
