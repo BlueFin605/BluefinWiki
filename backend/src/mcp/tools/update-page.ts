@@ -4,13 +4,19 @@
  * Update an existing wiki page's content and/or metadata.
  * Only published pages can be updated. Sets modifiedBy to "mcp-client".
  * Handles wiki link extraction when content is modified.
+ *
+ * Properties use merge semantics: omitted keys are preserved,
+ * null values delete the property, provided values replace.
+ * Page-type schema validation is blocking — rejects on violation.
  */
 
 import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { extractWikiLinks, updatePageLinks } from '../../pages/link-extraction.js';
 import { PageContent, PageProperty } from '../../types/index.js';
+import { validatePropertiesForUpdate } from './mcp-property-validation.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export interface UpdatePageInput {
   pageGuid: string;
@@ -19,7 +25,7 @@ export interface UpdatePageInput {
   tags?: string[];
   status?: 'published' | 'archived';
   pageType?: string | null;
-  properties?: Record<string, PageProperty>;
+  properties?: Record<string, PageProperty | null>;
 }
 
 export interface UpdatePageResult {
@@ -49,6 +55,34 @@ export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResu
     throw new Error('Title must be 200 characters or less');
   }
 
+  // Validate property names and type/value consistency (input validation)
+  if (properties) {
+    for (const [key, prop] of Object.entries(properties)) {
+      if (!KEBAB_CASE_REGEX.test(key)) {
+        throw new Error(`Property name "${key}" must be kebab-case`);
+      }
+      // null means delete — skip type/value validation
+      if (prop === null) continue;
+      switch (prop.type) {
+        case 'string':
+          if (typeof prop.value !== 'string') throw new Error(`Property "${key}" value must be a string`);
+          break;
+        case 'number':
+          if (typeof prop.value !== 'number') throw new Error(`Property "${key}" value must be a number`);
+          break;
+        case 'date':
+          if (typeof prop.value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(prop.value))
+            throw new Error(`Property "${key}" value must be a date string (YYYY-MM-DD)`);
+          break;
+        case 'tags':
+          if (!Array.isArray(prop.value)) throw new Error(`Property "${key}" value must be an array`);
+          break;
+        default:
+          throw new Error(`Property "${key}" has invalid type "${(prop as PageProperty).type}"`);
+      }
+    }
+  }
+
   const storagePlugin = getStoragePlugin();
 
   // Load existing page
@@ -68,16 +102,35 @@ export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResu
     throw new Error('Only published pages can be updated');
   }
 
-  // Merge updates into existing page
-  const now = new Date().toISOString();
+  // Merge properties: omitted keys preserved, null keys deleted, provided keys replaced
+  let mergedProperties: Record<string, PageProperty> | undefined;
+  if (properties !== undefined) {
+    mergedProperties = { ...(existingPage.properties || {}) };
+    for (const [key, value] of Object.entries(properties)) {
+      if (value === null) {
+        delete mergedProperties[key];
+      } else {
+        mergedProperties[key] = value;
+      }
+    }
+    if (Object.keys(mergedProperties).length === 0) {
+      mergedProperties = undefined;
+    }
+  } else {
+    mergedProperties = existingPage.properties;
+  }
 
-  const mergedProperties = properties !== undefined
-    ? (Object.keys(properties).length > 0 ? properties : undefined)
-    : existingPage.properties;
-
-  const mergedPageType = pageType === null
+  // Determine effective pageType after update
+  const effectivePageType = pageType === null
     ? undefined
     : (pageType ?? existingPage.pageType);
+
+  // Blocking page-type schema validation (MCP only)
+  if (effectivePageType && mergedProperties) {
+    await validatePropertiesForUpdate(effectivePageType, mergedProperties);
+  }
+
+  const now = new Date().toISOString();
 
   const updatedPage: PageContent = {
     ...existingPage,
@@ -86,7 +139,7 @@ export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResu
     ...(tags !== undefined ? { tags } : {}),
     ...(status !== undefined ? { status } : {}),
     ...(mergedProperties ? { properties: mergedProperties } : {}),
-    ...(mergedPageType ? { pageType: mergedPageType } : {}),
+    ...(effectivePageType ? { pageType: effectivePageType } : {}),
     modifiedBy: 'mcp-client',
     modifiedAt: now,
     // Preserve immutable fields
@@ -101,7 +154,7 @@ export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResu
     delete updatedPage.pageType;
   }
   // Remove properties if now empty
-  if (updatedPage.properties && Object.keys(updatedPage.properties).length === 0) {
+  if (!mergedProperties) {
     delete updatedPage.properties;
   }
 
