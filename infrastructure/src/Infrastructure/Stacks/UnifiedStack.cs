@@ -1859,7 +1859,7 @@ namespace Infrastructure.Stacks
             mcpLambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
             {
                 Effect = Effect.ALLOW,
-                Actions = new[] { "s3vectors:QueryVectors" },
+                Actions = new[] { "s3vectors:QueryVectors", "s3vectors:GetVectors" },
                 Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:bucket/{vectorBucketName}/*" }
             }));
             mcpLambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps

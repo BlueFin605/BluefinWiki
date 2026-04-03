@@ -5,7 +5,7 @@
  * Provides read/write access to wiki pages via Streamable HTTP protocol.
  *
  * Secured by API Gateway API key — no Cognito auth.
- * Six tools: list_pages, get_page, search_pages, list_page_types, get_backlinks, update_page.
+ * Seven tools: list_pages, get_page, search_pages, list_page_types, get_backlinks, create_page, update_page.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -21,6 +21,7 @@ import { searchPages } from './tools/search-pages.js';
 import { listPageTypes } from './tools/list-page-types.js';
 import { getBacklinks } from './tools/get-backlinks.js';
 import { updatePage, UpdatePageInput } from './tools/update-page.js';
+import { createPage, CreatePageInput } from './tools/create-page.js';
 
 const TOOLS = [
   {
@@ -84,6 +85,46 @@ const TOOLS = [
         },
       },
       required: ['pageGuid'],
+    },
+  },
+  {
+    name: 'create_page',
+    description: 'Create a new wiki page. Returns the new page GUID, title, and creation timestamp. Use list_page_types to discover available page types and their property schemas before creating typed pages. Use list_pages to find the parentGuid if creating a child page.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Page title (1-200 characters)',
+        },
+        content: {
+          type: 'string',
+          description: 'Markdown content for the page body',
+        },
+        parentGuid: {
+          type: ['string', 'null'],
+          description: 'GUID of the parent page, or null/omit for a root-level page. Find parent GUIDs via list_pages or get_page.',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Tags for the page',
+        },
+        status: {
+          type: 'string',
+          enum: ['published', 'archived'],
+          description: 'Page status (default: "published")',
+        },
+        pageType: {
+          type: 'string',
+          description: 'Page type GUID — use list_page_types to find available types',
+        },
+        properties: {
+          type: 'object',
+          description: 'Structured properties object. Each key is a property name (kebab-case), value is { type: "string"|"number"|"date"|"tags", value: ... }. Use list_page_types to see expected properties for a page type.',
+        },
+      },
+      required: ['title'],
     },
   },
   {
@@ -165,6 +206,10 @@ function createServer(): Server {
         case 'get_backlinks': {
           const backlinks = await getBacklinks((args as { pageGuid: string }).pageGuid);
           return { content: [{ type: 'text', text: JSON.stringify(backlinks, null, 2) }] };
+        }
+        case 'create_page': {
+          const result = await createPage(args as unknown as CreatePageInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
         case 'update_page': {
           const result = await updatePage(args as unknown as UpdatePageInput);
