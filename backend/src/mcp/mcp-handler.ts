@@ -89,7 +89,7 @@ const TOOLS = [
   },
   {
     name: 'create_page',
-    description: 'Create a new wiki page. Returns the new page GUID, title, and creation timestamp. Use list_page_types to discover available page types and their property schemas before creating typed pages. Use list_pages to find the parentGuid if creating a child page.',
+    description: 'Create a new wiki page. Returns the new page GUID, title, and creation timestamp. Use list_page_types to discover available page types and their property schemas before creating typed pages. Use list_pages to find the parentGuid if creating a child page. For typed pages, properties are validated against the page type schema — unknown properties, missing required fields, and type mismatches are rejected. Non-required properties with default values are auto-filled if omitted.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -129,7 +129,7 @@ const TOOLS = [
   },
   {
     name: 'update_page',
-    description: 'Update an existing wiki page. Modify the title, markdown content, tags, status, page type, or structured properties. Only published pages can be updated. The page GUID is found in the YAML frontmatter returned by get_page. All fields except pageGuid are optional — only send the fields you want to change. Properties replace entirely (not merged).',
+    description: 'Update an existing wiki page. Modify the title, markdown content, tags, status, page type, or structured properties. Only published pages can be updated. The page GUID is found in the YAML frontmatter returned by get_page. All fields except pageGuid are optional — only send the fields you want to change. Properties use merge semantics: omitted keys are preserved, provided keys are updated, and keys set to null are removed. For typed pages, the merged result is validated against the page type schema — unknown properties, missing required fields, and type mismatches are rejected.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -161,7 +161,7 @@ const TOOLS = [
         },
         properties: {
           type: 'object',
-          description: 'Structured properties object — replaces all existing properties. Each key is a property name (kebab-case), value is { type, value }.',
+          description: 'Structured properties object with merge semantics. Each key is a property name (kebab-case). Value is { type, value } to set/update, or null to remove. Omitted keys are preserved unchanged.',
         },
       },
       required: ['pageGuid'],

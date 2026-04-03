@@ -9,8 +9,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { extractWikiLinks, updatePageLinks } from '../../pages/link-extraction.js';
-import { validatePageType, validateChildTypeConstraint } from '../../pages/page-type-validation.js';
+import { validateChildTypeConstraint } from '../../pages/page-type-validation.js';
 import { PageContent, PageProperty } from '../../types/index.js';
+import { validatePropertiesForCreate } from './mcp-property-validation.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -87,18 +88,18 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
     }
   }
 
-  // Validate page type constraints (advisory)
+  // Blocking page-type schema validation (MCP only) + default auto-fill
+  let validatedProperties = properties;
   if (pageType) {
-    const typeValidation = await validatePageType(pageType, properties || {});
-    if (typeValidation.warnings.length > 0) {
-      console.warn('Page type validation warnings:', typeValidation.warnings);
-    }
+    const result = await validatePropertiesForCreate(pageType, properties || {});
+    validatedProperties = result.properties;
   }
 
+  // Validate child type constraints (blocking)
   if (parentGuid && pageType) {
     const childValidation = await validateChildTypeConstraint(parentGuid, pageType);
     if (childValidation.warnings.length > 0) {
-      console.warn('Child type constraint warnings:', childValidation.warnings);
+      throw new Error(childValidation.warnings.join('; '));
     }
   }
 
@@ -124,7 +125,7 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
     status,
     sortOrder,
     ...(pageType ? { pageType } : {}),
-    ...(properties ? { properties } : {}),
+    ...(validatedProperties && Object.keys(validatedProperties).length > 0 ? { properties: validatedProperties } : {}),
     createdBy: 'mcp-client',
     modifiedBy: 'mcp-client',
     createdAt: now,
