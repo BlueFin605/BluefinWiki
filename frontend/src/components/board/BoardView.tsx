@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BoardColumn, CardDropPosition } from './BoardColumn';
 import { CardSummaryDialog } from './CardSummaryDialog';
-import { usePageChildrenWithProperties } from '../../hooks/usePages';
+import { usePageChildrenWithPropertiesPage } from '../../hooks/usePages';
 import { usePageTypes } from '../../hooks/usePageTypes';
 import { apiClient } from '../../config/api';
 import {
@@ -31,6 +31,7 @@ const DEFAULT_COLORS: Record<string, string> = {
 };
 
 const UNCATEGORISED = 'Uncategorised';
+const BOARD_PAGE_SIZE = 200;
 
 function getColumnColor(name: string, configColors?: Record<string, string>): string {
   if (configColors?.[name]) return configColors[name];
@@ -51,7 +52,46 @@ export const BoardView: React.FC<BoardViewProps> = ({
   const deepFetchOptions = boardConfig?.targetTypeGuid
     ? { targetTypeGuid: boardConfig.targetTypeGuid, depth: boardConfig.depth ?? 10 }
     : undefined;
-  const { data: children = [], isLoading, error } = usePageChildrenWithProperties(parentGuid, deepFetchOptions);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [children, setChildren] = useState<PageChildDetail[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+
+  const {
+    data: childrenPage,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = usePageChildrenWithPropertiesPage(parentGuid, {
+    ...deepFetchOptions,
+    limit: BOARD_PAGE_SIZE,
+    cursor,
+  });
+
+  useEffect(() => {
+    setCursor(null);
+    setChildren([]);
+    setHasMore(false);
+  }, [parentGuid, boardConfig?.targetTypeGuid, boardConfig?.depth]);
+
+  useEffect(() => {
+    if (!childrenPage) return;
+
+    if (!cursor) {
+      setChildren(childrenPage.children);
+    } else {
+      setChildren((prev) => {
+        const byGuid = new Map(prev.map((item) => [item.guid, item]));
+        for (const item of childrenPage.children) {
+          byGuid.set(item.guid, item);
+        }
+        return Array.from(byGuid.values());
+      });
+    }
+
+    setHasMore(Boolean(childrenPage.hasMore && childrenPage.nextCursor));
+  }, [childrenPage, cursor]);
+
   const { data: pageTypesList = [] } = usePageTypes();
   const queryClient = useQueryClient();
   // Drag state
@@ -148,15 +188,10 @@ export const BoardView: React.FC<BoardViewProps> = ({
       }
 
       // Optimistic update: patch the query cache
-      const queryKey = [
-        'pages', 'children', parentGuid, 'with-properties',
-        boardConfig?.targetTypeGuid ?? null,
-        deepFetchOptions?.depth ?? null,
-      ];
-      const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
+      const previousData = [...children];
 
-      queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) =>
-        old?.map((c) =>
+      setChildren((old) =>
+        old.map((c) =>
           c.guid === draggedGuid
             ? {
                 ...c,
@@ -185,7 +220,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
         queryClient.invalidateQueries({ queryKey: ['pages', 'detail', draggedGuid] });
       } catch {
         // Revert on failure
-        queryClient.setQueryData(queryKey, previousData);
+        setChildren(previousData);
         setToast('Failed to update state. Please try again.');
         setTimeout(() => setToast(null), 3000);
       }
@@ -245,12 +280,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
         ? card.properties.state.value
         : UNCATEGORISED;
 
-      const queryKey = [
-        'pages', 'children', parentGuid, 'with-properties',
-        boardConfig?.targetTypeGuid ?? null,
-        deepFetchOptions?.depth ?? null,
-      ];
-      const previousData = queryClient.getQueryData<PageChildDetail[]>(queryKey);
+      const previousData = [...children];
 
       // Compute the new boardOrder for the dragged card
       const targetColumnCards = cardsByColumn[columnState] || [];
@@ -277,8 +307,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
       }
 
       // Optimistic update
-      queryClient.setQueryData<PageChildDetail[]>(queryKey, (old) => {
-        if (!old) return old;
+      setChildren((old) => {
         return old.map((c) => {
           if (c.guid === draggedGuid) {
             return {
@@ -314,15 +343,24 @@ export const BoardView: React.FC<BoardViewProps> = ({
 
         queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] });
       } catch {
-        queryClient.setQueryData(queryKey, previousData);
+        setChildren(previousData);
         setToast('Failed to reorder card. Please try again.');
         setTimeout(() => setToast(null), 3000);
       }
     },
-    [draggedGuid, children, cardsByColumn, parentGuid, queryClient, computeBoardOrder, boardConfig, deepFetchOptions]
+    [draggedGuid, children, cardsByColumn, parentGuid, queryClient, computeBoardOrder]
   );
 
-  if (isLoading) {
+  const isInitialLoading = isLoading && children.length === 0;
+  const isLoadingMore = isFetching && children.length > 0;
+
+  const handleLoadMore = useCallback(() => {
+    const nextCursor = childrenPage?.nextCursor;
+    if (!nextCursor) return;
+    setCursor(nextCursor);
+  }, [childrenPage]);
+
+  if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="inline-block w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -330,13 +368,16 @@ export const BoardView: React.FC<BoardViewProps> = ({
     );
   }
 
-  if (error) {
+  if (error && children.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-red-600 mb-2">Failed to load board</p>
           <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['pages', 'children', parentGuid] })}
+            onClick={() => {
+              setCursor(null);
+              void refetch();
+            }}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Retry
@@ -383,6 +424,18 @@ export const BoardView: React.FC<BoardViewProps> = ({
           ))}
         </div>
       </div>
+
+      {(hasMore || isLoadingMore) && (
+        <div className="px-4 pb-4 flex justify-center">
+          <button
+            onClick={handleLoadMore}
+            disabled={!hasMore || isLoadingMore}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoadingMore ? 'Loading more...' : 'Load more cards'}
+          </button>
+        </div>
+      )}
 
       {/* Card summary dialog */}
       <CardSummaryDialog

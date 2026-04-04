@@ -774,6 +774,29 @@ namespace Infrastructure.Stacks
                 }
             });
 
+            // Ensure API Gateway-generated errors (timeouts, auth failures, integration errors)
+            // still include CORS headers so browsers surface the real status/error.
+            var gatewayResponseCorsHeaders = new Dictionary<string, string>
+            {
+                { "gatewayresponse.header.Access-Control-Allow-Origin", "'*'" },
+                { "gatewayresponse.header.Access-Control-Allow-Headers", "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'" },
+                { "gatewayresponse.header.Access-Control-Allow-Methods", "'GET,POST,PUT,PATCH,DELETE,OPTIONS'" }
+            };
+
+            _ = new CfnGatewayResponse(this, "ApiDefault4xxGatewayResponse", new CfnGatewayResponseProps
+            {
+                RestApiId = Api.RestApiId,
+                ResponseType = "DEFAULT_4XX",
+                ResponseParameters = gatewayResponseCorsHeaders
+            });
+
+            _ = new CfnGatewayResponse(this, "ApiDefault5xxGatewayResponse", new CfnGatewayResponseProps
+            {
+                RestApiId = Api.RestApiId,
+                ResponseType = "DEFAULT_5XX",
+                ResponseParameters = gatewayResponseCorsHeaders
+            });
+
             // API Gateway custom domain
             if (!string.IsNullOrWhiteSpace(config.CertificateArnRegional) && !string.IsNullOrWhiteSpace(config.DomainName))
             {
