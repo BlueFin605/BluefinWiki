@@ -55,13 +55,9 @@ async function mapWithConcurrency<T, R>(
   let nextIndex = 0;
 
   const worker = async () => {
-    while (true) {
+    while (nextIndex < items.length) {
       const currentIndex = nextIndex;
       nextIndex += 1;
-
-      if (currentIndex >= items.length) {
-        return;
-      }
 
       results[currentIndex] = await mapper(items[currentIndex], currentIndex);
     }
