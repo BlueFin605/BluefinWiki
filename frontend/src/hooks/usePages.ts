@@ -196,7 +196,7 @@ export const useMovePage = (guid: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (request: MovePageRequest): Promise<void> => {
-      await apiClient.post(`/pages/${guid}/move`, request);
+      await apiClient.put(`/pages/${guid}/move`, request);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });

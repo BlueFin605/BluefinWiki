@@ -218,7 +218,7 @@ app.get('/pages/:guid', wrapLambdaHandler(pagesGet));
 app.put('/pages/:guid', wrapLambdaHandler(pagesUpdate));
 app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));
 app.get('/pages/:guid/children', wrapLambdaHandler(pagesListChildren));
-app.post('/pages/:guid/move', wrapLambdaHandler(pagesMove));
+app.put('/pages/:guid/move', wrapLambdaHandler(pagesMove));
 app.get('/pages/:guid/ancestors', wrapLambdaHandler(pagesAncestors));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
 app.get('/search', wrapLambdaHandler(pagesSearch));
@@ -583,7 +583,7 @@ async function startServer() {
   console.log('   PUT    /pages/:guid');
   console.log('   DELETE /pages/:guid');
   console.log('   GET    /pages/:guid/children');
-  console.log('   POST   /pages/:guid/move');
+  console.log('   PUT    /pages/:guid/move');
   console.log('   GET    /pages/:guid/ancestors');
   console.log('   GET    /pages/:guid/backlinks');
   console.log('   GET    /search');
