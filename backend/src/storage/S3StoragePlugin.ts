@@ -1164,50 +1164,19 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       // Update content with new parent
       await this.savePage(guid, newParentGuid, page);
 
-      // Delete old location
+      // Delete old .md file
       const deleteCommand = new DeleteObjectCommand({
         Bucket: this.bucketName,
         Key: oldKey,
       });
       await this.s3Client.send(deleteCommand);
 
-      // Move children if any
-      const children = await this.listChildren(guid);
-      for (const child of children) {
-        const childOldFolder = await this.findPageFolder(child.guid);
-        if (childOldFolder) {
-          // Copy child to new location
-          const childOldKey = folderToFileKey(childOldFolder, child.guid);
-          const childNewKey = await this.buildPageKey(child.guid, guid);
-          const childNewFolder = childNewKey.substring(0, childNewKey.lastIndexOf('/') + 1);
+      // Move attachments for the moved page itself
+      const newFolder = newKey.substring(0, newKey.lastIndexOf('/') + 1);
+      await this.moveAttachments(oldFolder, newFolder);
 
-          const childCopyCommand = new CopyObjectCommand({
-            Bucket: this.bucketName,
-            CopySource: `${this.bucketName}/${childOldKey}`,
-            Key: childNewKey,
-            ContentType: 'text/markdown',
-            MetadataDirective: 'COPY',
-          });
-
-          await this.s3Client.send(childCopyCommand);
-
-          // Delete old child location
-          const childDeleteCommand = new DeleteObjectCommand({
-            Bucket: this.bucketName,
-            Key: childOldKey,
-          });
-          await this.s3Client.send(childDeleteCommand);
-
-          // Update child index entry with new folder
-          this.pageIndex.putPageKey({
-            guid: child.guid,
-            s3Key: childNewFolder,
-            parentGuid: guid,
-            title: child.title,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
+      // Move children and all descendants recursively
+      await this.moveChildrenRecursive(guid);
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
       if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'CIRCULAR_REFERENCE'].includes(error.code)) {
@@ -1219,6 +1188,94 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         500
       );
     }
+  }
+
+  /**
+   * Recursively move all children (and their descendants) to their correct
+   * S3 paths after a parent page has been moved.
+   */
+  private async moveChildrenRecursive(parentGuid: string): Promise<void> {
+    const children = await this.listChildren(parentGuid);
+    for (const child of children) {
+      const childOldFolder = await this.findPageFolder(child.guid);
+      if (!childOldFolder) continue;
+
+      const childOldKey = folderToFileKey(childOldFolder, child.guid);
+      const childNewKey = await this.buildPageKey(child.guid, parentGuid);
+      const childNewFolder = childNewKey.substring(0, childNewKey.lastIndexOf('/') + 1);
+
+      // Copy .md file to new location
+      const childCopyCommand = new CopyObjectCommand({
+        Bucket: this.bucketName,
+        CopySource: `${this.bucketName}/${childOldKey}`,
+        Key: childNewKey,
+        ContentType: 'text/markdown',
+        MetadataDirective: 'COPY',
+      });
+      await this.s3Client.send(childCopyCommand);
+
+      // Delete old .md file
+      const childDeleteCommand = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: childOldKey,
+      });
+      await this.s3Client.send(childDeleteCommand);
+
+      // Move attachments
+      await this.moveAttachments(childOldFolder, childNewFolder);
+
+      // Update index entry
+      this.pageIndex.putPageKey({
+        guid: child.guid,
+        s3Key: childNewFolder,
+        parentGuid: parentGuid,
+        title: child.title,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Recurse into this child's children
+      await this.moveChildrenRecursive(child.guid);
+    }
+  }
+
+  /**
+   * Move all objects under a page's _attachments/ prefix from old to new folder.
+   */
+  private async moveAttachments(oldFolder: string, newFolder: string): Promise<void> {
+    const oldPrefix = `${oldFolder}_attachments/`;
+    const newPrefix = `${newFolder}_attachments/`;
+
+    let continuationToken: string | undefined;
+    do {
+      const listCommand = new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: oldPrefix,
+        ContinuationToken: continuationToken,
+      });
+      const response = await this.s3Client.send(listCommand);
+
+      if (response.Contents) {
+        for (const obj of response.Contents) {
+          if (!obj.Key) continue;
+          const relativePath = obj.Key.substring(oldPrefix.length);
+          const newKey = `${newPrefix}${relativePath}`;
+
+          await this.s3Client.send(new CopyObjectCommand({
+            Bucket: this.bucketName,
+            CopySource: `${this.bucketName}/${obj.Key}`,
+            Key: newKey,
+            MetadataDirective: 'COPY',
+          }));
+
+          await this.s3Client.send(new DeleteObjectCommand({
+            Bucket: this.bucketName,
+            Key: obj.Key,
+          }));
+        }
+      }
+
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
   }
 
   /**
