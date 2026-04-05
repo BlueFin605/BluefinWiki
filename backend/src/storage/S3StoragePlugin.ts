@@ -1108,23 +1108,31 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    */
   async movePage(guid: string, newParentGuid: string | null): Promise<void> {
     try {
+      console.log(`[movePage] Moving page: ${guid} to new parent: ${newParentGuid}`);
+
       // Validate GUIDs
       if (!this.validateGuid(guid)) {
+        console.error(`[movePage] Invalid GUID format: ${guid}`);
         throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
       }
 
       if (newParentGuid && !this.validateGuid(newParentGuid)) {
+        console.error(`[movePage] Invalid new parent GUID format: ${newParentGuid}`);
         throw this.createError('Invalid parent GUID format', 'INVALID_GUID', 400);
       }
 
       // Check for circular reference
+      console.log(`[movePage] Validating circular reference for page: ${guid} with new parent: ${newParentGuid}`);
       await this.validateNoCircularReference(guid, newParentGuid);
 
       // Load current page
+      console.log(`[movePage] Loading page content for: ${guid}`);
       const page = await this.loadPage(guid);
+      console.log(`[movePage] Current page folderId: ${page.folderId}, newParentGuid: ${newParentGuid}`);
       const oldFolder = await this.findPageFolder(guid);
 
       if (!oldFolder) {
+        console.error(`[movePage] Failed to find current folder for page: ${guid}`);
         throw this.createError(
           `Page not found: ${guid}`,
           'PAGE_NOT_FOUND',
@@ -1133,11 +1141,15 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }
 
       // Build new key
+      console.log(`[movePage] Building new key for page: ${guid} with new parent: ${newParentGuid}`);
       const newKey = await this.buildPageKey(guid, newParentGuid);
+      console.log(`[movePage] Old folder: ${oldFolder}, new key: ${newKey}`);
       const oldKey = folderToFileKey(oldFolder, guid);
+      console.log(`[movePage] Old key: ${oldKey}, new key: ${newKey}`);
 
       // If keys are the same, nothing to do
       if (oldKey === newKey) {
+        console.log(`[movePage] Old key and new key are the same. No move needed for page: ${guid}`);
         return;
       }
 
@@ -1146,6 +1158,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       page.modifiedAt = this.formatDate();
 
       // Copy to new location
+      console.log(`[movePage] Copying page from ${oldKey} to ${newKey}`);
       const copyCommand = new CopyObjectCommand({
         Bucket: this.bucketName,
         CopySource: `${this.bucketName}/${oldKey}`,
@@ -1161,10 +1174,14 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       await this.s3Client.send(copyCommand);
 
+      console.log(`[movePage] Copy successful. Updating page content with new parent GUID: ${newParentGuid}`);
+
       // Update content with new parent
+      console.log(`[movePage] Saving page with updated parent GUID: ${newParentGuid}`);
       await this.savePage(guid, newParentGuid, page);
 
       // Delete old .md file
+      console.log(`[movePage] Deleting old page file at ${oldKey}`);
       const deleteCommand = new DeleteObjectCommand({
         Bucket: this.bucketName,
         Key: oldKey,
@@ -1172,10 +1189,12 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       await this.s3Client.send(deleteCommand);
 
       // Move attachments for the moved page itself
+      console.log(`[movePage] Moving attachments from ${oldFolder} to new folder derived from ${newKey}`);
       const newFolder = newKey.substring(0, newKey.lastIndexOf('/') + 1);
       await this.moveAttachments(oldFolder, newFolder);
 
       // Move children and all descendants recursively
+      console.log(`[movePage] Moving child pages recursively for page: ${guid}`);
       await this.moveChildrenRecursive(guid);
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
