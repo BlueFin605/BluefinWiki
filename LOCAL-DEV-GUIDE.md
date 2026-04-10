@@ -61,7 +61,7 @@ The backend runs a local Express server that wraps Lambda function handlers, sim
 - `PUT /pages/:guid` - Update page
 - `DELETE /pages/:guid` - Delete page
 - `GET /pages/:guid/children` - List child pages
-- `POST /pages/:guid/move` - Move page to new parent
+- `PUT /pages/:guid/move` - Move page to new parent
 - `GET /pages/:guid/backlinks` - Get pages linking to this page
 - `GET /search?q=query` - Search pages
 - `POST /pages/links/resolve` - Resolve wiki links

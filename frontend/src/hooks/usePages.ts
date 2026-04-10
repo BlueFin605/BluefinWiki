@@ -44,6 +44,14 @@ export interface BacklinksResponse {
   count: number;
 }
 
+export interface PageChildrenWithPropertiesResponse {
+  parentGuid: string | null;
+  children: PageChildDetail[];
+  count: number;
+  hasMore?: boolean;
+  nextCursor?: string | null;
+}
+
 /**
  * Fetch children of a parent page (or root pages if parentGuid is null)
  */
@@ -65,21 +73,58 @@ export const usePageChildren = (parentGuid: string | null) => {
  */
 export const usePageChildrenWithProperties = (
   parentGuid: string | null,
-  options?: { targetTypeGuid?: string; depth?: number },
+  options?: { targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null },
+) => {
+  const pagedQuery = usePageChildrenWithPropertiesPage(parentGuid, options);
+
+  return {
+    ...pagedQuery,
+    data: pagedQuery.data?.children || [],
+  };
+};
+
+/**
+ * Fetch one page of children with properties included.
+ * Supports cursor-based pagination from the backend.
+ */
+export const usePageChildrenWithPropertiesPage = (
+  parentGuid: string | null,
+  options?: { targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null },
 ) => {
   const targetType = options?.targetTypeGuid;
   const depth = options?.depth;
+  const limit = options?.limit;
+  const cursor = options?.cursor;
+
   return useQuery({
-    queryKey: ['pages', 'children', parentGuid, 'with-properties', targetType ?? null, depth ?? null],
-    queryFn: async (): Promise<PageChildDetail[]> => {
-      if (!parentGuid) return [];
+    queryKey: ['pages', 'children', parentGuid, 'with-properties', targetType ?? null, depth ?? null, limit ?? null, cursor ?? null],
+    queryFn: async (): Promise<PageChildrenWithPropertiesResponse> => {
+      if (!parentGuid) {
+        return {
+          parentGuid: null,
+          children: [],
+          count: 0,
+          hasMore: false,
+          nextCursor: null,
+        };
+      }
+
       let url = `/pages/${parentGuid}/children?include=properties`;
       if (targetType) url += `&type=${targetType}`;
       if (depth) url += `&depth=${depth}`;
+      if (limit) url += `&limit=${limit}`;
+      if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
       const response = await apiClient.get(url);
-      return response.data.children || [];
+      return {
+        parentGuid: response.data.parentGuid ?? parentGuid,
+        children: response.data.children || [],
+        count: response.data.count || 0,
+        hasMore: !!response.data.hasMore,
+        nextCursor: response.data.nextCursor ?? null,
+      };
     },
     enabled: !!parentGuid,
+    retry: false,
   });
 };
 
@@ -151,7 +196,7 @@ export const useMovePage = (guid: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (request: MovePageRequest): Promise<void> => {
-      await apiClient.post(`/pages/${guid}/move`, request);
+      await apiClient.put(`/pages/${guid}/move`, request);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pages', 'children'] });
