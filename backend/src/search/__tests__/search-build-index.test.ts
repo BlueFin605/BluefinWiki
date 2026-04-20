@@ -6,14 +6,26 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CLIENT_SEARCH_INDEX_VERSION } from '../SearchTypes.js';
 
-// Mock the S3 client
+// Mock the S3 client. Vitest 4's vi.fn() instances aren't constructable in the
+// way a `new S3Client(...)` call needs (they are functions, not classes), so
+// the mock module exports actual classes whose .send() / constructor capture
+// is a vi.fn(). The behavior is identical to the old vi.fn().mockImplementation
+// pattern but works on both vitest 1 and 4.
 vi.mock('@aws-sdk/client-s3', () => {
   const putObjectMock = vi.fn().mockResolvedValue({});
+  class S3Client {
+    send = putObjectMock;
+    constructor(_config?: unknown) { /* config not used in tests */ }
+  }
+  class PutObjectCommand {
+    _type = 'PutObjectCommand';
+    constructor(public input: Record<string, unknown>) {
+      Object.assign(this, input);
+    }
+  }
   return {
-    S3Client: vi.fn().mockImplementation(() => ({
-      send: putObjectMock,
-    })),
-    PutObjectCommand: vi.fn().mockImplementation((input) => ({ ...input, _type: 'PutObjectCommand' })),
+    S3Client,
+    PutObjectCommand,
     __putObjectMock: putObjectMock,
   };
 });
