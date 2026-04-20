@@ -114,7 +114,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           error: 'Validation error',
-          details: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })),
+          details: error.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
         }),
       };
     }
