@@ -28,7 +28,7 @@ const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Propert
 
 const BoardConfigSchema = z.object({
   columns: z.array(z.string()).optional(),
-  colors: z.record(z.string()).optional(),
+  colors: z.record(z.string(), z.string()).optional(),
   targetTypeGuid: z.string().uuid().optional(),
   depth: z.number().min(1).max(10).optional(),
   showParentTitle: z.boolean().optional(),
