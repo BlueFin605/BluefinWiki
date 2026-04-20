@@ -115,7 +115,7 @@ interface MarkdownPreviewProps {
 }
 
 // Type helper for react-markdown component props
-type MarkdownComponentProps<T extends keyof JSX.IntrinsicElements> = React.ComponentPropsWithoutRef<T> & {
+type MarkdownComponentProps<T extends keyof React.JSX.IntrinsicElements> = React.ComponentPropsWithoutRef<T> & {
   node?: unknown;
 };
 
@@ -580,7 +580,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             // Check if this is an API URL (starts with /pages/)
             const isApiUrl = src?.startsWith('/pages/');
 
-            let imgEl: React.ReactElement;
+            let imgEl: React.ReactElement<React.ImgHTMLAttributes<HTMLImageElement>>;
             if (isApiUrl && src) {
               imgEl = <AsyncImage apiUrl={src} alt={alt} fetchImageBlobUrl={fetchImageBlobUrl} width={imgWidth} height={imgHeight} {...props} />;
             } else {
