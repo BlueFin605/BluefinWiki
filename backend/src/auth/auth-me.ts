@@ -1,5 +1,5 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
-import { withAuth, getUserContext, AuthenticatedEvent } from '../middleware/auth';
+import { withAuth, getUserContext, AuthenticatedEvent } from '../middleware/auth.js';
 
 /**
  * Example Lambda: Get Current User Profile
