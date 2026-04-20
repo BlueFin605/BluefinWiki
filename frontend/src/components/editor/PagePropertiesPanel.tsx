@@ -268,7 +268,7 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
           {localTags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-sm rounded"
+              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-sm rounded-sm"
             >
               {tag}
               {editable && (
@@ -298,7 +298,7 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
                 ?.filter(t => !localTags.includes(t.tag) && t.tag.includes(tagInput.toLowerCase()))
                 .slice(0, 5) || [];
               return suggestions.length > 0 ? (
-                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-32 overflow-y-auto">
+                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-sm shadow-lg max-h-32 overflow-y-auto">
                   {suggestions.map((s) => (
                     <button
                       key={s.tag}
@@ -364,7 +364,7 @@ export const PagePropertiesPanel: React.FC<PagePropertiesPanelProps> = ({
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Page ID
           </label>
-          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 p-2 rounded-sm border border-gray-200 dark:border-gray-700">
             {metadata.guid}
           </div>
         </div>

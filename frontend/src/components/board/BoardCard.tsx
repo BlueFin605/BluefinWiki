@@ -45,7 +45,7 @@ export const BoardCard: React.FC<BoardCardProps> = ({
   return (
     <div
       data-card-guid={card.guid}
-      className={`bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all ${indicatorClass}`}
+      className={`bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-xs transition-all ${indicatorClass}`}
       draggable
       onDragStart={(e) => onDragStart(e, card.guid)}
       onClick={() => onCardClick(card)}

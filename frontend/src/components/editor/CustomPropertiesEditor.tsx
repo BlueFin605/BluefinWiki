@@ -33,7 +33,7 @@ const PropertyValueInput: React.FC<{
   const { data: vocabularyTags } = useTags(propertyName);
   const [tagInput, setTagInput] = useState('');
 
-  const inputClass = 'w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100';
+  const inputClass = 'w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-sm focus:ring-1 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100';
 
   switch (prop.type) {
     case 'string':
@@ -92,7 +92,7 @@ const PropertyValueInput: React.FC<{
             {tags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs rounded"
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs rounded-sm"
               >
                 {tag}
                 {editable && (
@@ -123,7 +123,7 @@ const PropertyValueInput: React.FC<{
                 className={inputClass}
               />
               {tagInput && suggestions.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-32 overflow-y-auto">
+                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-sm shadow-lg max-h-32 overflow-y-auto">
                   {suggestions.map((s) => (
                     <button
                       key={s.tag}
@@ -198,7 +198,7 @@ export const CustomPropertiesEditor: React.FC<CustomPropertiesEditorProps> = ({
       {!isCollapsed && (
         <div className="mt-3 space-y-3">
           {entries.map(([name, prop]) => (
-            <div key={name} className="bg-gray-50 dark:bg-gray-900 rounded p-2">
+            <div key={name} className="bg-gray-50 dark:bg-gray-900 rounded-sm p-2">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
                   {name}
@@ -239,13 +239,13 @@ export const CustomPropertiesEditor: React.FC<CustomPropertiesEditorProps> = ({
           )}
 
           {isAdding && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded p-2 space-y-2">
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-sm p-2 space-y-2">
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Property name (e.g. rating)"
-                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-100"
+                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-sm dark:bg-gray-700 dark:text-gray-100"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAdd();
@@ -255,7 +255,7 @@ export const CustomPropertiesEditor: React.FC<CustomPropertiesEditorProps> = ({
               <select
                 value={newType}
                 onChange={(e) => setNewType(e.target.value as PropertyType)}
-                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-100"
+                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-sm dark:bg-gray-700 dark:text-gray-100"
               >
                 {PROPERTY_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -265,7 +265,7 @@ export const CustomPropertiesEditor: React.FC<CustomPropertiesEditorProps> = ({
                 <button
                   onClick={handleAdd}
                   disabled={!newName.trim()}
-                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50"
                 >
                   Add
                 </button>

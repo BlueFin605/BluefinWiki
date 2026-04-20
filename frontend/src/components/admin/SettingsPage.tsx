@@ -23,7 +23,7 @@ export const SettingsPage: React.FC = () => {
         <div className="space-y-3">
           <button
             onClick={() => navigate('/admin/users')}
-            className="w-full flex items-center gap-4 bg-white rounded-lg shadow p-4 hover:bg-gray-50 transition-colors text-left"
+            className="w-full flex items-center gap-4 bg-white rounded-lg shadow-sm p-4 hover:bg-gray-50 transition-colors text-left"
           >
             <div className="flex items-center justify-center w-10 h-10 bg-green-100 text-green-600 rounded-lg">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,7 +41,7 @@ export const SettingsPage: React.FC = () => {
 
           <button
             onClick={() => navigate('/admin/invitations')}
-            className="w-full flex items-center gap-4 bg-white rounded-lg shadow p-4 hover:bg-gray-50 transition-colors text-left"
+            className="w-full flex items-center gap-4 bg-white rounded-lg shadow-sm p-4 hover:bg-gray-50 transition-colors text-left"
           >
             <div className="flex items-center justify-center w-10 h-10 bg-yellow-100 text-yellow-600 rounded-lg">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +59,7 @@ export const SettingsPage: React.FC = () => {
 
           <button
             onClick={() => navigate('/admin/page-types')}
-            className="w-full flex items-center gap-4 bg-white rounded-lg shadow p-4 hover:bg-gray-50 transition-colors text-left"
+            className="w-full flex items-center gap-4 bg-white rounded-lg shadow-sm p-4 hover:bg-gray-50 transition-colors text-left"
           >
             <div className="flex items-center justify-center w-10 h-10 bg-blue-100 text-blue-600 rounded-lg">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -106,7 +106,7 @@ export const PageRenameInline: React.FC<PageRenameInlineProps> = ({
         onBlur={handleBlur}
         className={`
           w-full px-2 py-1 border-2 rounded
-          focus:outline-none focus:ring-2 focus:ring-blue-500
+          focus:outline-hidden focus:ring-2 focus:ring-blue-500
           ${error ? 'border-red-500' : 'border-blue-500'}
         `}
         disabled={updatePage.isPending}

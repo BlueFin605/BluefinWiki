@@ -182,7 +182,7 @@ export default function FileUpload({
         <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
           <div className="flex items-start gap-2">
             <svg
-              className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"
+              className="w-5 h-5 text-red-500 shrink-0 mt-0.5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
