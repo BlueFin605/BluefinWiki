@@ -75,8 +75,8 @@ export const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({
 
   // In compact mode, the header dropdown opens upward
   const headerMenuClass = compact
-    ? 'absolute bottom-full left-0 mb-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg z-10 min-w-[120px]'
-    : 'absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg z-10 min-w-[120px]';
+    ? 'absolute bottom-full left-0 mb-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-sm shadow-lg z-10 min-w-[120px]'
+    : 'absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-sm shadow-lg z-10 min-w-[120px]';
 
   return (
     <div className={containerClass}>

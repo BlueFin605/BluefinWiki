@@ -206,7 +206,7 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
         {/* Expand/Collapse Icon (or spacer to keep alignment) */}
         {page.hasChildren ? (
           <button
-            className="mr-1 p-1 hover:bg-gray-200 rounded"
+            className="mr-1 p-1 hover:bg-gray-200 rounded-sm"
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpand(page.guid);
@@ -266,7 +266,7 @@ export const PageTreeItem: React.FC<PageTreeItemProps> = ({
 
         {/* Add Child Page Button */}
         <button
-          className="ml-1 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          className="ml-1 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-sm opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             onNewChild(page);

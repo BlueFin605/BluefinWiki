@@ -378,7 +378,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
               setCursor(null);
               void refetch();
             }}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700"
           >
             Retry
           </button>
@@ -430,7 +430,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
           <button
             onClick={handleLoadMore}
             disabled={!hasMore || isLoadingMore}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoadingMore ? 'Loading more...' : 'Load more cards'}
           </button>

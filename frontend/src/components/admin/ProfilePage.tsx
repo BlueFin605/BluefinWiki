@@ -95,7 +95,7 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* Profile Info */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-xl font-bold text-blue-600">
               {(user?.displayName || user?.email || '?').charAt(0).toUpperCase()}
@@ -117,7 +117,7 @@ export const ProfilePage: React.FC = () => {
                 type="text"
                 value={displayName}
                 onChange={e => { setDisplayName(e.target.value); setNameSuccess(false); }}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 placeholder="Your display name"
               />
               <button
@@ -132,10 +132,10 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* Change Password */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
-          {pwError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded text-sm">{pwError}</div>}
-          {pwSuccess && <div className="mb-3 p-2 bg-green-50 text-green-700 rounded text-sm">Password changed successfully!</div>}
+          {pwError && <div className="mb-3 p-2 bg-red-50 text-red-700 rounded-sm text-sm">{pwError}</div>}
+          {pwSuccess && <div className="mb-3 p-2 bg-green-50 text-green-700 rounded-sm text-sm">Password changed successfully!</div>}
           <form onSubmit={changePassword} className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
@@ -143,7 +143,7 @@ export const ProfilePage: React.FC = () => {
                 type="password"
                 value={currentPassword}
                 onChange={e => { setCurrentPassword(e.target.value); setPwSuccess(false); }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 autoComplete="current-password"
               />
             </div>
@@ -153,7 +153,7 @@ export const ProfilePage: React.FC = () => {
                 type="password"
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 autoComplete="new-password"
               />
             </div>
@@ -163,7 +163,7 @@ export const ProfilePage: React.FC = () => {
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 autoComplete="new-password"
               />
             </div>

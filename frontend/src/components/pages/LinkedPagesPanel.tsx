@@ -41,7 +41,7 @@ export const LinkedPagesPanel: React.FC<LinkedPagesPanelProps> = ({
             Linked Pages
           </h3>
           {!isLoading && (
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-sm">
               {backlinks.length}
             </span>
           )}
@@ -54,8 +54,8 @@ export const LinkedPagesPanel: React.FC<LinkedPagesPanelProps> = ({
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-sm w-3/4 mb-2"></div>
+                <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded-sm w-1/2"></div>
               </div>
             ))}
           </div>
@@ -87,7 +87,7 @@ export const LinkedPagesPanel: React.FC<LinkedPagesPanelProps> = ({
                 >
                   <div className="flex items-start gap-2">
                     <svg
-                      className="w-4 h-4 mt-0.5 text-gray-400 dark:text-gray-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 flex-shrink-0"
+                      className="w-4 h-4 mt-0.5 text-gray-400 dark:text-gray-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 shrink-0"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"

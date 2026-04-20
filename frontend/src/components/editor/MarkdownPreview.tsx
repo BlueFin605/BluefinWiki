@@ -249,7 +249,7 @@ const ResizableImage: React.FC<{
       } as React.ImgHTMLAttributes<HTMLImageElement>)}
       {onResize && (
         <div
-          className={`absolute bottom-1 right-1 w-4 h-4 cursor-se-resize rounded-sm
+          className={`absolute bottom-1 right-1 w-4 h-4 cursor-se-resize rounded-xs
             ${dragging ? 'bg-blue-500' : 'bg-gray-400/70 opacity-0 group-hover:opacity-100'}
             transition-opacity`}
           onPointerDown={onPointerDown}
@@ -515,7 +515,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
             return inline ? (
               <code
                 {...props}
-                className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-red-600 dark:text-red-400 rounded text-sm font-mono"
+                className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-red-600 dark:text-red-400 rounded-sm text-sm font-mono"
               >
                 {children}
               </code>

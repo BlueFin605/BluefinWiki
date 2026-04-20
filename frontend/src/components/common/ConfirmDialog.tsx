@@ -43,7 +43,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       >
         <div className="flex items-start gap-4 mb-4">
           {isDangerous && (
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <svg
                 className="w-6 h-6 text-red-600"
                 fill="none"

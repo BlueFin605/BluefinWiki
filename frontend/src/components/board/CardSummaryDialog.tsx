@@ -30,7 +30,7 @@ const TagPropertyInput: React.FC<{
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 text-xs rounded"
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 text-xs rounded-sm"
           >
             {tag}
             <button
@@ -45,7 +45,7 @@ const TagPropertyInput: React.FC<{
       </div>
       <div className="relative">
         <input
-          className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -57,7 +57,7 @@ const TagPropertyInput: React.FC<{
           placeholder="Add tag..."
         />
         {suggestions.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded shadow-lg max-h-32 overflow-y-auto">
+          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-sm shadow-lg max-h-32 overflow-y-auto">
             {suggestions.map((s) => (
               <button
                 key={s.tag}
@@ -215,7 +215,7 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
           )}
           <input
             id="card-summary-title"
-            className="flex-1 text-lg font-semibold text-gray-900 border-0 border-b-2 border-transparent focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5"
+            className="flex-1 text-lg font-semibold text-gray-900 border-0 border-b-2 border-transparent focus:border-blue-500 focus:outline-hidden bg-transparent px-1 py-0.5"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Page title"
@@ -244,7 +244,7 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
                   ) : type === 'number' ? (
                     <input
                       type="number"
-                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
                       value={value as number}
                       onChange={(e) =>
                         handlePropertyChange(name, e.target.value === '' ? '' : Number(e.target.value))
@@ -253,13 +253,13 @@ export const CardSummaryDialog: React.FC<CardSummaryDialogProps> = ({
                   ) : type === 'date' ? (
                     <input
                       type="date"
-                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
                       value={String(value)}
                       onChange={(e) => handlePropertyChange(name, e.target.value)}
                     />
                   ) : (
                     <input
-                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
                       value={String(value)}
                       onChange={(e) => handlePropertyChange(name, e.target.value)}
                     />

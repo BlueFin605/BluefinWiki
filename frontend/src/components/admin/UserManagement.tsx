@@ -173,7 +173,7 @@ export const UserManagement: React.FC = () => {
             placeholder="Search by name or email..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
@@ -190,7 +190,7 @@ export const UserManagement: React.FC = () => {
           <div className="text-center py-12 text-gray-500">Loading members...</div>
         ) : (
           /* User table */
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -231,7 +231,7 @@ export const UserManagement: React.FC = () => {
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEdit(user)}
-                            className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                            className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-sm"
                             disabled={user.status === 'deleted'}
                           >
                             Edit
@@ -251,7 +251,7 @@ export const UserManagement: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => setDeletingUser(user)}
-                                className="px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                className="px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded-sm"
                               >
                                 Delete
                               </button>
@@ -286,7 +286,7 @@ export const UserManagement: React.FC = () => {
                   type="text"
                   value={editForm.displayName}
                   onChange={e => setEditForm(prev => ({ ...prev, displayName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -295,7 +295,7 @@ export const UserManagement: React.FC = () => {
                   value={editForm.role}
                   onChange={e => setEditForm(prev => ({ ...prev, role: e.target.value as 'Admin' | 'Standard' }))}
                   disabled={isSelf(editingUser)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                 >
                   <option value="Admin">Admin</option>
                   <option value="Standard">Standard</option>
