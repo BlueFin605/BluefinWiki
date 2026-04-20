@@ -160,7 +160,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
 
   // Sync refs and metadata state when a new page's data arrives (runs AFTER
   // stash cleanup, so the old page's content is safely stashed first).
-  const syncedGuidRef = useRef<string>();
+  const syncedGuidRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (syncedGuidRef.current === pageGuid) return;
     if (!pageData || pageData.guid !== pageGuid) return;

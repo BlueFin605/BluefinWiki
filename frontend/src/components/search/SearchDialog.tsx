@@ -409,7 +409,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
             <button
               key={result.pageId}
               id={`search-result-${index}`}
-              ref={el => (itemRefs.current[index] = el)}
+              ref={el => { itemRefs.current[index] = el; }}
               role="option"
               aria-selected={index === selectedIndex}
               className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-hidden ${

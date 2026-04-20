@@ -41,7 +41,7 @@ const Dashboard = () => (
 
 const DISABLE_AUTH = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH === 'true';
 
-const AuthGate = ({ children }: { children: JSX.Element }) => {
+const AuthGate = ({ children }: { children: React.ReactElement }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
