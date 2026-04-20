@@ -9,7 +9,7 @@
  */
 
 import { APIGatewayProxyResult } from 'aws-lambda';
-import { withAuth, withRole, getUserContext, AuthenticatedEvent } from '../middleware/auth';
+import { withAuth, withRole, getUserContext, AuthenticatedEvent } from '../middleware/auth.js';
 
 export const handler = withAuth(
   withRole(['Admin'], async (event: AuthenticatedEvent): Promise<APIGatewayProxyResult> => {
