@@ -16,14 +16,19 @@ const { mockGetCurrentUser, mockSignOut, mockGetSession, mockSetSignInUserSessio
   mockSend: vi.fn(),
 }));
 
-// Mock the AWS SDK client
+// Mock the AWS SDK client. Vitest 4 requires constructable functions to be
+// real classes (vi.fn().mockImplementation is no longer new-able the same
+// way), so the AWS SDK module is mocked with actual class declarations.
 vi.mock('@aws-sdk/client-cognito-identity-provider', () => {
-  return {
-    CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
-      send: mockSend,
-    })),
-    InitiateAuthCommand: vi.fn().mockImplementation((params) => params),
-  };
+  class CognitoIdentityProviderClient {
+    send = mockSend;
+  }
+  class InitiateAuthCommand {
+    constructor(public input: Record<string, unknown>) {
+      Object.assign(this, input);
+    }
+  }
+  return { CognitoIdentityProviderClient, InitiateAuthCommand };
 });
 
 vi.mock('../config/cognitoConfig', () => ({
@@ -40,33 +45,60 @@ const mockCognitoUserInstance = {
   setSignInUserSession: mockSetSignInUserSession,
 };
 
-vi.mock('amazon-cognito-identity-js', () => ({
-  CognitoUserPool: vi.fn(),
-  CognitoUser: vi.fn(() => mockCognitoUserInstance),
-  CognitoUserSession: vi.fn((data) => ({
-    isValid: () => true,
-    getIdToken: () => data.IdToken,
-    getAccessToken: () => data.AccessToken,
-    getRefreshToken: () => data.RefreshToken,
-  })),
-  CognitoIdToken: vi.fn((data) => ({
-    getJwtToken: () => data.IdToken,
-    payload: {
+// Vitest 4 doesn't allow `new` on a vi.fn() arrow-callback the same way v1
+// did, so each Cognito class is a real ES class whose instance shape mirrors
+// the original arrow-callback return value.
+vi.mock('amazon-cognito-identity-js', () => {
+  class CognitoUserPool {}
+  class CognitoUser { constructor() { return mockCognitoUserInstance as unknown as CognitoUser; } }
+  class CognitoUserSession {
+    isValid: () => boolean;
+    getIdToken: () => unknown;
+    getAccessToken: () => unknown;
+    getRefreshToken: () => unknown;
+    constructor(data: { IdToken: unknown; AccessToken: unknown; RefreshToken: unknown }) {
+      this.isValid = () => true;
+      this.getIdToken = () => data.IdToken;
+      this.getAccessToken = () => data.AccessToken;
+      this.getRefreshToken = () => data.RefreshToken;
+    }
+  }
+  class CognitoIdToken {
+    getJwtToken: () => unknown;
+    payload = {
       sub: 'test-user-id',
       email: 'test@example.com',
       name: 'Test User',
       'custom:role': 'Standard',
       email_verified: true,
-    },
-  })),
-  CognitoAccessToken: vi.fn((data) => ({
-    getJwtToken: () => data.AccessToken,
-  })),
-  CognitoRefreshToken: vi.fn((data) => ({
-    getToken: () => data.RefreshToken,
-  })),
-  AuthenticationDetails: vi.fn(),
-}));
+    };
+    constructor(data: { IdToken: unknown }) {
+      this.getJwtToken = () => data.IdToken;
+    }
+  }
+  class CognitoAccessToken {
+    getJwtToken: () => unknown;
+    constructor(data: { AccessToken: unknown }) {
+      this.getJwtToken = () => data.AccessToken;
+    }
+  }
+  class CognitoRefreshToken {
+    getToken: () => unknown;
+    constructor(data: { RefreshToken: unknown }) {
+      this.getToken = () => data.RefreshToken;
+    }
+  }
+  class AuthenticationDetails {}
+  return {
+    CognitoUserPool,
+    CognitoUser,
+    CognitoUserSession,
+    CognitoIdToken,
+    CognitoAccessToken,
+    CognitoRefreshToken,
+    AuthenticationDetails,
+  };
+});
 
 // Import after mocks are set up
 import { AuthProvider, useAuth } from './AuthContext';

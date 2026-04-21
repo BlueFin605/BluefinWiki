@@ -90,7 +90,7 @@ const PropertySchemaBuilder: React.FC<{
       <label className="block text-sm font-medium text-gray-700">Property Schema</label>
 
       {properties.map((prop, index) => (
-        <div key={prop.name} className="bg-gray-50 rounded p-2 space-y-1">
+        <div key={prop.name} className="bg-gray-50 rounded-sm p-2 space-y-1">
           <div className="flex items-center gap-2">
             <div className="flex flex-col gap-1">
               <button
@@ -113,7 +113,7 @@ const PropertySchemaBuilder: React.FC<{
             <span className="text-sm font-mono flex-1">{prop.name}</span>
             <span className="text-xs text-gray-500">{prop.type}</span>
             {prop.required && (
-              <span className="text-xs bg-red-100 text-red-700 px-1 rounded">required</span>
+              <span className="text-xs bg-red-100 text-red-700 px-1 rounded-sm">required</span>
             )}
             <button
               type="button"
@@ -130,13 +130,13 @@ const PropertySchemaBuilder: React.FC<{
               value={formatDefault(prop)}
               onChange={(e) => updateDefault(index, e.target.value)}
               placeholder={prop.type === 'tags' ? 'tag1, tag2, ...' : 'none'}
-              className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded-sm focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
             />
           </div>
         </div>
       ))}
 
-      <div className="space-y-2 mt-2 bg-blue-50 rounded p-2">
+      <div className="space-y-2 mt-2 bg-blue-50 rounded-sm p-2">
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <input
@@ -144,14 +144,14 @@ const PropertySchemaBuilder: React.FC<{
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Property name"
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded-sm"
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProperty())}
             />
           </div>
           <select
             value={newType}
             onChange={(e) => setNewType(e.target.value as PropertyType)}
-            className="px-2 py-1 text-sm border border-gray-300 rounded"
+            className="px-2 py-1 text-sm border border-gray-300 rounded-sm"
           >
             {PROPERTY_TYPES.map(t => (
               <option key={t.value} value={t.value}>{t.label}</option>
@@ -169,7 +169,7 @@ const PropertySchemaBuilder: React.FC<{
             type="button"
             onClick={addProperty}
             disabled={!newName.trim()}
-            className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            className="px-2 py-1 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50"
           >
             Add
           </button>
@@ -181,7 +181,7 @@ const PropertySchemaBuilder: React.FC<{
             value={newDefault}
             onChange={(e) => setNewDefault(e.target.value)}
             placeholder={newType === 'tags' ? 'tag1, tag2, ...' : 'none'}
-            className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded-sm focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addProperty())}
           />
         </div>
@@ -244,7 +244,7 @@ const PageTypeForm: React.FC<{
             type="text"
             value={icon}
             onChange={(e) => setIcon(e.target.value)}
-            className="w-16 px-2 py-2 text-center text-2xl border border-gray-300 rounded"
+            className="w-16 px-2 py-2 text-center text-2xl border border-gray-300 rounded-sm"
             maxLength={4}
           />
         </div>
@@ -254,7 +254,7 @@ const PageTypeForm: React.FC<{
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-sm focus:ring-2 focus:ring-blue-500"
             placeholder="e.g. TV Show"
             autoFocus
           />
@@ -265,7 +265,7 @@ const PageTypeForm: React.FC<{
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Allowed Child Types</label>
-        <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-200 rounded p-2">
+        <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-200 rounded-sm p-2">
           {allTypes
             .filter(t => t.guid !== initial?.guid)
             .map(t => (
@@ -297,7 +297,7 @@ const PageTypeForm: React.FC<{
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Allowed Parent Types</label>
         <p className="text-xs text-gray-500 mb-1">Restrict which page types this type can be placed under. Leave all unchecked to allow any parent.</p>
-        <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-200 rounded p-2">
+        <div className="space-y-1 max-h-40 overflow-y-auto border border-gray-200 rounded-sm p-2">
           {allTypes
             .filter(t => t.guid !== initial?.guid)
             .map(t => (
@@ -330,14 +330,14 @@ const PageTypeForm: React.FC<{
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-sm hover:bg-gray-200"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={!name.trim() || saving}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving...' : initial ? 'Update' : 'Create'}
         </button>
@@ -420,7 +420,7 @@ export const PageTypesAdmin: React.FC = () => {
           {!showForm && !editingType && (
             <button
               onClick={() => setShowForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-sm hover:bg-blue-700"
             >
               + New Type
             </button>
@@ -429,7 +429,7 @@ export const PageTypesAdmin: React.FC = () => {
 
         {/* Create Form */}
         {showForm && (
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h2 className="text-lg font-semibold mb-4">Create Page Type</h2>
             <PageTypeForm
               allTypes={pageTypes}
@@ -442,7 +442,7 @@ export const PageTypesAdmin: React.FC = () => {
 
         {/* Edit Form */}
         {editingType && (
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h2 className="text-lg font-semibold mb-4">Edit: {editingType.icon} {editingType.name}</h2>
             <PageTypeForm
               initial={editingType}
@@ -457,7 +457,7 @@ export const PageTypesAdmin: React.FC = () => {
         {/* Type List */}
         <div className="space-y-3">
           {pageTypes.map(pt => (
-            <div key={pt.guid} className="bg-white rounded-lg shadow p-4 flex items-center gap-4">
+            <div key={pt.guid} className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-4">
               <span className="text-2xl">{pt.icon}</span>
               <div className="flex-1">
                 <h3 className="font-medium text-gray-900">{pt.name}</h3>
@@ -470,7 +470,7 @@ export const PageTypesAdmin: React.FC = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => setEditingType(pt)}
-                  className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                  className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-sm"
                 >
                   Edit
                 </button>
@@ -479,13 +479,13 @@ export const PageTypesAdmin: React.FC = () => {
                     <span className="text-xs text-red-600">Delete?</span>
                     <button
                       onClick={() => handleDelete(pt.guid)}
-                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                      className="px-2 py-1 text-xs bg-red-600 text-white rounded-sm hover:bg-red-700"
                     >
                       Yes
                     </button>
                     <button
                       onClick={() => setConfirmDelete(null)}
-                      className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded"
+                      className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded-sm"
                     >
                       No
                     </button>
@@ -493,7 +493,7 @@ export const PageTypesAdmin: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => setConfirmDelete(pt.guid)}
-                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded"
+                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-sm"
                   >
                     Delete
                   </button>

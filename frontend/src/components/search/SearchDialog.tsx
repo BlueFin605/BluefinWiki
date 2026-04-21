@@ -41,7 +41,7 @@ function highlightTerms(text: string, query: string): React.ReactNode {
 
   return parts.map((part, i) =>
     part.toLowerCase() === query.toLowerCase() ? (
-      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700 text-inherit rounded px-0.5">
+      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700 text-inherit rounded-sm px-0.5">
         {part}
       </mark>
     ) : (
@@ -261,7 +261,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search wiki..."
-            className="flex-1 px-3 py-4 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 outline-none text-lg"
+            className="flex-1 px-3 py-4 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 outline-hidden text-lg"
             aria-label="Search wiki"
             aria-controls="search-results"
             aria-activedescendant={
@@ -290,7 +290,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
             </svg>
           </button>
-          <kbd className="ml-2 hidden sm:inline-block px-2 py-1 text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 rounded">
+          <kbd className="ml-2 hidden sm:inline-block px-2 py-1 text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-sm">
             Esc
           </kbd>
         </div>
@@ -304,7 +304,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
                 id="search-scope"
                 value={scope}
                 onChange={e => setScope(e.target.value)}
-                className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-sm px-2 py-1 text-sm outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All pages</option>
               </select>
@@ -314,7 +314,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
                 type="checkbox"
                 checked={titleOnly}
                 onChange={e => setTitleOnly(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-gray-600 dark:text-gray-400">Title only</span>
             </label>
@@ -324,7 +324,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
                 id="search-page-size"
                 value={pageSize}
                 onChange={e => setPageSize(Number(e.target.value))}
-                className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-sm px-2 py-1 text-sm outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -371,7 +371,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
                   </div>
                   <button
                     onClick={e => handleRemoveRecent(recent.query, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-sm"
                     aria-label={`Remove "${recent.query}" from recent searches`}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -409,10 +409,10 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
             <button
               key={result.pageId}
               id={`search-result-${index}`}
-              ref={el => (itemRefs.current[index] = el)}
+              ref={el => { itemRefs.current[index] = el; }}
               role="option"
               aria-selected={index === selectedIndex}
-              className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-none ${
+              className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-hidden ${
                 index === selectedIndex
                   ? 'bg-blue-50 dark:bg-blue-900/20'
                   : ''
@@ -429,7 +429,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
                     {result.tags.slice(0, 3).map(tag => (
                       <span
                         key={tag}
-                        className="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded"
+                        className="px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-sm"
                       >
                         {tag}
                       </span>
@@ -473,9 +473,9 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
               {totalResults} result{totalResults === 1 ? '' : 's'} ({executionTimeMs}ms)
             </span>
             <div className="flex gap-3">
-              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">&#8593;&#8595;</kbd> navigate</span>
-              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">&#9166;</kbd> open</span>
-              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+&#9166;</kbd> new tab</span>
+              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-sm">&#8593;&#8595;</kbd> navigate</span>
+              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-sm">&#9166;</kbd> open</span>
+              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-sm">Ctrl+&#9166;</kbd> new tab</span>
             </div>
           </div>
         )}

@@ -112,7 +112,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Show pages of type</label>
           <select
-            className="w-full text-sm border border-gray-300 rounded-md px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full text-sm border border-gray-300 rounded-md px-2.5 py-1.5 bg-white text-gray-700 focus:outline-hidden focus:ring-1 focus:ring-blue-400"
             value={targetTypeGuid}
             onChange={(e) => setTargetTypeGuid(e.target.value)}
           >
@@ -138,7 +138,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
                 type="checkbox"
                 checked={showParentTitle}
                 onChange={(e) => setShowParentTitle(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-400"
               />
               Show parent title on cards
             </label>
@@ -148,7 +148,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
                   type="checkbox"
                   checked={swapTitles}
                   onChange={(e) => setSwapTitles(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                  className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-400"
                 />
                 Use parent as primary title
               </label>
@@ -162,7 +162,7 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
             type="checkbox"
             checked={defaultView === 'board'}
             onChange={(e) => setDefaultView(e.target.checked ? 'board' : 'content')}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+            className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-400"
           />
           Open in board view by default
         </label>
@@ -247,12 +247,12 @@ export const BoardSettingsPanel: React.FC<BoardSettingsPanelProps> = ({
               onChange={(e) => setNewColumn(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') addColumn(); }}
               placeholder="Add column..."
-              className="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-blue-400"
             />
             <button
               onClick={addColumn}
               disabled={!newColumn.trim()}
-              className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded disabled:opacity-30"
+              className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded-sm disabled:opacity-30"
             >
               Add
             </button>

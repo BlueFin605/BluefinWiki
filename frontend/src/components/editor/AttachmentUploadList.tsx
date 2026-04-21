@@ -104,7 +104,7 @@ function AttachmentUploadItem({ upload, onInsertMarkdown }: AttachmentUploadItem
       {/* File Info */}
       <div className="flex items-start gap-3">
         {/* Status Icon */}
-        <div className="flex-shrink-0 mt-0.5">
+        <div className="shrink-0 mt-0.5">
           {getStatusIcon()}
         </div>
 
@@ -125,7 +125,7 @@ function AttachmentUploadItem({ upload, onInsertMarkdown }: AttachmentUploadItem
             {status === 'completed' && onInsertMarkdown && filename && (
               <button
                 onClick={handleInsertMarkdown}
-                className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 whitespace-nowrap"
+                className="text-xs px-2 py-1 bg-blue-500 text-white rounded-sm hover:bg-blue-600 whitespace-nowrap"
                 title="Insert markdown reference into editor"
               >
                 Insert

@@ -176,7 +176,7 @@ export const CreatePageFromLinkModal: React.FC<CreatePageFromLinkModalProps> = (
                     setParentGuid(currentPageGuid || null);
                   }
                 }}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded-sm"
               />
               <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Create as root page</span>
             </label>

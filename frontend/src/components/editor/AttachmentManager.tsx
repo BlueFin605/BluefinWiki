@@ -333,7 +333,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Attachments</h3>
         <button
           onClick={handleManualRefresh}
-          className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="text-xs px-2 py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
           type="button"
         >
           Refresh
@@ -350,7 +350,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
         )}
 
         {!isLoading && error && (
-          <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2">
+          <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm p-2">
             <p className="font-medium">{error}</p>
             {retryCount > 0 && retryCount < 10 && (
               <p className="mt-1 text-xs">Retrying automatically (attempt {retryCount}/10)...</p>
@@ -409,7 +409,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                             <img
                               src={previewUrl}
                               alt={attachment.filename}
-                              className="h-16 w-16 rounded object-cover border border-gray-200 dark:border-gray-700"
+                              className="h-16 w-16 rounded-sm object-cover border border-gray-200 dark:border-gray-700"
                               onError={(e) => console.error('❌ Thumbnail failed to load:', attachment.filename, e)}
                               onLoad={() => console.log('✅ Thumbnail rendered:', attachment.filename)}
                             />
@@ -474,7 +474,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
         )}
 
         {actionError && (
-          <div className="mt-3 text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2">
+          <div className="mt-3 text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-sm p-2">
             {actionError}
           </div>
         )}
@@ -494,7 +494,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
             <button
               type="button"
               onClick={() => setPreviewAttachment(null)}
-              className="absolute top-2 right-2 bg-black/70 text-white rounded px-3 py-1 text-sm hover:bg-black"
+              className="absolute top-2 right-2 bg-black/70 text-white rounded-sm px-3 py-1 text-sm hover:bg-black"
             >
               Close
             </button>
@@ -517,7 +517,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
                 <img
                   src={url}
                   alt={previewAttachment.filename}
-                  className="max-h-[85vh] max-w-full object-contain rounded"
+                  className="max-h-[85vh] max-w-full object-contain rounded-sm"
                   onError={(e) => console.error('❌ Image failed to load:', e)}
                   onLoad={() => console.log('✅ Image loaded successfully')}
                 />

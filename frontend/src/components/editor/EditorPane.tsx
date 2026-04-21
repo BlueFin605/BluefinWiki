@@ -265,12 +265,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   }, []);
 
   const renderViewModeButtons = () => (
-    <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded">
+    <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-sm">
       <button
         onClick={() => setViewMode('edit')}
         className={`px-3 py-1.5 text-sm rounded ${
           effectiveViewMode === 'edit'
-            ? 'bg-white dark:bg-gray-700 shadow'
+            ? 'bg-white dark:bg-gray-700 shadow-sm'
             : 'hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
         title="Edit only"
@@ -283,7 +283,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           onClick={() => setViewMode('split')}
           className={`px-3 py-1.5 text-sm rounded ${
             effectiveViewMode === 'split'
-              ? 'bg-white dark:bg-gray-700 shadow'
+              ? 'bg-white dark:bg-gray-700 shadow-sm'
               : 'hover:bg-gray-200 dark:hover:bg-gray-700'
           }`}
           title="Split view"
@@ -296,7 +296,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         onClick={() => setViewMode('preview')}
         className={`px-3 py-1.5 text-sm rounded ${
           effectiveViewMode === 'preview'
-            ? 'bg-white dark:bg-gray-700 shadow'
+            ? 'bg-white dark:bg-gray-700 shadow-sm'
             : 'hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
         title="Preview only"
@@ -310,7 +310,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const renderSaveStatus = () => {
     if (!editable) {
       return (
-        <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300">
+        <div className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-sm text-sm text-gray-600 dark:text-gray-300">
           Read-only
         </div>
       );
@@ -318,7 +318,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
     if (isSaving) {
       return (
-        <div className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 border border-blue-500 dark:border-blue-400 rounded text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+        <div className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 border border-blue-500 dark:border-blue-400 rounded-sm text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
           <span className="animate-spin">⏳</span>
           Saving...
         </div>
@@ -327,7 +327,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
     if (isDirty) {
       return (
-        <div className="px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-600 dark:border-yellow-500 rounded text-sm text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
+        <div className="px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-600 dark:border-yellow-500 rounded-sm text-sm text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
           <span>●</span>
           Unsaved changes
         </div>
@@ -335,7 +335,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
 
     return (
-      <div className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 border border-green-600 dark:border-green-500 rounded text-sm text-green-700 dark:text-green-300">
+      <div className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 border border-green-600 dark:border-green-500 rounded-sm text-sm text-green-700 dark:text-green-300">
         ✓ All changes saved
       </div>
     );
@@ -384,7 +384,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             <button
               onClick={handleManualSave}
               disabled={!isDirty || isSaving}
-              className="px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              className="px-4 py-1.5 bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               title={isDirty ? 'Save changes (Ctrl+S)' : 'No changes to save'}
             >
               {isSaving ? 'Saving...' : 'Save'}

@@ -178,7 +178,7 @@ export const LinkAutocomplete: React.FC<LinkAutocompleteProps> = ({
           {suggestions.map((suggestion, index) => (
             <li key={suggestion.guid}>
               <button
-                ref={(el) => (itemRefs.current[index] = el)}
+                ref={(el) => { itemRefs.current[index] = el; }}
                 type="button"
                 className={`w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
                   index === selectedIndex
