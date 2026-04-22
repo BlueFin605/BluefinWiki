@@ -151,8 +151,8 @@ namespace Infrastructure.Stacks
                 // Account recovery
                 AccountRecovery = AccountRecovery.EMAIL_ONLY,
                 
-                // Email configuration (use Cognito default for MVP)
-                Email = UserPoolEmail.WithCognito(),
+                // Email configuration — SES if configured, otherwise Cognito default (50/day cap)
+                Email = BuildUserPoolEmail(config),
                 
                 // Email verification
                 AutoVerify = new AutoVerifiedAttrs
@@ -2262,6 +2262,25 @@ namespace Infrastructure.Stacks
         private string GetHostedUiDomainPrefix(EnvironmentConfig config)
         {
             return $"{config.Prefix}-{config.Name}-{Aws.ACCOUNT_ID}";
+        }
+
+        private static UserPoolEmail BuildUserPoolEmail(EnvironmentConfig config)
+        {
+            if (string.IsNullOrWhiteSpace(config.SesFromAddress))
+                return UserPoolEmail.WithCognito();
+
+            var atIndex = config.SesFromAddress.IndexOf('@');
+            if (atIndex < 0 || atIndex == config.SesFromAddress.Length - 1)
+                throw new System.ArgumentException($"sesFromAddress '{config.SesFromAddress}' is not a valid email address.");
+
+            var verifiedDomain = config.SesFromAddress.Substring(atIndex + 1);
+
+            return UserPoolEmail.WithSES(new UserPoolSESOptions
+            {
+                FromEmail = config.SesFromAddress,
+                FromName = string.IsNullOrWhiteSpace(config.SesFromName) ? null : config.SesFromName,
+                SesVerifiedDomain = verifiedDomain
+            });
         }
     }
 }
