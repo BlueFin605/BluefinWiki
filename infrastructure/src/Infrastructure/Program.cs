@@ -46,8 +46,14 @@ namespace Infrastructure
             var enableGoogleLogin = app.Node.TryGetContext("enableGoogleLogin")?.ToString() == "true"
                 || TryGetConfigBool(config, "enableGoogleLogin");
 
+            var sesFromAddress = app.Node.TryGetContext("sesFromAddress")?.ToString()
+                ?? TryGetConfigString(config, "sesFromAddress");
+
+            var sesFromName = app.Node.TryGetContext("sesFromName")?.ToString()
+                ?? TryGetConfigString(config, "sesFromName");
+
             // Configure environment-specific settings
-            var envConfig = GetEnvironmentConfig(prefix, environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain, enableGoogleLogin);
+            var envConfig = GetEnvironmentConfig(prefix, environmentName, frontendDomain, domainName, certArnUsEast1, certArnRegional, enableCognitoCustomDomain, enableGoogleLogin, sesFromAddress, sesFromName);
 
             var env = new Amazon.CDK.Environment
             {
@@ -125,7 +131,8 @@ namespace Infrastructure
         private static EnvironmentConfig GetEnvironmentConfig(
             string prefix, string environmentName, string frontendDomain,
             string domainName, string certArnUsEast1, string certArnRegional,
-            bool enableCognitoCustomDomain, bool enableGoogleLogin)
+            bool enableCognitoCustomDomain, bool enableGoogleLogin,
+            string sesFromAddress, string sesFromName)
         {
             return environmentName.ToLower() switch
             {
@@ -171,7 +178,9 @@ namespace Infrastructure
                     CertificateArnUsEast1 = certArnUsEast1,
                     CertificateArnRegional = certArnRegional,
                     EnableCognitoCustomDomain = enableCognitoCustomDomain,
-                    EnableGoogleLogin = enableGoogleLogin
+                    EnableGoogleLogin = enableGoogleLogin,
+                    SesFromAddress = sesFromAddress,
+                    SesFromName = sesFromName
                 },
                 _ => throw new ArgumentException($"Unknown environment: {environmentName}. Valid values: dev, staging, production")
             };
@@ -201,5 +210,9 @@ namespace Infrastructure
         public bool EnableCognitoCustomDomain { get; set; }
         /// <summary>Enable Google federated login (requires secret {prefix}/{env}/google-oauth in Secrets Manager)</summary>
         public bool EnableGoogleLogin { get; set; }
+        /// <summary>From address for Cognito emails via SES (e.g. "noreply@yourdomain.com"). Leave empty to use Cognito default email.</summary>
+        public string SesFromAddress { get; set; }
+        /// <summary>Optional display name for SES-sent emails.</summary>
+        public string SesFromName { get; set; }
     }
 }
