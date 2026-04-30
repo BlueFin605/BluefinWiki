@@ -3,8 +3,8 @@ using Aspire.Hosting.JavaScript;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// LocalStack for AWS service emulation (S3, DynamoDB, SES)
-var localstack = builder.AddContainer("localstack", "localstack/localstack", "latest")
+// Pin LocalStack to v3 because newer latest tags require account auth and fail locally.
+var localstack = builder.AddContainer("localstack", "localstack/localstack", "3")
     .WithEnvironment("SERVICES", "s3,dynamodb,ses")
     .WithEnvironment("DEBUG", "1")
     .WithEnvironment("EDGE_PORT", "4566")

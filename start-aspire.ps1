@@ -18,4 +18,5 @@ Write-Host "  - MailHog (SMTP testing) on ports 1025 (SMTP) and 8025 (UI)" -Fore
 Write-Host ""
 
 # Start Aspire
-dotnet run --project aspire\BlueFinWiki.AppHost\BlueFinWiki.AppHost.csproj
+$appHostProject = Join-Path $PSScriptRoot "aspire/BlueFinWiki.AppHost/BlueFinWiki.AppHost.csproj"
+dotnet run --project $appHostProject

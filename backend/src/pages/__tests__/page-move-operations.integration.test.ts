@@ -154,15 +154,24 @@ describe('Page Operations - Move Pages Between Parents', () => {
   });
 
   it('should move page with children (recursive)', async () => {
+    // Layout before move:
+    //   oldParent/oldParent.md            (root parent A)
+    //   oldParent/page/page.md            (B — being moved)
+    //   oldParent/page/child/child.md     (C — child of B)
+    //   newParent/newParent.md            (X — new root parent)
+    // Expected layout after move:
+    //   oldParent/oldParent.md
+    //   newParent/newParent.md
+    //   newParent/page/page.md
+    //   newParent/page/child/child.md
     const oldParentGuid = uuidv4();
     const pageGuid = uuidv4();
     const childGuid = uuidv4();
     const newParentGuid = uuidv4();
 
     s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
-      if (input.Key === `${oldParentGuid}/${pageGuid}/${pageGuid}.md` ||
-          input.Key === `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md` ||
-          input.Key === `${pageGuid}/${childGuid}/${childGuid}.md`) {
+      // Only X is a root page (root-level HeadObject probe).
+      if (input.Key === `${newParentGuid}/${newParentGuid}.md`) {
         return Promise.resolve({});
       }
       return Promise.reject({ name: 'NotFound' });
@@ -171,33 +180,51 @@ describe('Page Operations - Move Pages Between Parents', () => {
     s3Mock.on(GetObjectCommand).callsFake((input: any) => {
       if (input.Key === `${oldParentGuid}/${pageGuid}/${pageGuid}.md`) {
         return Promise.resolve({
-          Body: createMockStream(createMockPageContent(pageGuid, 'Page', oldParentGuid))(),
+          Body: createMockStream(createMockPageContent(pageGuid, 'B', oldParentGuid))(),
         });
       }
-      if (input.Key === `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md` ||
-          input.Key === `${pageGuid}/${childGuid}/${childGuid}.md`) {
+      if (input.Key === `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md`) {
         return Promise.resolve({
-          Body: createMockStream(createMockPageContent(childGuid, 'Child', pageGuid))(),
+          Body: createMockStream(createMockPageContent(childGuid, 'C', pageGuid))(),
+        });
+      }
+      if (input.Key === `${newParentGuid}/${newParentGuid}.md`) {
+        return Promise.resolve({
+          Body: createMockStream(createMockPageContent(newParentGuid, 'X', null))(),
         });
       }
       return Promise.reject({ name: 'NoSuchKey' });
     });
 
     s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
-      // When listing children of the page being moved
-      if (input.Prefix === `${pageGuid}/` && input.Delimiter === '/') {
+      // Listing under B's old folder — should report C as a child folder.
+      if (input.Prefix === `${oldParentGuid}/${pageGuid}/` && input.Delimiter === '/') {
         return Promise.resolve({
+          Contents: [{ Key: `${oldParentGuid}/${pageGuid}/${pageGuid}.md` }],
           CommonPrefixes: [
-            { Prefix: `${pageGuid}/${childGuid}/` },
+            { Prefix: `${oldParentGuid}/${pageGuid}/${childGuid}/` },
           ],
         });
       }
-      // When searching for pages
+      // Listing under C's old folder — no grandchildren.
+      if (input.Prefix === `${oldParentGuid}/${pageGuid}/${childGuid}/` && input.Delimiter === '/') {
+        return Promise.resolve({
+          Contents: [{ Key: `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md` }],
+          CommonPrefixes: [],
+        });
+      }
+      // Attachment-prefix listings — none in this scenario.
+      if (typeof input.Prefix === 'string' && input.Prefix.endsWith('_attachments/')) {
+        return Promise.resolve({ Contents: [] });
+      }
+      // Full bucket scan (findPageFolder fallback).
       if (!input.Prefix && !input.Delimiter) {
         return Promise.resolve({
           Contents: [
+            { Key: `${oldParentGuid}/${oldParentGuid}.md` },
             { Key: `${oldParentGuid}/${pageGuid}/${pageGuid}.md` },
             { Key: `${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md` },
+            { Key: `${newParentGuid}/${newParentGuid}.md` },
           ],
         });
       }
@@ -210,8 +237,27 @@ describe('Page Operations - Move Pages Between Parents', () => {
 
     await plugin.movePage(pageGuid, newParentGuid);
 
-    const copyCalls = s3Mock.commandCalls(CopyObjectCommand);
-    expect(copyCalls.length).toBeGreaterThan(0);
+    // Both B and C must end up at their new keys, and the originals must be deleted.
+    const copyOps = s3Mock.commandCalls(CopyObjectCommand).map((c) => ({
+      src: (c.args[0].input as { CopySource?: string }).CopySource,
+      dst: (c.args[0].input as { Key?: string }).Key,
+    }));
+
+    expect(copyOps).toContainEqual({
+      src: `test-bucket/${oldParentGuid}/${pageGuid}/${pageGuid}.md`,
+      dst: `${newParentGuid}/${pageGuid}/${pageGuid}.md`,
+    });
+    expect(copyOps).toContainEqual({
+      src: `test-bucket/${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md`,
+      dst: `${newParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md`,
+    });
+
+    const deleteKeys = s3Mock
+      .commandCalls(DeleteObjectCommand)
+      .map((c) => (c.args[0].input as { Key?: string }).Key);
+
+    expect(deleteKeys).toContain(`${oldParentGuid}/${pageGuid}/${pageGuid}.md`);
+    expect(deleteKeys).toContain(`${oldParentGuid}/${pageGuid}/${childGuid}/${childGuid}.md`);
   });
 
   it('should prevent moving page under its own descendant', async () => {

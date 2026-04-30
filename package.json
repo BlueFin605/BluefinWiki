@@ -13,7 +13,7 @@
     "type-check": "npm run type-check --workspaces",
     "test": "npm run test --workspaces",
     "test:all": "npm run test:all --workspaces",
-    "postinstall": "node -e \"process.env.CI !== 'true' && require('child_process').execSync('husky install')\""
+    "postinstall": "node -e \"if (process.env.CI !== 'true') { try { require('child_process').execSync('husky install', { stdio: 'inherit', shell: true }); } catch { console.log('Skipping husky install (husky not available in this install context)'); } }\""
   },
   "devDependencies": {
     "husky": "^9.0.11",
