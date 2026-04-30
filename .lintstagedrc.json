@@ -1,12 +1,11 @@
 {
   "*": "echo 'Running pre-commit hooks...'",
-  "*.{ts,tsx}": [
-    "eslint --fix --max-warnings 0"
-  ],
   "frontend/**/*.{ts,tsx}": [
+    "bash -c 'cd frontend && eslint --fix --max-warnings 0'",
     "bash -c 'tsc --noEmit --project frontend/tsconfig.json'"
   ],
   "backend/**/*.ts": [
+    "bash -c 'cd backend && eslint --fix --max-warnings 0'",
     "bash -c 'tsc --noEmit --project backend/tsconfig.json'"
   ],
   "infrastructure/**/*.ts": [

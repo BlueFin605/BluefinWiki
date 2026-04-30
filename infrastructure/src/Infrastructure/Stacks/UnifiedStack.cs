@@ -1334,6 +1334,28 @@ namespace Infrastructure.Stacks
             });
 
             // =============================================================================
+            // Admin: Rebuild Page Index Lambda
+            // =============================================================================
+            // Walks every page in S3, repopulates the DynamoDB page index, and deletes
+            // orphan rows for pages that no longer exist in S3. The cold path here is
+            // a full bucket scan when the index is empty, so timeout/memory are higher
+            // than the default Lambda config used for normal page operations.
+            var adminRebuildPageIndexFunction = new LambdaFunction(this, "AdminRebuildPageIndexFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-admin-rebuild-page-index",
+                Runtime = lambdaProps.Runtime,
+                Handler = "storage/rebuild-page-index.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = Duration.Minutes(5),
+                MemorySize = 1024,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Rebuild page index from S3 + drop orphan rows (admin only)"
+            });
+
+            // =============================================================================
             // Pages Links Resolve Lambda Function
             // =============================================================================
 
@@ -1789,6 +1811,14 @@ namespace Infrastructure.Stacks
 
             // DELETE /admin/invitations/{invitationCode} - Revoke invitation
             adminInvitationCodeResource.AddMethod("DELETE", new LambdaIntegration(adminRevokeInvitationFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /admin/rebuild-page-index - Rebuild DynamoDB page index from S3
+            var adminRebuildPageIndexResource = adminResource.AddResource("rebuild-page-index");
+            adminRebuildPageIndexResource.AddMethod("POST", new LambdaIntegration(adminRebuildPageIndexFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer

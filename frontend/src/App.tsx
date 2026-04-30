@@ -8,6 +8,7 @@ import { PageTypesAdmin } from './components/admin/PageTypesAdmin';
 import { SettingsPage } from './components/admin/SettingsPage';
 import { UserManagement } from './components/admin/UserManagement';
 import { InvitationManagement } from './components/admin/InvitationManagement';
+import { RebuildPageIndex } from './components/admin/RebuildPageIndex';
 import { ProfilePage } from './components/admin/ProfilePage';
 import { PermissionGuard } from './components/common/PermissionGuard';
 import userPool from './config/cognitoConfig';
@@ -142,6 +143,7 @@ function App() {
             <Route path="/admin/page-types" element={<AuthGate><PermissionGuard requiredRole="Admin"><PageTypesAdmin /></PermissionGuard></AuthGate>} />
             <Route path="/admin/users" element={<AuthGate><PermissionGuard requiredRole="Admin"><UserManagement /></PermissionGuard></AuthGate>} />
             <Route path="/admin/invitations" element={<AuthGate><PermissionGuard requiredRole="Admin"><InvitationManagement /></PermissionGuard></AuthGate>} />
+            <Route path="/admin/rebuild-page-index" element={<AuthGate><PermissionGuard requiredRole="Admin"><RebuildPageIndex /></PermissionGuard></AuthGate>} />
             <Route path="/profile" element={<AuthGate><ProfilePage /></AuthGate>} />
 
             {/* Default redirect */}

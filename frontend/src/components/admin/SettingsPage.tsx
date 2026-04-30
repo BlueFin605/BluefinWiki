@@ -74,6 +74,24 @@ export const SettingsPage: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
+
+          <button
+            onClick={() => navigate('/admin/rebuild-page-index')}
+            className="w-full flex items-center gap-4 bg-white rounded-lg shadow-sm p-4 hover:bg-gray-50 transition-colors text-left"
+          >
+            <div className="flex items-center justify-center w-10 h-10 bg-purple-100 text-purple-600 rounded-lg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-medium text-gray-900">Rebuild Page Index</h3>
+              <p className="text-sm text-gray-500">Recover from a stale or corrupt DynamoDB page index by rescanning S3</p>
+            </div>
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
