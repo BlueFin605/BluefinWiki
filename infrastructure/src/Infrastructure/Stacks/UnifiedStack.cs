@@ -852,6 +852,12 @@ namespace Infrastructure.Stacks
             // Grant Lambda access to JWT secret
             JwtSecret.GrantRead(lambdaRole);
             
+            // S3 Vectors names — deterministic, reused below where the bucket/index are
+            // actually created. Declared here so commonEnvVars can ship them to every
+            // Lambda that uses vector search (e.g. SearchQueryFunction).
+            var vectorBucketName = $"{config.Prefix}-vectors-{config.Name}";
+            var vectorIndexName = "wiki-pages";
+
             // Common Lambda environment variables
             var commonEnvVars = new Dictionary<string, string>
             {
@@ -866,6 +872,9 @@ namespace Infrastructure.Stacks
                 { "TAGS_TABLE", TagsTable.TableName },
                 { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
                 { "JWT_SECRET_ARN", JwtSecret.SecretArn },
+                { "VECTOR_BUCKET_NAME", vectorBucketName },
+                { "VECTOR_INDEX_NAME", vectorIndexName },
+                { "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0" },
                 { "ENVIRONMENT", config.Name }
             };
             
@@ -1004,6 +1013,25 @@ namespace Infrastructure.Stacks
                 Tracing = lambdaProps.Tracing,
                 LogRetention = lambdaProps.LogRetention,
                 Description = "Search pages by title (for link autocomplete)"
+            });
+
+            // Semantic search via Bedrock Titan V2 + S3 Vectors. Embeds the query and
+            // returns the top-K matches with metadata-derived snippets. IAM grants for
+            // bedrock:InvokeModel and s3vectors:QueryVectors are added to lambdaRole
+            // alongside the vector bucket definition further down in this method.
+            var searchQueryFunction = new LambdaFunction(this, "SearchQueryFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-search-query",
+                Runtime = lambdaProps.Runtime,
+                Handler = "search/search-query.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = Duration.Seconds(30),
+                MemorySize = 512,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Semantic search over wiki pages (Bedrock + S3 Vectors)"
             });
 
             var pagesBacklinksFunction = new LambdaFunction(this, "PagesBacklinksFunction", new LambdaFunctionProps
@@ -1606,6 +1634,14 @@ namespace Infrastructure.Stacks
                 Authorizer = cognitoAuthorizer
             });
 
+            // GET /search - Semantic search over wiki pages
+            var searchTopLevelResource = Api.Root.AddResource("search");
+            searchTopLevelResource.AddMethod("GET", new LambdaIntegration(searchQueryFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
             // PUT /pages/reorder - Reorder sibling pages
             var reorderResource = pagesResource.AddResource("reorder");
             reorderResource.AddMethod("PUT", new LambdaIntegration(pagesReorderFunction), new MethodOptions
@@ -1879,9 +1915,8 @@ namespace Infrastructure.Stacks
             PageIndexTable.GrantReadWriteData(mcpLambdaRole);
             PageTypesTable.GrantReadData(mcpLambdaRole);
 
-            // S3 Vectors for semantic search (derived data — DESTROY on stack deletion)
-            var vectorBucketName = $"{config.Prefix}-vectors-{config.Name}";
-            var vectorIndexName = "wiki-pages";
+            // S3 Vectors for semantic search (derived data — DESTROY on stack deletion).
+            // vectorBucketName and vectorIndexName are declared further up alongside commonEnvVars.
             var stackRegion = Stack.Of(this).Region;
 
             var vectorBucket = new Amazon.CDK.CfnResource(this, "VectorBucket", new Amazon.CDK.CfnResourceProps
@@ -1916,6 +1951,20 @@ namespace Infrastructure.Stacks
                 Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:bucket/{vectorBucketName}/*" }
             }));
             mcpLambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Effect = Effect.ALLOW,
+                Actions = new[] { "bedrock:InvokeModel" },
+                Resources = new[] { $"arn:aws:bedrock:{stackRegion}::foundation-model/amazon.titan-embed-text-v2:0" }
+            }));
+
+            // The shared lambdaRole (used by SearchQueryFunction) needs the same grants
+            lambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Effect = Effect.ALLOW,
+                Actions = new[] { "s3vectors:QueryVectors", "s3vectors:GetVectors" },
+                Resources = new[] { $"arn:aws:s3vectors:{stackRegion}:*:bucket/{vectorBucketName}/*" }
+            }));
+            lambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
             {
                 Effect = Effect.ALLOW,
                 Actions = new[] { "bedrock:InvokeModel" },

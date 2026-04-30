@@ -88,6 +88,18 @@ function extractGuidFromKey(key: string): string | null {
   return match ? match[1] : null;
 }
 
+const SNIPPET_LENGTH = 240;
+
+/**
+ * Build a generic content snippet for display in search results.
+ */
+function buildSnippet(plainContent: string): string {
+  if (!plainContent) return '';
+  const collapsed = plainContent.replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= SNIPPET_LENGTH) return collapsed;
+  return collapsed.slice(0, SNIPPET_LENGTH).trimEnd() + '...';
+}
+
 /**
  * Build the hierarchical display path for a page.
  */
@@ -150,6 +162,7 @@ async function upsertPageVector(s3Key: string): Promise<void> {
         s3Key,
         displayPath,
         tags,
+        snippet: buildSnippet(plainContent),
       },
     }],
   }));
@@ -228,6 +241,7 @@ async function reindexAll(): Promise<void> {
               s3Key,
               displayPath,
               tags,
+              snippet: buildSnippet(plainContent),
             },
           };
         } catch (error) {

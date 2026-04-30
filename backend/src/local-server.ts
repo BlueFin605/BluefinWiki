@@ -51,7 +51,7 @@ import { handler as adminUsersActivate } from './auth/admin-users-activate.js';
 import { handler as adminUsersDelete } from './auth/admin-users-delete.js';
 import { handler as authProfileUpdate } from './auth/auth-profile-update.js';
 import { handler as authChangePassword } from './auth/auth-change-password.js';
-import { buildSearchIndexData } from './search/search-build-index.js';
+import { handler as searchQuery } from './search/search-query.js';
 import { handler as tagsList } from './tags/tags-list.js';
 import { handler as tagsCreate } from './tags/tags-create.js';
 import { handler as pageTypesList } from './page-types/page-types-list.js';
@@ -221,7 +221,7 @@ app.get('/pages/:guid/children', wrapLambdaHandler(pagesListChildren));
 app.put('/pages/:guid/move', wrapLambdaHandler(pagesMove));
 app.get('/pages/:guid/ancestors', wrapLambdaHandler(pagesAncestors));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
-app.get('/search', wrapLambdaHandler(pagesSearch));
+app.get('/pages/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
 app.post('/pages/:pageGuid/attachments/presign', wrapLambdaHandler(pagesAttachmentsPresign));
 app.post('/pages/:pageGuid/attachments/confirm', wrapLambdaHandler(pagesAttachmentsConfirm));
@@ -281,20 +281,10 @@ app.put('/page-types/:guid', wrapLambdaHandler(pageTypesUpdate));
 app.delete('/page-types/:guid', wrapLambdaHandler(pageTypesDelete));
 
 // ============================================================================
-// API Routes - Search Index
+// API Routes - Semantic Search
 // ============================================================================
 
-app.get('/api/search-index.json', ((_req, res) => {
-  buildSearchIndexData()
-    .then(searchIndex => res.json(searchIndex))
-    .catch(error => {
-      console.error('Failed to build search index:', error);
-      res.status(500).json({
-        error: 'Failed to build search index',
-        message: error instanceof Error ? error.message : String(error),
-      });
-    });
-}));
+app.get('/search', wrapLambdaHandler(searchQuery));
 
 // ============================================================================
 // Admin: Rebuild Page Index
@@ -586,8 +576,8 @@ async function startServer() {
   console.log('   PUT    /pages/:guid/move');
   console.log('   GET    /pages/:guid/ancestors');
   console.log('   GET    /pages/:guid/backlinks');
+  console.log('   GET    /pages/search');
   console.log('   GET    /search');
-  console.log('   GET    /api/search-index.json');
   console.log('   POST   /pages/links/resolve');
   console.log('   POST   /auth/register');
   console.log('   GET    /auth/me');

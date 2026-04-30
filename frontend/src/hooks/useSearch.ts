@@ -1,8 +1,9 @@
 /**
  * useSearch Hook
  *
- * React hook for integrating ClientSearchService with components.
- * Provides debounced search, state management, and pagination.
+ * React hook for integrating the backend semantic-search endpoint with the
+ * search dialog. Provides debounced query input, pagination, and basic
+ * client-side rate limiting.
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -15,8 +16,8 @@ const DEFAULT_PAGE_SIZE = 10;
 const MAX_SEARCHES_PER_MINUTE = 60;
 
 interface UseSearchOptions {
-  /** URL to fetch the search index from */
-  indexUrl?: string;
+  /** Path of the search endpoint (overridable for tests). */
+  path?: string;
   /** Debounce delay in ms (default: 300) */
   debounceMs?: number;
   /** Initial page size (default: 10) */
@@ -24,43 +25,24 @@ interface UseSearchOptions {
 }
 
 interface UseSearchReturn {
-  /** Current search query text */
   query: string;
-  /** Set the search query text */
   setQuery: (query: string) => void;
-  /** Search results */
   results: WikiSearchResult[];
-  /** Total number of results (across all pages) */
   totalResults: number;
-  /** Whether a search is in progress */
   isSearching: boolean;
-  /** Search execution time in ms */
   executionTimeMs: number;
-  /** Error message if search failed */
   error: string | null;
-  /** Whether there are more results to load */
   hasMore: boolean;
-  /** Load more results */
   loadMore: () => void;
-  /** Current page size */
   pageSize: number;
-  /** Set page size (10, 25, 50) */
   setPageSize: (size: number) => void;
-  /** Search scope */
   scope: string;
-  /** Set search scope */
   setScope: (scope: string) => void;
-  /** Title-only mode */
-  titleOnly: boolean;
-  /** Set title-only mode */
-  setTitleOnly: (titleOnly: boolean) => void;
-  /** Whether the search index is loaded */
-  isIndexLoaded: boolean;
 }
 
 export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const {
-    indexUrl,
+    path,
     debounceMs = DEBOUNCE_MS,
     pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
   } = options;
@@ -74,35 +56,11 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const [error, setError] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [scope, setScope] = useState<string>('all');
-  const [titleOnly, setTitleOnly] = useState(false);
-  const [isIndexLoaded, setIsIndexLoaded] = useState(false);
 
-  const serviceRef = useRef<ClientSearchService | null>(null);
   const rateLimiterRef = useRef(new SearchRateLimiter(MAX_SEARCHES_PER_MINUTE));
 
-  // Initialize the search service
-  const service = useMemo(() => {
-    const svc = new ClientSearchService(indexUrl);
-    serviceRef.current = svc;
-    return svc;
-  }, [indexUrl]);
+  const service = useMemo(() => new ClientSearchService(path), [path]);
 
-  // Load index on mount
-  useEffect(() => {
-    service.loadIndex()
-      .then(() => setIsIndexLoaded(true))
-      .catch(() => {
-        // Will be handled on search
-      });
-
-    service.startAutoRefresh();
-
-    return () => {
-      service.dispose();
-    };
-  }, [service]);
-
-  // Debounce the query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
@@ -111,12 +69,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     return () => clearTimeout(timer);
   }, [query, debounceMs]);
 
-  // Reset pagination when query, scope, or titleOnly changes
   useEffect(() => {
     setResults([]);
-  }, [debouncedQuery, scope, titleOnly, pageSize]);
+  }, [debouncedQuery, scope, pageSize]);
 
-  // Execute search when debounced query changes
   useEffect(() => {
     if (!debouncedQuery.trim()) {
       setResults([]);
@@ -141,7 +97,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         const searchQuery: WikiSearchQuery = {
           text: debouncedQuery,
           scope,
-          titleOnly,
           limit: pageSize,
           offset: 0,
         };
@@ -152,7 +107,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
           setResults(resultSet.results);
           setTotalResults(resultSet.totalResults);
           setExecutionTimeMs(resultSet.executionTimeMs);
-          setIsIndexLoaded(service.isIndexLoaded());
         }
       } catch (err) {
         if (!cancelled) {
@@ -172,7 +126,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, scope, titleOnly, pageSize, service]);
+  }, [debouncedQuery, scope, pageSize, service]);
 
   const hasMore = results.length < totalResults;
 
@@ -191,7 +145,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       const searchQuery: WikiSearchQuery = {
         text: debouncedQuery,
         scope,
-        titleOnly,
         limit: pageSize,
         offset: newOffset,
       };
@@ -204,7 +157,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     } finally {
       setIsSearching(false);
     }
-  }, [debouncedQuery, hasMore, isSearching, results.length, scope, titleOnly, pageSize, service]);
+  }, [debouncedQuery, hasMore, isSearching, results.length, scope, pageSize, service]);
 
   return {
     query,
@@ -220,8 +173,5 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     setPageSize,
     scope,
     setScope,
-    titleOnly,
-    setTitleOnly,
-    isIndexLoaded,
   };
 }
