@@ -1193,9 +1193,13 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const newFolder = newKey.substring(0, newKey.lastIndexOf('/') + 1);
       await this.moveAttachments(oldFolder, newFolder);
 
-      // Move children and all descendants recursively
+      // Move children and all descendants recursively.
+      // We pass the old/new folder paths explicitly because the page index has
+      // already been updated to point this page at its new location, so a
+      // listChildren(guid) lookup would scan the empty new folder and miss
+      // every descendant still living under the old folder.
       console.log(`[movePage] Moving child pages recursively for page: ${guid}`);
-      await this.moveChildrenRecursive(guid);
+      await this.moveChildrenRecursive(oldFolder, newFolder, guid);
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
       if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'CIRCULAR_REFERENCE'].includes(error.code)) {
@@ -1212,49 +1216,91 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Recursively move all children (and their descendants) to their correct
    * S3 paths after a parent page has been moved.
+   *
+   * Walks the OLD folder directly via S3 prefix listing rather than going
+   * through listChildren / the page index. By the time this runs the parent's
+   * index entry has already been updated to the new location, so an index-based
+   * lookup would resolve to the empty new folder and orphan every descendant.
+   *
+   * The frontmatter folderId of each descendant is preserved (only the ancestor
+   * chain shifts, not the immediate parent), so a metadata-COPY is sufficient.
    */
-  private async moveChildrenRecursive(parentGuid: string): Promise<void> {
-    const children = await this.listChildren(parentGuid);
-    for (const child of children) {
-      const childOldFolder = await this.findPageFolder(child.guid);
-      if (!childOldFolder) continue;
-
-      const childOldKey = folderToFileKey(childOldFolder, child.guid);
-      const childNewKey = await this.buildPageKey(child.guid, parentGuid);
-      const childNewFolder = childNewKey.substring(0, childNewKey.lastIndexOf('/') + 1);
-
-      // Copy .md file to new location
-      const childCopyCommand = new CopyObjectCommand({
+  private async moveChildrenRecursive(
+    oldParentFolder: string,
+    newParentFolder: string,
+    parentGuid: string
+  ): Promise<void> {
+    let continuationToken: string | undefined;
+    do {
+      const listCommand = new ListObjectsV2Command({
         Bucket: this.bucketName,
-        CopySource: `${this.bucketName}/${childOldKey}`,
-        Key: childNewKey,
-        ContentType: 'text/markdown',
-        MetadataDirective: 'COPY',
+        Prefix: oldParentFolder,
+        Delimiter: '/',
+        ContinuationToken: continuationToken,
       });
-      await this.s3Client.send(childCopyCommand);
+      const response = await this.s3Client.send(listCommand);
 
-      // Delete old .md file
-      const childDeleteCommand = new DeleteObjectCommand({
-        Bucket: this.bucketName,
-        Key: childOldKey,
-      });
-      await this.s3Client.send(childDeleteCommand);
+      if (response.CommonPrefixes) {
+        for (const prefix of response.CommonPrefixes) {
+          if (!prefix.Prefix) continue;
 
-      // Move attachments
-      await this.moveAttachments(childOldFolder, childNewFolder);
+          const segments = prefix.Prefix.split('/').filter(Boolean);
+          const childGuid = segments[segments.length - 1];
 
-      // Update index entry
-      this.pageIndex.putPageKey({
-        guid: child.guid,
-        s3Key: childNewFolder,
-        parentGuid: parentGuid,
-        title: child.title,
-        updatedAt: new Date().toISOString(),
-      });
+          // Skip the parent's own folder marker and the attachments folder
+          if (childGuid === parentGuid) continue;
+          if (childGuid === '_attachments') continue;
+          if (!this.validateGuid(childGuid)) continue;
 
-      // Recurse into this child's children
-      await this.moveChildrenRecursive(child.guid);
-    }
+          const childOldFolder = prefix.Prefix;
+          const childOldKey = folderToFileKey(childOldFolder, childGuid);
+          const childNewFolder = `${newParentFolder}${childGuid}/`;
+          const childNewKey = folderToFileKey(childNewFolder, childGuid);
+
+          // Capture the title before moving so we can keep the page index
+          // consistent. The child's index entry still points at the OLD folder
+          // here (we update it after the move below), so loadPage resolves
+          // correctly via the index.
+          let childTitle = childGuid;
+          try {
+            const childPage = await this.loadPage(childGuid);
+            childTitle = childPage.title;
+          } catch {
+            // Best-effort — if the child can't be loaded the move still
+            // proceeds; repairIndex will heal stale entries on next read.
+          }
+
+          await this.s3Client.send(new CopyObjectCommand({
+            Bucket: this.bucketName,
+            CopySource: `${this.bucketName}/${childOldKey}`,
+            Key: childNewKey,
+            ContentType: 'text/markdown',
+            MetadataDirective: 'COPY',
+          }));
+
+          await this.s3Client.send(new DeleteObjectCommand({
+            Bucket: this.bucketName,
+            Key: childOldKey,
+          }));
+
+          await this.moveAttachments(childOldFolder, childNewFolder);
+
+          this.pageIndex.putPageKey({
+            guid: childGuid,
+            s3Key: childNewFolder,
+            parentGuid: parentGuid,
+            title: childTitle,
+            updatedAt: new Date().toISOString(),
+          });
+
+          // Recurse using the child's OLD/NEW folders so descendants are walked
+          // off the still-intact old subtree.
+          await this.moveChildrenRecursive(childOldFolder, childNewFolder, childGuid);
+        }
+      }
+
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
   }
 
   /**

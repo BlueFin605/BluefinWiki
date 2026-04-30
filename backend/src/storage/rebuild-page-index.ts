@@ -8,11 +8,17 @@
  * - Can be invoked as a Lambda handler or run directly via local-server
  *
  * Uses the same buildPageTree + flattenPageTree pattern as search-build-index.
+ *
+ * After upserting fresh rows the rebuild diffs the result against a full Scan
+ * of the DynamoDB index and batch-deletes any rows whose guid is no longer in
+ * S3 — so a "rebuild" is also a true repair, not just an upsert pass.
  */
 
+import { APIGatewayProxyResult } from 'aws-lambda';
 import { getStoragePlugin } from './index.js';
 import { PageSummary } from '../types/index.js';
 import * as PageIndex from './PageIndexService.js';
+import { withAuth, withRole } from '../middleware/auth.js';
 
 /**
  * Flatten a nested page tree into a flat list
@@ -39,6 +45,8 @@ export interface RebuildResult {
   failed: number;
   errors: string[];
   durationMs: number;
+  deletedOrphans: number;
+  orphanGuids: string[];
 }
 
 /**
@@ -54,6 +62,7 @@ export async function rebuildPageIndex(): Promise<RebuildResult> {
   const storagePlugin = getStoragePlugin();
   const errors: string[] = [];
   let indexed = 0;
+  const liveGuids = new Set<string>();
 
   // Get all pages as a tree (uses listChildren recursively)
   const pageTree = await storagePlugin.buildPageTree();
@@ -77,6 +86,7 @@ export async function rebuildPageIndex(): Promise<RebuildResult> {
         updatedAt: fullPage.modifiedAt || new Date().toISOString(),
       });
 
+      liveGuids.add(page.guid);
       indexed++;
 
       if (indexed % 50 === 0) {
@@ -89,8 +99,35 @@ export async function rebuildPageIndex(): Promise<RebuildResult> {
     }
   }
 
+  // Delete orphan rows: guids that exist in DynamoDB but are no longer in S3.
+  // Without this pass, pages that were deleted out-of-band (or whose markdown
+  // is corrupted enough that loadPage fails) keep stale rows that point at
+  // empty S3 keys, which short-circuits findPageFolder forever.
+  let deletedOrphans = 0;
+  const orphanGuids: string[] = [];
+  try {
+    const indexEntries = await PageIndex.getAllEntries();
+    for (const entry of indexEntries) {
+      if (!liveGuids.has(entry.guid)) {
+        orphanGuids.push(entry.guid);
+      }
+    }
+    if (orphanGuids.length > 0) {
+      console.log(`[RebuildIndex] Deleting ${orphanGuids.length} orphan index rows`);
+      await PageIndex.deletePageKeys(orphanGuids);
+      deletedOrphans = orphanGuids.length;
+    }
+  } catch (error) {
+    const msg = `Failed to scan/delete orphan index rows: ${(error as Error).message}`;
+    console.error(`[RebuildIndex] ${msg}`);
+    errors.push(msg);
+  }
+
   const durationMs = Date.now() - start;
-  console.log(`[RebuildIndex] Complete: ${indexed}/${allPages.length} indexed in ${durationMs}ms (${errors.length} errors)`);
+  console.log(
+    `[RebuildIndex] Complete: ${indexed}/${allPages.length} indexed, ` +
+    `${deletedOrphans} orphans deleted in ${durationMs}ms (${errors.length} errors)`
+  );
 
   return {
     totalPages: allPages.length,
@@ -98,6 +135,8 @@ export async function rebuildPageIndex(): Promise<RebuildResult> {
     failed: errors.length,
     errors,
     durationMs,
+    deletedOrphans,
+    orphanGuids,
   };
 }
 
@@ -137,21 +176,26 @@ async function buildAncestorPath(
 }
 
 /**
- * Lambda handler for rebuild-page-index
+ * Lambda handler for rebuild-page-index — admin-only.
+ *
+ * Wrapped in withAuth + withRole so that POST /admin/rebuild-page-index
+ * requires a valid Cognito JWT and the Admin custom role.
  */
-export async function handler(): Promise<{ statusCode: number; body: string }> {
+export const handler = withAuth(withRole(['Admin'], async (): Promise<APIGatewayProxyResult> => {
   try {
     const result = await rebuildPageIndex();
 
     return {
       statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(result),
     };
   } catch (error) {
     console.error('[RebuildIndex] Fatal error:', error);
     return {
       statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: (error as Error).message }),
     };
   }
-}
+}));
