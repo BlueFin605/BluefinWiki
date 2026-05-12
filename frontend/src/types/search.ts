@@ -1,55 +1,19 @@
 /**
  * Search types for BlueFinWiki frontend
  *
- * Types for the client-side search provider (Fuse.js) and search UI.
+ * Types for the search dialog. Search itself runs on the backend
+ * (Bedrock embeddings + S3 Vectors); the frontend only sends queries
+ * and renders results.
  */
 
 /**
- * Entry in the client-side search index (downloaded from S3)
- */
-export interface ClientSearchIndexEntry {
-  /** Page GUID */
-  id: string;
-  /** Short code for URL-friendly links */
-  shortCode?: string;
-  /** Page title */
-  title: string;
-  /** Plain text content (markdown stripped) */
-  content: string;
-  /** Tags on the page */
-  tags: string[];
-  /** Hierarchical path */
-  path: string;
-  /** Last modified date (ISO 8601) */
-  modifiedDate: string;
-  /** Author user ID */
-  author: string;
-}
-
-/**
- * The full client-side search index structure
- */
-export interface ClientSearchIndex {
-  /** Schema version for cache invalidation */
-  version: number;
-  /** When the index was last built (ISO 8601) */
-  builtAt: string;
-  /** Total number of indexed pages */
-  totalPages: number;
-  /** The indexed page entries */
-  entries: ClientSearchIndexEntry[];
-}
-
-/**
- * Search query for the search dialog
+ * Search query sent to the backend.
  */
 export interface WikiSearchQuery {
   /** The search text */
   text: string;
-  /** Search scope: 'all' or a folder path */
+  /** Search scope: 'all' or a folder path prefix */
   scope: 'all' | string;
-  /** If true, only match page titles */
-  titleOnly: boolean;
   /** Maximum results to return */
   limit: number;
   /** Offset for pagination */
@@ -57,18 +21,18 @@ export interface WikiSearchQuery {
 }
 
 /**
- * A single search result displayed in the UI
+ * A single search result displayed in the UI.
  */
 export interface WikiSearchResult {
   /** Page GUID */
   pageId: string;
   /** Page title */
   title: string;
-  /** Snippet with matching context */
+  /** Content snippet for display */
   snippet: string;
-  /** Relevance score */
+  /** Relevance score (0-1000) */
   relevanceScore: number;
-  /** Number of matches */
+  /** Reserved — always 0 for semantic search */
   matchCount: number;
   /** Hierarchical path */
   path: string;
@@ -77,18 +41,10 @@ export interface WikiSearchResult {
 }
 
 /**
- * Search result set returned by search operations
+ * Result set returned by the backend.
  */
 export interface WikiSearchResultSet {
-  /** Array of search results */
   results: WikiSearchResult[];
-  /** Total matching results */
   totalResults: number;
-  /** Search execution time in ms */
   executionTimeMs: number;
 }
-
-/**
- * Current schema version for the client search index
- */
-export const CLIENT_SEARCH_INDEX_VERSION = 1;

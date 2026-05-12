@@ -12,7 +12,6 @@ import type { WikiSearchResult } from '../../../types/search';
 const mockSetQuery = vi.fn();
 const mockLoadMore = vi.fn();
 const mockSetScope = vi.fn();
-const mockSetTitleOnly = vi.fn();
 const mockSetPageSize = vi.fn();
 
 const defaultUseSearchReturn = {
@@ -29,9 +28,6 @@ const defaultUseSearchReturn = {
   setPageSize: mockSetPageSize,
   scope: 'all',
   setScope: mockSetScope,
-  titleOnly: false,
-  setTitleOnly: mockSetTitleOnly,
-  isIndexLoaded: true,
 };
 
 let useSearchReturnValue = { ...defaultUseSearchReturn };
@@ -301,13 +297,12 @@ describe('SearchDialog', () => {
       render(<SearchDialog {...defaultProps} />);
 
       // Filters should not be visible initially
-      expect(screen.queryByLabelText('Title only')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Scope:')).not.toBeInTheDocument();
 
       // Click filter button
       fireEvent.click(screen.getByLabelText('Toggle search filters'));
 
       // Filters should now be visible
-      expect(screen.getByText('Title only')).toBeInTheDocument();
       expect(screen.getByLabelText('Scope:')).toBeInTheDocument();
     });
   });

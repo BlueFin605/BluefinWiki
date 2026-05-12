@@ -3,11 +3,11 @@
  *
  * Full-featured search dialog overlay with:
  * - Cmd/Ctrl+K keyboard shortcut to open
- * - Fuzzy search via Fuse.js (client-side)
+ * - Semantic search via the backend /search endpoint
  * - Keyboard navigation (Up/Down/Enter/Escape/Home/End)
  * - Highlighted matching terms in snippets
  * - Folder path display
- * - Search filters (scope, title-only)
+ * - Scope filter
  * - Infinite scroll / load more
  * - Recent searches
  * - WCAG 2.1 AA accessibility
@@ -65,8 +65,6 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
     setPageSize,
     scope,
     setScope,
-    titleOnly,
-    setTitleOnly,
   } = useSearch();
 
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -278,7 +276,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`ml-2 p-1.5 rounded-md transition-colors ${
-              showFilters || titleOnly || scope !== 'all'
+              showFilters || scope !== 'all'
                 ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30'
                 : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
@@ -308,15 +306,6 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
               >
                 <option value="all">All pages</option>
               </select>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={titleOnly}
-                onChange={e => setTitleOnly(e.target.checked)}
-                className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-gray-600 dark:text-gray-400">Title only</span>
             </label>
             <label className="flex items-center gap-2 ml-auto" htmlFor="search-page-size">
               <span className="text-gray-600 dark:text-gray-400">Per page:</span>
@@ -396,11 +385,6 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ isOpen, onClose, onN
               <p className="text-gray-500 dark:text-gray-400">
                 No results found for &ldquo;{query}&rdquo;
               </p>
-              {titleOnly && (
-                <p className="text-sm text-gray-400 mt-1">
-                  Try disabling &ldquo;Title only&rdquo; to search content too
-                </p>
-              )}
             </div>
           )}
 
