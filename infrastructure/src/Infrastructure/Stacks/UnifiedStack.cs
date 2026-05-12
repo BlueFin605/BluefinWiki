@@ -11,7 +11,6 @@ using Amazon.CDK.AWS.APIGateway;
 using Amazon.CDK.AWS.Logs;
 using Amazon.CDK.AWS.S3;
 using Amazon.CDK.AWS.S3.Notifications;
-using Amazon.CDK.AWS.SecretsManager;
 using Constructs;
 using System.Collections.Generic;
 using LambdaFunction = Amazon.CDK.AWS.Lambda.Function;
@@ -47,8 +46,11 @@ namespace Infrastructure.Stacks
         
         // Compute resources
         public RestApi Api { get; private set; }
-        public ISecret JwtSecret { get; private set; }
-        
+        // JWT signing secret lives in SSM SecureString at /{prefix}/{name}/jwt-secret.
+        // The deploy script bootstraps the parameter on first run; CDK references the
+        // path only.
+        public string JwtParameterName { get; private set; }
+
         // CDN resources
         public IDistribution Distribution { get; private set; }
         
@@ -502,22 +504,22 @@ namespace Infrastructure.Stacks
 
             // =============================================================================
             // GOOGLE IDENTITY PROVIDER
-            // Optional — reads credentials from Secrets Manager secret:
-            //   {prefix}/{environment}/google-oauth
+            // Optional — real credentials live in SSM SecureString at
+            //   /{prefix}/{environment}/google-oauth
             // with JSON keys: { "clientId": "...", "clientSecret": "..." }
-            // Create the secret manually, then CDK picks it up automatically.
+            // CDK creates the IdP with placeholder credentials; deploy-infra.ps1 runs
+            // `aws cognito-idp update-identity-provider` post-deploy to inject the
+            // live values. This avoids CFN SecureString version pinning and lets
+            // rotation propagate without a CDK redeploy.
             // =============================================================================
 
             if (config.EnableGoogleLogin)
             {
-                var googleSecretName = $"{config.Prefix}/{config.Name}/google-oauth";
-                var googleSecret = Secret.FromSecretNameV2(this, "GoogleOAuthSecret", googleSecretName);
-
                 var googleProvider = new UserPoolIdentityProviderGoogle(this, "GoogleProvider", new UserPoolIdentityProviderGoogleProps
                 {
                     UserPool = UserPool,
-                    ClientId = googleSecret.SecretValueFromJson("clientId").UnsafeUnwrap(),
-                    ClientSecretValue = googleSecret.SecretValueFromJson("clientSecret"),
+                    ClientId = "PLACEHOLDER_SYNCED_POST_DEPLOY",
+                    ClientSecretValue = SecretValue.UnsafePlainText("PLACEHOLDER_SYNCED_POST_DEPLOY"),
                     Scopes = new[] { "openid", "email", "profile" },
                     AttributeMapping = new AttributeMapping
                     {
@@ -736,20 +738,12 @@ namespace Infrastructure.Stacks
         
         private void CreateComputeResources(EnvironmentConfig config)
         {
-            // Create JWT secret in Secrets Manager
-            JwtSecret = new Secret(this, "JwtSecret", new SecretProps
-            {
-                SecretName = $"{config.Prefix}/{config.Name}/jwt-secret",
-                Description = "JWT signing secret for authentication",
-                GenerateSecretString = new SecretStringGenerator
-                {
-                    SecretStringTemplate = "{}",
-                    GenerateStringKey = "secret",
-                    PasswordLength = 64,
-                    ExcludePunctuation = true
-                }
-            });
-            
+            // JWT signing secret lives in SSM SecureString. The deploy script
+            // bootstraps the parameter on first deploy (generates 64 random chars,
+            // puts as SecureString). CDK only knows the path so it can wire the
+            // Lambda env var + IAM grant — the secret value is never in CFN.
+            JwtParameterName = $"/{config.Prefix}/{config.Name}/jwt-secret";
+
             // API Gateway REST API
             Api = new RestApi(this, "BlueFinWikiApi", new RestApiProps
             {
@@ -849,8 +843,26 @@ namespace Infrastructure.Stacks
             TagsTable.GrantReadWriteData(lambdaRole);
             PageTypesTable.GrantReadWriteData(lambdaRole);
 
-            // Grant Lambda access to JWT secret
-            JwtSecret.GrantRead(lambdaRole);
+            // Grant Lambda access to the JWT SSM SecureString. SecureString reads
+            // require kms:Decrypt against the AWS-managed SSM key; we scope that
+            // via the ssm service condition rather than naming the key by ARN.
+            lambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Actions = new[] { "ssm:GetParameter" },
+                Resources = new[] { $"arn:aws:ssm:{this.Region}:{this.Account}:parameter{JwtParameterName}" }
+            }));
+            lambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Actions = new[] { "kms:Decrypt" },
+                Resources = new[] { "*" },
+                Conditions = new Dictionary<string, object>
+                {
+                    ["StringEquals"] = new Dictionary<string, string>
+                    {
+                        ["kms:ViaService"] = $"ssm.{this.Region}.amazonaws.com"
+                    }
+                }
+            }));
             
             // Common Lambda environment variables
             var commonEnvVars = new Dictionary<string, string>
@@ -865,7 +877,7 @@ namespace Infrastructure.Stacks
                 { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
                 { "TAGS_TABLE", TagsTable.TableName },
                 { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
-                { "JWT_SECRET_ARN", JwtSecret.SecretArn },
+                { "JWT_PARAMETER_NAME", JwtParameterName },
                 { "ENVIRONMENT", config.Name }
             };
             
@@ -2085,11 +2097,11 @@ namespace Infrastructure.Stacks
                 ExportName = $"{config.Name}-api-id"
             });
             
-            new CfnOutput(this, "JwtSecretArn", new CfnOutputProps
+            new CfnOutput(this, "JwtParameterName", new CfnOutputProps
             {
-                Value = JwtSecret.SecretArn,
-                Description = "JWT secret ARN in Secrets Manager",
-                ExportName = $"{config.Name}-jwt-secret-arn"
+                Value = JwtParameterName,
+                Description = "JWT signing secret path in SSM Parameter Store",
+                ExportName = $"{config.Name}-jwt-parameter-name"
             });
         }
         
