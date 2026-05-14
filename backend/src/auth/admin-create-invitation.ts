@@ -11,6 +11,9 @@ const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE || 'bluefinwiki-invitati
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@bluefinwiki.local';
+const FROM_NAME = process.env.FROM_NAME;
+// RFC 5322 source: `"Display Name" <addr@host>` if both set, else plain address
+const EMAIL_SOURCE = FROM_NAME ? `${FROM_NAME} <${FROM_EMAIL}>` : FROM_EMAIL;
 
 // Initialize AWS clients
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: AWS_REGION }));
@@ -150,34 +153,29 @@ If you did not expect this invitation, you can safely ignore this email.
 BlueFinWiki - Your Family Knowledge Base
   `;
   
-  try {
-    await sesClient.send(new SendEmailCommand({
-      Source: FROM_EMAIL,
-      Destination: {
-        ToAddresses: [recipientEmail],
+  await sesClient.send(new SendEmailCommand({
+    Source: EMAIL_SOURCE,
+    Destination: {
+      ToAddresses: [recipientEmail],
+    },
+    Message: {
+      Subject: {
+        Data: '🐟 You\'re invited to join BlueFinWiki',
+        Charset: 'UTF-8',
       },
-      Message: {
-        Subject: {
-          Data: '🐟 You\'re invited to join BlueFinWiki',
+      Body: {
+        Html: {
+          Data: htmlBody,
           Charset: 'UTF-8',
         },
-        Body: {
-          Html: {
-            Data: htmlBody,
-            Charset: 'UTF-8',
-          },
-          Text: {
-            Data: textBody,
-            Charset: 'UTF-8',
-          },
+        Text: {
+          Data: textBody,
+          Charset: 'UTF-8',
         },
       },
-    }));
-    console.log(`Invitation email sent to ${recipientEmail}`);
-  } catch (error) {
-    console.error('Failed to send invitation email:', error);
-    // Don't throw - we still want to create the invitation even if email fails
-  }
+    },
+  }));
+  console.log(`Invitation email sent to ${recipientEmail}`);
 }
 
 /**
@@ -236,18 +234,28 @@ export const handler = withAuth(withRole(['Admin'], async (event: AuthenticatedE
     }));
     
     console.log(`Invitation created: ${inviteCode} for role ${validatedData.role}`);
-    
-    // Send invitation email if email provided
+
+    // Send invitation email if an address was provided. The invitation row already
+    // exists, so a SES failure here doesn't roll back — instead we surface it in
+    // the response so the admin knows to deliver the code by another channel.
+    let emailSent = false;
+    let emailError: string | undefined;
     if (validatedData.email) {
-      await sendInvitationEmail(
-        validatedData.email,
-        inviteCode,
-        validatedData.role,
-        user.displayName
-      );
+      try {
+        await sendInvitationEmail(
+          validatedData.email,
+          inviteCode,
+          validatedData.role,
+          user.displayName
+        );
+        emailSent = true;
+      } catch (sesErr) {
+        const e = sesErr as { name?: string; message?: string };
+        emailError = e.message ?? String(sesErr);
+        console.error('Failed to send invitation email:', sesErr);
+      }
     }
-    
-    // Return success response
+
     return {
       statusCode: 201,
       headers: { 'Content-Type': 'application/json' },
@@ -257,6 +265,8 @@ export const handler = withAuth(withRole(['Admin'], async (event: AuthenticatedE
         role: validatedData.role,
         expiresAt: expiryDate.toISOString(),
         registrationLink: `${FRONTEND_URL}/register?invite=${inviteCode}`,
+        emailSent,
+        emailError,
       }),
     };
   } catch (err: unknown) {

@@ -44,94 +44,71 @@ export const handler: PreTokenGenerationTriggerHandler = async (event) => {
     triggerSource: event.triggerSource,
   });
 
-  try {
-    const cognitoUserId = event.request.userAttributes.sub;
-    const email = event.request.userAttributes.email;
+  const cognitoUserId = event.request.userAttributes.sub;
+  const email = event.request.userAttributes.email;
 
-    if (!cognitoUserId) {
-      console.error('Missing Cognito user ID (sub) in user attributes');
-      // Return event without custom claims if sub is missing
-      return event;
-    }
-
-    // Load user profile from DynamoDB
-    const userProfile = await getUserProfile(cognitoUserId);
-
-    if (!userProfile) {
-      console.warn('User profile not found for cognitoUserId:', cognitoUserId);
-      // Return event with minimal claims if profile doesn't exist yet
-      // This can happen during initial registration before profile is created
-      return event;
-    }
-
-    // Check if user is suspended
-    if (userProfile.status === 'suspended') {
-      console.warn('Suspended user attempted to login:', { cognitoUserId, email });
-      // Don't add claims for suspended users
-      // Optionally, you could throw an error here to block login
-      // throw new Error('User account is suspended');
-      return event;
-    }
-
-    if (userProfile.status === 'deleted') {
-      console.warn('Deleted user attempted to login:', { cognitoUserId, email });
-      // Don't add claims for deleted users
-      return event;
-    }
-
-    // Add custom claims to the token
-    event.response = {
-      claimsOverrideDetails: {
-        claimsToAddOrOverride: {
-          'custom:role': userProfile.role,
-          'custom:displayName': userProfile.displayName,
-          'custom:status': userProfile.status,
-        },
-      },
-    };
-
-    // Optionally add preferences if they exist
-    if (userProfile.preferences && event.response.claimsOverrideDetails?.claimsToAddOrOverride) {
-      event.response.claimsOverrideDetails.claimsToAddOrOverride['custom:preferences'] = 
-        JSON.stringify(userProfile.preferences);
-    }
-
-    console.log('Custom claims added to token:', {
-      cognitoUserId,
-      role: userProfile.role,
-      displayName: userProfile.displayName,
-      status: userProfile.status,
-    });
-
-    return event;
-  } catch (error) {
-    console.error('Error in pre-token generation trigger:', error);
-    
-    // Don't throw - return event without custom claims rather than blocking authentication
-    // This ensures authentication continues even if there's a DynamoDB issue
-    return event;
+  if (!cognitoUserId) {
+    console.error('Missing Cognito user ID (sub) in user attributes');
+    throw new Error('Missing user identifier.');
   }
+
+  // Load user profile from DynamoDB. We fail closed: any error here (transient DB
+  // issue or genuinely-missing record) blocks token generation. Combined with a
+  // short token lifetime, this is the gate that enforces revocation.
+  const userProfile = await getUserProfile(cognitoUserId);
+
+  if (!userProfile) {
+    console.warn('No user profile, blocking token generation:', { cognitoUserId, email });
+    throw new Error('No account found. Please register with an invitation.');
+  }
+
+  if (userProfile.status === 'suspended') {
+    console.warn('Suspended user blocked from token generation:', { cognitoUserId, email });
+    throw new Error('Account suspended.');
+  }
+
+  if (userProfile.status === 'deleted') {
+    console.warn('Deleted user blocked from token generation:', { cognitoUserId, email });
+    throw new Error('Account not found.');
+  }
+
+  event.response = {
+    claimsOverrideDetails: {
+      claimsToAddOrOverride: {
+        'custom:role': userProfile.role,
+        'custom:displayName': userProfile.displayName,
+        'custom:status': userProfile.status,
+      },
+    },
+  };
+
+  if (userProfile.preferences && event.response.claimsOverrideDetails?.claimsToAddOrOverride) {
+    event.response.claimsOverrideDetails.claimsToAddOrOverride['custom:preferences'] =
+      JSON.stringify(userProfile.preferences);
+  }
+
+  console.log('Custom claims added to token:', {
+    cognitoUserId,
+    role: userProfile.role,
+    displayName: userProfile.displayName,
+    status: userProfile.status,
+  });
+
+  return event;
 };
 
 /**
  * Get user profile from DynamoDB
  */
 async function getUserProfile(cognitoUserId: string): Promise<UserProfileRecord | null> {
-  try {
-    const getCommand = new GetCommand({
-      TableName: USER_PROFILES_TABLE,
-      Key: { cognitoUserId },
-    });
+  const result = await dynamoClient.send(new GetCommand({
+    TableName: USER_PROFILES_TABLE,
+    Key: { cognitoUserId },
+  }));
 
-    const result = await dynamoClient.send(getCommand);
-    
-    if (!result.Item) {
-      return null;
-    }
-
-    return result.Item as UserProfileRecord;
-  } catch (error) {
-    console.error('Error fetching user profile from DynamoDB:', error);
+  if (!result.Item) {
     return null;
   }
+
+  return result.Item as UserProfileRecord;
 }
