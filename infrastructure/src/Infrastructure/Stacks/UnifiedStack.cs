@@ -1046,6 +1046,38 @@ namespace Infrastructure.Stacks
                 Description = "Semantic search over wiki pages (Bedrock + S3 Vectors)"
             });
 
+            // Dedicated minimal IAM role for the URL-fetch proxy — defense in depth
+            // against SSRF: even if an attacker steers the AI to a private IP somehow,
+            // a credential leak from this Lambda yields no AWS access beyond logs.
+            var proxyFetchUrlRole = new Role(this, "ProxyFetchUrlRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
+                }
+            });
+
+            var proxyFetchUrlFunction = new LambdaFunction(this, "ProxyFetchUrlFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-proxy-fetch-url",
+                Runtime = lambdaProps.Runtime,
+                Handler = "proxy/fetch-url.handler",
+                Code = lambdaProps.Code,
+                Role = proxyFetchUrlRole,
+                Environment = new Dictionary<string, string>
+                {
+                    { "COGNITO_USER_POOL_ID", lambdaProps.Environment["COGNITO_USER_POOL_ID"] },
+                    { "COGNITO_CLIENT_ID", lambdaProps.Environment["COGNITO_CLIENT_ID"] },
+                    { "ENVIRONMENT", config.Name }
+                },
+                Timeout = Duration.Seconds(15),
+                MemorySize = 256,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "SSRF-hardened URL fetch proxy for the AI assistant"
+            });
+
             var pagesBacklinksFunction = new LambdaFunction(this, "PagesBacklinksFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-pages-backlinks",
@@ -1649,6 +1681,14 @@ namespace Infrastructure.Stacks
             // GET /search - Semantic search over wiki pages
             var searchTopLevelResource = Api.Root.AddResource("search");
             searchTopLevelResource.AddMethod("GET", new LambdaIntegration(searchQueryFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /fetch-url - SSRF-hardened URL fetch proxy for the AI assistant
+            var fetchUrlResource = Api.Root.AddResource("fetch-url");
+            fetchUrlResource.AddMethod("POST", new LambdaIntegration(proxyFetchUrlFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer

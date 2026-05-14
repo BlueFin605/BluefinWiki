@@ -52,6 +52,7 @@ import { handler as adminUsersDelete } from './auth/admin-users-delete.js';
 import { handler as authProfileUpdate } from './auth/auth-profile-update.js';
 import { handler as authChangePassword } from './auth/auth-change-password.js';
 import { handler as searchQuery } from './search/search-query.js';
+import { handler as proxyFetchUrl } from './proxy/fetch-url.js';
 import { handler as tagsList } from './tags/tags-list.js';
 import { handler as tagsCreate } from './tags/tags-create.js';
 import { handler as pageTypesList } from './page-types/page-types-list.js';
@@ -285,6 +286,7 @@ app.delete('/page-types/:guid', wrapLambdaHandler(pageTypesDelete));
 // ============================================================================
 
 app.get('/search', wrapLambdaHandler(searchQuery));
+app.post('/fetch-url', wrapLambdaHandler(proxyFetchUrl));
 
 // ============================================================================
 // Admin: Rebuild Page Index
@@ -578,6 +580,7 @@ async function startServer() {
   console.log('   GET    /pages/:guid/backlinks');
   console.log('   GET    /pages/search');
   console.log('   GET    /search');
+  console.log('   POST   /fetch-url');
   console.log('   POST   /pages/links/resolve');
   console.log('   POST   /auth/register');
   console.log('   GET    /auth/me');
