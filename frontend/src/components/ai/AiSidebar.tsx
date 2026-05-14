@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChatMessage } from './ChatMessage';
 import { ContextMeter } from './ContextMeter';
+import { InstructionPicker } from './InstructionPicker';
 import { UnavailableState } from './UnavailableState';
 import { useAi } from './useAi';
 
@@ -11,8 +12,19 @@ interface Props {
 }
 
 export function AiSidebar({ isOpen, onClose, currentPageGuid }: Props) {
-  const { messages, usage, isThinking, availability, send, reset, applyAction, discardAction } =
-    useAi();
+  const {
+    messages,
+    usage,
+    isThinking,
+    availability,
+    send,
+    reset,
+    applyAction,
+    discardAction,
+    selectedInstructions,
+    loadedInstructions,
+    toggleInstruction,
+  } = useAi();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +87,15 @@ export function AiSidebar({ isOpen, onClose, currentPageGuid }: Props) {
       </header>
 
       {canChat && <ContextMeter usage={usage} />}
+
+      {canChat && (
+        <InstructionPicker
+          selectedGuids={selectedInstructions}
+          loadedGuids={loadedInstructions}
+          onToggle={toggleInstruction}
+          onAfterCreate={onClose}
+        />
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {availability === null ? (

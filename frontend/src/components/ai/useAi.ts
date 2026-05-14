@@ -18,6 +18,7 @@ import {
   getAiAvailability,
 } from '../../services/AiService';
 import { buildRagContext } from '../../services/AiContextLoader';
+import { getInstructionContent } from '../../services/AiInstructionsService';
 import { apiClient } from '../../config/api';
 
 export type ChatRole = 'user' | 'assistant' | 'system' | 'tool';
@@ -49,6 +50,12 @@ export function useAi() {
   const [usage, setUsage] = useState<AiUsage | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [availability, setAvailability] = useState<AiAvailability | null>(null);
+  // Instructions the user has chosen to attach to the chat. Stays across
+  // turns and across "New chat" resets — selection is a UI preference.
+  const [selectedInstructions, setSelectedInstructions] = useState<string[]>([]);
+  // Instructions already injected into the current session's history. Once
+  // here, the model has them; deselecting can't undo that. Cleared by reset.
+  const [loadedInstructions, setLoadedInstructions] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -80,14 +87,29 @@ export function useAi() {
     setIsThinking(true);
 
     try {
-      const ragContext = await buildRagContext({
-        currentPageGuid: currentPageGuid ?? null,
-        userMessage: trimmed,
-      });
+      const toInject = selectedInstructions.filter(
+        (guid) => !loadedInstructions.includes(guid),
+      );
+
+      const [ragContext, instructionsBlock] = await Promise.all([
+        buildRagContext({
+          currentPageGuid: currentPageGuid ?? null,
+          userMessage: trimmed,
+        }),
+        buildInstructionsBlock(toInject),
+      ]);
+
+      if (toInject.length > 0) {
+        setLoadedInstructions((prev) => [...prev, ...toInject]);
+      }
+
+      const combinedContext = [instructionsBlock, ragContext]
+        .filter((s) => s && s.length > 0)
+        .join('\n\n');
 
       let response: AiResponse = await sessionRef.current.send(
         trimmed,
-        ragContext || undefined,
+        combinedContext || undefined,
       );
 
       let fetchesRemaining = MAX_FETCHES_PER_TURN;
@@ -142,12 +164,19 @@ export function useAi() {
     } finally {
       setIsThinking(false);
     }
-  }, [isThinking]);
+  }, [isThinking, selectedInstructions, loadedInstructions]);
 
   const reset = useCallback(async () => {
     await sessionRef.current?.reset();
     setMessages([]);
     setUsage(null);
+    setLoadedInstructions([]);
+  }, []);
+
+  const toggleInstruction = useCallback((guid: string) => {
+    setSelectedInstructions((prev) =>
+      prev.includes(guid) ? prev.filter((g) => g !== guid) : [...prev, guid],
+    );
   }, []);
 
   const applyAction = useCallback(async (messageId: string) => {
@@ -190,7 +219,27 @@ export function useAi() {
     reset,
     applyAction,
     discardAction,
+    selectedInstructions,
+    loadedInstructions,
+    toggleInstruction,
   };
+}
+
+async function buildInstructionsBlock(guids: string[]): Promise<string> {
+  if (guids.length === 0) return '';
+  const fetched = await Promise.all(
+    guids.map((guid) =>
+      getInstructionContent(guid).catch((err) => {
+        console.warn(`Failed to load AI instruction ${guid}:`, err);
+        return null;
+      }),
+    ),
+  );
+  const sections = fetched
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .map((x) => `## ${x.title}\n${x.content.trim()}`);
+  if (sections.length === 0) return '';
+  return `[Active instructions]\nThe user has attached the following instructions to this chat. Follow them for this and subsequent turns.\n\n${sections.join('\n\n')}`;
 }
 
 interface FetchUrlResult {
