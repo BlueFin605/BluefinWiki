@@ -301,15 +301,56 @@ function appendToolResult(
   ]);
 }
 
+function normalizeProperties(
+  raw?: Record<string, unknown>
+): Record<string, { type: string; value: unknown }> | undefined {
+  if (!raw || Object.keys(raw).length === 0) return undefined;
+
+  const result: Record<string, { type: string; value: unknown }> = {};
+
+  for (const [key, value] of Object.entries(raw)) {
+    // Already wrapped correctly
+    if (typeof value === 'object' && value !== null && 'type' in value && 'value' in value) {
+      result[key] = value as { type: string; value: unknown };
+    } else {
+      // Infer type from bare value
+      let inferredType = 'string';
+      if (Array.isArray(value)) {
+        inferredType = 'tags';
+      } else if (typeof value === 'number') {
+        inferredType = 'number';
+      } else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        inferredType = 'date';
+      }
+      result[key] = { type: inferredType, value };
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 async function executeAction(action: AiAction): Promise<void> {
   switch (action.type) {
     case 'create_page': {
       if (!action.title) throw new Error('Missing title for create_page');
+      const normalizedProps = normalizeProperties(action.pageProperties);
+      const serviceValue = normalizedProps?.service?.value;
+      const inferredServiceTags = Array.isArray(serviceValue)
+        ? serviceValue.map((v) => String(v).toLowerCase())
+        : [];
+      const requestedTags = (action.tags ?? []).map((t) => t.toLowerCase());
+      const tagsMatchService =
+        inferredServiceTags.length > 0
+        && requestedTags.length === inferredServiceTags.length
+        && requestedTags.every((t) => inferredServiceTags.includes(t));
+
       await apiClient.post('/pages', {
         title: action.title,
         content: action.content ?? '',
         parentGuid: action.parentGuid ?? null,
-        tags: action.tags ?? [],
+        tags: tagsMatchService ? [] : (action.tags ?? []),
+        ...(action.pageType ? { pageType: action.pageType } : {}),
+        ...(normalizedProps ? { properties: normalizedProps } : {}),
       });
       return;
     }
@@ -319,6 +360,11 @@ async function executeAction(action: AiAction): Promise<void> {
       if (action.title !== undefined) payload.title = action.title;
       if (action.content !== undefined) payload.content = action.content;
       if (action.tags !== undefined) payload.tags = action.tags;
+      if (action.pageType !== undefined) payload.pageType = action.pageType;
+      if (action.pageProperties !== undefined) {
+        const normalizedProps = normalizeProperties(action.pageProperties);
+        if (normalizedProps) payload.properties = normalizedProps;
+      }
       if (Object.keys(payload).length === 0) throw new Error('Nothing to update');
       await apiClient.put(`/pages/${action.pageGuid}`, payload);
       return;

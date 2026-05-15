@@ -1,5 +1,7 @@
 import type { AiAction } from '../../services/AiService';
 import type { ActionStatus } from './useAi';
+import { usePageTypes } from '../../hooks/usePageTypes';
+import type { PageTypeDefinition } from '../../types/page';
 
 interface Props {
   action: AiAction;
@@ -13,6 +15,8 @@ export function ActionPreview({ action, status = 'pending', error, onApply, onDi
   const destructive = action.type === 'delete_page';
   const isFinal = status === 'applied' || status === 'discarded';
   const isBusy = status === 'applying';
+  const { data: pageTypesList = [] } = usePageTypes();
+  const pageTypesMap = Object.fromEntries(pageTypesList.map((pt) => [pt.guid, pt]));
 
   return (
     <div
@@ -26,7 +30,7 @@ export function ActionPreview({ action, status = 'pending', error, onApply, onDi
         {destructive && <span className="text-red-700 text-xs">destructive</span>}
       </div>
 
-      <ActionBody action={action} />
+      <ActionBody action={action} pageTypesMap={pageTypesMap} />
 
       {status === 'applied' && (
         <div className="mt-2 text-xs text-green-700">✓ Applied</div>
@@ -81,7 +85,7 @@ function actionLabel(type: AiAction['type']): string {
   }
 }
 
-function ActionBody({ action }: { action: AiAction }) {
+function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: Record<string, PageTypeDefinition> }) {
   switch (action.type) {
     case 'create_page':
       return (
@@ -89,6 +93,24 @@ function ActionBody({ action }: { action: AiAction }) {
           <div><span className="text-gray-500">Title:</span> {action.title}</div>
           {action.tags && action.tags.length > 0 && (
             <div><span className="text-gray-500">Tags:</span> {action.tags.join(', ')}</div>
+          )}
+          {action.pageType && (
+            <div>
+              <span className="text-gray-500">Type:</span>{' '}
+              {pageTypesMap[action.pageType]
+                ? <>{pageTypesMap[action.pageType].icon} {pageTypesMap[action.pageType].name}</>
+                : <code className="text-xs">{shortId(action.pageType)}</code>}
+            </div>
+          )}
+          {action.pageProperties && Object.keys(action.pageProperties).length > 0 && (
+            <div>
+              <span className="text-gray-500">Properties:</span>
+              <ul className="ml-2 mt-0.5 text-xs space-y-0.5">
+                {Object.entries(action.pageProperties).map(([k, v]) => (
+                  <li key={k}><span className="text-gray-500">{k}:</span> {formatAiPropertyValue(v)}</li>
+                ))}
+              </ul>
+            </div>
           )}
           {action.parentGuid && (
             <div><span className="text-gray-500">Parent:</span> <code className="text-xs">{shortId(action.parentGuid)}</code></div>
@@ -109,6 +131,24 @@ function ActionBody({ action }: { action: AiAction }) {
           )}
           {action.tags !== undefined && (
             <div><span className="text-gray-500">New tags:</span> {action.tags.join(', ') || '(none)'}</div>
+          )}
+          {action.pageType !== undefined && (
+            <div>
+              <span className="text-gray-500">Type:</span>{' '}
+              {pageTypesMap[action.pageType]
+                ? <>{pageTypesMap[action.pageType].icon} {pageTypesMap[action.pageType].name}</>
+                : <code className="text-xs">{shortId(action.pageType)}</code>}
+            </div>
+          )}
+          {action.pageProperties && Object.keys(action.pageProperties).length > 0 && (
+            <div>
+              <span className="text-gray-500">Properties:</span>
+              <ul className="ml-2 mt-0.5 text-xs space-y-0.5">
+                {Object.entries(action.pageProperties).map(([k, v]) => (
+                  <li key={k}><span className="text-gray-500">{k}:</span> {formatAiPropertyValue(v)}</li>
+                ))}
+              </ul>
+            </div>
           )}
           {action.content !== undefined && (
             <pre className="mt-1 whitespace-pre-wrap text-xs bg-white border border-gray-200 rounded p-2 max-h-40 overflow-y-auto">
@@ -163,4 +203,12 @@ const ICONS: Record<AiAction['type'], string> = {
 function shortId(id?: string | null): string {
   if (!id) return '';
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;
+}
+
+function formatAiPropertyValue(value: unknown): string {
+  if (typeof value === 'object' && value !== null && 'value' in value) {
+    const wrapped = (value as { value: unknown }).value;
+    return Array.isArray(wrapped) ? wrapped.join(', ') : String(wrapped);
+  }
+  return Array.isArray(value) ? value.join(', ') : String(value);
 }

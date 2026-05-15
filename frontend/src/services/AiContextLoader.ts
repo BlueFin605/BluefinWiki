@@ -12,12 +12,18 @@
 
 import { apiClient } from '../config/api';
 import { ClientSearchService } from './ClientSearchService';
-import type { PageContent } from '../types/page';
+import type { PageContent, PageTypeDefinition } from '../types/page';
 import type { WikiSearchResult } from '../types/search';
 
 const MAX_PAGE_CONTENT_CHARS = 1200;
 const MAX_SNIPPET_CHARS = 300;
 const SEARCH_LIMIT = 4;
+const MAX_PAGE_TYPES = 10;
+
+// UUID pattern — if the message already contains one the user has supplied the GUID directly
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+// Keywords that suggest the user wants to create or update a typed page
+const CREATE_KEYWORDS = /\b(create|add|new|make|build|set type|page type|typed)\b/i;
 
 const searchService = new ClientSearchService();
 
@@ -27,9 +33,16 @@ export interface RagContextOptions {
 }
 
 export async function buildRagContext(opts: RagContextOptions): Promise<string> {
-  const [current, hits] = await Promise.all([
+  // If the message already contains a UUID the user has the GUID — no need to load types.
+  // Only load types when the message looks like a create/update intent.
+  const messageHasGuid = UUID_PATTERN.test(opts.userMessage);
+  const needsPageTypes = !messageHasGuid && CREATE_KEYWORDS.test(opts.userMessage);
+  const includeProperties = needsPageTypes;
+
+  const [current, hits, pageTypes] = await Promise.all([
     opts.currentPageGuid ? loadCurrentPage(opts.currentPageGuid).catch(() => null) : Promise.resolve(null),
     runSearch(opts.userMessage).catch(() => [] as WikiSearchResult[]),
+    needsPageTypes ? loadPageTypes().catch(() => [] as PageTypeDefinition[]) : Promise.resolve([] as PageTypeDefinition[]),
   ]);
 
   const lines: string[] = [];
@@ -56,7 +69,31 @@ export async function buildRagContext(opts: RagContextOptions): Promise<string> 
     }
   }
 
+  if (pageTypes.length > 0) {
+    lines.push('');
+    lines.push('Available page types (use pageType GUID when creating/updating typed pages):');
+    for (const pt of pageTypes.slice(0, MAX_PAGE_TYPES)) {
+      let line = `- GUID: ${pt.guid} | Name: ${pt.name}${pt.icon ? ` ${pt.icon}` : ''}`;
+      if (includeProperties && pt.properties.length > 0) {
+        const propList = pt.properties.map(p =>
+          `${p.name}:${p.type}${p.required ? '*' : ''}`
+        ).join(', ');
+        line += ` | props: ${propList}`;
+      }
+      lines.push(line);
+    }
+  }
+
   return lines.join('\n').trim();
+}
+
+async function loadPageTypes(): Promise<PageTypeDefinition[]> {
+  try {
+    const response = await apiClient.get('/page-types');
+    return response.data.pageTypes || [];
+  } catch {
+    return [];
+  }
 }
 
 async function loadCurrentPage(guid: string): Promise<PageContent | null> {
