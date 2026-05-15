@@ -138,17 +138,38 @@ export const PageEditor: React.FC<PageEditorProps> = ({
   const metadataRef = useRef(metadata);
   metadataRef.current = metadata;
 
+  // Debounced autosave of the current edit to localStorage-backed draft store.
+  // This is what protects work-in-progress from token expiry, save errors,
+  // reloads, and unexpected unmounts — a draft is persisted within ~400ms of
+  // the last keystroke regardless of whether the save API has been called.
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleDraftSave = useCallback(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      if (pageGuid && metadataRef.current) {
+        saveDraft(pageGuid, {
+          content: contentRef.current,
+          metadata: metadataRef.current,
+        });
+      }
+    }, 400);
+  }, [pageGuid]);
+
   const handleContentChange = useCallback((newContent: string) => {
     contentRef.current = newContent;
-  }, []);
+    scheduleDraftSave();
+  }, [scheduleDraftSave]);
 
   const handleMetadataChange = useCallback((changes: Partial<PageMetadata>) => {
     setMetadata(prev => prev ? { ...prev, ...changes } : undefined);
-  }, []);
+    scheduleDraftSave();
+  }, [scheduleDraftSave]);
 
-  // Stash edits when navigating away from a page
+  // Stash edits synchronously when navigating away from a page (covers
+  // the case where the user navigates before the debounce fires).
   useEffect(() => {
     return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       if (pageGuid && metadataRef.current) {
         saveDraft(pageGuid, {
           content: contentRef.current,
@@ -175,6 +196,10 @@ export const PageEditor: React.FC<PageEditorProps> = ({
     const content = contentRef.current;
     if (!meta) return;
 
+    // Persist the draft *before* the API call so a thrown/dropped request
+    // can't lose the user's work. clearDraft only runs on confirmed success.
+    saveDraft(pageGuid, { content, metadata: meta });
+
     const updateRequest: UpdatePageRequest = {
       content,
       title: meta.title,
@@ -188,11 +213,13 @@ export const PageEditor: React.FC<PageEditorProps> = ({
       await updatePage.mutateAsync(updateRequest);
       clearDraft(pageGuid);
       setSaveError(null);
-      // Refetch to get server-confirmed data
       refetch();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
-      setSaveError(err.response?.data?.message || 'Failed to save page. Please try again.');
+      setSaveError(
+        (err.response?.data?.message || 'Failed to save page.') +
+          ' Your changes are still here — click Save again to retry.'
+      );
     }
   }, [updatePage, pageGuid, refetch]);
 
