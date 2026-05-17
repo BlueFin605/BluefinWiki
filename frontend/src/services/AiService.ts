@@ -56,10 +56,11 @@ ${destructiveLines}
 
 Rules:
 - Never invent a pageGuid. Only use GUIDs given to you in the context.
+- Do not propose create_page, update_page, delete_page, or move_page unless the user explicitly asks for a wiki change (create/save/update/edit/delete/move). If the user is only asking for information, use fetch_imdb_show/fetch_url or action.type = "none".
 - For create_page, parentGuid is optional — omit for a root page, or use the current page's GUID for a child.
 - For typed pages, set pageType to a GUID from the "Available page types" list in context. Set pageProperties as { "prop-name": { "type": "string"|"number"|"date"|"tags", "value": <value> } } where tags type value is an array of strings. Only use pageType when the user explicitly wants a typed page.
 - For fetch_url, only request URLs the user has clearly referred to or that follow logically from the conversation. Do not invent URLs. The proxy will reject non-public URLs.
-- For fetch_imdb_show, only use it for TV shows. Pass the best available title in showQuery and avoid inventing unknown IDs.
+- For fetch_imdb_show, only use it for TV shows. Pass the best available title in showQuery and avoid inventing unknown IDs. When a user asks about a show's synopsis, seasons, or rating, prefer fetch_imdb_show first before using wiki search context.
 - Don't loop fetch_url indefinitely; the system caps it at 3 fetches per user turn. After fetching, propose a concrete action or summarise.
 - If you don't have enough info to act, ask a clarifying question with action.type = "none".
 - Default to "none" when in doubt — the user reviews every proposed change.`;

@@ -24,6 +24,8 @@ const MAX_PAGE_TYPES = 10;
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 // Keywords that suggest the user wants to create or update a typed page
 const CREATE_KEYWORDS = /\b(create|add|new|make|build|set type|page type|typed)\b/i;
+// For media lookups, wiki semantic search often distracts the model from calling fetch_imdb_show first.
+const TV_LOOKUP_KEYWORDS = /\b(tv show|series|season|episodes?|imdb|synopsis|rating|cast|about\s+the\s+show)\b/i;
 
 const searchService = new ClientSearchService();
 
@@ -37,11 +39,14 @@ export async function buildRagContext(opts: RagContextOptions): Promise<string> 
   // Only load types when the message looks like a create/update intent.
   const messageHasGuid = UUID_PATTERN.test(opts.userMessage);
   const needsPageTypes = !messageHasGuid && CREATE_KEYWORDS.test(opts.userMessage);
+  const isTvLookupIntent = TV_LOOKUP_KEYWORDS.test(opts.userMessage);
   const includeProperties = needsPageTypes;
 
   const [current, hits, pageTypes] = await Promise.all([
     opts.currentPageGuid ? loadCurrentPage(opts.currentPageGuid).catch(() => null) : Promise.resolve(null),
-    runSearch(opts.userMessage).catch(() => [] as WikiSearchResult[]),
+    isTvLookupIntent
+      ? Promise.resolve([] as WikiSearchResult[])
+      : runSearch(opts.userMessage).catch(() => [] as WikiSearchResult[]),
     needsPageTypes ? loadPageTypes().catch(() => [] as PageTypeDefinition[]) : Promise.resolve([] as PageTypeDefinition[]),
   ]);
 
@@ -67,6 +72,11 @@ export async function buildRagContext(opts: RagContextOptions): Promise<string> 
         lines.push(`  Snippet: ${truncate(hit.snippet, MAX_SNIPPET_CHARS)}`);
       }
     }
+  }
+
+  if (isTvLookupIntent) {
+    lines.push('');
+    lines.push('Note: This looks like a TV-show lookup. Prefer using fetch_imdb_show before relying on wiki search context.');
   }
 
   if (pageTypes.length > 0) {
