@@ -1,11 +1,12 @@
 import { PostConfirmationTriggerHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, UpdateCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, UpdateCommand, GetCommand, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { UserProfileRecord } from '../types/index.js';
 
 // Environment variables
 const USER_PROFILES_TABLE = process.env.USER_PROFILES_TABLE || 'bluefinwiki-user-profiles-local';
 const ACTIVITY_LOG_TABLE = process.env.ACTIVITY_LOG_TABLE || 'bluefinwiki-activity-log-local';
+const INVITATIONS_TABLE = process.env.INVITATIONS_TABLE || 'bluefinwiki-invitations-local';
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
 // Initialize AWS clients
@@ -39,32 +40,125 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
       throw new Error('Missing Cognito user ID (sub) in user attributes');
     }
 
-    // Check if user profile exists
-    const userProfile = await getUserProfile(cognitoUserId);
+    let userProfile = await getUserProfile(cognitoUserId);
+
     if (!userProfile) {
-      console.error('User profile not found for cognitoUserId:', cognitoUserId);
-      // Don't fail the authentication - profile might be created later
-      return event;
+      // Federated signup path: pre-signup approved this user because a pending
+      // invitation matched their email. Now that Cognito has assigned a sub,
+      // create the profile from the invitation and mark the invite as used.
+      const invitation = await findPendingInvitationByEmail(email);
+      if (!invitation) {
+        console.error('Post-confirmation: no profile and no pending invitation', {
+          cognitoUserId,
+          email,
+        });
+        return event;
+      }
+
+      const displayName =
+        event.request.userAttributes.name ||
+        event.request.userAttributes.given_name ||
+        email.split('@')[0];
+
+      await createUserProfileFromInvitation({
+        cognitoUserId,
+        email,
+        displayName,
+        role: invitation.role,
+        inviteCode: invitation.inviteCode,
+      });
+      await markInvitationUsed(invitation.inviteCode, cognitoUserId);
+
+      console.log('Profile created from invitation:', {
+        cognitoUserId,
+        email,
+        inviteCode: invitation.inviteCode,
+        role: invitation.role,
+      });
+      userProfile = await getUserProfile(cognitoUserId);
     }
 
-    // Update user profile to active status
     await activateUserProfile(cognitoUserId);
-
-    // Log first login activity
     await logFirstLogin(cognitoUserId, email);
 
     console.log('User profile activated successfully:', { cognitoUserId, email });
-
-    // Return the event to continue the authentication flow
     return event;
   } catch (error) {
     console.error('Error in post-confirmation trigger:', error);
-    
-    // Don't throw - we don't want to block user authentication
-    // The trigger is for housekeeping, not critical path
+    // Don't throw — post-confirmation failures shouldn't block authentication
+    // outright. If the profile genuinely doesn't exist, pre-token-gen will reject
+    // the token issuance, so the auth gate still holds.
     return event;
   }
 };
+
+interface InvitationRecord {
+  inviteCode: string;
+  email?: string;
+  role: 'Admin' | 'Standard';
+  status: 'pending' | 'used' | 'revoked';
+  expiresAt: string;
+}
+
+async function findPendingInvitationByEmail(email: string): Promise<InvitationRecord | null> {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  const result = await dynamoClient.send(new ScanCommand({
+    TableName: INVITATIONS_TABLE,
+    FilterExpression: '#email = :email AND #status = :pending',
+    ExpressionAttributeNames: { '#email': 'email', '#status': 'status' },
+    ExpressionAttributeValues: { ':email': email, ':pending': 'pending' },
+  }));
+
+  const matches = (result.Items as InvitationRecord[] | undefined) ?? [];
+  const valid = matches.find((inv) => parseInt(inv.expiresAt, 10) > nowSeconds);
+  return valid ?? null;
+}
+
+async function createUserProfileFromInvitation(data: {
+  cognitoUserId: string;
+  email: string;
+  displayName: string;
+  role: 'Admin' | 'Standard';
+  inviteCode: string;
+}): Promise<void> {
+  const now = new Date().toISOString();
+
+  const profile = {
+    cognitoUserId: data.cognitoUserId,
+    email: data.email,
+    displayName: data.displayName,
+    role: data.role,
+    status: 'pending' as const,
+    inviteCode: data.inviteCode,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await dynamoClient.send(new PutCommand({
+    TableName: USER_PROFILES_TABLE,
+    Item: profile,
+    ConditionExpression: 'attribute_not_exists(cognitoUserId)',
+  }));
+}
+
+async function markInvitationUsed(inviteCode: string, cognitoUserId: string): Promise<void> {
+  const now = new Date().toISOString();
+
+  await dynamoClient.send(new UpdateCommand({
+    TableName: INVITATIONS_TABLE,
+    Key: { inviteCode },
+    UpdateExpression: 'SET #status = :status, usedBy = :usedBy, usedAt = :usedAt',
+    ConditionExpression: '#status = :pending',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':status': 'used',
+      ':pending': 'pending',
+      ':usedBy': cognitoUserId,
+      ':usedAt': now,
+    },
+  }));
+}
 
 /**
  * Get user profile from DynamoDB

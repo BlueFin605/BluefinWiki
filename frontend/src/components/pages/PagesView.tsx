@@ -22,6 +22,7 @@ import { EditorErrorBoundary } from '../common/EditorErrorBoundary';
 import { PageEditor } from './PageEditor';
 import { SearchDialog } from '../search/SearchDialog';
 import { MobileDrawer } from '../common/MobileDrawer';
+import { AiButton, AiSidebar } from '../ai';
 import { PageTreeNode } from '../../types/page';
 import { useDeletePage, useReorderPages } from '../../hooks/usePages';
 import { useQueryClient } from '@tanstack/react-query';
@@ -61,6 +62,7 @@ export const PagesView: React.FC = () => {
   const [treeWidth, setTreeWidth] = useState(() => getLayout().treeWidth);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isAiOpen, setIsAiOpen] = useState(false);
   const isDesktop = useMediaQuery(DESKTOP);
 
   // Cmd/Ctrl+K to open search
@@ -199,6 +201,7 @@ export const PagesView: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </button>
+            <AiButton onClick={() => { setIsAiOpen(true); setIsDrawerOpen(false); }} />
             <button
               onClick={handleNewRootPage}
               className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -308,6 +311,7 @@ export const PagesView: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </button>
+              <AiButton onClick={() => setIsAiOpen(true)} />
               <button
                 onClick={handleNewRootPage}
                 className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -404,6 +408,13 @@ export const PagesView: React.FC = () => {
             setActivePageGuid(pageId);
             setIsSearchOpen(false);
           }}
+        />
+
+        {/* AI Sidebar */}
+        <AiSidebar
+          isOpen={isAiOpen}
+          onClose={() => setIsAiOpen(false)}
+          currentPageGuid={activePageGuid ?? null}
         />
       </div>
   );

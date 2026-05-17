@@ -1,9 +1,9 @@
 /**
- * In-memory drafts store
+ * Drafts store — keeps unsaved page edits.
  *
- * Keeps unsaved page edits so they survive page-to-page navigation
- * within the same browser session. Drafts are lost on page refresh
- * or browser close (intentional – avoids stale conflict issues).
+ * Backed by localStorage so drafts survive reloads, save errors, and
+ * authentication blips (e.g. expired token mid-edit). An in-memory Map
+ * fronts localStorage for fast reads during a session.
  */
 
 import { PageMetadata } from '../components/editor/PagePropertiesPanel';
@@ -13,16 +13,42 @@ export interface PageDraft {
   metadata: PageMetadata;
 }
 
-const drafts = new Map<string, PageDraft>();
+const STORAGE_PREFIX = 'bluefinwiki:draft:';
+const memoryCache = new Map<string, PageDraft>();
+
+function storageKey(guid: string): string {
+  return `${STORAGE_PREFIX}${guid}`;
+}
 
 export function getDraft(guid: string): PageDraft | undefined {
-  return drafts.get(guid);
+  if (memoryCache.has(guid)) return memoryCache.get(guid);
+
+  try {
+    const raw = localStorage.getItem(storageKey(guid));
+    if (!raw) return undefined;
+    const draft = JSON.parse(raw) as PageDraft;
+    memoryCache.set(guid, draft);
+    return draft;
+  } catch {
+    return undefined;
+  }
 }
 
 export function saveDraft(guid: string, draft: PageDraft): void {
-  drafts.set(guid, draft);
+  memoryCache.set(guid, draft);
+  try {
+    localStorage.setItem(storageKey(guid), JSON.stringify(draft));
+  } catch {
+    // Quota exhausted or storage disabled — fall back to memory-only.
+    // The in-session experience still works; only reload recovery is lost.
+  }
 }
 
 export function clearDraft(guid: string): void {
-  drafts.delete(guid);
+  memoryCache.delete(guid);
+  try {
+    localStorage.removeItem(storageKey(guid));
+  } catch {
+    // ignore
+  }
 }

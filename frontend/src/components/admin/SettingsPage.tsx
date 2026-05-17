@@ -1,8 +1,19 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/', { replace: true });
+    } catch (err) {
+      console.error('Sign out failed:', err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -87,6 +98,24 @@ export const SettingsPage: React.FC = () => {
             <div className="flex-1">
               <h3 className="font-medium text-gray-900">Rebuild Page Index</h3>
               <p className="text-sm text-gray-500">Recover from a stale or corrupt DynamoDB page index by rescanning S3</p>
+            </div>
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-4 bg-white rounded-lg shadow-sm p-4 hover:bg-red-50 transition-colors text-left mt-6"
+          >
+            <div className="flex items-center justify-center w-10 h-10 bg-red-100 text-red-600 rounded-lg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-medium text-gray-900">Sign out</h3>
+              <p className="text-sm text-gray-500">End your session and return to the sign-in screen</p>
             </div>
             <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

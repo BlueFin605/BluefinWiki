@@ -5,7 +5,8 @@
  * Provides read/write access to wiki pages via Streamable HTTP protocol.
  *
  * Secured by API Gateway API key — no Cognito auth.
- * Seven tools: list_pages, get_page, search_pages, list_page_types, get_backlinks, create_page, update_page.
+ * Nine tools: list_pages, get_page, search_pages, list_page_types, get_backlinks,
+ * create_page, update_page, delete_page, move_page.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -22,6 +23,8 @@ import { listPageTypes } from './tools/list-page-types.js';
 import { getBacklinks } from './tools/get-backlinks.js';
 import { updatePage, UpdatePageInput } from './tools/update-page.js';
 import { createPage, CreatePageInput } from './tools/create-page.js';
+import { deletePage, DeletePageInput } from './tools/delete-page.js';
+import { movePage, MovePageInput } from './tools/move-page.js';
 
 const TOOLS = [
   {
@@ -167,6 +170,42 @@ const TOOLS = [
       required: ['pageGuid'],
     },
   },
+  {
+    name: 'delete_page',
+    description: 'Delete a wiki page. Pass recursive=true to also delete all child pages. Without recursive, the call fails if the page has any children. Returns the GUID and the number of pages deleted. This is destructive and irreversible — confirm with the user before calling.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pageGuid: {
+          type: 'string',
+          description: 'The GUID of the page to delete (from the "guid" field in page frontmatter)',
+        },
+        recursive: {
+          type: 'boolean',
+          description: 'If true, delete the page and all descendants. If false or omitted, the call fails when the page has children.',
+        },
+      },
+      required: ['pageGuid'],
+    },
+  },
+  {
+    name: 'move_page',
+    description: 'Move a wiki page under a new parent, or to the root level. Used for reparenting the hierarchy — to rename a page\'s title, use update_page. Circular references (moving a page under its own descendant) are rejected. Returns the moved page GUID, new parent, and timestamp.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pageGuid: {
+          type: 'string',
+          description: 'The GUID of the page to move',
+        },
+        newParentGuid: {
+          type: ['string', 'null'],
+          description: 'GUID of the new parent page, or null to move to root level',
+        },
+      },
+      required: ['pageGuid', 'newParentGuid'],
+    },
+  },
 ];
 
 /**
@@ -213,6 +252,14 @@ function createServer(): Server {
         }
         case 'update_page': {
           const result = await updatePage(args as unknown as UpdatePageInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'delete_page': {
+          const result = await deletePage(args as unknown as DeletePageInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'move_page': {
+          const result = await movePage(args as unknown as MovePageInput);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
         default:

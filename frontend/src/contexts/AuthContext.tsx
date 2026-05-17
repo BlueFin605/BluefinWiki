@@ -14,6 +14,7 @@ import {
   CognitoUserSession,
 } from 'amazon-cognito-identity-js';
 import userPool from '../config/cognitoConfig';
+import { registerAuthHooks } from '../config/api';
 import { User, AuthState, LoginCredentials } from '../types/auth';
 import { authenticateWithPassword } from '../utils/cognitoAuth';
 
@@ -300,7 +301,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const getCurrentSession = async (): Promise<CognitoUserSession | null> => {
     try {
       const cognitoUser = userPool.getCurrentUser();
-      
+
       if (!cognitoUser) {
         return null;
       }
@@ -321,6 +322,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return null;
     }
   };
+
+  // Wire the API client's 401 retry path into Cognito's session refresh.
+  // getSession() transparently refreshes expired ID/access tokens using the
+  // long-lived refresh token, so calling it from the api.ts interceptor lets
+  // us recover from a stale token mid-edit without bouncing the user.
+  useEffect(() => {
+    registerAuthHooks({
+      refreshIdToken: async () => {
+        if (DISABLE_AUTH) return localStorage.getItem('idToken');
+        try {
+          const cognitoUser = userPool.getCurrentUser();
+          if (!cognitoUser) return null;
+          const session = await new Promise<CognitoUserSession>((resolve, reject) => {
+            cognitoUser.getSession((err: Error | null, s: CognitoUserSession | null) => {
+              if (err) reject(err);
+              else if (s) resolve(s);
+              else reject(new Error('No session'));
+            });
+          });
+          if (!session.isValid()) return null;
+          const idToken = session.getIdToken().getJwtToken();
+          const accessToken = session.getAccessToken().getJwtToken();
+          localStorage.setItem('idToken', idToken);
+          localStorage.setItem('accessToken', accessToken);
+          return idToken;
+        } catch (err) {
+          console.warn('Token refresh failed:', err);
+          return null;
+        }
+      },
+      signOut: async () => {
+        await signOut();
+      },
+    });
+  }, []);
 
   const value: AuthContextType = {
     ...authState,

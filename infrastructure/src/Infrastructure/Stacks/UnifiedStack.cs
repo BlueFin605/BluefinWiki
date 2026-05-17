@@ -245,8 +245,8 @@ namespace Infrastructure.Stacks
                 SupportedIdentityProviders = supportedProviders.ToArray(),
 
                 // Token validity
-                AccessTokenValidity = Duration.Hours(1),
-                IdTokenValidity = Duration.Hours(1),
+                AccessTokenValidity = Duration.Minutes(30),
+                IdTokenValidity = Duration.Minutes(30),
                 RefreshTokenValidity = Duration.Days(30),
 
                 // Prevent user existence errors
@@ -321,8 +321,8 @@ namespace Infrastructure.Stacks
                     LogoutUrls = new[] { "bluefinwiki://logout" }
                 },
                 
-                AccessTokenValidity = Duration.Hours(1),
-                IdTokenValidity = Duration.Hours(1),
+                AccessTokenValidity = Duration.Minutes(30),
+                IdTokenValidity = Duration.Minutes(30),
                 RefreshTokenValidity = Duration.Days(30),
                 
                 PreventUserExistenceErrors = true,
@@ -432,7 +432,7 @@ namespace Infrastructure.Stacks
 
             UserProfilesTable.GrantReadWriteData(triggerRole);
             ActivityLogTable.GrantReadWriteData(triggerRole);
-            InvitationsTable.GrantReadData(triggerRole);
+            InvitationsTable.GrantReadWriteData(triggerRole);
 
             // Pre Sign-Up trigger — links federated identities to existing users
             var preSignUpFunction = new LambdaFunction(this, "PreSignUpFunction", new LambdaFunctionProps
@@ -447,14 +447,17 @@ namespace Infrastructure.Stacks
                 MemorySize = 256
             });
 
-            // Pre Sign-Up needs Cognito admin permissions to list users and link providers
+            // Pre Sign-Up needs Cognito admin permissions to list users and link providers.
+            // Use a constructed wildcard ARN rather than UserPool.UserPoolArn — pinning the
+            // token would create a CFN cycle once we attach the Lambda as a UserPool trigger
+            // below (UserPool → Lambda → Role → UserPool).
             preSignUpFunction.AddToRolePolicy(new PolicyStatement(new PolicyStatementProps
             {
                 Actions = new[] {
                     "cognito-idp:ListUsers",
                     "cognito-idp:AdminLinkProviderForUser"
                 },
-                Resources = new[] { UserPool.UserPoolArn }
+                Resources = new[] { $"arn:aws:cognito-idp:{Region}:{Account}:userpool/*" }
             }));
 
             // Post Confirmation trigger — activates user profile
@@ -496,11 +499,16 @@ namespace Infrastructure.Stacks
                 MemorySize = 256
             });
 
-            // Trigger wiring is done by the deploy script after CDK deploy,
-            // because wiring them in CloudFormation creates circular dependencies
-            // (UserPool ↔ Lambda ↔ API Gateway ↔ Cognito Authorizer ↔ UserPool).
-            // The deploy script calls `aws cognito-idp update-user-pool` to attach triggers
-            // and `aws lambda add-permission` to grant invoke permissions.
+            // Attach trigger Lambdas to the User Pool. AddTrigger also adds the
+            // lambda:InvokeFunction permission for cognito-idp.amazonaws.com automatically.
+            // The trigger Lambdas deliberately do NOT receive COGNITO_USER_POOL_ID as an env
+            // var (they read userPoolId off the event) and their role policy uses a
+            // constructed userpool/* ARN, so there is no Lambda → UserPool dependency edge —
+            // breaking what would otherwise be a UserPool ↔ Lambda CFN cycle.
+            UserPool.AddTrigger(UserPoolOperation.PRE_SIGN_UP, preSignUpFunction);
+            UserPool.AddTrigger(UserPoolOperation.POST_CONFIRMATION, postConfirmationFunction);
+            UserPool.AddTrigger(UserPoolOperation.PRE_TOKEN_GENERATION, preTokenGenFunction);
+            UserPool.AddTrigger(UserPoolOperation.CUSTOM_MESSAGE, customMessageFunction);
 
             // =============================================================================
             // GOOGLE IDENTITY PROVIDER
@@ -863,7 +871,27 @@ namespace Infrastructure.Stacks
                     }
                 }
             }));
-            
+
+            // Allow Lambdas to send transactional email (e.g. invitations) from the
+            // same verified SES domain used for Cognito's own emails. Scoped to the
+            // domain identity rather than account-wide.
+            if (!string.IsNullOrWhiteSpace(config.SesFromAddress))
+            {
+                var sesAtIndex = config.SesFromAddress.IndexOf('@');
+                if (sesAtIndex > 0 && sesAtIndex < config.SesFromAddress.Length - 1)
+                {
+                    var sesVerifiedDomain = config.SesFromAddress.Substring(sesAtIndex + 1);
+                    lambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+                    {
+                        Actions = new[] { "ses:SendEmail", "ses:SendRawEmail" },
+                        Resources = new[]
+                        {
+                            $"arn:aws:ses:{this.Region}:{this.Account}:identity/{sesVerifiedDomain}"
+                        }
+                    }));
+                }
+            }
+
             // S3 Vectors names — deterministic, reused below where the bucket/index are
             // actually created. Declared here so commonEnvVars can ship them to every
             // Lambda that uses vector search (e.g. SearchQueryFunction).
@@ -889,6 +917,15 @@ namespace Infrastructure.Stacks
                 { "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0" },
                 { "ENVIRONMENT", config.Name }
             };
+
+            if (!string.IsNullOrWhiteSpace(config.SesFromAddress))
+            {
+                commonEnvVars["FROM_EMAIL"] = config.SesFromAddress;
+                if (!string.IsNullOrWhiteSpace(config.SesFromName))
+                {
+                    commonEnvVars["FROM_NAME"] = config.SesFromName;
+                }
+            }
             
             // Lambda function base configuration
             var lambdaProps = new LambdaFunctionProps
@@ -1044,6 +1081,53 @@ namespace Infrastructure.Stacks
                 Tracing = lambdaProps.Tracing,
                 LogRetention = lambdaProps.LogRetention,
                 Description = "Semantic search over wiki pages (Bedrock + S3 Vectors)"
+            });
+
+            // Dedicated minimal IAM role for the URL-fetch proxy — defense in depth
+            // against SSRF: even if an attacker steers the AI to a private IP somehow,
+            // a credential leak from this Lambda yields no AWS access beyond logs.
+            var proxyFetchUrlRole = new Role(this, "ProxyFetchUrlRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
+                }
+            });
+
+            var proxyFetchUrlFunction = new LambdaFunction(this, "ProxyFetchUrlFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-proxy-fetch-url",
+                Runtime = lambdaProps.Runtime,
+                Handler = "proxy/fetch-url.handler",
+                Code = lambdaProps.Code,
+                Role = proxyFetchUrlRole,
+                Environment = new Dictionary<string, string>
+                {
+                    { "COGNITO_USER_POOL_ID", lambdaProps.Environment["COGNITO_USER_POOL_ID"] },
+                    { "COGNITO_CLIENT_ID", lambdaProps.Environment["COGNITO_CLIENT_ID"] },
+                    { "ENVIRONMENT", config.Name }
+                },
+                Timeout = Duration.Seconds(15),
+                MemorySize = 256,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "SSRF-hardened URL fetch proxy for the AI assistant"
+            });
+
+            var imdbShowDetailsFunction = new LambdaFunction(this, "ImdbShowDetailsFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-imdb-show-details",
+                Runtime = lambdaProps.Runtime,
+                Handler = "proxy/imdb-show-details.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = Duration.Seconds(15),
+                MemorySize = 256,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Fetch IMDb TV show synopsis, seasons, and rating"
             });
 
             var pagesBacklinksFunction = new LambdaFunction(this, "PagesBacklinksFunction", new LambdaFunctionProps
@@ -1649,6 +1733,23 @@ namespace Infrastructure.Stacks
             // GET /search - Semantic search over wiki pages
             var searchTopLevelResource = Api.Root.AddResource("search");
             searchTopLevelResource.AddMethod("GET", new LambdaIntegration(searchQueryFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /fetch-url - SSRF-hardened URL fetch proxy for the AI assistant
+            var fetchUrlResource = Api.Root.AddResource("fetch-url");
+            fetchUrlResource.AddMethod("POST", new LambdaIntegration(proxyFetchUrlFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /imdb/show-details - Fetch IMDb TV show details for AI enrichment
+            var imdbResource = Api.Root.AddResource("imdb");
+            var imdbShowDetailsResource = imdbResource.AddResource("show-details");
+            imdbShowDetailsResource.AddMethod("POST", new LambdaIntegration(imdbShowDetailsFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
