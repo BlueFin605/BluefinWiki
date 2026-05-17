@@ -22,6 +22,7 @@ const ACTION_TYPES_BASE = [
   'create_page',
   'update_page',
   'fetch_url',
+  'fetch_imdb_show',
 ] as const;
 const DESTRUCTIVE_TYPES = ['delete_page', 'move_page'] as const;
 const ACTION_TYPES = ALLOW_DESTRUCTIVE
@@ -50,6 +51,7 @@ You respond with one JSON object: { "message": "...", "action": { ... } }.
 - "create_page" — propose a new page. Provide title, content (markdown), optional parentGuid, optional tags, optional pageType (GUID), optional pageProperties
 - "update_page" — propose changes to an existing page. Provide pageGuid plus any of: title, content, tags, pageType (GUID), pageProperties
 - "fetch_url" — fetch a public web page and continue the conversation with its content. Use when the user gives you a URL, asks about an external article, or you genuinely need external information you don't have. Provide the "url" field. The system will fetch it and feed the extracted text back as your next user turn; you can then propose create_page/update_page with that material.
+- "fetch_imdb_show" — fetch IMDb TV show details. Use when the user asks about a TV show's synopsis, season count, or IMDb rating. Provide "showQuery" (title text) and optionally "imdbId" if the user provided one.
 ${destructiveLines}
 
 Rules:
@@ -57,6 +59,7 @@ Rules:
 - For create_page, parentGuid is optional — omit for a root page, or use the current page's GUID for a child.
 - For typed pages, set pageType to a GUID from the "Available page types" list in context. Set pageProperties as { "prop-name": { "type": "string"|"number"|"date"|"tags", "value": <value> } } where tags type value is an array of strings. Only use pageType when the user explicitly wants a typed page.
 - For fetch_url, only request URLs the user has clearly referred to or that follow logically from the conversation. Do not invent URLs. The proxy will reject non-public URLs.
+- For fetch_imdb_show, only use it for TV shows. Pass the best available title in showQuery and avoid inventing unknown IDs.
 - Don't loop fetch_url indefinitely; the system caps it at 3 fetches per user turn. After fetching, propose a concrete action or summarise.
 - If you don't have enough info to act, ask a clarifying question with action.type = "none".
 - Default to "none" when in doubt — the user reviews every proposed change.`;
@@ -79,6 +82,8 @@ function buildResponseSchema(actionTypes: readonly string[]) {
           newParentGuid: { type: ['string', 'null'] },
           recursive: { type: 'boolean' },
           url: { type: 'string' },
+          showQuery: { type: 'string' },
+          imdbId: { type: 'string' },
           pageType: { type: 'string' },
           pageProperties: { type: 'object' },
         },
@@ -97,7 +102,8 @@ export type AiActionType =
   | 'update_page'
   | 'delete_page'
   | 'move_page'
-  | 'fetch_url';
+  | 'fetch_url'
+  | 'fetch_imdb_show';
 
 export interface AiAction {
   type: AiActionType;
@@ -111,6 +117,8 @@ export interface AiAction {
   newParentGuid?: string | null;
   recursive?: boolean;
   url?: string;
+  showQuery?: string;
+  imdbId?: string;
 }
 
 export interface AiResponse {

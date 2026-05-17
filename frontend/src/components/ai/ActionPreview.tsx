@@ -80,6 +80,8 @@ function actionLabel(type: AiAction['type']): string {
       return 'Move page';
     case 'fetch_url':
       return 'Fetch URL';
+    case 'fetch_imdb_show':
+      return 'Fetch IMDb show';
     case 'none':
       return 'No action';
   }
@@ -177,6 +179,7 @@ function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: 
         </div>
       );
     case 'fetch_url':
+    case 'fetch_imdb_show':
     case 'none':
       return null;
   }
@@ -197,6 +200,7 @@ const ICONS: Record<AiAction['type'], string> = {
   delete_page: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a2 2 0 012-2h2a2 2 0 012 2v3',
   move_page: 'M17 8l4 4m0 0l-4 4m4-4H3',
   fetch_url: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
+  fetch_imdb_show: 'M11 17a1 1 0 102 0 1 1 0 00-2 0zm1-14a7 7 0 00-7 7c0 2.8 1.64 5.22 4.02 6.34.28.13.48.4.48.71V18a1 1 0 001 1h4a1 1 0 001-1v-.95c0-.31.2-.58.48-.71A7 7 0 0019 10a7 7 0 00-7-7z',
   none: 'M5 12h14',
 };
 

@@ -1,10 +1,10 @@
 /**
  * useAi — hook that owns the AI chat session, message log, action execution,
- * and the fetch_url agent loop.
+ * and the automatic fetch tool loop (fetch_url + IMDb lookups).
  *
  * Session is held across the hook's lifetime via useRef so it survives re-renders.
  * Messages carry an optional proposed action which the user can Apply or Discard
- * — except for fetch_url actions, which the hook executes automatically and folds
+ * — except for fetch actions, which the hook executes automatically and folds
  * the response back into a follow-up turn (capped to prevent runaway loops).
  */
 
@@ -114,38 +114,72 @@ export function useAi() {
 
       let fetchesRemaining = MAX_FETCHES_PER_TURN;
 
-      while (response.action.type === 'fetch_url' && fetchesRemaining > 0) {
-        const url = (response.action.url || '').trim();
-        if (!url) {
+      while (isAutoFetchAction(response.action.type) && fetchesRemaining > 0) {
+        if (response.action.type === 'fetch_url') {
+          const url = (response.action.url || '').trim();
+          if (!url) {
+            appendAssistant(setMessages, response.message);
+            appendSystem(setMessages, 'AI requested fetch_url but provided no URL.');
+            break;
+          }
+
+          appendAssistant(setMessages, response.message || `Fetching ${url}...`);
+
+          let fetched: FetchUrlResult;
+          try {
+            fetched = await callFetchProxy(url);
+          } catch (err) {
+            appendSystem(setMessages, `Fetch failed: ${(err as Error).message}`);
+            break;
+          }
+
+          appendToolResult(setMessages, fetched);
+          fetchesRemaining -= 1;
+
+          const followUp = formatFetchAsUserTurn(fetched, fetchesRemaining);
+          response = await sessionRef.current.send(followUp);
+          continue;
+        }
+
+        const showQuery = (response.action.showQuery || '').trim();
+        const imdbId = (response.action.imdbId || '').trim();
+        if (!showQuery && !imdbId) {
           appendAssistant(setMessages, response.message);
-          appendSystem(setMessages, 'AI requested fetch_url but provided no URL.');
+          appendSystem(setMessages, 'AI requested fetch_imdb_show but provided no showQuery or imdbId.');
           break;
         }
 
-        appendAssistant(setMessages, response.message || `Fetching ${url}…`);
+        appendAssistant(
+          setMessages,
+          response.message
+            || `Fetching IMDb details for ${showQuery || imdbId}...`,
+        );
 
-        let fetched: FetchUrlResult;
+        let fetchedImdb: ImdbShowDetailsResult;
         try {
-          fetched = await callFetchProxy(url);
+          fetchedImdb = await callImdbShowDetailsProxy({
+            query: showQuery || undefined,
+            imdbId: imdbId || undefined,
+          });
         } catch (err) {
-          appendSystem(setMessages, `Fetch failed: ${(err as Error).message}`);
+          appendSystem(setMessages, `IMDb lookup failed: ${(err as Error).message}`);
           break;
         }
 
-        appendToolResult(setMessages, fetched);
+        appendImdbToolResult(setMessages, fetchedImdb);
         fetchesRemaining -= 1;
 
-        const followUp = formatFetchAsUserTurn(fetched, fetchesRemaining);
+        const followUp = formatImdbAsUserTurn(fetchedImdb, fetchesRemaining);
         response = await sessionRef.current.send(followUp);
       }
 
-      if (response.action.type === 'fetch_url' && fetchesRemaining === 0) {
+      if (isAutoFetchAction(response.action.type) && fetchesRemaining === 0) {
         appendAssistant(setMessages, response.message);
         appendSystem(
           setMessages,
           'Reached the fetch-per-turn limit. Ask me again if you need more URLs.',
         );
-      } else if (response.action.type !== 'fetch_url') {
+      } else if (!isAutoFetchAction(response.action.type)) {
         setMessages((m) => [
           ...m,
           {
@@ -250,9 +284,28 @@ interface FetchUrlResult {
   truncated: boolean;
 }
 
+interface ImdbShowDetailsResult {
+  query?: string;
+  imdbId: string;
+  title: string;
+  synopsis: string;
+  seasons?: number;
+  rating?: number;
+  votes?: number;
+  url: string;
+}
+
 async function callFetchProxy(url: string): Promise<FetchUrlResult> {
   const response = await apiClient.post('/fetch-url', { url });
   return response.data as FetchUrlResult;
+}
+
+async function callImdbShowDetailsProxy(payload: {
+  query?: string;
+  imdbId?: string;
+}): Promise<ImdbShowDetailsResult> {
+  const response = await apiClient.post('/imdb/show-details', payload);
+  return response.data as ImdbShowDetailsResult;
 }
 
 function formatFetchAsUserTurn(fetched: FetchUrlResult, fetchesLeft: number): string {
@@ -266,6 +319,23 @@ Truncated: ${fetched.truncated}
 
 [Content]
 ${fetched.text}${limitHint}`;
+}
+
+function formatImdbAsUserTurn(fetched: ImdbShowDetailsResult, fetchesLeft: number): string {
+  const limitHint = fetchesLeft === 0
+    ? '\n\nNote: no more fetches available this turn. Use this content to propose a concrete action.'
+    : `\n\nNote: you have ${fetchesLeft} more fetches available this turn if you need them.`;
+  return `[IMDb show details]
+Title: ${fetched.title}
+IMDb ID: ${fetched.imdbId}
+URL: ${fetched.url}
+${fetched.rating !== undefined ? `Rating: ${fetched.rating}\n` : ''}${fetched.votes !== undefined ? `Votes: ${fetched.votes}\n` : ''}${fetched.seasons !== undefined ? `Seasons: ${fetched.seasons}\n` : ''}
+[Synopsis]
+${fetched.synopsis || '(No synopsis available)'}${limitHint}`;
+}
+
+function isAutoFetchAction(type: AiAction['type']): type is 'fetch_url' | 'fetch_imdb_show' {
+  return type === 'fetch_url' || type === 'fetch_imdb_show';
 }
 
 function appendAssistant(
@@ -296,6 +366,25 @@ function appendToolResult(
         url: fetched.url,
         bytes: fetched.text.length,
         truncated: fetched.truncated,
+      },
+    },
+  ]);
+}
+
+function appendImdbToolResult(
+  setter: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  fetched: ImdbShowDetailsResult,
+) {
+  setter((m) => [
+    ...m,
+    {
+      id: makeId(),
+      role: 'tool',
+      text: fetched.title || fetched.url,
+      toolMeta: {
+        url: fetched.url,
+        bytes: fetched.synopsis.length,
+        truncated: false,
       },
     },
   ]);
@@ -384,6 +473,7 @@ async function executeAction(action: AiAction): Promise<void> {
       return;
     }
     case 'fetch_url':
+    case 'fetch_imdb_show':
     case 'none':
       return;
   }

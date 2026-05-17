@@ -1115,6 +1115,21 @@ namespace Infrastructure.Stacks
                 Description = "SSRF-hardened URL fetch proxy for the AI assistant"
             });
 
+            var imdbShowDetailsFunction = new LambdaFunction(this, "ImdbShowDetailsFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-imdb-show-details",
+                Runtime = lambdaProps.Runtime,
+                Handler = "proxy/imdb-show-details.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = Duration.Seconds(15),
+                MemorySize = 256,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Fetch IMDb TV show synopsis, seasons, and rating"
+            });
+
             var pagesBacklinksFunction = new LambdaFunction(this, "PagesBacklinksFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-pages-backlinks",
@@ -1726,6 +1741,15 @@ namespace Infrastructure.Stacks
             // POST /fetch-url - SSRF-hardened URL fetch proxy for the AI assistant
             var fetchUrlResource = Api.Root.AddResource("fetch-url");
             fetchUrlResource.AddMethod("POST", new LambdaIntegration(proxyFetchUrlFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /imdb/show-details - Fetch IMDb TV show details for AI enrichment
+            var imdbResource = Api.Root.AddResource("imdb");
+            var imdbShowDetailsResource = imdbResource.AddResource("show-details");
+            imdbShowDetailsResource.AddMethod("POST", new LambdaIntegration(imdbShowDetailsFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
