@@ -29,32 +29,57 @@ export const handler = withAuth(async (
     const rawQuery = (body.query || '').trim();
     const rawImdbId = (body.imdbId || '').trim();
 
+    console.log('[imdb-show-details] request received', {
+      hasQuery: Boolean(rawQuery),
+      hasImdbId: Boolean(rawImdbId),
+      queryPreview: rawQuery.slice(0, 120),
+      imdbId: rawImdbId || undefined,
+    });
+
     if (!rawQuery && !rawImdbId) {
       return bad(400, 'Provide either "query" or "imdbId"');
     }
 
-    const match = rawImdbId
-      ? { imdbId: rawImdbId, title: undefined }
-      : await lookupShow(rawQuery);
+    const resolved = await resolveShowDetails({
+      rawQuery,
+      rawImdbId,
+    });
 
-    if (!match?.imdbId) {
+    console.log('[imdb-show-details] resolved show details', {
+      provider: resolved?.provider,
+      imdbId: resolved?.imdbId,
+      title: resolved?.title,
+      url: resolved?.url,
+    });
+
+    if (!resolved) {
       return bad(404, 'No IMDb TV show match found');
     }
 
-    const details = await fetchImdbDetails(match.imdbId);
+    const details = resolved.details;
+
+    console.log('[imdb-show-details] parsed details', {
+      provider: resolved.provider,
+      imdbId: resolved.imdbId,
+      title: details.title,
+      synopsisLength: details.synopsis?.length ?? 0,
+      seasons: details.seasons,
+      rating: details.rating,
+      votes: details.votes,
+    });
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query: rawQuery || undefined,
-        imdbId: match.imdbId,
-        title: details.title || match.title || rawQuery,
+        imdbId: resolved.imdbId,
+        title: details.title || resolved.title || rawQuery,
         synopsis: details.synopsis || '',
         seasons: details.seasons,
         rating: details.rating,
         votes: details.votes,
-        url: `https://www.imdb.com/title/${match.imdbId}/`,
+        url: resolved.url,
       }),
     };
   } catch (err) {
@@ -76,10 +101,161 @@ interface ImdbDetails {
   votes?: number;
 }
 
+interface ResolvedShowDetails {
+  imdbId: string;
+  title?: string;
+  details: ImdbDetails;
+  url: string;
+  provider: 'tvmaze' | 'imdb-scrape';
+}
+
+interface TvMazeShow {
+  id: number;
+  name?: string;
+  summary?: string;
+  url?: string;
+  rating?: { average?: number | null };
+  externals?: { imdb?: string | null };
+}
+
+async function resolveShowDetails({
+  rawQuery,
+  rawImdbId,
+}: {
+  rawQuery: string;
+  rawImdbId: string;
+}): Promise<ResolvedShowDetails | null> {
+  const tvMaze = await fetchTvMazeDetails({
+    query: rawQuery || undefined,
+    imdbId: rawImdbId || undefined,
+  });
+
+  if (tvMaze) {
+    const imdbId = tvMaze.imdbId || rawImdbId || (rawQuery ? (await lookupShow(rawQuery))?.imdbId : undefined);
+    if (imdbId) {
+      console.log('[imdb-show-details] using TVMaze provider', {
+        tvmazeUrl: tvMaze.url,
+        imdbId,
+      });
+      return {
+        imdbId,
+        title: tvMaze.title,
+        details: {
+          title: tvMaze.title,
+          synopsis: tvMaze.synopsis,
+          seasons: tvMaze.seasons,
+          rating: tvMaze.rating,
+          votes: undefined,
+        },
+        url: `https://www.imdb.com/title/${imdbId}/`,
+        provider: 'tvmaze',
+      };
+    }
+  }
+
+  const match = rawImdbId
+    ? { imdbId: rawImdbId, title: undefined }
+    : await lookupShow(rawQuery);
+
+  console.log('[imdb-show-details] fallback IMDb lookup result', {
+    imdbId: match?.imdbId,
+    title: match?.title,
+  });
+
+  if (!match?.imdbId) return null;
+
+  const details = await fetchImdbDetails(match.imdbId);
+  return {
+    imdbId: match.imdbId,
+    title: match.title,
+    details,
+    url: `https://www.imdb.com/title/${match.imdbId}/`,
+    provider: 'imdb-scrape',
+  };
+}
+
+async function fetchTvMazeDetails({
+  query,
+  imdbId,
+}: {
+  query?: string;
+  imdbId?: string;
+}): Promise<{
+  title?: string;
+  synopsis?: string;
+  seasons?: number;
+  rating?: number;
+  imdbId?: string;
+  url?: string;
+} | null> {
+  try {
+    const base = 'https://api.tvmaze.com';
+    const showUrl = imdbId
+      ? `${base}/lookup/shows?imdb=${encodeURIComponent(imdbId)}`
+      : query
+        ? `${base}/singlesearch/shows?q=${encodeURIComponent(query)}`
+        : null;
+    if (!showUrl) return null;
+
+    console.log('[imdb-show-details] querying TVMaze show API', { showUrl, query, imdbId });
+    const show = await fetchJson<TvMazeShow>(showUrl);
+
+    if (!show || typeof show.id !== 'number') {
+      console.log('[imdb-show-details] TVMaze returned no show');
+      return null;
+    }
+
+    let seasons: number | undefined;
+    const episodesUrl = `${base}/shows/${show.id}/episodes`;
+    console.log('[imdb-show-details] querying TVMaze episodes API', { episodesUrl, showId: show.id });
+    const episodes = await fetchJson<Array<{ season?: number }>>(episodesUrl);
+    if (Array.isArray(episodes) && episodes.length > 0) {
+      const seasonSet = new Set<number>();
+      for (const ep of episodes) {
+        if (typeof ep.season === 'number' && Number.isFinite(ep.season)) {
+          seasonSet.add(ep.season);
+        }
+      }
+      if (seasonSet.size > 0) {
+        seasons = Math.max(...Array.from(seasonSet.values()));
+      }
+    }
+
+    const synopsis = stripHtml(show.summary || '');
+    const rating = typeof show.rating?.average === 'number' ? show.rating.average : undefined;
+    const resolvedImdbId = (show.externals?.imdb || '').trim() || undefined;
+
+    console.log('[imdb-show-details] TVMaze extraction summary', {
+      showId: show.id,
+      title: show.name,
+      synopsisLength: synopsis.length,
+      seasons,
+      rating,
+      imdbId: resolvedImdbId,
+      url: show.url,
+    });
+
+    return {
+      title: show.name,
+      synopsis: synopsis || undefined,
+      seasons,
+      rating,
+      imdbId: resolvedImdbId,
+      url: show.url,
+    };
+  } catch (err) {
+    console.warn('[imdb-show-details] TVMaze provider failed, will fallback to IMDb scrape', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
 async function lookupShow(query: string): Promise<LookupResult | null> {
   const key = encodeURIComponent(query.toLowerCase().slice(0, 1) || 'a');
   const q = encodeURIComponent(query);
   const url = `https://v3.sg.media-imdb.com/suggestion/${key}/${q}.json`;
+  console.log('[imdb-show-details] querying IMDb suggestion API', { url, query });
 
   const payload = await fetchText(url);
   const parsed = JSON.parse(payload) as {
@@ -92,6 +268,15 @@ async function lookupShow(query: string): Promise<LookupResult | null> {
   };
 
   const candidates = parsed.d ?? [];
+  console.log('[imdb-show-details] suggestion candidates', {
+    total: candidates.length,
+    sample: candidates.slice(0, 5).map((item) => ({
+      id: item.id,
+      title: item.l,
+      type: item.q,
+      qid: item.qid,
+    })),
+  });
 
   const tv = candidates.find((item) => {
     const type = `${item.q || ''} ${item.qid || ''}`.toLowerCase();
@@ -104,9 +289,20 @@ async function lookupShow(query: string): Promise<LookupResult | null> {
 }
 
 async function fetchImdbDetails(imdbId: string): Promise<ImdbDetails> {
-  const html = await fetchText(`https://www.imdb.com/title/${encodeURIComponent(imdbId)}/`);
+  const detailsUrl = `https://www.imdb.com/title/${encodeURIComponent(imdbId)}/`;
+  console.log('[imdb-show-details] querying IMDb title page', { detailsUrl, imdbId });
+  const html = await fetchText(detailsUrl);
+  console.log('[imdb-show-details] title page fetched', {
+    imdbId,
+    htmlLength: html.length,
+  });
 
   const jsonLdBlocks = extractJsonLdBlocks(html);
+  console.log('[imdb-show-details] json-ld blocks found', {
+    imdbId,
+    count: jsonLdBlocks.length,
+    types: jsonLdBlocks.slice(0, 6).map((x) => String((x as Record<string, unknown>)['@type'] || 'unknown')),
+  });
   const bestLd = jsonLdBlocks.find((x) => {
     const t = String((x as Record<string, unknown>)['@type'] || '').toLowerCase();
     return t.includes('tvseries') || t.includes('tv series');
@@ -122,6 +318,17 @@ async function fetchImdbDetails(imdbId: string): Promise<ImdbDetails> {
   const seasons = asNumber(bestLd?.numberOfSeasons)
     ?? parseNumberFromRegex(html, /"numberOfSeasons"\s*:\s*([0-9]+)/i)
     ?? parseNumberFromRegex(html, /(\d+)\s+season(?:s)?\b/i);
+
+  console.log('[imdb-show-details] extraction summary', {
+    imdbId,
+    usedJsonLd: Boolean(bestLd),
+    titleFound: Boolean(title),
+    synopsisFound: Boolean(synopsis),
+    synopsisPreview: synopsis?.slice(0, 200),
+    rating,
+    votes,
+    seasons,
+  });
 
   return {
     title: title?.replace(/\s*-\s*IMDb\s*$/i, '').trim(),
@@ -208,14 +415,19 @@ function fetchText(url: string): Promise<string> {
 
     const req = httpsRequest(options, (res) => {
       const status = res.statusCode || 0;
+      console.log('[imdb-show-details] upstream response', {
+        url,
+        status,
+        contentType: res.headers['content-type'],
+      });
       if (status >= 300 && status < 400) {
         res.resume();
-        reject(new Error(`IMDb redirected (${status})`));
+        reject(new Error(`Upstream redirected (${status})`));
         return;
       }
       if (status >= 400) {
         res.resume();
-        reject(new Error(`IMDb returned ${status}`));
+        reject(new Error(`Upstream returned ${status}`));
         return;
       }
 
@@ -247,6 +459,23 @@ function fetchText(url: string): Promise<string> {
     req.on('error', reject);
     req.end();
   });
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const payload = await fetchText(url);
+  return JSON.parse(payload) as T;
+}
+
+function stripHtml(value: string): string {
+  if (!value) return '';
+  return value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function bad(statusCode: number, message: string): APIGatewayProxyResult {
