@@ -30,6 +30,8 @@ cdk.out/
 *.d.ts
 !jest.config.js
 !.eslintrc.cjs
+!**/vite-env.d.ts
+!**/prompt-api.d.ts
 
 # Environment variables
 .env

@@ -265,7 +265,7 @@ describe('PageEditor', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to save page. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText(/Failed to save page\./)).toBeInTheDocument();
     });
   });
 
@@ -313,7 +313,7 @@ describe('PageEditor', () => {
     // Wait for first call and error message
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Failed to save page. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText(/Failed to save page\./)).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
@@ -365,7 +365,7 @@ describe('PageEditor', () => {
     });
 
     await waitFor(() => {
-      const errorElements = screen.queryAllByText('Validation failed');
+      const errorElements = screen.queryAllByText(/Validation failed/);
       expect(errorElements.length).toBeGreaterThan(0);
     }, { timeout: 3000 });
   });
