@@ -218,11 +218,11 @@ export class AiSession {
     this.creating = LanguageModel.create({
       initialPrompts: [{ role: 'system', content: SYSTEM_PROMPT }],
       outputLanguage: 'en',
-    }).then((s) => {
+    }).then((s: LanguageModelSession) => {
       this.session = s;
       this.creating = null;
       return s;
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       this.creating = null;
       throw err;
     });
