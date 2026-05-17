@@ -113,8 +113,20 @@ export function useAi() {
       );
 
       let fetchesRemaining = MAX_FETCHES_PER_TURN;
+      const seenAutoFetches = new Set<string>();
 
       while (isAutoFetchAction(response.action.type) && fetchesRemaining > 0) {
+        const fetchKey = makeAutoFetchKey(response.action);
+        if (seenAutoFetches.has(fetchKey)) {
+          appendSystem(
+            setMessages,
+            'AI repeated the same fetch request. I will answer from the data already retrieved.',
+          );
+          response = await sessionRef.current.send(buildNoRefetchNudge(response.action.type));
+          continue;
+        }
+        seenAutoFetches.add(fetchKey);
+
         if (response.action.type === 'fetch_url') {
           const url = (response.action.url || '').trim();
           if (!url) {
@@ -336,6 +348,21 @@ ${fetched.synopsis || '(No synopsis available)'}${limitHint}`;
 
 function isAutoFetchAction(type: AiAction['type']): type is 'fetch_url' | 'fetch_imdb_show' {
   return type === 'fetch_url' || type === 'fetch_imdb_show';
+}
+
+function makeAutoFetchKey(action: AiAction): string {
+  if (action.type === 'fetch_url') {
+    return `fetch_url:${(action.url || '').trim().toLowerCase()}`;
+  }
+  if (action.type === 'fetch_imdb_show') {
+    return `fetch_imdb_show:${(action.imdbId || '').trim().toLowerCase()}:${(action.showQuery || '').trim().toLowerCase()}`;
+  }
+  return action.type;
+}
+
+function buildNoRefetchNudge(type: 'fetch_url' | 'fetch_imdb_show'): string {
+  const tool = type === 'fetch_imdb_show' ? 'IMDb show details' : 'URL fetch';
+  return `[System guidance]\nYou already received ${tool} results in this conversation.\nDo not request the same fetch again.\nNow answer the user directly with action.type = "none" unless they explicitly ask for another lookup.`;
 }
 
 function appendAssistant(
