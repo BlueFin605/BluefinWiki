@@ -245,8 +245,8 @@ namespace Infrastructure.Stacks
                 SupportedIdentityProviders = supportedProviders.ToArray(),
 
                 // Token validity
-                AccessTokenValidity = Duration.Minutes(5),
-                IdTokenValidity = Duration.Minutes(5),
+                AccessTokenValidity = Duration.Minutes(30),
+                IdTokenValidity = Duration.Minutes(30),
                 RefreshTokenValidity = Duration.Days(30),
 
                 // Prevent user existence errors
@@ -321,8 +321,8 @@ namespace Infrastructure.Stacks
                     LogoutUrls = new[] { "bluefinwiki://logout" }
                 },
                 
-                AccessTokenValidity = Duration.Minutes(5),
-                IdTokenValidity = Duration.Minutes(5),
+                AccessTokenValidity = Duration.Minutes(30),
+                IdTokenValidity = Duration.Minutes(30),
                 RefreshTokenValidity = Duration.Days(30),
                 
                 PreventUserExistenceErrors = true,
