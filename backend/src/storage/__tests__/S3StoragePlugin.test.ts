@@ -197,6 +197,42 @@ Content here`;
 
       expect(page.tags).toEqual([]);
     });
+
+    it('should infer parent from S3 path when frontmatter has no parent fields', async () => {
+      const parentGuid = uuidv4();
+      const guid = uuidv4();
+      const markdownContent = `---
+title: "Child Page"
+guid: "${guid}"
+status: "published"
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Child content`;
+
+      s3Mock.on(HeadObjectCommand).callsFake((input: any) => {
+        const key = input.Key as string;
+        if (key === `${guid}/${guid}.md`) {
+          throw { name: 'NotFound' };
+        }
+        if (key === `${parentGuid}/${guid}/${guid}.md`) {
+          return { ContentLength: 100, LastModified: new Date() };
+        }
+        throw { name: 'NotFound' };
+      });
+
+      s3Mock.on(ListObjectsV2Command).resolves({
+        Contents: [{ Key: `${parentGuid}/${guid}/${guid}.md` }],
+      });
+
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(markdownContent)() as any });
+
+      const page = await plugin.loadPage(guid);
+      expect(page.folderId).toBe(parentGuid);
+    });
   });
 
   describe('deletePage', () => {

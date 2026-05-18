@@ -15,6 +15,8 @@
  *   exposed to anonymous users and prompt-injection mitigations matter.
  */
 
+import { aiDebug, aiElapsedMs, aiNow } from '../utils/aiDebug';
+
 const ALLOW_DESTRUCTIVE = import.meta.env.VITE_AI_ALLOW_DESTRUCTIVE !== 'false';
 
 const ACTION_TYPES_BASE = [
@@ -152,6 +154,11 @@ export class AiSession {
   private creating: Promise<LanguageModelSession> | null = null;
 
   async send(userMessage: string, ragContext?: string): Promise<AiResponse> {
+    const startedAt = aiNow();
+    aiDebug('service:send-start', {
+      messageChars: userMessage.length,
+      contextChars: ragContext?.length ?? 0,
+    });
     const session = await this.ensureSession();
 
     const combined = ragContext
@@ -160,8 +167,21 @@ export class AiSession {
 
     let raw: string;
     try {
-      raw = await session.prompt(combined, { responseConstraint: RESPONSE_SCHEMA });
+      const promptStart = aiNow();
+      const promptOptions: LanguageModelPromptOptions & { outputLanguage: 'en' } = {
+        responseConstraint: RESPONSE_SCHEMA,
+        outputLanguage: 'en',
+      };
+      raw = await session.prompt(combined, promptOptions);
+      aiDebug('service:prompt-success', {
+        elapsedMs: aiElapsedMs(promptStart),
+        rawChars: raw.length,
+      });
     } catch (err) {
+      aiDebug('service:prompt-failed', {
+        elapsedMs: aiElapsedMs(startedAt),
+        error: (err as Error).message,
+      });
       throw new Error(`Prompt API call failed: ${(err as Error).message}`);
     }
 
@@ -173,8 +193,15 @@ export class AiSession {
       if (!ALLOW_DESTRUCTIVE && (parsed.action.type === 'delete_page' || parsed.action.type === 'move_page')) {
         parsed.action = { type: 'none' };
       }
+      aiDebug('service:send-complete', {
+        elapsedMs: aiElapsedMs(startedAt),
+        actionType: parsed.action.type,
+      });
       return parsed;
     } catch {
+      aiDebug('service:send-nonjson-fallback', {
+        elapsedMs: aiElapsedMs(startedAt),
+      });
       return { message: raw, action: { type: 'none' } };
     }
   }
@@ -210,20 +237,35 @@ export class AiSession {
   }
 
   private async ensureSession(): Promise<LanguageModelSession> {
-    if (this.session) return this.session;
-    if (this.creating) return this.creating;
+    if (this.session) {
+      aiDebug('service:session-reuse');
+      return this.session;
+    }
+    if (this.creating) {
+      aiDebug('service:session-await-existing-create');
+      return this.creating;
+    }
     if (typeof LanguageModel === 'undefined') {
       throw new Error('LanguageModel is not available in this browser');
     }
+    const createStart = aiNow();
+    aiDebug('service:session-create-start');
     this.creating = LanguageModel.create({
       initialPrompts: [{ role: 'system', content: SYSTEM_PROMPT }],
       outputLanguage: 'en',
     }).then((s: LanguageModelSession) => {
       this.session = s;
       this.creating = null;
+      aiDebug('service:session-create-success', {
+        elapsedMs: aiElapsedMs(createStart),
+      });
       return s;
     }).catch((err: unknown) => {
       this.creating = null;
+      aiDebug('service:session-create-failed', {
+        elapsedMs: aiElapsedMs(createStart),
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     });
     return this.creating;

@@ -4,7 +4,7 @@ import { withAuth, AuthenticatedEvent } from '../middleware/auth.js';
 
 /**
  * Lambda: imdb-show-details
- * POST /imdb/show-details
+ * GET /imdb/show-details
  *
  * Looks up an IMDb TV show and returns key details for AI follow-up turns:
  * synopsis, number of seasons, and rating.
@@ -17,17 +17,9 @@ export const handler = withAuth(async (
   event: AuthenticatedEvent,
 ): Promise<APIGatewayProxyResult> => {
   try {
-    if (!event.body) return bad(400, 'Request body is required');
-
-    let body: { query?: string; imdbId?: string };
-    try {
-      body = JSON.parse(event.body);
-    } catch {
-      return bad(400, 'Body must be valid JSON');
-    }
-
-    const rawQuery = (body.query || '').trim();
-    const rawImdbId = (body.imdbId || '').trim();
+    const params = event.queryStringParameters ?? {};
+    const rawQuery = (params['query'] || '').trim();
+    const rawImdbId = (params['imdbId'] || '').trim();
 
     console.log('[imdb-show-details] request received', {
       hasQuery: Boolean(rawQuery),

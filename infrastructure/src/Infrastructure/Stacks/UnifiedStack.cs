@@ -1746,10 +1746,10 @@ namespace Infrastructure.Stacks
                 Authorizer = cognitoAuthorizer
             });
 
-            // POST /imdb/show-details - Fetch IMDb TV show details for AI enrichment
+            // GET /imdb/show-details - Fetch IMDb TV show details for AI enrichment
             var imdbResource = Api.Root.AddResource("imdb");
             var imdbShowDetailsResource = imdbResource.AddResource("show-details");
-            imdbShowDetailsResource.AddMethod("POST", new LambdaIntegration(imdbShowDetailsFunction), new MethodOptions
+            imdbShowDetailsResource.AddMethod("GET", new LambdaIntegration(imdbShowDetailsFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer

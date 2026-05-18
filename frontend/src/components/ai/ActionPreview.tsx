@@ -2,6 +2,11 @@ import type { AiAction } from '../../services/AiService';
 import type { ActionStatus } from './useAi';
 import { usePageTypes } from '../../hooks/usePageTypes';
 import type { PageTypeDefinition } from '../../types/page';
+import { useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
+import { apiClient } from '../../config/api';
+import type { PageContent } from '../../types/page';
+import { Link } from 'react-router-dom';
 
 interface Props {
   action: AiAction;
@@ -17,6 +22,28 @@ export function ActionPreview({ action, status = 'pending', error, onApply, onDi
   const isBusy = status === 'applying';
   const { data: pageTypesList = [] } = usePageTypes();
   const pageTypesMap = Object.fromEntries(pageTypesList.map((pt) => [pt.guid, pt]));
+  const referencedPageGuids = useMemo(() => collectReferencedPageGuids(action), [action]);
+
+  const pageNameQueries = useQueries({
+    queries: referencedPageGuids.map((guid) => ({
+      queryKey: ['pages', 'detail', guid],
+      queryFn: async (): Promise<PageContent> => {
+        const response = await apiClient.get<PageContent>(`/pages/${guid}`);
+        return response.data;
+      },
+      staleTime: 300_000,
+      retry: false,
+      enabled: !!guid,
+    })),
+  });
+
+  const pageNamesByGuid = useMemo(() => {
+    return referencedPageGuids.reduce<Record<string, string>>((acc, guid, index) => {
+      const title = pageNameQueries[index]?.data?.title;
+      if (title) acc[guid] = title;
+      return acc;
+    }, {});
+  }, [referencedPageGuids, pageNameQueries]);
 
   return (
     <div
@@ -30,7 +57,7 @@ export function ActionPreview({ action, status = 'pending', error, onApply, onDi
         {destructive && <span className="text-red-700 text-xs">destructive</span>}
       </div>
 
-      <ActionBody action={action} pageTypesMap={pageTypesMap} />
+      <ActionBody action={action} pageTypesMap={pageTypesMap} pageNamesByGuid={pageNamesByGuid} />
 
       {status === 'applied' && (
         <div className="mt-2 text-xs text-green-700">✓ Applied</div>
@@ -87,7 +114,15 @@ function actionLabel(type: AiAction['type']): string {
   }
 }
 
-function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: Record<string, PageTypeDefinition> }) {
+function ActionBody({
+  action,
+  pageTypesMap,
+  pageNamesByGuid,
+}: {
+  action: AiAction;
+  pageTypesMap: Record<string, PageTypeDefinition>;
+  pageNamesByGuid: Record<string, string>;
+}) {
   switch (action.type) {
     case 'create_page':
       return (
@@ -99,9 +134,7 @@ function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: 
           {action.pageType && (
             <div>
               <span className="text-gray-500">Type:</span>{' '}
-              {pageTypesMap[action.pageType]
-                ? <>{pageTypesMap[action.pageType].icon} {pageTypesMap[action.pageType].name}</>
-                : <code className="text-xs">{shortId(action.pageType)}</code>}
+              {formatPageType(action.pageType, pageTypesMap)}
             </div>
           )}
           {action.pageProperties && Object.keys(action.pageProperties).length > 0 && (
@@ -115,7 +148,7 @@ function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: 
             </div>
           )}
           {action.parentGuid && (
-            <div><span className="text-gray-500">Parent:</span> <code className="text-xs">{shortId(action.parentGuid)}</code></div>
+            <div><span className="text-gray-500">Parent:</span> {formatPageRef(action.parentGuid, pageNamesByGuid)}</div>
           )}
           {action.content && (
             <pre className="mt-1 whitespace-pre-wrap text-xs bg-white border border-gray-200 rounded p-2 max-h-40 overflow-y-auto">
@@ -127,7 +160,7 @@ function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: 
     case 'update_page':
       return (
         <div className="space-y-1 text-gray-700">
-          <div><span className="text-gray-500">Page:</span> <code className="text-xs">{shortId(action.pageGuid)}</code></div>
+          <div><span className="text-gray-500">Page:</span> {formatPageRef(action.pageGuid, pageNamesByGuid)}</div>
           {action.title !== undefined && (
             <div><span className="text-gray-500">New title:</span> {action.title}</div>
           )}
@@ -137,9 +170,7 @@ function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: 
           {action.pageType !== undefined && (
             <div>
               <span className="text-gray-500">Type:</span>{' '}
-              {pageTypesMap[action.pageType]
-                ? <>{pageTypesMap[action.pageType].icon} {pageTypesMap[action.pageType].name}</>
-                : <code className="text-xs">{shortId(action.pageType)}</code>}
+              {formatPageType(action.pageType, pageTypesMap)}
             </div>
           )}
           {action.pageProperties && Object.keys(action.pageProperties).length > 0 && (
@@ -162,19 +193,19 @@ function ActionBody({ action, pageTypesMap }: { action: AiAction; pageTypesMap: 
     case 'delete_page':
       return (
         <div className="text-gray-700">
-          <span className="text-gray-500">Page:</span> <code className="text-xs">{shortId(action.pageGuid)}</code>
+          <span className="text-gray-500">Page:</span> {formatPageRef(action.pageGuid, pageNamesByGuid)}
           {action.recursive && <div className="text-red-700 text-xs mt-1">⚠ Will also delete all child pages</div>}
         </div>
       );
     case 'move_page':
       return (
         <div className="space-y-1 text-gray-700">
-          <div><span className="text-gray-500">Page:</span> <code className="text-xs">{shortId(action.pageGuid)}</code></div>
+          <div><span className="text-gray-500">Page:</span> {formatPageRef(action.pageGuid, pageNamesByGuid)}</div>
           <div>
             <span className="text-gray-500">New parent:</span>{' '}
             {action.newParentGuid === null || action.newParentGuid === undefined
               ? <em>root</em>
-              : <code className="text-xs">{shortId(action.newParentGuid)}</code>}
+              : formatPageRef(action.newParentGuid, pageNamesByGuid)}
           </div>
         </div>
       );
@@ -207,6 +238,49 @@ const ICONS: Record<AiAction['type'], string> = {
 function shortId(id?: string | null): string {
   if (!id) return '';
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;
+}
+
+function collectReferencedPageGuids(action: AiAction): string[] {
+  const guids = new Set<string>();
+
+  if (action.type === 'create_page' && action.parentGuid) {
+    guids.add(action.parentGuid);
+  }
+
+  if (action.type === 'update_page' || action.type === 'delete_page' || action.type === 'move_page') {
+    if (action.pageGuid) guids.add(action.pageGuid);
+  }
+
+  if (action.type === 'move_page' && action.newParentGuid) {
+    guids.add(action.newParentGuid);
+  }
+
+  return Array.from(guids);
+}
+
+function formatPageRef(guid: string | undefined, pageNamesByGuid: Record<string, string>) {
+  if (!guid) return <code className="text-xs">unknown</code>;
+  const title = pageNamesByGuid[guid];
+  if (!title) return <code className="text-xs">{shortId(guid)}</code>;
+  return (
+    <>
+      <Link to={`/pages/${guid}`} className="text-blue-700 hover:text-blue-800 hover:underline">
+        {title}
+      </Link>
+      <span className="text-xs text-gray-500"> ({shortId(guid)})</span>
+    </>
+  );
+}
+
+function formatPageType(pageTypeGuid: string, pageTypesMap: Record<string, PageTypeDefinition>) {
+  const type = pageTypesMap[pageTypeGuid];
+  if (!type) return <code className="text-xs">{shortId(pageTypeGuid)}</code>;
+  return (
+    <>
+      {type.icon} {type.name}
+      <span className="text-xs text-gray-500"> ({shortId(pageTypeGuid)})</span>
+    </>
+  );
 }
 
 function formatAiPropertyValue(value: unknown): string {

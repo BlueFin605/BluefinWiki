@@ -17,6 +17,7 @@ interface EditorPaneProps {
   initialContent?: string;
   onContentChange?: (content: string) => void;
   onSave?: () => Promise<void> | void;
+  onRefresh?: () => Promise<void> | void;
   editable?: boolean;
   showPreview?: boolean;
   metadata?: PageMetadata;
@@ -36,6 +37,10 @@ interface EditorPaneProps {
   forceEditMode?: boolean;
   /** Called after forceEditMode has been consumed */
   onEditModeConsumed?: () => void;
+  /** Increment to force editor to reload latest server state */
+  reloadVersion?: number;
+  /** True while parent is actively reloading from server */
+  isRefreshing?: boolean;
 }
 
 type ViewMode = 'split' | 'edit' | 'preview';
@@ -53,6 +58,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   initialContent = '',
   onContentChange,
   onSave,
+  onRefresh,
   editable = true,
   showPreview = true,
   metadata,
@@ -69,6 +75,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   onPageClick,
   forceEditMode,
   onEditModeConsumed,
+  reloadVersion = 0,
+  isRefreshing = false,
 }) => {
   const isMobile = useMediaQuery(MOBILE);
 
@@ -139,6 +147,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       savedMetadataRef.current = serverMetadata ?? metadata;
     }
   }, [initialContent, serverMetadata, metadata, content]);
+
+  // Explicit reload trigger from parent: always reset editor to latest server content.
+  useEffect(() => {
+    setContent(initialContent);
+    savedContentRef.current = initialContent;
+    savedMetadataRef.current = serverMetadata ?? metadata;
+    onContentChange?.(initialContent);
+  }, [reloadVersion, initialContent, serverMetadata, metadata, onContentChange]);
 
   // Handle toolbar action
   const handleToolbarAction = useCallback((action: ToolbarAction) => {
@@ -381,14 +397,28 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         <div className="flex items-center gap-3">
           {renderSaveStatus()}
           {editable && (
-            <button
-              onClick={handleManualSave}
-              disabled={!isDirty || isSaving}
-              className="px-4 py-1.5 bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-              title={isDirty ? 'Save changes (Ctrl+S)' : 'No changes to save'}
-            >
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
+            <>
+              <button
+                onClick={onRefresh}
+                disabled={isRefreshing || isSaving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-sm hover:bg-gray-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                title="Reload this page from server"
+                aria-label="Refresh page from server"
+              >
+                <svg className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M5.64 18.36A9 9 0 102.05 9m19.9 6a9 9 0 01-3.59 3.36" />
+                </svg>
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
+              <button
+                onClick={handleManualSave}
+                disabled={!isDirty || isSaving || isRefreshing}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                title={isDirty ? 'Save changes (Ctrl+S)' : 'No changes to save'}
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">
