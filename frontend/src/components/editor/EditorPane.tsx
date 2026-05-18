@@ -148,6 +148,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   }, [initialContent, serverMetadata, metadata, content]);
 
+  // Initialize metadata baseline when server metadata arrives without a
+  // content change (for example, pages with empty content).
+  useEffect(() => {
+    if (!savedMetadataRef.current && serverMetadata) {
+      savedMetadataRef.current = serverMetadata;
+    }
+  }, [serverMetadata]);
+
   // Explicit reload trigger from parent: always reset editor to latest server content.
   useEffect(() => {
     setContent(initialContent);
