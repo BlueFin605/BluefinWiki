@@ -573,7 +573,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       const normalizedFolderId =
         (effectiveFolderId === null || effectiveFolderId === 'null')
           ? ''
-          : (effectiveFolderId === pageGuid ? inferredParentGuid : effectiveFolderId);
+          : (!effectiveFolderId
+              ? inferredParentGuid
+              : (effectiveFolderId === pageGuid ? inferredParentGuid : effectiveFolderId));
 
       // Parse sortOrder if present
       const rawSortOrder = Array.isArray(metadata.sortOrder) ? metadata.sortOrder[0] : metadata.sortOrder;

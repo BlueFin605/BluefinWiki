@@ -57,6 +57,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
 }) => {
   const { user } = useAuth();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   // Fetch page details
   const { data: pageData, isLoading, error, refetch } = usePageDetail(pageGuid);
@@ -223,6 +225,29 @@ export const PageEditor: React.FC<PageEditorProps> = ({
     }
   }, [updatePage, pageGuid, refetch]);
 
+  const handleRefreshFromServer = useCallback(async () => {
+    setIsRefreshing(true);
+    setSaveError(null);
+
+    try {
+      clearDraft(pageGuid);
+      const result = await refetch();
+      const refreshed = result.data;
+
+      if (refreshed && refreshed.guid === pageGuid) {
+        const refreshedMetadata = metadataFromPage(refreshed);
+        contentRef.current = refreshed.content ?? '';
+        setMetadata(refreshedMetadata);
+      }
+
+      setReloadVersion((prev) => prev + 1);
+    } catch {
+      setSaveError('Failed to refresh page from server.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [pageGuid, refetch]);
+
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -355,6 +380,7 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             draftContent={draft && draft.content !== serverContent ? draft.content : undefined}
             onContentChange={handleContentChange}
             onSave={handleSave}
+            onRefresh={handleRefreshFromServer}
             editable={true}
             showPreview={true}
             metadata={metadata}
@@ -362,6 +388,8 @@ export const PageEditor: React.FC<PageEditorProps> = ({
             onMetadataChange={handleMetadataChange}
             pageGuid={pageGuid}
             isSaving={updatePage.isPending}
+            isRefreshing={isRefreshing}
+            reloadVersion={reloadVersion}
             currentUserId={user?.userId}
             currentUserRole={user?.role}
             pageAuthorId={metadata?.createdBy}

@@ -431,5 +431,61 @@ describe('EditorPane', () => {
       await switchToSplit();
       expect(screen.getByTestId('markdown-editor')).toBeInTheDocument();
     });
+
+    it('should enable save for metadata-only changes after late server metadata load', () => {
+      const baseMetadata = {
+        title: 'Test Page',
+        tags: ['test'],
+        status: 'draft' as const,
+        properties: {
+          rating: { type: 'number' as const, value: 1 },
+        },
+        createdBy: 'user1',
+        modifiedBy: 'user1',
+        createdAt: '2024-01-01T00:00:00Z',
+        modifiedAt: '2024-01-01T00:00:00Z',
+      };
+
+      const { rerender } = renderWithRouter(
+        <EditorPane
+          initialContent=""
+          metadata={undefined}
+          serverMetadata={undefined}
+        />,
+      );
+
+      rerender(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+          <BrowserRouter>
+            <EditorPane
+              initialContent=""
+              metadata={baseMetadata}
+              serverMetadata={baseMetadata}
+            />
+          </BrowserRouter>
+        </QueryClientProvider>,
+      );
+
+      const changedMetadata = {
+        ...baseMetadata,
+        properties: {
+          rating: { type: 'number' as const, value: 2 },
+        },
+      };
+
+      rerender(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+          <BrowserRouter>
+            <EditorPane
+              initialContent=""
+              metadata={changedMetadata}
+              serverMetadata={baseMetadata}
+            />
+          </BrowserRouter>
+        </QueryClientProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
   });
 });
