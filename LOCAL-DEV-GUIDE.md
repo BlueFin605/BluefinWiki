@@ -185,7 +185,6 @@ npm run test:all
 ### Modified Files
 - `backend/package.json` - Added dev script and Express dependencies
 - `aspire/BlueFinWiki.AppHost/Program.cs` - Added backend and frontend services
-- `package.json` - Fixed Windows-compatible postinstall script
 
 ## Troubleshooting
 
@@ -194,7 +193,7 @@ npm run test:all
 Check the Aspire Dashboard logs for each service. Common issues:
 - Port already in use (change ports in Program.cs)
 - Docker not running (start Docker Desktop)
-- npm dependencies missing (run `npm install` in root)
+- npm dependencies missing (run `npm install` in `frontend/` and `backend/`)
 
 ### Backend API Errors
 

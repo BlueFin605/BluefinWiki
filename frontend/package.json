@@ -1,8 +1,12 @@
 {
-  "name": "@bluefinwiki/frontend",
+  "name": "bluefinwiki-frontend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -11,7 +15,8 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:all": "vitest run --passWithNoTests",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "cd .. && husky frontend/.husky"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.709.0",
@@ -49,7 +54,9 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "husky": "^9.0.11",
     "jsdom": "^29.0.2",
+    "lint-staged": "^16.4.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^4.2.3",
     "typescript": "^6.0.3",
@@ -57,5 +64,9 @@
     "vite": "^8.0.8",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "glob": "^13.0.6",
+    "source-map": "^0.7.4"
   }
 }

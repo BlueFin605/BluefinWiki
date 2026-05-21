@@ -20,8 +20,8 @@ Your AWS CLI must be configured with credentials that have permissions for S3, D
 CDK deploys pre-built code, so you must build both the backend and frontend first.
 
 ```bash
-# Install dependencies (from repo root)
-npm install
+# Install dependencies
+cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 
 # Build the backend (Lambda handlers)

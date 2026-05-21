@@ -1,8 +1,12 @@
 {
-  "name": "@bluefinwiki/backend",
+  "name": "bluefinwiki-backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "node --enable-source-maps --watch --import tsx src/local-server.ts",
     "dev:debug": "node --enable-source-maps --inspect --watch --import tsx src/local-server.ts",
@@ -11,7 +15,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run --no-isolate",
     "test:watch": "vitest",
-    "test:integration": "node --max-old-space-size=8192 ../node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
+    "test:integration": "node --max-old-space-size=8192 ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
     "test:all": "vitest run && vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
@@ -50,5 +54,9 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "glob": "^13.0.6",
+    "source-map": "^0.7.4"
   }
 }
