@@ -1,17 +1,9 @@
-import { TestBed } from '@angular/core/testing';
+import { render, screen } from '@testing-library/angular';
 import { App } from './app';
 
 describe('App', () => {
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [App],
-    }).compileComponents();
-  });
-
-  it('renders the toolbar title', () => {
-    const fixture = TestBed.createComponent(App);
-    fixture.detectChanges();
-    const toolbar: HTMLElement = fixture.nativeElement.querySelector('mat-toolbar');
-    expect(toolbar.textContent).toContain('BlueFinWiki');
+  it('renders the toolbar title', async () => {
+    await render(App);
+    expect(screen.getByText('BlueFinWiki')).toBeInTheDocument();
   });
 });
