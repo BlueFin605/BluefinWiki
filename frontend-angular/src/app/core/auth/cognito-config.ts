@@ -4,8 +4,9 @@ import { environment } from '../../../environments/environment';
 
 /**
  * Lazily-constructed `CognitoUserPool`, exposed via Angular DI so tests can
- * substitute a fake and so the config-validation throw fires on first
- * injection rather than at module load.
+ * substitute a fake via `{ provide: USER_POOL, useValue: ... }`. As a side
+ * benefit, the config-validation throw fires on first injection rather than
+ * at module load.
  */
 export function createUserPool(): CognitoUserPool {
   const { userPoolId, clientId, endpoint } = environment.cognito;

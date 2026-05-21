@@ -15,6 +15,7 @@ function fakeUserPool(overrides: Partial<CognitoUserPool> = {}): CognitoUserPool
 describe('Auth', () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     TestBed.resetTestingModule();
   });
 
@@ -59,6 +60,46 @@ describe('Auth', () => {
       await Promise.resolve();
       expect(svc.isAuthenticated()).toBe(false);
       expect(svc.user()).toBeNull();
+    });
+  });
+
+  describe('error handling', () => {
+    beforeEach(() => {
+      environment.disableAuth = false;
+    });
+
+    it('catches errors during bootstrap and writes _error', async () => {
+      TestBed.configureTestingModule({
+        providers: [
+          {
+            provide: USER_POOL,
+            useValue: fakeUserPool({
+              getCurrentUser: () => {
+                throw new Error('synthetic SDK failure');
+              },
+            }),
+          },
+        ],
+      });
+      const svc = TestBed.inject(Auth);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(svc.isAuthenticated()).toBe(false);
+      expect(svc.error()).toBe('synthetic SDK failure');
+    });
+
+    it('completeOAuthCallback writes _error and rethrows on state mismatch', async () => {
+      TestBed.configureTestingModule({
+        providers: [{ provide: USER_POOL, useValue: fakeUserPool() }],
+      });
+      const svc = TestBed.inject(Auth);
+      await Promise.resolve();
+      await Promise.resolve();
+      await expect(svc.completeOAuthCallback('code', 'wrong')).rejects.toMatchObject({
+        name: 'OAuthError',
+        code: 'state_mismatch',
+      });
+      expect(svc.error()).toContain('State mismatch');
     });
   });
 });

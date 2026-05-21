@@ -2,7 +2,11 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { CognitoUser, type CognitoUserSession } from 'amazon-cognito-identity-js';
 import { environment } from '../../../environments/environment';
 import { USER_POOL } from './cognito-config';
-import { handleOAuthCallback, redirectToLogin, type AuthResult } from './cognito-oauth';
+import {
+  handleOAuthCallback,
+  redirectToLogin as cognitoRedirectToLogin,
+  type AuthResult,
+} from './cognito-oauth';
 import type { AuthUser, Role } from './auth.types';
 
 const ID_TOKEN_KEY = 'idToken';
@@ -61,19 +65,32 @@ export class Auth {
 
       this.persistSession(session);
       this._user.set(extractUser(session, cognitoUser));
+    } catch (err: unknown) {
+      this.clearTokens();
+      this._user.set(null);
+      this._error.set(errorMessage(err));
     } finally {
       this._isLoading.set(false);
     }
   }
 
   async completeOAuthCallback(code: string, state: string): Promise<void> {
-    const result: AuthResult = await handleOAuthCallback(code, state);
-    const username = readUsernameFromPayload(result.session);
-    const cognitoUser = new CognitoUser({ Username: username, Pool: this.userPool });
-    cognitoUser.setSignInUserSession(result.session);
-    this.persistSession(result.session);
-    this._user.set(extractUser(result.session, cognitoUser));
-    this._isLoading.set(false);
+    try {
+      const result: AuthResult = await handleOAuthCallback(code, state);
+      const username = readUsernameFromPayload(result.session);
+      const cognitoUser = new CognitoUser({ Username: username, Pool: this.userPool });
+      cognitoUser.setSignInUserSession(result.session);
+      this.persistSession(result.session);
+      this._user.set(extractUser(result.session, cognitoUser));
+      this._error.set(null);
+    } catch (err: unknown) {
+      this.clearTokens();
+      this._user.set(null);
+      this._error.set(errorMessage(err));
+      throw err;
+    } finally {
+      this._isLoading.set(false);
+    }
   }
 
   signOut(): void {
@@ -84,7 +101,7 @@ export class Auth {
   }
 
   redirectToLogin(): void {
-    redirectToLogin();
+    cognitoRedirectToLogin();
   }
 
   getIdToken(): string | null {
@@ -132,6 +149,8 @@ function extractUser(session: CognitoUserSession, cognitoUser: CognitoUser): Aut
     userId: asString(payload['sub'], ''),
     email: asString(payload['email'], cognitoUser.getUsername()),
     displayName: asString(payload['name'] ?? payload['cognito:username'], cognitoUser.getUsername()),
+    // TODO: validate role at runtime — see "Auth role runtime validation"
+    // in the Phase 1 plan's spec-to-plan adjustments.
     role: (payload['custom:role'] as Role) ?? 'Standard',
     emailVerified: Boolean(payload['email_verified']),
   };
@@ -149,4 +168,9 @@ function readUsernameFromPayload(session: CognitoUserSession): string {
 
 function asString(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return 'Unknown error';
 }

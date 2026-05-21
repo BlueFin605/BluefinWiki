@@ -18,6 +18,7 @@
 - The spec says roles come from `cognito:groups`; the current code uses `payload['custom:role']`. The port matches current behaviour exactly.
 - Local dev bypass (`VITE_DISABLE_AUTH=true` → `NG_APP_DISABLE_AUTH=true`) is preserved with the same semantics: dev-mode-only, signs in a mock Admin user.
 - Auth error API and DI shape (decided after the Task 10 code review): `cognito-oauth.ts` throws a typed `OAuthError` (codes: `state_mismatch`, `config_missing`, `token_exchange_failed`, `missing_tokens`) instead of `new Error(...)`, and `userPool` moves behind a tree-shakeable `USER_POOL` `InjectionToken` instead of a module-load singleton. Both land in Task 11 — the first place that needs them — to avoid refactoring after Tasks 12-13 consume the API.
+- Auth role runtime validation (deferred from the Task 11 code review): `extractUser` in `auth.ts` casts `payload['custom:role'] as Role` without checking that the JWT value is actually `'Admin'` or `'Standard'`. A Cognito-misconfigured role string (`'admin'` lowercase, `'Manager'`, etc.) would be typed as `Role` but break any exhaustive `switch (user.role)`. The fix is deferred until the first consumer of `user.role` exists — picking a fallback policy (silently coerce to `'Standard'` vs. surface an error vs. log + coerce) is premature without a real consumer driving the choice. A `TODO` is in place at the `extractUser` call site pointing at this bullet.
 
 ---
 
@@ -1537,6 +1538,16 @@ Expected: 5 `cognito-oauth` tests pass (with typed-error assertions) and 3 `auth
 git -C BluefinWiki add frontend-angular/
 git -C BluefinWiki commit -m "feat(angular): Auth service + typed OAuthError + USER_POOL DI"
 ```
+
+### Post-review polish
+
+The Task 11 code review found three Important issues that landed in a follow-up commit on the same branch (after the Step 8 commit, before Task 12 starts):
+
+- **`_error` signal was exposed but never written.** `bootstrap` now has a `catch (err: unknown)` that calls `clearTokens()`, sets `_user` to `null`, and writes `errorMessage(err)` to `_error`. `completeOAuthCallback` got the same `try/catch/finally` shape — sets `_error` and rethrows so the callback route component can navigate to an error state. Adds two tests: a synthetic-SDK-failure bootstrap test (provider injects a fake `USER_POOL` whose `getCurrentUser` throws), and a state-mismatch callback test that asserts both `_error` is written and the `OAuthError` is rethrown.
+- **`redirectToLogin` import shadowed the method.** `auth.ts` renames the import to `cognitoRedirectToLogin` so the method body reads `cognitoRedirectToLogin()` instead of relying on lexical scope to disambiguate from `this.redirectToLogin`. No behaviour change; eliminates the "added `this.` to fix it, hit infinite recursion" footgun.
+- **`cognito-config.ts` JSDoc overstated the throw-timing change.** Rewritten to lead with the testability win (overridable token via `{ provide: USER_POOL, useValue: ... }`) and treat the lazy-throw timing as the secondary side benefit it actually is.
+
+The fourth review finding (role runtime validation) is captured in the spec-to-plan adjustments above and as a `TODO` in `auth.ts`; it stays deferred.
 
 ---
 
