@@ -17,6 +17,7 @@
 - The spec mentions PKCE; the current React code does **not** use PKCE (only OAuth state for CSRF). The port matches current behaviour exactly. Adding PKCE is a separate follow-up, not this work.
 - The spec says roles come from `cognito:groups`; the current code uses `payload['custom:role']`. The port matches current behaviour exactly.
 - Local dev bypass (`VITE_DISABLE_AUTH=true` → `NG_APP_DISABLE_AUTH=true`) is preserved with the same semantics: dev-mode-only, signs in a mock Admin user.
+- Auth error API and DI shape (decided after the Task 10 code review): `cognito-oauth.ts` throws a typed `OAuthError` (codes: `state_mismatch`, `config_missing`, `token_exchange_failed`, `missing_tokens`) instead of `new Error(...)`, and `userPool` moves behind a tree-shakeable `USER_POOL` `InjectionToken` instead of a module-load singleton. Both land in Task 11 — the first place that needs them — to avoid refactoring after Tasks 12-13 consume the API.
 
 ---
 
@@ -1179,17 +1180,114 @@ git -C BluefinWiki commit -m "feat(angular): port Cognito Hosted UI auth-code he
 
 ---
 
-## Task 11: Auth with signals
+## Task 11: Auth service (+ typed `OAuthError`, +`USER_POOL` DI)
 
 **Files:**
+- Modify: `BluefinWiki/frontend-angular/src/app/core/auth/cognito-oauth.ts`
+- Modify: `BluefinWiki/frontend-angular/src/app/core/auth/cognito-oauth.spec.ts`
+- Modify: `BluefinWiki/frontend-angular/src/app/core/auth/cognito-config.ts`
 - Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.types.ts`
 - Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.ts`
 - Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.spec.ts`
 
-- [ ] **Step 1: Auth types**
+**Why this task does more than the title suggests:** The Task 10 code review (commit `a8e68d5`) flagged two architectural choices that should land before the Auth service ossifies its public API. (1) Replace the four string-throws in `cognito-oauth.ts` with a typed `OAuthError` union so callers can branch on `.code` instead of substring-matching `.message`. (2) Move `userPool` from a module-load singleton to a tree-shakeable `USER_POOL` `InjectionToken` so tests can substitute fakes without module mocking — and so the config-validation throw fires on first injection, not at module load. Both refactors fold into Task 11 because the Auth service is their only consumer; reshaping the API once is cheaper than refactoring after Tasks 12-13.
+
+- [ ] **Step 1: Add `OAuthError` to `cognito-oauth.ts`**
+
+Add this immediately after the imports in `cognito-oauth.ts`, before the `AuthResult` interface:
 
 ```ts
-// auth.types.ts
+export type OAuthErrorCode =
+  | 'config_missing'
+  | 'state_mismatch'
+  | 'token_exchange_failed'
+  | 'missing_tokens';
+
+export class OAuthError extends Error {
+  constructor(
+    readonly code: OAuthErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'OAuthError';
+  }
+}
+```
+
+Then replace each `throw new Error(...)` site with `throw new OAuthError(code, message)`, keeping the existing messages verbatim:
+
+| Throw site | Code | Existing message (unchanged) |
+| --- | --- | --- |
+| `buildAuthorizeUrl` (Hosted UI config check) | `'config_missing'` | `'Cognito Hosted UI is not configured. Set NG_APP_COGNITO_DOMAIN, NG_APP_COGNITO_CLIENT_ID, NG_APP_COGNITO_REDIRECT_URI.'` |
+| `handleOAuthCallback` (state check) | `'state_mismatch'` | `'State mismatch. Possible CSRF attack.'` |
+| `handleOAuthCallback` (config check) | `'config_missing'` | `'Cognito Hosted UI is not configured.'` |
+| `handleOAuthCallback` (network check) | `'token_exchange_failed'` | `'Failed to exchange authorization code for tokens'` |
+| `handleOAuthCallback` (missing tokens check) | `'missing_tokens'` | `'Missing tokens in OAuth response'` |
+
+Messages stay identical to preserve log/debug parity with the React port; only the type changes.
+
+- [ ] **Step 2: Tighten the assertions in `cognito-oauth.spec.ts`**
+
+Import `OAuthError` alongside the existing imports. For each of the four `handleOAuthCallback` rejection tests, replace `.rejects.toThrow('substring')` with a structural assertion that also pins the `code`:
+
+```ts
+await expect(handleOAuthCallback('code', 'bbbbbbbb')).rejects.toMatchObject({
+  name: 'OAuthError',
+  code: 'state_mismatch',
+  message: expect.stringContaining('State mismatch'),
+});
+```
+
+Apply the same pattern with codes `token_exchange_failed` and `missing_tokens` for the corresponding tests. The `buildAuthorizeUrl` test does not exercise any throw path and stays unchanged.
+
+- [ ] **Step 3: Replace the `userPool` singleton with a `USER_POOL` token in `cognito-config.ts`**
+
+Overwrite `cognito-config.ts` with:
+
+```ts
+import { InjectionToken } from '@angular/core';
+import { CognitoUserPool } from 'amazon-cognito-identity-js';
+import { environment } from '../../../environments/environment';
+
+/**
+ * Lazily-constructed `CognitoUserPool`, exposed via Angular DI so tests can
+ * substitute a fake and so the config-validation throw fires on first
+ * injection rather than at module load.
+ */
+export function createUserPool(): CognitoUserPool {
+  const { userPoolId, clientId, endpoint } = environment.cognito;
+
+  const missing: string[] = [];
+  if (!userPoolId) missing.push('cognito.userPoolId');
+  if (!clientId) missing.push('cognito.clientId');
+
+  if (missing.length > 0 && !environment.disableAuth) {
+    throw new Error(
+      `Missing required Cognito config: ${missing.join(', ')}. ` +
+        'Set NG_APP_COGNITO_* env vars at build time, or set NG_APP_DISABLE_AUTH=true for local dev.',
+    );
+  }
+
+  return new CognitoUserPool({
+    UserPoolId: userPoolId || 'us-east-1_placeholder',
+    ClientId: clientId || 'placeholder',
+    endpoint: endpoint || undefined,
+  });
+}
+
+export const USER_POOL = new InjectionToken<CognitoUserPool>('USER_POOL', {
+  providedIn: 'root',
+  factory: createUserPool,
+});
+```
+
+Tree-shakeable token with `providedIn: 'root'` + `factory` means no provider wiring in `app.config.ts` and no module-load throw — the factory runs the first time `USER_POOL` is injected. Tests override via `{ provide: USER_POOL, useValue: fakeUserPool }`. The previous `export const userPool` is gone; the only consumer is the Auth service in Step 5.
+
+- [ ] **Step 4: Auth types**
+
+Create `auth.types.ts`:
+
+```ts
 export type Role = 'Admin' | 'Standard';
 
 export interface AuthUser {
@@ -1201,14 +1299,15 @@ export interface AuthUser {
 }
 ```
 
-- [ ] **Step 2: Auth**
+- [ ] **Step 5: Auth**
+
+Create `auth.ts`:
 
 ```ts
-// auth.ts
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { CognitoUser, CognitoUserSession } from 'amazon-cognito-identity-js';
+import { CognitoUser, type CognitoUserPool, type CognitoUserSession } from 'amazon-cognito-identity-js';
 import { environment } from '../../../environments/environment';
-import { userPool } from './cognito-config';
+import { USER_POOL } from './cognito-config';
 import { handleOAuthCallback, redirectToLogin, type AuthResult } from './cognito-oauth';
 import type { AuthUser, Role } from './auth.types';
 
@@ -1225,6 +1324,8 @@ const MOCK_ADMIN: AuthUser = {
 
 @Injectable({ providedIn: 'root' })
 export class Auth {
+  private readonly userPool = inject(USER_POOL);
+
   private readonly _user = signal<AuthUser | null>(null);
   private readonly _isLoading = signal(true);
   private readonly _error = signal<string | null>(null);
@@ -1251,7 +1352,7 @@ export class Auth {
         return;
       }
 
-      const cognitoUser = userPool.getCurrentUser();
+      const cognitoUser = this.userPool.getCurrentUser();
       if (!cognitoUser) {
         this._user.set(null);
         return;
@@ -1274,7 +1375,7 @@ export class Auth {
   async completeOAuthCallback(code: string, state: string): Promise<void> {
     const result: AuthResult = await handleOAuthCallback(code, state);
     const username = readUsernameFromPayload(result.session);
-    const cognitoUser = new CognitoUser({ Username: username, Pool: userPool });
+    const cognitoUser = new CognitoUser({ Username: username, Pool: this.userPool });
     cognitoUser.setSignInUserSession(result.session);
     this.persistSession(result.session);
     this._user.set(extractUser(result.session, cognitoUser));
@@ -1282,7 +1383,7 @@ export class Auth {
   }
 
   signOut(): void {
-    const cognitoUser = userPool.getCurrentUser();
+    const cognitoUser = this.userPool.getCurrentUser();
     if (cognitoUser) cognitoUser.signOut();
     this.clearTokens();
     this._user.set(null);
@@ -1298,7 +1399,7 @@ export class Auth {
 
   async refreshIdToken(): Promise<string | null> {
     if (environment.disableAuth) return localStorage.getItem(ID_TOKEN_KEY);
-    const cognitoUser = userPool.getCurrentUser();
+    const cognitoUser = this.userPool.getCurrentUser();
     if (!cognitoUser) return null;
     try {
       const session = await getSessionAsync(cognitoUser);
@@ -1348,14 +1449,24 @@ function readUsernameFromPayload(session: CognitoUserSession): string {
 }
 ```
 
-- [ ] **Step 3: Tests**
+- [ ] **Step 6: Tests**
+
+Create `auth.spec.ts`:
 
 ```ts
-// auth.spec.ts
 import { TestBed } from '@angular/core/testing';
+import type { CognitoUserPool } from 'amazon-cognito-identity-js';
 
 import { environment } from '../../../environments/environment';
 import { Auth } from './auth';
+import { USER_POOL } from './cognito-config';
+
+function fakeUserPool(overrides: Partial<CognitoUserPool> = {}): CognitoUserPool {
+  return {
+    getCurrentUser: () => null,
+    ...overrides,
+  } as unknown as CognitoUserPool;
+}
 
 describe('Auth', () => {
   beforeEach(() => {
@@ -1366,10 +1477,13 @@ describe('Auth', () => {
   describe('with NG_APP_DISABLE_AUTH=true', () => {
     beforeEach(() => {
       environment.disableAuth = true;
+      TestBed.configureTestingModule({
+        providers: [{ provide: USER_POOL, useValue: fakeUserPool() }],
+      });
     });
 
     it('signs in a mock Admin on bootstrap', async () => {
-      const svc = TestBed.runInInjectionContext(() => TestBed.inject(Auth));
+      const svc = TestBed.inject(Auth);
       // bootstrap is async; flush microtasks
       await Promise.resolve();
       await Promise.resolve();
@@ -1391,6 +1505,9 @@ describe('Auth', () => {
   describe('with real auth (disableAuth=false) and no stored token', () => {
     beforeEach(() => {
       environment.disableAuth = false;
+      TestBed.configureTestingModule({
+        providers: [{ provide: USER_POOL, useValue: fakeUserPool() }],
+      });
     });
 
     it('is unauthenticated on bootstrap', async () => {
@@ -1404,19 +1521,21 @@ describe('Auth', () => {
 });
 ```
 
-- [ ] **Step 4: Run**
+- [ ] **Step 7: Run**
 
 ```bash
-npm test -- auth
+npm test -- cognito-oauth auth
+npm run lint
+npm run build
 ```
 
-Expected: 3 tests pass.
+Expected: 5 `cognito-oauth` tests pass (with typed-error assertions) and 3 `auth` tests pass; lint and build clean.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git -C BluefinWiki add frontend-angular/
-git -C BluefinWiki commit -m "feat(angular): Auth with signals + DISABLE_AUTH dev bypass"
+git -C BluefinWiki commit -m "feat(angular): Auth service + typed OAuthError + USER_POOL DI"
 ```
 
 ---
