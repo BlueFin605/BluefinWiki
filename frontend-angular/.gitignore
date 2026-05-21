@@ -39,6 +39,9 @@ testem.log
 /typings
 __screenshots__/
 
+# Jest
+/test-results
+
 # System files
 .DS_Store
 Thumbs.db
