@@ -13,16 +13,12 @@ export default defineConfig({
       AWS_REGION: 'us-east-1',
       LOCALSTACK_ENDPOINT: 'http://localhost:4566',
     },
-    pool: 'threads', // Use threads instead of forks for better memory efficiency
-    poolOptions: {
-      threads: {
-        singleThread: false,
-        maxThreads: 2,
-        minThreads: 1,
-      },
-    },
+    pool: 'threads',
+    singleThread: false,
+    maxThreads: 2,
+    minThreads: 1,
     maxConcurrency: 2,
-    isolate: true, // Isolate tests to prevent memory leaks
+    isolate: true,
     clearMocks: true, // Clear mocks after each test
     mockReset: true, // Reset mocks after each test
     restoreMocks: true, // Restore mocks after each test

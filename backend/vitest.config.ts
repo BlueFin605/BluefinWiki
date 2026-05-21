@@ -13,13 +13,9 @@ export default defineConfig({
     ],
     testTimeout: 10000,
     hookTimeout: 10000,
-    pool: 'forks', // Use forks for better isolation
-    poolOptions: {
-      forks: {
-        singleFork: true, // Run in single fork
-        isolate: false, // Don't isolate to save memory
-        execArgv: ['--max-old-space-size=8192'], // Increase memory limit
-      },
-    },
+    pool: 'forks',
+    singleFork: true,
+    isolate: false,
+    execArgv: ['--max-old-space-size=8192'],
   },
 });

@@ -438,7 +438,7 @@ namespace Infrastructure.Stacks
             var preSignUpFunction = new LambdaFunction(this, "PreSignUpFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-auth-pre-signup",
-                Runtime = Runtime.NODEJS_20_X,
+                Runtime = Runtime.NODEJS_22_X,
                 Handler = "auth/auth-pre-signup.handler",
                 Code = Code.FromAsset("../backend/dist"),
                 Role = triggerRole,
@@ -464,7 +464,7 @@ namespace Infrastructure.Stacks
             var postConfirmationFunction = new LambdaFunction(this, "PostConfirmationFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-auth-post-confirmation",
-                Runtime = Runtime.NODEJS_20_X,
+                Runtime = Runtime.NODEJS_22_X,
                 Handler = "auth/auth-post-confirmation.handler",
                 Code = Code.FromAsset("../backend/dist"),
                 Role = triggerRole,
@@ -477,7 +477,7 @@ namespace Infrastructure.Stacks
             var preTokenGenFunction = new LambdaFunction(this, "PreTokenGenFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-auth-pre-token-gen",
-                Runtime = Runtime.NODEJS_20_X,
+                Runtime = Runtime.NODEJS_22_X,
                 Handler = "auth/auth-pre-token-generation.handler",
                 Code = Code.FromAsset("../backend/dist"),
                 Role = triggerRole,
@@ -490,7 +490,7 @@ namespace Infrastructure.Stacks
             var customMessageFunction = new LambdaFunction(this, "CustomMessageFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-auth-custom-message",
-                Runtime = Runtime.NODEJS_20_X,
+                Runtime = Runtime.NODEJS_22_X,
                 Handler = "auth/auth-custom-message.handler",
                 Code = Code.FromAsset("../backend/dist"),
                 Role = triggerRole,
@@ -930,7 +930,7 @@ namespace Infrastructure.Stacks
             // Lambda function base configuration
             var lambdaProps = new LambdaFunctionProps
             {
-                Runtime = Runtime.NODEJS_20_X,
+                Runtime = Runtime.NODEJS_22_X,
                 Code = Code.FromAsset("../backend/dist"), // Build output directory
                 Role = lambdaRole,
                 Environment = commonEnvVars,
@@ -2099,7 +2099,7 @@ namespace Infrastructure.Stacks
             var mcpFunction = new LambdaFunction(this, "McpFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-mcp",
-                Runtime = Runtime.NODEJS_20_X,
+                Runtime = Runtime.NODEJS_22_X,
                 Handler = "mcp/mcp-handler.handler",
                 Code = Code.FromAsset("../backend/dist"),
                 Role = mcpLambdaRole,
@@ -2204,7 +2204,7 @@ namespace Infrastructure.Stacks
             var vectorIndexBuilderFunction = new LambdaFunction(this, "VectorIndexBuilderFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-vector-index-builder",
-                Runtime = Runtime.NODEJS_20_X,
+                Runtime = Runtime.NODEJS_22_X,
                 Handler = "search/vector-index-builder.handler",
                 Code = Code.FromAsset("../backend/dist"),
                 Role = vectorIndexBuilderRole,

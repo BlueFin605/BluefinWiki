@@ -18,6 +18,10 @@ export default tseslint.config(
       // has many catch (err) blocks that intentionally swallow the error after
       // checking error.code via the outer typed assertion. Match the v7 default.
       '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
+      // @eslint/js v10 added preserve-caught-error to recommended; existing
+      // throw-from-catch sites here rethrow shaped error objects rather than
+      // wrap+chain. Disable; revisit as a focused PR (add `{ cause: err }`).
+      'preserve-caught-error': 'off',
     },
   },
   {
