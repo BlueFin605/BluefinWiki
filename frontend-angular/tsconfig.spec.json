@@ -5,6 +5,7 @@
     "types": ["jest", "node"],
     "esModuleInterop": true,
     "module": "esnext",
+    "moduleResolution": "bundler",
     "target": "es2022"
   },
   "files": ["setup-jest.ts"],
