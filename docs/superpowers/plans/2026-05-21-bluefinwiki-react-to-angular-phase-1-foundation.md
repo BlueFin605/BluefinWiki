@@ -119,14 +119,14 @@ Expected: build succeeds.
 
 - [ ] **Step 3: Sanity-check Material renders**
 
-Edit `src/app/app.component.html` (clear the welcome scaffold) so it contains exactly:
+Edit `src/app/app.html` (clear the welcome scaffold) so it contains exactly:
 
 ```html
 <mat-toolbar color="primary">BlueFinWiki</mat-toolbar>
 <button mat-flat-button color="primary" style="margin: 1rem;">Material works</button>
 ```
 
-Edit `src/app/app.component.ts` to import the Material modules used above:
+Edit `src/app/app.ts` to import the Material modules used above:
 
 ```ts
 import { Component } from '@angular/core';
@@ -137,10 +137,10 @@ import { MatButtonModule } from '@angular/material/button';
   selector: 'app-root',
   standalone: true,
   imports: [MatToolbarModule, MatButtonModule],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss',
+  templateUrl: './app.html',
+  styleUrl: './app.scss',
 })
-export class AppComponent {}
+export class App {}
 ```
 
 - [ ] **Step 4: Verify visually**
@@ -171,7 +171,7 @@ git -C BluefinWiki commit -m "feat(angular): add Angular Material with default t
 - Delete: `BluefinWiki/frontend-angular/karma.conf.js` (if present)
 - Create: `BluefinWiki/frontend-angular/jest.config.ts`
 - Create: `BluefinWiki/frontend-angular/setup-jest.ts`
-- Modify: `BluefinWiki/frontend-angular/src/app/app.component.spec.ts`
+- Modify: `BluefinWiki/frontend-angular/src/app/app.spec.ts`
 
 - [ ] **Step 1: Remove Jasmine / Karma deps**
 
@@ -289,23 +289,23 @@ In `package.json` `scripts`:
 
 Remove the old `"test": "ng test"` script.
 
-- [ ] **Step 8: Rewrite the scaffolded `app.component.spec.ts` for Jest**
+- [ ] **Step 8: Rewrite the scaffolded `app.spec.ts` for Jest**
 
-Replace `src/app/app.component.spec.ts` with:
+Replace `src/app/app.spec.ts` with:
 
 ```ts
 import { TestBed } from '@angular/core/testing';
-import { AppComponent } from './app.component';
+import { App } from './app';
 
-describe('AppComponent', () => {
+describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AppComponent],
+      imports: [App],
     }).compileComponents();
   });
 
   it('renders the toolbar title', () => {
-    const fixture = TestBed.createComponent(AppComponent);
+    const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const toolbar: HTMLElement = fixture.nativeElement.querySelector('mat-toolbar');
     expect(toolbar.textContent).toContain('BlueFinWiki');
@@ -336,7 +336,7 @@ git -C BluefinWiki commit -m "chore(angular): replace Karma+Jasmine with Jest+je
 **Files:**
 - Modify: `BluefinWiki/frontend-angular/package.json`
 - Modify: `BluefinWiki/frontend-angular/setup-jest.ts`
-- Modify: `BluefinWiki/frontend-angular/src/app/app.component.spec.ts`
+- Modify: `BluefinWiki/frontend-angular/src/app/app.spec.ts`
 
 - [ ] **Step 1: Install**
 
@@ -354,15 +354,15 @@ import '@testing-library/jest-dom';
 
 - [ ] **Step 3: Convert the smoke test to TLA**
 
-Replace `src/app/app.component.spec.ts`:
+Replace `src/app/app.spec.ts`:
 
 ```ts
 import { render, screen } from '@testing-library/angular';
-import { AppComponent } from './app.component';
+import { App } from './app';
 
-describe('AppComponent', () => {
+describe('App', () => {
   it('renders the toolbar title', async () => {
-    await render(AppComponent);
+    await render(App);
     expect(screen.getByText('BlueFinWiki')).toBeInTheDocument();
   });
 });
@@ -741,10 +741,10 @@ git -C BluefinWiki commit -m "feat(angular): environment files with build-time g
 
 ```ts
 import { bootstrapApplication } from '@angular/platform-browser';
-import { AppComponent } from './app/app.component';
+import { App } from './app/app';
 import { appConfig } from './app/app.config';
 
-bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err));
+bootstrapApplication(App, appConfig).catch((err) => console.error(err));
 ```
 
 - [ ] **Step 2: Overwrite `app.config.ts`**
@@ -789,14 +789,14 @@ git -C BluefinWiki commit -m "feat(angular): bootstrap with zoneless CD + provid
 ## Task 9: Routing skeleton with placeholder pages
 
 **Files:**
-- Create: `BluefinWiki/frontend-angular/src/app/features/placeholder/placeholder.component.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/features/placeholder/placeholder.ts`
 - Modify: `BluefinWiki/frontend-angular/src/app/app.routes.ts`
-- Modify: `BluefinWiki/frontend-angular/src/app/app.component.html`
-- Modify: `BluefinWiki/frontend-angular/src/app/app.component.ts`
+- Modify: `BluefinWiki/frontend-angular/src/app/app.html`
+- Modify: `BluefinWiki/frontend-angular/src/app/app.ts`
 
 - [ ] **Step 1: Create the placeholder components**
 
-For each route, create a tiny standalone component. Pattern (`src/app/features/placeholder/pages-placeholder.component.ts`):
+For each route, create a tiny standalone component. Pattern (`src/app/features/placeholder/pages-placeholder.ts`):
 
 ```ts
 import { Component } from '@angular/core';
@@ -806,19 +806,19 @@ import { Component } from '@angular/core';
   standalone: true,
   template: `<main style="padding:2rem"><h1>Pages placeholder</h1></main>`,
 })
-export class PagesPlaceholderComponent {}
+export class PagesPlaceholder {}
 ```
 
 Create all eight files with the same shape, using these specific names and headings:
 
-- `pages-placeholder.component.ts` → `PagesPlaceholderComponent` → "Pages placeholder"
-- `page-editor-placeholder.component.ts` → `PageEditorPlaceholderComponent` → "Page editor placeholder"
-- `profile-placeholder.component.ts` → `ProfilePlaceholderComponent` → "Profile placeholder"
-- `settings-placeholder.component.ts` → `SettingsPlaceholderComponent` → "Settings placeholder"
-- `page-types-placeholder.component.ts` → `PageTypesPlaceholderComponent` → "Page types placeholder"
-- `users-placeholder.component.ts` → `UsersPlaceholderComponent` → "Users placeholder"
-- `invitations-placeholder.component.ts` → `InvitationsPlaceholderComponent` → "Invitations placeholder"
-- `rebuild-index-placeholder.component.ts` → `RebuildIndexPlaceholderComponent` → "Rebuild page index placeholder"
+- `pages-placeholder.ts` → `PagesPlaceholder` → "Pages placeholder"
+- `page-editor-placeholder.ts` → `PageEditorPlaceholder` → "Page editor placeholder"
+- `profile-placeholder.ts` → `ProfilePlaceholder` → "Profile placeholder"
+- `settings-placeholder.ts` → `SettingsPlaceholder` → "Settings placeholder"
+- `page-types-placeholder.ts` → `PageTypesPlaceholder` → "Page types placeholder"
+- `users-placeholder.ts` → `UsersPlaceholder` → "Users placeholder"
+- `invitations-placeholder.ts` → `InvitationsPlaceholder` → "Invitations placeholder"
+- `rebuild-index-placeholder.ts` → `RebuildIndexPlaceholder` → "Rebuild page index placeholder"
 
 - [ ] **Step 2: Define the route table**
 
@@ -833,31 +833,31 @@ export const routes: Routes = [
   {
     path: 'callback',
     loadComponent: () =>
-      import('./features/callback/oauth-callback.component').then((m) => m.OAuthCallbackComponent),
+      import('./features/callback/oauth-callback').then((m) => m.OAuthCallback),
   },
 
-  { path: 'pages', loadComponent: () => import('./features/placeholder/pages-placeholder.component').then((m) => m.PagesPlaceholderComponent) },
-  { path: 'pages/:guid', loadComponent: () => import('./features/placeholder/pages-placeholder.component').then((m) => m.PagesPlaceholderComponent) },
-  { path: 'pages/:guid/edit', loadComponent: () => import('./features/placeholder/page-editor-placeholder.component').then((m) => m.PageEditorPlaceholderComponent) },
-  { path: 'profile', loadComponent: () => import('./features/placeholder/profile-placeholder.component').then((m) => m.ProfilePlaceholderComponent) },
+  { path: 'pages', loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
+  { path: 'pages/:guid', loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
+  { path: 'pages/:guid/edit', loadComponent: () => import('./features/placeholder/page-editor-placeholder').then((m) => m.PageEditorPlaceholder) },
+  { path: 'profile', loadComponent: () => import('./features/placeholder/profile-placeholder').then((m) => m.ProfilePlaceholder) },
 
-  { path: 'settings', loadComponent: () => import('./features/placeholder/settings-placeholder.component').then((m) => m.SettingsPlaceholderComponent) },
-  { path: 'admin/page-types', loadComponent: () => import('./features/placeholder/page-types-placeholder.component').then((m) => m.PageTypesPlaceholderComponent) },
-  { path: 'admin/users', loadComponent: () => import('./features/placeholder/users-placeholder.component').then((m) => m.UsersPlaceholderComponent) },
-  { path: 'admin/invitations', loadComponent: () => import('./features/placeholder/invitations-placeholder.component').then((m) => m.InvitationsPlaceholderComponent) },
-  { path: 'admin/rebuild-page-index', loadComponent: () => import('./features/placeholder/rebuild-index-placeholder.component').then((m) => m.RebuildIndexPlaceholderComponent) },
+  { path: 'settings', loadComponent: () => import('./features/placeholder/settings-placeholder').then((m) => m.SettingsPlaceholder) },
+  { path: 'admin/page-types', loadComponent: () => import('./features/placeholder/page-types-placeholder').then((m) => m.PageTypesPlaceholder) },
+  { path: 'admin/users', loadComponent: () => import('./features/placeholder/users-placeholder').then((m) => m.UsersPlaceholder) },
+  { path: 'admin/invitations', loadComponent: () => import('./features/placeholder/invitations-placeholder').then((m) => m.InvitationsPlaceholder) },
+  { path: 'admin/rebuild-page-index', loadComponent: () => import('./features/placeholder/rebuild-index-placeholder').then((m) => m.RebuildIndexPlaceholder) },
 
   {
     path: '**',
     loadComponent: () =>
-      import('./features/not-found/not-found.component').then((m) => m.NotFoundComponent),
+      import('./features/not-found/not-found').then((m) => m.NotFound),
   },
 ];
 ```
 
 - [ ] **Step 3: 404 component**
 
-Create `src/app/features/not-found/not-found.component.ts`:
+Create `src/app/features/not-found/not-found.ts`:
 
 ```ts
 import { Component } from '@angular/core';
@@ -875,12 +875,12 @@ import { RouterLink } from '@angular/router';
     </main>
   `,
 })
-export class NotFoundComponent {}
+export class NotFound {}
 ```
 
-- [ ] **Step 4: AppComponent renders the router outlet**
+- [ ] **Step 4: App renders the router outlet**
 
-Replace `src/app/app.component.html`:
+Replace `src/app/app.html`:
 
 ```html
 <mat-toolbar color="primary">
@@ -889,7 +889,7 @@ Replace `src/app/app.component.html`:
 <router-outlet></router-outlet>
 ```
 
-Replace `src/app/app.component.ts`:
+Replace `src/app/app.ts`:
 
 ```ts
 import { Component } from '@angular/core';
@@ -900,22 +900,22 @@ import { MatToolbarModule } from '@angular/material/toolbar';
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, RouterLink, MatToolbarModule],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss',
+  templateUrl: './app.html',
+  styleUrl: './app.scss',
 })
-export class AppComponent {}
+export class App {}
 ```
 
-Update the existing `app.component.spec.ts` so it provides `RouterTestingHarness` or use `provideRouter([])` to avoid the missing-RouterOutlet error:
+Update the existing `app.spec.ts` so it provides `RouterTestingHarness` or use `provideRouter([])` to avoid the missing-RouterOutlet error:
 
 ```ts
 import { render, screen } from '@testing-library/angular';
 import { provideRouter } from '@angular/router';
-import { AppComponent } from './app.component';
+import { App } from './app';
 
-describe('AppComponent', () => {
+describe('App', () => {
   it('renders the toolbar title', async () => {
-    await render(AppComponent, { providers: [provideRouter([])] });
+    await render(App, { providers: [provideRouter([])] });
     expect(screen.getByText('BlueFinWiki')).toBeInTheDocument();
   });
 });
@@ -1179,12 +1179,12 @@ git -C BluefinWiki commit -m "feat(angular): port Cognito Hosted UI auth-code he
 
 ---
 
-## Task 11: AuthService with signals
+## Task 11: Auth with signals
 
 **Files:**
 - Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.types.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.service.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.service.spec.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.spec.ts`
 
 - [ ] **Step 1: Auth types**
 
@@ -1201,10 +1201,10 @@ export interface AuthUser {
 }
 ```
 
-- [ ] **Step 2: AuthService**
+- [ ] **Step 2: Auth**
 
 ```ts
-// auth.service.ts
+// auth.ts
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { CognitoUser, CognitoUserSession } from 'amazon-cognito-identity-js';
 import { environment } from '../../../environments/environment';
@@ -1224,7 +1224,7 @@ const MOCK_ADMIN: AuthUser = {
 };
 
 @Injectable({ providedIn: 'root' })
-export class AuthService {
+export class Auth {
   private readonly _user = signal<AuthUser | null>(null);
   private readonly _isLoading = signal(true);
   private readonly _error = signal<string | null>(null);
@@ -1351,13 +1351,13 @@ function readUsernameFromPayload(session: CognitoUserSession): string {
 - [ ] **Step 3: Tests**
 
 ```ts
-// auth.service.spec.ts
+// auth.spec.ts
 import { TestBed } from '@angular/core/testing';
 
 import { environment } from '../../../environments/environment';
-import { AuthService } from './auth.service';
+import { Auth } from './auth';
 
-describe('AuthService', () => {
+describe('Auth', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.resetTestingModule();
@@ -1369,7 +1369,7 @@ describe('AuthService', () => {
     });
 
     it('signs in a mock Admin on bootstrap', async () => {
-      const svc = TestBed.runInInjectionContext(() => TestBed.inject(AuthService));
+      const svc = TestBed.runInInjectionContext(() => TestBed.inject(Auth));
       // bootstrap is async; flush microtasks
       await Promise.resolve();
       await Promise.resolve();
@@ -1379,7 +1379,7 @@ describe('AuthService', () => {
     });
 
     it('signOut clears tokens and user', async () => {
-      const svc = TestBed.inject(AuthService);
+      const svc = TestBed.inject(Auth);
       await Promise.resolve();
       await Promise.resolve();
       svc.signOut();
@@ -1394,7 +1394,7 @@ describe('AuthService', () => {
     });
 
     it('is unauthenticated on bootstrap', async () => {
-      const svc = TestBed.inject(AuthService);
+      const svc = TestBed.inject(Auth);
       await Promise.resolve();
       await Promise.resolve();
       expect(svc.isAuthenticated()).toBe(false);
@@ -1407,7 +1407,7 @@ describe('AuthService', () => {
 - [ ] **Step 4: Run**
 
 ```bash
-npm test -- auth.service
+npm test -- auth
 ```
 
 Expected: 3 tests pass.
@@ -1416,7 +1416,7 @@ Expected: 3 tests pass.
 
 ```bash
 git -C BluefinWiki add frontend-angular/
-git -C BluefinWiki commit -m "feat(angular): AuthService with signals + DISABLE_AUTH dev bypass"
+git -C BluefinWiki commit -m "feat(angular): Auth with signals + DISABLE_AUTH dev bypass"
 ```
 
 ---
@@ -1424,21 +1424,21 @@ git -C BluefinWiki commit -m "feat(angular): AuthService with signals + DISABLE_
 ## Task 12: Functional `authGuard` and `adminGuard`
 
 **Files:**
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.guard.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/admin.guard.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.guard.spec.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/admin.guard.spec.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth-guard.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/admin-guard.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth-guard.spec.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/admin-guard.spec.ts`
 
 - [ ] **Step 1: authGuard**
 
 ```ts
-// auth.guard.ts
+// auth-guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
-import { AuthService } from './auth.service';
+import { Auth } from './auth';
 
 export const authGuard: CanActivateFn = () => {
-  const auth = inject(AuthService);
+  const auth = inject(Auth);
   if (auth.isAuthenticated()) return true;
   auth.redirectToLogin();
   return false;
@@ -1448,13 +1448,13 @@ export const authGuard: CanActivateFn = () => {
 - [ ] **Step 2: adminGuard**
 
 ```ts
-// admin.guard.ts
+// admin-guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { AuthService } from './auth.service';
+import { Auth } from './auth';
 
 export const adminGuard: CanActivateFn = () => {
-  const auth = inject(AuthService);
+  const auth = inject(Auth);
   const router = inject(Router);
   if (auth.user()?.role === 'Admin') return true;
   // Authenticated but not admin: bounce to /pages
@@ -1465,11 +1465,11 @@ export const adminGuard: CanActivateFn = () => {
 - [ ] **Step 3: Tests — authGuard**
 
 ```ts
-// auth.guard.spec.ts
+// auth-guard.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
-import { AuthService } from './auth.service';
-import { authGuard } from './auth.guard';
+import { Auth } from './auth';
+import { authGuard } from './auth-guard';
 
 describe('authGuard', () => {
   let redirect: jest.Mock;
@@ -1479,7 +1479,7 @@ describe('authGuard', () => {
     redirect = jest.fn();
     isAuthenticated = jest.fn();
     TestBed.configureTestingModule({
-      providers: [{ provide: AuthService, useValue: { isAuthenticated, redirectToLogin: redirect } }],
+      providers: [{ provide: Auth, useValue: { isAuthenticated, redirectToLogin: redirect } }],
     });
   });
 
@@ -1506,11 +1506,11 @@ describe('authGuard', () => {
 - [ ] **Step 4: Tests — adminGuard**
 
 ```ts
-// admin.guard.spec.ts
+// admin-guard.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
-import { AuthService } from './auth.service';
-import { adminGuard } from './admin.guard';
+import { Auth } from './auth';
+import { adminGuard } from './admin-guard';
 
 describe('adminGuard', () => {
   let user: jest.Mock;
@@ -1521,7 +1521,7 @@ describe('adminGuard', () => {
     router = { createUrlTree: jest.fn(() => ({}) as UrlTree) };
     TestBed.configureTestingModule({
       providers: [
-        { provide: AuthService, useValue: { user } },
+        { provide: Auth, useValue: { user } },
         { provide: Router, useValue: router },
       ],
     });
@@ -1556,7 +1556,7 @@ describe('adminGuard', () => {
 - [ ] **Step 5: Run**
 
 ```bash
-npm test -- auth.guard admin.guard
+npm test -- auth-guard admin-guard
 ```
 
 Expected: 5 tests pass.
@@ -1573,18 +1573,18 @@ git -C BluefinWiki commit -m "feat(angular): functional authGuard + adminGuard"
 ## Task 13: Auth interceptor
 
 **Files:**
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.interceptor.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth.interceptor.spec.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth-interceptor.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/auth/auth-interceptor.spec.ts`
 - Modify: `BluefinWiki/frontend-angular/src/app/app.config.ts`
 
 - [ ] **Step 1: Interceptor**
 
 ```ts
-// auth.interceptor.ts
+// auth-interceptor.ts
 import { HttpInterceptorFn, HttpRequest, HttpHandlerFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { EMPTY, catchError, from, switchMap, throwError } from 'rxjs';
-import { AuthService } from './auth.service';
+import { Auth } from './auth';
 
 const API_PREFIX = '/api';
 
@@ -1596,7 +1596,7 @@ export const authInterceptor: HttpInterceptorFn = (
     return next(req);
   }
 
-  const auth = inject(AuthService);
+  const auth = inject(Auth);
   const token = auth.getIdToken();
   const authedReq = token
     ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
@@ -1635,13 +1635,13 @@ provideHttpClient(withInterceptors([authInterceptor])),
 - [ ] **Step 3: Tests**
 
 ```ts
-// auth.interceptor.spec.ts
+// auth-interceptor.spec.ts
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
-import { AuthService } from './auth.service';
-import { authInterceptor } from './auth.interceptor';
+import { Auth } from './auth';
+import { authInterceptor } from './auth-interceptor';
 
 describe('authInterceptor', () => {
   let http: HttpClient;
@@ -1658,7 +1658,7 @@ describe('authInterceptor', () => {
       providers: [
         provideHttpClient(withInterceptors([authInterceptor])),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: auth },
+        { provide: Auth, useValue: auth },
       ],
     });
     http = TestBed.inject(HttpClient);
@@ -1715,7 +1715,7 @@ describe('authInterceptor', () => {
 - [ ] **Step 4: Run**
 
 ```bash
-npm test -- auth.interceptor
+npm test -- auth-interceptor
 ```
 
 Expected: 4 tests pass.
@@ -1733,8 +1733,8 @@ git -C BluefinWiki commit -m "feat(angular): auth interceptor with 401 retry + r
 
 **Files:**
 - Create: `BluefinWiki/frontend-angular/src/app/core/api/api.types.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/api/error.interceptor.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/core/api/error.interceptor.spec.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/api/error-interceptor.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/core/api/error-interceptor.spec.ts`
 - Modify: `BluefinWiki/frontend-angular/src/app/app.config.ts`
 
 - [ ] **Step 1: `ApiError` type**
@@ -1759,7 +1759,7 @@ export function isApiError(value: unknown): value is ApiError {
 - [ ] **Step 2: Interceptor**
 
 ```ts
-// error.interceptor.ts
+// error-interceptor.ts
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { catchError, throwError } from 'rxjs';
 import type { ApiError } from './api.types';
@@ -1794,13 +1794,13 @@ provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
 - [ ] **Step 4: Tests**
 
 ```ts
-// error.interceptor.spec.ts
+// error-interceptor.spec.ts
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
 import { isApiError } from './api.types';
-import { errorInterceptor } from './error.interceptor';
+import { errorInterceptor } from './error-interceptor';
 
 describe('errorInterceptor', () => {
   let http: HttpClient;
@@ -1852,7 +1852,7 @@ describe('errorInterceptor', () => {
 - [ ] **Step 5: Run**
 
 ```bash
-npm test -- error.interceptor
+npm test -- error-interceptor
 ```
 
 Expected: 2 tests pass.
@@ -1965,18 +1965,18 @@ git -C BluefinWiki commit -m "feat(angular): GlobalErrorHandler with snack-bar +
 ## Task 16: OAuth `/callback` component
 
 **Files:**
-- Create: `BluefinWiki/frontend-angular/src/app/features/callback/oauth-callback.component.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/features/callback/oauth-callback.component.spec.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/features/callback/oauth-callback.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/features/callback/oauth-callback.spec.ts`
 
 - [ ] **Step 1: Component**
 
 ```ts
-// oauth-callback.component.ts
+// oauth-callback.ts
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
-import { AuthService } from '../../core/auth/auth.service';
+import { Auth } from '../../core/auth/auth';
 
 @Component({
   selector: 'wiki-oauth-callback',
@@ -1997,10 +1997,10 @@ import { AuthService } from '../../core/auth/auth.service';
     }
   `,
 })
-export class OAuthCallbackComponent {
+export class OAuthCallback {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private auth = inject(AuthService);
+  private auth = inject(Auth);
   readonly error = signal<string | null>(null);
 
   constructor() {
@@ -2030,11 +2030,11 @@ export class OAuthCallbackComponent {
 - [ ] **Step 2: Tests**
 
 ```ts
-// oauth-callback.component.spec.ts
+// oauth-callback.spec.ts
 import { render, screen } from '@testing-library/angular';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { AuthService } from '../../core/auth/auth.service';
-import { OAuthCallbackComponent } from './oauth-callback.component';
+import { Auth } from '../../core/auth/auth';
+import { OAuthCallback } from './oauth-callback';
 
 interface SetupOpts {
   code: string | null;
@@ -2061,7 +2061,7 @@ function makeProviders({ code, state, completeBehavior }: SetupOpts) {
     router,
     providers: [
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap } } },
-      { provide: AuthService, useValue: auth },
+      { provide: Auth, useValue: auth },
       { provide: Router, useValue: router },
     ],
   };
@@ -2071,29 +2071,29 @@ async function flushMicrotasks(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
 }
 
-describe('OAuthCallbackComponent', () => {
+describe('OAuthCallback', () => {
   it('shows error when code is missing', async () => {
     const { providers } = makeProviders({ code: null, state: 'abc', completeBehavior: 'resolve' });
-    await render(OAuthCallbackComponent, { providers });
+    await render(OAuthCallback, { providers });
     expect(await screen.findByText(/Sign in failed/)).toBeInTheDocument();
     expect(await screen.findByText(/Missing authorization code/)).toBeInTheDocument();
   });
 
   it('shows error when state is missing', async () => {
     const { providers } = makeProviders({ code: 'thecode', state: null, completeBehavior: 'resolve' });
-    await render(OAuthCallbackComponent, { providers });
+    await render(OAuthCallback, { providers });
     expect(await screen.findByText(/Sign in failed/)).toBeInTheDocument();
   });
 
   it('shows error when completeOAuthCallback rejects', async () => {
     const { providers } = makeProviders({ code: 'thecode', state: 'abc', completeBehavior: 'reject' });
-    await render(OAuthCallbackComponent, { providers });
+    await render(OAuthCallback, { providers });
     expect(await screen.findByText('State mismatch')).toBeInTheDocument();
   });
 
   it('navigates to /pages on success', async () => {
     const { providers, auth, router } = makeProviders({ code: 'thecode', state: 'abc', completeBehavior: 'resolve' });
-    await render(OAuthCallbackComponent, { providers });
+    await render(OAuthCallback, { providers });
     await flushMicrotasks();
     expect(auth.completeOAuthCallback).toHaveBeenCalledWith('thecode', 'abc');
     expect(router.navigate).toHaveBeenCalledWith(['/pages'], { replaceUrl: true });
@@ -2138,24 +2138,24 @@ export const routes: Routes = [
   {
     path: 'callback',
     loadComponent: () =>
-      import('./features/callback/oauth-callback.component').then((m) => m.OAuthCallbackComponent),
+      import('./features/callback/oauth-callback').then((m) => m.OAuthCallback),
   },
 
-  { path: 'pages', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder.component').then((m) => m.PagesPlaceholderComponent) },
-  { path: 'pages/:guid', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder.component').then((m) => m.PagesPlaceholderComponent) },
-  { path: 'pages/:guid/edit', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/page-editor-placeholder.component').then((m) => m.PageEditorPlaceholderComponent) },
-  { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/profile-placeholder.component').then((m) => m.ProfilePlaceholderComponent) },
+  { path: 'pages', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
+  { path: 'pages/:guid', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
+  { path: 'pages/:guid/edit', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/page-editor-placeholder').then((m) => m.PageEditorPlaceholder) },
+  { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/profile-placeholder').then((m) => m.ProfilePlaceholder) },
 
-  { path: 'settings', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/settings-placeholder.component').then((m) => m.SettingsPlaceholderComponent) },
-  { path: 'admin/page-types', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/page-types-placeholder.component').then((m) => m.PageTypesPlaceholderComponent) },
-  { path: 'admin/users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/users-placeholder.component').then((m) => m.UsersPlaceholderComponent) },
-  { path: 'admin/invitations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/invitations-placeholder.component').then((m) => m.InvitationsPlaceholderComponent) },
-  { path: 'admin/rebuild-page-index', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/rebuild-index-placeholder.component').then((m) => m.RebuildIndexPlaceholderComponent) },
+  { path: 'settings', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/settings-placeholder').then((m) => m.SettingsPlaceholder) },
+  { path: 'admin/page-types', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/page-types-placeholder').then((m) => m.PageTypesPlaceholder) },
+  { path: 'admin/users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/users-placeholder').then((m) => m.UsersPlaceholder) },
+  { path: 'admin/invitations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/invitations-placeholder').then((m) => m.InvitationsPlaceholder) },
+  { path: 'admin/rebuild-page-index', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/rebuild-index-placeholder').then((m) => m.RebuildIndexPlaceholder) },
 
   {
     path: '**',
     loadComponent: () =>
-      import('./features/not-found/not-found.component').then((m) => m.NotFoundComponent),
+      import('./features/not-found/not-found').then((m) => m.NotFound),
   },
 ];
 ```
@@ -2190,25 +2190,25 @@ git -C BluefinWiki commit -m "feat(angular): wire authGuard + adminGuard into ro
 ## Task 18: `PermissionGuard` structural directive
 
 **Files:**
-- Create: `BluefinWiki/frontend-angular/src/app/shared/components/permission.directive.ts`
-- Create: `BluefinWiki/frontend-angular/src/app/shared/components/permission.directive.spec.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/shared/components/permission.ts`
+- Create: `BluefinWiki/frontend-angular/src/app/shared/components/permission.spec.ts`
 
 - [ ] **Step 1: Directive**
 
 ```ts
-// permission.directive.ts
+// permission.ts
 import { Directive, EmbeddedViewRef, TemplateRef, ViewContainerRef, effect, inject, input } from '@angular/core';
-import { AuthService } from '../../core/auth/auth.service';
+import { Auth } from '../../core/auth/auth';
 import type { Role } from '../../core/auth/auth.types';
 
 @Directive({
   selector: '[appPermission]',
   standalone: true,
 })
-export class PermissionDirective {
+export class Permission {
   private template = inject(TemplateRef<unknown>);
   private vcr = inject(ViewContainerRef);
-  private auth = inject(AuthService);
+  private auth = inject(Auth);
 
   readonly appPermission = input.required<Role>();
 
@@ -2235,17 +2235,17 @@ export class PermissionDirective {
 - [ ] **Step 2: Tests**
 
 ```ts
-// permission.directive.spec.ts
+// permission.spec.ts
 import { Component, signal } from '@angular/core';
 import { render, screen } from '@testing-library/angular';
-import { AuthService } from '../../core/auth/auth.service';
+import { Auth } from '../../core/auth/auth';
 import type { AuthUser } from '../../core/auth/auth.types';
-import { PermissionDirective } from './permission.directive';
+import { Permission } from './permission';
 
 @Component({
   selector: 'wiki-host',
   standalone: true,
-  imports: [PermissionDirective],
+  imports: [Permission],
   template: `
     <div *appPermission="'Admin'">admin-only</div>
     <div *appPermission="'Standard'">any-user</div>
@@ -2257,10 +2257,10 @@ function authStub(user: AuthUser | null) {
   return { user: signal(user) };
 }
 
-describe('PermissionDirective', () => {
+describe('Permission', () => {
   it('shows Admin block to Admin and hides for Standard', async () => {
     await render(HostComponent, {
-      providers: [{ provide: AuthService, useValue: authStub({
+      providers: [{ provide: Auth, useValue: authStub({
         userId: 'u', email: 'e', displayName: 'd', role: 'Admin', emailVerified: true,
       }) }],
     });
@@ -2270,7 +2270,7 @@ describe('PermissionDirective', () => {
 
   it('hides Admin block from Standard, shows Standard block', async () => {
     await render(HostComponent, {
-      providers: [{ provide: AuthService, useValue: authStub({
+      providers: [{ provide: Auth, useValue: authStub({
         userId: 'u', email: 'e', displayName: 'd', role: 'Standard', emailVerified: true,
       }) }],
     });
@@ -2280,7 +2280,7 @@ describe('PermissionDirective', () => {
 
   it('hides both blocks when not signed in', async () => {
     await render(HostComponent, {
-      providers: [{ provide: AuthService, useValue: authStub(null) }],
+      providers: [{ provide: Auth, useValue: authStub(null) }],
     });
     expect(screen.queryByText('admin-only')).not.toBeInTheDocument();
     expect(screen.queryByText('any-user')).not.toBeInTheDocument();
@@ -2291,7 +2291,7 @@ describe('PermissionDirective', () => {
 - [ ] **Step 3: Run**
 
 ```bash
-npm test -- permission.directive
+npm test -- permission
 ```
 
 Expected: 3 tests pass.
@@ -2300,7 +2300,7 @@ Expected: 3 tests pass.
 
 ```bash
 git -C BluefinWiki add frontend-angular/
-git -C BluefinWiki commit -m "feat(angular): PermissionDirective for *appPermission template gating"
+git -C BluefinWiki commit -m "feat(angular): Permission for *appPermission template gating"
 ```
 
 ---
