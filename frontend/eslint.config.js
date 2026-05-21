@@ -16,6 +16,9 @@ export default tseslint.config(
     rules: {
       // typescript-eslint v8 default is caughtErrors: 'all'. Match v7 behavior.
       '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
+      // @eslint/js v10 added these to recommended; revisit as focused PRs.
+      'preserve-caught-error': 'off',
+      'no-useless-assignment': 'off',
     },
   },
 );
