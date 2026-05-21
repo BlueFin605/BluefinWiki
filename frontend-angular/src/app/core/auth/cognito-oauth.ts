@@ -6,6 +6,22 @@ import {
 } from 'amazon-cognito-identity-js';
 import { environment } from '../../../environments/environment';
 
+export type OAuthErrorCode =
+  | 'config_missing'
+  | 'state_mismatch'
+  | 'token_exchange_failed'
+  | 'missing_tokens';
+
+export class OAuthError extends Error {
+  constructor(
+    readonly code: OAuthErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'OAuthError';
+  }
+}
+
 export interface AuthResult {
   session: CognitoUserSession;
   idToken: string;
@@ -25,7 +41,8 @@ const STATE_KEY = 'oauth_state';
 export function buildAuthorizeUrl(): string {
   const { domain, clientId, redirectUri } = environment.cognito;
   if (!domain || !clientId || !redirectUri) {
-    throw new Error(
+    throw new OAuthError(
+      'config_missing',
       'Cognito Hosted UI is not configured. Set NG_APP_COGNITO_DOMAIN, ' +
         'NG_APP_COGNITO_CLIENT_ID, NG_APP_COGNITO_REDIRECT_URI.',
     );
@@ -52,11 +69,13 @@ export function redirectToLogin(): void {
 
 export async function handleOAuthCallback(code: string, state: string): Promise<AuthResult> {
   const savedState = sessionStorage.getItem(STATE_KEY);
-  if (state !== savedState) throw new Error('State mismatch. Possible CSRF attack.');
+  if (state !== savedState) throw new OAuthError('state_mismatch', 'State mismatch. Possible CSRF attack.');
   sessionStorage.removeItem(STATE_KEY);
 
   const { domain, clientId, redirectUri } = environment.cognito;
-  if (!domain || !clientId || !redirectUri) throw new Error('Cognito Hosted UI is not configured.');
+  if (!domain || !clientId || !redirectUri) {
+    throw new OAuthError('config_missing', 'Cognito Hosted UI is not configured.');
+  }
 
   const response = await fetch(`https://${domain}/oauth2/token`, {
     method: 'POST',
@@ -69,7 +88,9 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
     }).toString(),
   });
 
-  if (!response.ok) throw new Error('Failed to exchange authorization code for tokens');
+  if (!response.ok) {
+    throw new OAuthError('token_exchange_failed', 'Failed to exchange authorization code for tokens');
+  }
 
   const tokens = (await response.json()) as {
     id_token?: string;
@@ -78,7 +99,7 @@ export async function handleOAuthCallback(code: string, state: string): Promise<
   };
 
   if (!tokens.id_token || !tokens.access_token) {
-    throw new Error('Missing tokens in OAuth response');
+    throw new OAuthError('missing_tokens', 'Missing tokens in OAuth response');
   }
 
   const session = new CognitoUserSession({

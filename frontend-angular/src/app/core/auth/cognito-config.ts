@@ -1,21 +1,34 @@
+import { InjectionToken } from '@angular/core';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { environment } from '../../../environments/environment';
 
-const { userPoolId, clientId, endpoint } = environment.cognito;
+/**
+ * Lazily-constructed `CognitoUserPool`, exposed via Angular DI so tests can
+ * substitute a fake and so the config-validation throw fires on first
+ * injection rather than at module load.
+ */
+export function createUserPool(): CognitoUserPool {
+  const { userPoolId, clientId, endpoint } = environment.cognito;
 
-const missing: string[] = [];
-if (!userPoolId) missing.push('cognito.userPoolId');
-if (!clientId) missing.push('cognito.clientId');
+  const missing: string[] = [];
+  if (!userPoolId) missing.push('cognito.userPoolId');
+  if (!clientId) missing.push('cognito.clientId');
 
-if (missing.length > 0 && !environment.disableAuth) {
-  throw new Error(
-    `Missing required Cognito config: ${missing.join(', ')}. ` +
-      'Set NG_APP_COGNITO_* env vars at build time, or set NG_APP_DISABLE_AUTH=true for local dev.',
-  );
+  if (missing.length > 0 && !environment.disableAuth) {
+    throw new Error(
+      `Missing required Cognito config: ${missing.join(', ')}. ` +
+        'Set NG_APP_COGNITO_* env vars at build time, or set NG_APP_DISABLE_AUTH=true for local dev.',
+    );
+  }
+
+  return new CognitoUserPool({
+    UserPoolId: userPoolId || 'us-east-1_placeholder',
+    ClientId: clientId || 'placeholder',
+    endpoint: endpoint || undefined,
+  });
 }
 
-export const userPool = new CognitoUserPool({
-  UserPoolId: userPoolId || 'us-east-1_placeholder',
-  ClientId: clientId || 'placeholder',
-  endpoint: endpoint || undefined,
+export const USER_POOL = new InjectionToken<CognitoUserPool>('USER_POOL', {
+  providedIn: 'root',
+  factory: createUserPool,
 });

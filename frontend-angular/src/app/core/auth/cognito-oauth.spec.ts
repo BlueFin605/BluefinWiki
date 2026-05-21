@@ -42,7 +42,11 @@ describe('cognito-oauth', () => {
   describe('handleOAuthCallback', () => {
     it('throws when state mismatches saved value', async () => {
       sessionStorage.setItem('oauth_state', 'aaaaaaaa');
-      await expect(handleOAuthCallback('code', 'bbbbbbbb')).rejects.toThrow('State mismatch');
+      await expect(handleOAuthCallback('code', 'bbbbbbbb')).rejects.toMatchObject({
+        name: 'OAuthError',
+        code: 'state_mismatch',
+        message: expect.stringContaining('State mismatch') as unknown,
+      });
     });
 
     it('exchanges code for tokens and returns a session', async () => {
@@ -67,7 +71,11 @@ describe('cognito-oauth', () => {
     it('throws when token endpoint returns non-ok', async () => {
       sessionStorage.setItem('oauth_state', 'matching');
       fetchMock.mockResolvedValueOnce({ ok: false });
-      await expect(handleOAuthCallback('thecode', 'matching')).rejects.toThrow('Failed to exchange');
+      await expect(handleOAuthCallback('thecode', 'matching')).rejects.toMatchObject({
+        name: 'OAuthError',
+        code: 'token_exchange_failed',
+        message: expect.stringContaining('Failed to exchange') as unknown,
+      });
     });
 
     it('throws when response is missing tokens', async () => {
@@ -76,7 +84,11 @@ describe('cognito-oauth', () => {
         ok: true,
         json: () => Promise.resolve({}),
       });
-      await expect(handleOAuthCallback('thecode', 'matching')).rejects.toThrow('Missing tokens');
+      await expect(handleOAuthCallback('thecode', 'matching')).rejects.toMatchObject({
+        name: 'OAuthError',
+        code: 'missing_tokens',
+        message: expect.stringContaining('Missing tokens') as unknown,
+      });
     });
   });
 });
