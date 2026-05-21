@@ -1,4 +1,6 @@
 import type { Routes } from '@angular/router';
+import { authGuard } from './core/auth/auth-guard';
+import { adminGuard } from './core/auth/admin-guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'pages' },
@@ -9,16 +11,16 @@ export const routes: Routes = [
       import('./features/callback/oauth-callback').then((m) => m.OAuthCallback),
   },
 
-  { path: 'pages', loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
-  { path: 'pages/:guid', loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
-  { path: 'pages/:guid/edit', loadComponent: () => import('./features/placeholder/page-editor-placeholder').then((m) => m.PageEditorPlaceholder) },
-  { path: 'profile', loadComponent: () => import('./features/placeholder/profile-placeholder').then((m) => m.ProfilePlaceholder) },
+  { path: 'pages', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
+  { path: 'pages/:guid', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
+  { path: 'pages/:guid/edit', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/page-editor-placeholder').then((m) => m.PageEditorPlaceholder) },
+  { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/profile-placeholder').then((m) => m.ProfilePlaceholder) },
 
-  { path: 'settings', loadComponent: () => import('./features/placeholder/settings-placeholder').then((m) => m.SettingsPlaceholder) },
-  { path: 'admin/page-types', loadComponent: () => import('./features/placeholder/page-types-placeholder').then((m) => m.PageTypesPlaceholder) },
-  { path: 'admin/users', loadComponent: () => import('./features/placeholder/users-placeholder').then((m) => m.UsersPlaceholder) },
-  { path: 'admin/invitations', loadComponent: () => import('./features/placeholder/invitations-placeholder').then((m) => m.InvitationsPlaceholder) },
-  { path: 'admin/rebuild-page-index', loadComponent: () => import('./features/placeholder/rebuild-index-placeholder').then((m) => m.RebuildIndexPlaceholder) },
+  { path: 'settings', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/settings-placeholder').then((m) => m.SettingsPlaceholder) },
+  { path: 'admin/page-types', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/page-types-placeholder').then((m) => m.PageTypesPlaceholder) },
+  { path: 'admin/users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/users-placeholder').then((m) => m.UsersPlaceholder) },
+  { path: 'admin/invitations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/invitations-placeholder').then((m) => m.InvitationsPlaceholder) },
+  { path: 'admin/rebuild-page-index', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/rebuild-index-placeholder').then((m) => m.RebuildIndexPlaceholder) },
 
   {
     path: '**',
