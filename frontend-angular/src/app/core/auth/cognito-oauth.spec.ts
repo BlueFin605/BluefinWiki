@@ -1,0 +1,82 @@
+import { buildAuthorizeUrl, handleOAuthCallback } from './cognito-oauth';
+
+interface TokenResponse {
+  id_token?: string;
+  access_token?: string;
+  refresh_token?: string;
+}
+
+type FetchMock = jest.Mock<
+  Promise<{ ok: boolean; json?: () => Promise<TokenResponse> }>,
+  [RequestInfo | URL, RequestInit?]
+>;
+
+describe('cognito-oauth', () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    fetchMock = jest.fn<
+      Promise<{ ok: boolean; json?: () => Promise<TokenResponse> }>,
+      [RequestInfo | URL, RequestInit?]
+    >();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  describe('buildAuthorizeUrl', () => {
+    // Note: redirectToLogin's window.location.href = url side-effect is not
+    // tested directly because jsdom 28 makes Location.href a non-configurable
+    // accessor that cannot be stubbed. buildAuthorizeUrl carries all the
+    // meaningful behaviour (state stashing + URL composition); redirectToLogin
+    // is a one-liner wrapper.
+    it('stores a state token in sessionStorage and returns a Hosted UI authorize URL', () => {
+      const url = buildAuthorizeUrl();
+      const stored = sessionStorage.getItem('oauth_state');
+      expect(stored).not.toBeNull();
+      expect(stored!.length).toBe(32);
+      expect(url).toMatch(/^https:\/\/.+\/oauth2\/authorize\?/);
+      expect(url).toContain(`state=${stored!}`);
+    });
+  });
+
+  describe('handleOAuthCallback', () => {
+    it('throws when state mismatches saved value', async () => {
+      sessionStorage.setItem('oauth_state', 'aaaaaaaa');
+      await expect(handleOAuthCallback('code', 'bbbbbbbb')).rejects.toThrow('State mismatch');
+    });
+
+    it('exchanges code for tokens and returns a session', async () => {
+      sessionStorage.setItem('oauth_state', 'matching');
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id_token: 'idt',
+            access_token: 'act',
+            refresh_token: 'ref',
+          }),
+      });
+
+      const result = await handleOAuthCallback('thecode', 'matching');
+      expect(result.idToken).toBe('idt');
+      expect(result.accessToken).toBe('act');
+      expect(result.refreshToken).toBe('ref');
+      expect(sessionStorage.getItem('oauth_state')).toBeNull();
+    });
+
+    it('throws when token endpoint returns non-ok', async () => {
+      sessionStorage.setItem('oauth_state', 'matching');
+      fetchMock.mockResolvedValueOnce({ ok: false });
+      await expect(handleOAuthCallback('thecode', 'matching')).rejects.toThrow('Failed to exchange');
+    });
+
+    it('throws when response is missing tokens', async () => {
+      sessionStorage.setItem('oauth_state', 'matching');
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+      await expect(handleOAuthCallback('thecode', 'matching')).rejects.toThrow('Missing tokens');
+    });
+  });
+});
