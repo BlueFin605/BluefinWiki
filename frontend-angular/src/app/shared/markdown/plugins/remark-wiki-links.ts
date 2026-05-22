@@ -43,10 +43,14 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
       data: {
         hProperties: {
           className: broken ? brokenLinkClassName : linkClassName,
-          'data-wiki-link': 'true',
-          'data-wiki-type': wikiLink.type,
-          'data-wiki-target': wikiLink.target,
-          'data-broken': broken ? 'true' : 'false',
+          // Use camelCase keys so that mdast-util-to-hast copies them verbatim
+          // onto the HAST element's `properties` map. property-information maps
+          // both `data-wiki-link` and `dataWikiLink` to the same attribute, so
+          // rehype-stringify still emits `data-wiki-link="true"` in HTML.
+          dataWikiLink: 'true',
+          dataWikiType: wikiLink.type,
+          dataWikiTarget: wikiLink.target,
+          dataBroken: broken ? 'true' : 'false',
         },
       },
     };

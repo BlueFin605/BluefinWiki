@@ -49,7 +49,7 @@ const config: Config = {
       'unist-util-stringify-position|unist-util-position|' +
       'property-information|space-separated-tokens|comma-separated-tokens|' +
       'ccount|longest-streak|trim-lines|zwitch|devlop|' +
-      'parse5|markdown-table' +
+      'parse5|markdown-table|escape-string-regexp|lowlight' +
     '))',
   ],
   moduleNameMapper: {
