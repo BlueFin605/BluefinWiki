@@ -14,6 +14,8 @@ import { PageTree } from './page-tree';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
 import { SearchDialog } from '../search/search-dialog';
+import { AiButton } from '../ai/ai-button';
+import { AiSidebar } from '../ai/ai-sidebar';
 
 @Component({
   selector: 'wiki-pages-view',
@@ -27,6 +29,8 @@ import { SearchDialog } from '../search/search-dialog';
     MatMenuModule,
     PageTree,
     PageRenameInline,
+    AiButton,
+    AiSidebar,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -37,6 +41,7 @@ import { SearchDialog } from '../search/search-dialog';
         <button mat-button (click)="onNewPage()">
           New page
         </button>
+        <wiki-ai-button (toggled)="onToggleAi()" />
         <button
           mat-icon-button
           [matMenuTriggerFor]="userMenu"
@@ -77,6 +82,14 @@ import { SearchDialog } from '../search/search-dialog';
         <main class="main">
           <router-outlet />
         </main>
+        @if (aiOpen()) {
+          <div class="ai-pane">
+            <wiki-ai-sidebar
+              [currentPageGuid]="activeGuid()"
+              (closed)="aiOpen.set(false)"
+            />
+          </div>
+        }
       </div>
 
       @if (renameTarget(); as target) {
@@ -97,6 +110,15 @@ import { SearchDialog } from '../search/search-dialog';
     .body { display: flex; flex: 1; min-height: 0; }
     .sidebar { border-right: 1px solid #e5e7eb; overflow-y: auto; background: #f9fafb; }
     .main { flex: 1; overflow: auto; }
+    .ai-pane {
+      width: 400px;
+      max-width: 100vw;
+      border-left: 1px solid #e5e7eb;
+      background: white;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
   `],
 })
 export class PagesView {
@@ -122,6 +144,12 @@ export class PagesView {
   protected readonly activeGuid = signal<string | null>(null);
 
   protected readonly renameTarget = signal<{ guid: string; title: string } | null>(null);
+
+  protected readonly aiOpen = signal(false);
+
+  onToggleAi(): void {
+    this.aiOpen.update((open) => !open);
+  }
 
   constructor() {
     // Sync activeGuid from URL changes.

@@ -1,3 +1,8 @@
+jest.mock('mermaid', () => ({
+  __esModule: true,
+  default: { initialize: jest.fn(), render: jest.fn() },
+}));
+
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -114,6 +119,26 @@ describe('PagesView', () => {
     await settle();
 
     expect(openSpy).toHaveBeenCalledWith(SearchDialog, expect.any(Object));
+  });
+
+  it('toggles the AI sidebar when the AI button is clicked', async () => {
+    const { fixture } = await render(PagesView, {
+      providers: [...baseProviders(), ...authProviders('Admin')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    await settle();
+    fixture.detectChanges();
+
+    // Initially the AI panel is closed.
+    expect(screen.queryByRole('complementary', { name: /ai assistant/i })).toBeNull();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /open ai assistant/i }));
+    await settle();
+    fixture.detectChanges();
+
+    expect(screen.getByRole('complementary', { name: /ai assistant/i })).toBeInTheDocument();
   });
 
   it('opens the SearchDialog when Cmd+K is pressed', async () => {
