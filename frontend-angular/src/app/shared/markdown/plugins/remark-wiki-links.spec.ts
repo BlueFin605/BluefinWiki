@@ -1,6 +1,7 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkRehype from 'remark-rehype';
+import rehypeStringify from 'rehype-stringify';
 import remarkWikiLinks from './remark-wiki-links';
 import type { Root } from 'mdast';
 
@@ -9,7 +10,7 @@ async function toHtml(markdown: string, options?: Parameters<typeof remarkWikiLi
     .use(remarkParse)
     .use(remarkWikiLinks, options)
     .use(remarkRehype)
-    .use(await import('rehype-stringify').then((m) => m.default))
+    .use(rehypeStringify)
     .process(markdown);
   return String(file);
 }
