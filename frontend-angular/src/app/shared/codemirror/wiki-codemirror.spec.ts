@@ -1,5 +1,6 @@
 import { render } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
+import { EditorView } from '@codemirror/view';
 import { WikiCodemirror } from './wiki-codemirror';
 
 describe('WikiCodemirror', () => {
@@ -67,5 +68,37 @@ describe('WikiCodemirror', () => {
     fixture.destroy();
     const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelector('.cm-editor')).toBeNull();
+  });
+
+  it('toggling editable input dispatches reconfigure', async () => {
+    const { fixture } = await render(WikiCodemirror, { inputs: { value: 'a', editable: true } });
+    fixture.detectChanges();
+    const view = fixture.componentInstance.getView();
+    expect(view).not.toBeNull();
+    const editableBefore = view!.state.facet(EditorView.editable);
+    expect(editableBefore).toBe(true);
+
+    fixture.componentRef.setInput('editable', false);
+    fixture.detectChanges();
+    await Promise.resolve();
+
+    const editableAfter = view!.state.facet(EditorView.editable);
+    expect(editableAfter).toBe(false);
+  });
+
+  it('applyAction("bold") wraps the selection with **', async () => {
+    const { fixture } = await render(WikiCodemirror, { inputs: { value: 'hello world' } });
+    fixture.detectChanges();
+    const view = fixture.componentInstance.getView();
+    view!.dispatch({ selection: { anchor: 0, head: 5 } });
+    fixture.componentInstance.applyAction('bold');
+    expect(view!.state.doc.toString()).toBe('**hello** world');
+  });
+
+  it('insertText replaces a range with the given text', async () => {
+    const { fixture } = await render(WikiCodemirror, { inputs: { value: 'foo bar baz' } });
+    fixture.detectChanges();
+    fixture.componentInstance.insertText(4, 7, 'BAR');
+    expect(fixture.componentInstance.getView()!.state.doc.toString()).toBe('foo BAR baz');
   });
 });
