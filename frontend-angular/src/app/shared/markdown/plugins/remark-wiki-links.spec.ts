@@ -76,4 +76,15 @@ describe('remark-wiki-links', () => {
     const linkCount = (para as { children: { type: string }[] }).children.filter((c) => c.type === 'link').length;
     expect(linkCount).toBe(3);
   });
+
+  // Regression guard for the React-source bug: a paragraph whose entire text
+  // node is a single wiki link must still be transformed. The naive
+  // `processed.length > 1` guard skipped this case because processTextNode
+  // returns a one-element array. The plugin uses identity comparison instead.
+  it('converts a standalone [[Title]] as the sole content of a paragraph', async () => {
+    const html = await toHtml('[[Home Page]]');
+    expect(html).toContain('href="/wiki/home-page"');
+    expect(html).toContain('data-wiki-link="true"');
+    expect(html).toContain('>Home Page</a>');
+  });
 });
