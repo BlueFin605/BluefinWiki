@@ -18,7 +18,7 @@ export const routes: Routes = [
   },
   { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/profile-placeholder').then((m) => m.ProfilePlaceholder) },
 
-  { path: 'settings', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/settings-placeholder').then((m) => m.SettingsPlaceholder) },
+  { path: 'settings', canActivate: [authGuard], loadComponent: () => import('./features/admin/settings-page').then((m) => m.SettingsPage) },
   { path: 'admin/page-types', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/page-types/page-types-admin').then((m) => m.PageTypesAdmin) },
   { path: 'admin/users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/user-management').then((m) => m.UserManagement) },
   { path: 'admin/invitations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/invitation-management').then((m) => m.InvitationManagement) },
