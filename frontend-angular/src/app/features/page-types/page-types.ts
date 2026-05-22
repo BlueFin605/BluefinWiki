@@ -40,10 +40,11 @@ export class PageTypes {
     return rxResource({
       params: () => ({ guid: guid(), v: this._version() }),
       stream: ({ params }) => {
-        if (params.guid === SKIP_PAGE_TYPE_FETCH || !params.guid) {
+        const g = params.guid;
+        if (g === SKIP_PAGE_TYPE_FETCH || typeof g !== 'string') {
           throw new Error('pageTypeResource: fetch disabled');
         }
-        return this.http.get<PageTypeDefinition>(`/api/page-types/${params.guid}`);
+        return this.http.get<PageTypeDefinition>(`/api/page-types/${g}`);
       },
     });
   }
@@ -52,11 +53,12 @@ export class PageTypes {
     return rxResource({
       params: () => ({ guid: parentTypeGuid(), v: this._version() }),
       stream: ({ params }) => {
-        if (params.guid === SKIP_PAGE_TYPE_FETCH || !params.guid) {
+        const g = params.guid;
+        if (g === SKIP_PAGE_TYPE_FETCH || typeof g !== 'string') {
           throw new Error('allowedChildTypesResource: fetch disabled');
         }
         return this.http.get<AllowedChildrenResponse>(
-          `/api/page-types/${params.guid}/allowed-children`,
+          `/api/page-types/${g}/allowed-children`,
         );
       },
     });
