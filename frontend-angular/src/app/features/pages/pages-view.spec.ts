@@ -21,10 +21,10 @@ describe('PagesView', () => {
     http.expectOne('/api/pages/root/children').flush({ children: [] });
   });
 
-  it('renders the disabled New page button with a Phase 4 tooltip', async () => {
+  it('renders an enabled New page button (Phase 4 opens NewPageModal)', async () => {
     await render(PagesView, { providers });
     const newBtn = screen.getByRole('button', { name: /new page/i });
-    expect(newBtn).toBeDisabled();
+    expect(newBtn).not.toBeDisabled();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
   });

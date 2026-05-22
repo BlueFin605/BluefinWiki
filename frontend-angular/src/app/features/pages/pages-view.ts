@@ -4,10 +4,13 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
 import { Layout } from '../../core/layout/layout';
 import { Pages } from './pages';
 import { PageTree } from './page-tree';
 import { PageRenameInline } from './page-rename-inline';
+import { NewPageModal, type NewPageModalData } from './new-page-modal';
 
 @Component({
   selector: 'wiki-pages-view',
@@ -27,7 +30,7 @@ import { PageRenameInline } from './page-rename-inline';
       <mat-toolbar color="primary" class="topbar">
         <span class="title">BluefinWiki</span>
         <span class="spacer"></span>
-        <button mat-button disabled matTooltip="New page modal lands in Phase 4">
+        <button mat-button (click)="onNewPage()">
           New page
         </button>
       </mat-toolbar>
@@ -73,6 +76,7 @@ export class PagesView {
   private readonly router = inject(Router);
   private readonly pages = inject(Pages);
   private readonly layout = inject(Layout);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly treeWidth = computed(() => this.layout.treeWidth());
 
@@ -122,8 +126,36 @@ export class PagesView {
     }
   }
 
-  onNewChildRequested(_guid: string): void {
-    // Wired in Task 9 once NewPageModal is in place.
+  onNewPage(): void {
+    void this.openNewPageModal(null);
+  }
+
+  onNewChildRequested(guid: string): void {
+    void this.openNewPageModal(guid);
+  }
+
+  private async openNewPageModal(parentGuid: string | null): Promise<void> {
+    const data: NewPageModalData = { parentGuid };
+    if (parentGuid) {
+      // Look up parent's pageType so the modal can scope the dropdown.
+      try {
+        const list = await this.pages.fetchChildren(parentGuid);
+        // Best-effort: parent's own metadata isn't on the children list, but
+        // fetchChildren confirms the parent exists. Skip pageType lookup
+        // here; the modal still defaults to "all types".
+        void list;
+      } catch {
+        // Non-fatal: open the modal anyway.
+      }
+    }
+    const ref = this.dialog.open<NewPageModal, NewPageModalData, string | null>(
+      NewPageModal,
+      { data },
+    );
+    const created = await firstValueFrom(ref.afterClosed());
+    if (created && typeof created === 'string') {
+      await this.router.navigate(['/pages', created, 'edit']);
+    }
   }
 
   async onSortRequested(req: { guid: string; direction: 'asc' | 'desc' }): Promise<void> {
