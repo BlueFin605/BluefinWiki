@@ -1,3 +1,20 @@
+/**
+ * Remark plugin that converts wiki-link syntax (`[[Title]]` or `[[guid|alias]]`)
+ * into mdast `link` nodes annotated with `data.hProperties` for downstream
+ * HAST consumption.
+ *
+ * **hProperties key casing — important:** keys are emitted in camelCase
+ * (`dataWikiLink`, `dataWikiType`, `dataWikiTarget`, `dataBroken`, `className`)
+ * rather than the hyphenated HTML form. `mdast-util-to-hast` (invoked by
+ * `remark-rehype`) copies `hProperties` **verbatim** onto the HAST element's
+ * `properties` map — it does not normalize key casing. The `MarkdownRenderer`
+ * HAST walker reads these properties directly (e.g. `properties['dataWikiLink']
+ * === 'true'`), so the keys must be camelCase at the source.
+ * `rehype-stringify` (via `property-information`) still serializes these to
+ * the canonical kebab-case HTML attributes (`data-wiki-link="true"` etc.).
+ * Renaming the keys to hyphenated form will break the HAST renderer's
+ * detection without any test failure in the plugin's own HTML-output tests.
+ */
 import { visit } from 'unist-util-visit';
 import type { Plugin } from 'unified';
 import type { Root, Text, Link, Code, InlineCode } from 'mdast';

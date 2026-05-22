@@ -848,7 +848,7 @@ describe('buildMarkdownPipeline', () => {
 });
 ```
 
-(`remark-rehype` lowercases `data-*` attribute names from the plugin and exposes them on `properties` as camelCase — that's why the assertion is `dataWikiLink` / `dataBroken` here even though the plugin sets `data-wiki-link` / `data-broken`.)
+(The `remark-wiki-links` plugin emits `hProperties` keys in camelCase (`dataWikiLink`, `dataBroken`, …) directly. `mdast-util-to-hast` (invoked by `remark-rehype`) copies `hProperties` onto HAST `properties` **verbatim** — it does not normalize key casing. `rehype-stringify` / `property-information` is what serializes both `dataWikiLink` and `'data-wiki-link'` to the same kebab-case HTML attribute later; HAST consumers like the renderer read the camelCase key directly.)
 
 - [ ] **Step 2: Run the test to verify it fails**
 
