@@ -16,7 +16,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadChildren: () => import('./features/pages/pages.routes').then((m) => m.PAGES_ROUTES),
   },
-  { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/profile-placeholder').then((m) => m.ProfilePlaceholder) },
+  { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage) },
 
   { path: 'settings', canActivate: [authGuard], loadComponent: () => import('./features/admin/settings-page').then((m) => m.SettingsPage) },
   { path: 'admin/page-types', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/page-types/page-types-admin').then((m) => m.PageTypesAdmin) },
