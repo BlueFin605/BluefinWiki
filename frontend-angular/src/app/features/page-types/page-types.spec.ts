@@ -2,7 +2,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
-import { PageTypes, SKIP_PAGE_TYPE_FETCH } from './page-types';
+import {
+  PageTypes,
+  SKIP_PAGE_TYPE_FETCH,
+  type CreatePageTypeRequest,
+  type UpdatePageTypeRequest,
+} from './page-types';
 import type { PageTypeDefinition } from '../pages/page.types';
 
 function pageType(over: Partial<PageTypeDefinition> = {}): PageTypeDefinition {
@@ -130,6 +135,88 @@ describe('PageTypes service', () => {
       await settle();
 
       expect(resource.value()?.allowedChildTypes[0].guid).toBe('bb');
+    });
+  });
+
+  describe('mutations', () => {
+    it('createPageType POSTs body and bumps version causing refetch', async () => {
+      const resource = TestBed.runInInjectionContext(() => pageTypes.pageTypesResource());
+      await settle();
+      http.expectOne('/api/page-types').flush({ pageTypes: [] });
+      await settle();
+
+      const body: CreatePageTypeRequest = {
+        name: 'Note',
+        icon: 'note',
+        properties: [],
+        allowedChildTypes: [],
+        allowWikiPageChildren: true,
+        allowedParentTypes: [],
+        allowAnyParent: true,
+      };
+      const created = pageType({ guid: 'new-1', name: 'Note' });
+
+      const promise = pageTypes.createPageType(body);
+      await settle();
+      const post = http.expectOne('/api/page-types');
+      expect(post.request.method).toBe('POST');
+      expect(post.request.body).toEqual(body);
+      post.flush(created);
+      const result = await promise;
+
+      expect(result.guid).toBe('new-1');
+
+      await settle();
+      http.expectOne('/api/page-types').flush({ pageTypes: [created] });
+      await settle();
+      expect(resource.value()?.[0].guid).toBe('new-1');
+    });
+
+    it('updatePageType PUTs to /api/page-types/{guid} and bumps version', async () => {
+      const resource = TestBed.runInInjectionContext(() => pageTypes.pageTypesResource());
+      await settle();
+      http.expectOne('/api/page-types').flush({ pageTypes: [pageType({ guid: 'pt-9' })] });
+      await settle();
+
+      const body: UpdatePageTypeRequest = { name: 'Renamed' };
+      const promise = pageTypes.updatePageType('pt-9', body);
+      await settle();
+      const put = http.expectOne('/api/page-types/pt-9');
+      expect(put.request.method).toBe('PUT');
+      expect(put.request.body).toEqual(body);
+      put.flush(pageType({ guid: 'pt-9', name: 'Renamed' }));
+      const result = await promise;
+
+      expect(result.name).toBe('Renamed');
+
+      await settle();
+      http
+        .expectOne('/api/page-types')
+        .flush({ pageTypes: [pageType({ guid: 'pt-9', name: 'Renamed' })] });
+      await settle();
+      expect(resource.value()?.[0].name).toBe('Renamed');
+    });
+
+    it('deletePageType DELETEs to /api/page-types/{guid} and bumps version', async () => {
+      const resource = TestBed.runInInjectionContext(() => pageTypes.pageTypesResource());
+      await settle();
+      http
+        .expectOne('/api/page-types')
+        .flush({ pageTypes: [pageType({ guid: 'pt-x' }), pageType({ guid: 'pt-y' })] });
+      await settle();
+
+      const promise = pageTypes.deletePageType('pt-x');
+      await settle();
+      const del = http.expectOne('/api/page-types/pt-x');
+      expect(del.request.method).toBe('DELETE');
+      del.flush(null);
+      await promise;
+
+      await settle();
+      http.expectOne('/api/page-types').flush({ pageTypes: [pageType({ guid: 'pt-y' })] });
+      await settle();
+      expect(resource.value()?.length).toBe(1);
+      expect(resource.value()?.[0].guid).toBe('pt-y');
     });
   });
 });
