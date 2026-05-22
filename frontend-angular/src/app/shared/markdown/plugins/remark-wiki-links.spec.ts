@@ -18,7 +18,7 @@ async function toHtml(markdown: string, options?: Parameters<typeof remarkWikiLi
 async function toMdast(markdown: string, options?: Parameters<typeof remarkWikiLinks>[0]): Promise<Root> {
   const processor = unified().use(remarkParse).use(remarkWikiLinks, options);
   const tree = processor.parse(markdown);
-  return processor.run(tree) as Promise<Root>;
+  return processor.run(tree);
 }
 
 describe('remark-wiki-links', () => {

@@ -82,18 +82,19 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
     // the existing React plugin gets fenced-code/backtick-code exclusion for
     // free.
     visit(tree, 'text', (node: Text, index, parent) => {
-      if (!parent || index === undefined) return;
+      if (!parent || index === undefined) return undefined;
       // Defensive: never rewrite text inside `code` or `inlineCode` parents (in
       // case a custom remark plugin elsewhere emits `text` children of them).
       const parentType = (parent as { type: string }).type;
       if (parentType === ('code' satisfies Code['type']) || parentType === ('inlineCode' satisfies InlineCode['type'])) {
-        return;
+        return undefined;
       }
       const processed = processTextNode(node);
       if (processed.length !== 1 || processed[0] !== node) {
         parent.children.splice(index, 1, ...processed);
         return index;
       }
+      return undefined;
     });
   };
 };
