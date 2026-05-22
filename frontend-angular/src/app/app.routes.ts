@@ -20,7 +20,7 @@ export const routes: Routes = [
 
   { path: 'settings', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/settings-placeholder').then((m) => m.SettingsPlaceholder) },
   { path: 'admin/page-types', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/page-types/page-types-admin').then((m) => m.PageTypesAdmin) },
-  { path: 'admin/users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/users-placeholder').then((m) => m.UsersPlaceholder) },
+  { path: 'admin/users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/user-management').then((m) => m.UserManagement) },
   { path: 'admin/invitations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/invitations-placeholder').then((m) => m.InvitationsPlaceholder) },
   { path: 'admin/rebuild-page-index', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/rebuild-index-placeholder').then((m) => m.RebuildIndexPlaceholder) },
 
