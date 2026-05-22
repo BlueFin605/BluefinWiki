@@ -62,5 +62,12 @@ var frontend = builder.AddViteApp("frontend", "../../frontend")
     .WithEnvironment("VITE_LOCALSTACK_ENDPOINT", "http://localhost:4566")
     .WithExternalHttpEndpoints();
 
+// Angular frontend (after Phase 8 cutover lands in this directory).
+// var frontendAngular = builder.AddNpmApp("frontend-angular", "../../frontend-angular", "start")
+//     .WithEnvironment("NODE_ENV", "development")
+//     .WithEnvironment("NG_APP_API_BASE_URL", "http://localhost:3000")
+//     .WithHttpEndpoint(port: 5174, env: "PORT")
+//     .WithExternalHttpEndpoints();
+
 var app = builder.Build();
 await app.RunAsync();
