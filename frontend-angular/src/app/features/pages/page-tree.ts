@@ -28,6 +28,9 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
             (pageSelect)="pageSelect.emit($event)"
             (renameRequested)="renameRequested.emit($event)"
             (deleteRequested)="deleteRequested.emit($event)"
+            (newChildRequested)="newChildRequested.emit($event)"
+            (sortRequested)="sortRequested.emit($event)"
+            (moveRequested)="moveRequested.emit($event)"
           />
         }
       }
@@ -70,6 +73,9 @@ export class PageTree {
   readonly pageSelect = output<string>();
   readonly renameRequested = output<string>();
   readonly deleteRequested = output<string>();
+  readonly newChildRequested = output<string>();
+  readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();
+  readonly moveRequested = output<string>();
 
   readonly rootChildren = this.pages.childrenResource(this.rootSignal);
 

@@ -39,6 +39,9 @@ import { PageRenameInline } from './page-rename-inline';
             (pageSelect)="onPageSelect($event)"
             (renameRequested)="onRenameRequested($event)"
             (deleteRequested)="onDeleteRequested($event)"
+            (newChildRequested)="onNewChildRequested($event)"
+            (sortRequested)="onSortRequested($event)"
+            (moveRequested)="onMoveRequested($event)"
           />
         </aside>
         <main class="main">
@@ -117,5 +120,31 @@ export class PagesView {
       console.error('Failed to delete page', err);
       window.alert('Failed to delete page.');
     }
+  }
+
+  onNewChildRequested(_guid: string): void {
+    // Wired in Task 9 once NewPageModal is in place.
+  }
+
+  async onSortRequested(req: { guid: string; direction: 'asc' | 'desc' }): Promise<void> {
+    try {
+      const children = await this.pages.fetchChildren(req.guid);
+      const stripped = (t: string): string => t.replace(/^(the|a|an)\s+/i, '');
+      const sorted = [...children].sort((a, b) => {
+        const cmp = stripped(a.title).localeCompare(stripped(b.title), undefined, { sensitivity: 'base' });
+        return req.direction === 'asc' ? cmp : -cmp;
+      });
+      await this.pages.reorderPages({
+        parentGuid: req.guid,
+        orderedGuids: sorted.map((p) => p.guid),
+      });
+    } catch (err) {
+      console.error('Failed to sort children', err);
+      window.alert('Failed to sort children.');
+    }
+  }
+
+  onMoveRequested(_guid: string): void {
+    window.alert('Move dialog coming in a later phase');
   }
 }

@@ -1,13 +1,14 @@
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkTypeConstraints } from './check-type-constraints';
+import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
 import type { PageSummary, PageTypeDefinition } from './page.types';
 
 @Component({
   selector: 'wiki-page-tree-item',
   standalone: true,
-  imports: [CdkDrag, CdkDropList],
+  imports: [CdkDrag, CdkDropList, PageContextMenu],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-tree-node">
@@ -29,6 +30,7 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
           (click)="onClick()"
           (dblclick)="onDoubleClick()"
           (keydown)="onRowKeydown($event)"
+          (contextmenu)="onContextMenu($event)"
         >
           @if (page().hasChildren) {
             <button
@@ -60,6 +62,12 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
         </div>
       </div>
 
+      <wiki-page-context-menu
+        [guid]="page().guid"
+        [hasChildren]="page().hasChildren"
+        (menuEvent)="onMenuEvent($event)"
+      />
+
       @if (expanded() && children.value(); as kids) {
         @for (child of kids; track child.guid) {
           <wiki-page-tree-item
@@ -71,6 +79,9 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
             (pageSelect)="pageSelect.emit($event)"
             (renameRequested)="renameRequested.emit($event)"
             (deleteRequested)="deleteRequested.emit($event)"
+            (newChildRequested)="newChildRequested.emit($event)"
+            (sortRequested)="sortRequested.emit($event)"
+            (moveRequested)="moveRequested.emit($event)"
           />
         }
       }
@@ -112,6 +123,11 @@ export class PageTreeItem {
   readonly pageSelect = output<string>();
   readonly renameRequested = output<string>();
   readonly deleteRequested = output<string>();
+  readonly newChildRequested = output<string>();
+  readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();
+  readonly moveRequested = output<string>();
+
+  private readonly contextMenu = viewChild.required(PageContextMenu);
 
   private readonly _expanded = signal(false);
   readonly expanded = this._expanded.asReadonly();
@@ -161,6 +177,21 @@ export class PageTreeItem {
   onDelete(event: MouseEvent): void {
     event.stopPropagation();
     this.deleteRequested.emit(this.page().guid);
+  }
+
+  onContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    this.contextMenu().open({ x: event.clientX, y: event.clientY });
+  }
+
+  onMenuEvent(event: ContextMenuEvent): void {
+    switch (event.kind) {
+      case 'rename': this.renameRequested.emit(event.guid); break;
+      case 'newChild': this.newChildRequested.emit(event.guid); break;
+      case 'sort': this.sortRequested.emit({ guid: event.guid, direction: event.direction }); break;
+      case 'move': this.moveRequested.emit(event.guid); break;
+      case 'delete': this.deleteRequested.emit(event.guid); break;
+    }
   }
 
   onRowKeydown(event: KeyboardEvent): void {

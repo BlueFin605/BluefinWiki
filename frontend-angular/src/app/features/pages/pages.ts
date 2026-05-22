@@ -140,6 +140,16 @@ export class Pages {
     return result;
   }
 
+  /**
+   * Imperative children fetch — used by mutations that need a current list
+   * without spinning up an `rxResource` (e.g. context-menu "sort children").
+   */
+  async fetchChildren(parentGuid: string | null): Promise<PageSummary[]> {
+    const path = parentGuid ? `/api/pages/${parentGuid}/children` : '/api/pages/root/children';
+    const response = await firstValueFrom(this.http.get<ChildrenResponse>(path));
+    return response.children ?? [];
+  }
+
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
     this.bumpVersion();
