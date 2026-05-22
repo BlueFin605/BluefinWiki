@@ -1,11 +1,14 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
+import type { WikiBrokenLinkEvent } from '../../shared/markdown/wiki-link';
 import { Pages } from './pages';
+import { CreatePageFromLinkModal, type CreatePageFromLinkModalData } from './create-page-from-link-modal';
 
 @Component({
   selector: 'wiki-page-view',
@@ -28,7 +31,10 @@ import { Pages } from './pages';
             <button type="button" (click)="resource.reload()">Retry</button>
           </div>
         } @else if (resource.value(); as content) {
-          <wiki-markdown-renderer [markdown]="content.content" />
+          <wiki-markdown-renderer
+            [markdown]="content.content"
+            (brokenClick)="onBrokenLink($event)"
+          />
         }
       </section>
     </div>
@@ -44,6 +50,7 @@ import { Pages } from './pages';
 export class PageView {
   private readonly route = inject(ActivatedRoute);
   private readonly pages = inject(Pages);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly guid = toSignal(
     this.route.paramMap.pipe(map((p) => p.get('guid'))),
@@ -51,4 +58,16 @@ export class PageView {
   );
 
   protected readonly resource = this.pages.pageResource(this.guid);
+
+  async onBrokenLink(event: WikiBrokenLinkEvent): Promise<void> {
+    const data: CreatePageFromLinkModalData = {
+      target: event.displayText || event.target,
+      parentGuid: this.guid(),
+    };
+    const ref = this.dialog.open<CreatePageFromLinkModal, CreatePageFromLinkModalData, string | null>(
+      CreatePageFromLinkModal,
+      { data },
+    );
+    await firstValueFrom(ref.afterClosed());
+  }
 }
