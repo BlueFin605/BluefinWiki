@@ -5,7 +5,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
 import { firstValueFrom } from 'rxjs';
+import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
 import { Pages } from './pages';
 import { PageTree } from './page-tree';
@@ -21,6 +23,7 @@ import { NewPageModal, type NewPageModalData } from './new-page-modal';
     MatButtonModule,
     MatTooltipModule,
     MatIconModule,
+    MatMenuModule,
     PageTree,
     PageRenameInline,
   ],
@@ -33,6 +36,29 @@ import { NewPageModal, type NewPageModalData } from './new-page-modal';
         <button mat-button (click)="onNewPage()">
           New page
         </button>
+        <button
+          mat-icon-button
+          [matMenuTriggerFor]="userMenu"
+          aria-label="User menu"
+        >
+          <mat-icon>account_circle</mat-icon>
+        </button>
+        <mat-menu #userMenu="matMenu">
+          @if (isAdmin()) {
+            <button mat-menu-item (click)="onSettings()">
+              <mat-icon>settings</mat-icon>
+              <span>Settings</span>
+            </button>
+          }
+          <button mat-menu-item (click)="onProfile()">
+            <mat-icon>person</mat-icon>
+            <span>Profile</span>
+          </button>
+          <button mat-menu-item (click)="onSignOut()">
+            <mat-icon>logout</mat-icon>
+            <span>Sign out</span>
+          </button>
+        </mat-menu>
       </mat-toolbar>
       <div class="body">
         <aside class="sidebar" [style.width.px]="treeWidth()">
@@ -77,8 +103,11 @@ export class PagesView {
   private readonly pages = inject(Pages);
   private readonly layout = inject(Layout);
   private readonly dialog = inject(MatDialog);
+  private readonly auth = inject(Auth);
 
   protected readonly treeWidth = computed(() => this.layout.treeWidth());
+
+  protected readonly isAdmin = computed(() => this.auth.user()?.role === 'Admin');
 
   // Phase 6 will inject PageTypesService and bind this to its resource.
   // Phase 3 ships an empty map — the tree still works, drag-drop has no
@@ -178,5 +207,18 @@ export class PagesView {
 
   onMoveRequested(_guid: string): void {
     window.alert('Move dialog coming in a later phase');
+  }
+
+  onSettings(): void {
+    void this.router.navigate(['/settings']);
+  }
+
+  onProfile(): void {
+    void this.router.navigate(['/profile']);
+  }
+
+  onSignOut(): void {
+    this.auth.signOut();
+    void this.router.navigate(['/']);
   }
 }
