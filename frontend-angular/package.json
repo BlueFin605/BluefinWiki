@@ -63,6 +63,7 @@
     "jest-junit": "^16.0.0",
     "jest-preset-angular": "^16.1.5",
     "prettier": "^3.8.1",
+    "rehype-stringify": "^10.0.1",
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.2",
