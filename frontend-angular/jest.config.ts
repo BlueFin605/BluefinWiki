@@ -21,6 +21,8 @@ const config: Config = {
   transformIgnorePatterns: [
     'node_modules/(?!(' +
       '.*\\.mjs|' +
+      '@codemirror/state|@codemirror/view|@codemirror/lang-markdown|@codemirror/commands|@codemirror/language|@codemirror/autocomplete|' +
+      '@lezer/common|@lezer/highlight|@lezer/markdown|@lezer/lr|' +
       'unified|bail|trough|is-plain-obj|vfile|vfile-message|' +
       'remark-parse|remark-rehype|remark-gfm|remark-stringify|remark-breaks|' +
       'rehype-stringify|rehype-parse|rehype-highlight|' +
