@@ -185,6 +185,51 @@ describe('Pages service', () => {
     });
   });
 
+  describe('pageSearchResource', () => {
+    it('GETs /api/pages/search with encoded query and trims whitespace', async () => {
+      const q = signal<string | null>('  hello world  ');
+      const resource = TestBed.runInInjectionContext(() => pages.pageSearchResource(q));
+      await settle();
+      const req = http.expectOne('/api/pages/search?q=hello%20world&limit=10');
+      expect(req.request.method).toBe('GET');
+      req.flush({ results: [{ guid: 'g1', title: 'Hello World', path: '/', folderId: null }] });
+      await settle();
+      expect(resource.value()?.[0].title).toBe('Hello World');
+    });
+
+    it('does not fetch when query is empty', async () => {
+      const q = signal<string | null>('');
+      TestBed.runInInjectionContext(() => pages.pageSearchResource(q));
+      await settle();
+      http.expectNone(() => true);
+    });
+  });
+
+  describe('backlinksResource', () => {
+    it('GETs /api/pages/{guid}/backlinks', async () => {
+      const guid = signal<string | null>('p1');
+      const resource = TestBed.runInInjectionContext(() => pages.backlinksResource(guid));
+      await settle();
+      const req = http.expectOne('/api/pages/p1/backlinks');
+      req.flush({ guid: 'p1', backlinks: [{ guid: 'g2', title: 'Other' }], count: 1 });
+      await settle();
+      expect(resource.value()?.count).toBe(1);
+      expect(resource.value()?.backlinks[0].title).toBe('Other');
+    });
+  });
+
+  describe('createPage mutation', () => {
+    it('POSTs /api/pages with the request body', async () => {
+      const promise = pages.createPage({ title: 'New', parentGuid: null });
+      const req = http.expectOne('/api/pages');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ title: 'New', parentGuid: null });
+      req.flush(pageContent({ guid: 'new', title: 'New' }));
+      const result = await promise;
+      expect(result.guid).toBe('new');
+    });
+  });
+
   describe('rejects-of-rxjs sanity', () => {
     // Sanity check that we aren't accidentally consuming the rxjs symbol export
     it('importable smoke', () => {

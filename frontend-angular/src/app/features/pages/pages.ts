@@ -9,10 +9,27 @@ import type {
   MovePageRequest,
   ReorderRequest,
   DeletePageRequest,
+  CreatePageRequest,
 } from './page.types';
 
 interface ChildrenResponse { children: PageSummary[] }
 interface AncestorsResponse { ancestors: PageSummary[] }
+interface BacklinksResponse { guid: string; backlinks: Backlink[]; count: number }
+interface PageSearchResponse { results: PageSearchResult[] }
+
+export interface PageSearchResult {
+  guid: string;
+  title: string;
+  path: string;
+  folderId: string | null;
+}
+
+export interface Backlink {
+  guid: string;
+  title: string;
+  path?: string;
+  excerpt?: string;
+}
 
 /**
  * Sentinel value: pass as the parentGuid signal value to disable the
@@ -91,7 +108,37 @@ export class Pages {
     });
   }
 
+  backlinksResource(guid: Signal<string | null>) {
+    return rxResource({
+      params: () => ({ guid: guid(), v: this._version() }),
+      stream: ({ params }) => {
+        if (!params.guid) throw new Error('backlinksResource called with null guid');
+        return this.http.get<BacklinksResponse>(`/api/pages/${params.guid}/backlinks`);
+      },
+    });
+  }
+
+  pageSearchResource(query: Signal<string | null>) {
+    return rxResource({
+      params: () => ({ q: query()?.trim() ?? '', v: this._version() }),
+      stream: ({ params }) => {
+        if (!params.q) throw new Error('pageSearchResource: empty query');
+        return this.http
+          .get<PageSearchResponse>(
+            `/api/pages/search?q=${encodeURIComponent(params.q)}&limit=10`,
+          )
+          .pipe(map((r) => r.results ?? []));
+      },
+    });
+  }
+
   // ---- mutations ----
+
+  async createPage(body: CreatePageRequest): Promise<PageContent> {
+    const result = await firstValueFrom(this.http.post<PageContent>('/api/pages', body));
+    this.bumpVersion();
+    return result;
+  }
 
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
