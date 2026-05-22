@@ -51,6 +51,41 @@ describe('PageEdit', () => {
     localStorage.clear();
   });
 
+  afterEach(() => {
+    // Try to drain any open requests that came from breadcrumbs / inspector
+    // background-loaders mounted by the page-edit shell. We don't assert
+    // they fired — those components are covered by their own specs.
+    try {
+      const http = TestBed.inject(HttpTestingController);
+      http.match(() => true).forEach((req) => req.flush(null));
+    } catch {
+      // TestBed already torn down — nothing to do.
+    }
+  });
+
+  it('toolbar action invokes applyAction on the editor', async () => {
+    const { fixture } = await render(PageEdit, {
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), route('g1')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await flush();
+    fixture.detectChanges();
+    await flush();
+
+    // Spy on the editor's applyAction by reading content before/after.
+    fixture.componentInstance.content.set('hello');
+    fixture.detectChanges();
+    const toolbar = screen.getByRole('toolbar', { name: /markdown formatting/i });
+    const boldBtn = toolbar.querySelector('button[aria-label="Bold"]') as HTMLButtonElement;
+    expect(boldBtn).not.toBeNull();
+    boldBtn.click();
+    // applyAction wraps the selected text with ** — with no selection the
+    // current implementation inserts at the caret (which is 0..0). The
+    // resulting doc starts with the wrap+placeholder.
+    expect(fixture.componentInstance.content()).toMatch(/^\*\*/);
+  });
+
   it('loads server content into the editor when no draft exists', async () => {
     const { fixture } = await render(PageEdit, {
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), route('g1')],

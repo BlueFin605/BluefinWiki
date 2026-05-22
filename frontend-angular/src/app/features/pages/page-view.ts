@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map } from 'rxjs';
@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog } from '@angular/material/dialog';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
+import { Breadcrumbs } from '../../shared/components/breadcrumbs';
 import type { WikiBrokenLinkEvent } from '../../shared/markdown/wiki-link';
 import { Pages } from './pages';
 import { CreatePageFromLinkModal, type CreatePageFromLinkModalData } from './create-page-from-link-modal';
@@ -13,7 +14,7 @@ import { CreatePageFromLinkModal, type CreatePageFromLinkModalData } from './cre
 @Component({
   selector: 'wiki-page-view',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatIconModule, MarkdownRenderer],
+  imports: [RouterLink, MatButtonModule, MatIconModule, MarkdownRenderer, Breadcrumbs],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-view">
@@ -22,6 +23,11 @@ import { CreatePageFromLinkModal, type CreatePageFromLinkModalData } from './cre
           <a mat-button color="primary" [routerLink]="['/pages', guid(), 'edit']">Edit</a>
         }
       </header>
+      @if (guid(); as g) {
+        @if (resolvedTitle(); as t) {
+          <wiki-breadcrumbs [guid]="g" [currentTitle]="t" />
+        }
+      }
       <section class="body">
         @if (resource.isLoading()) {
           <div class="state">Loading page...</div>
@@ -58,6 +64,11 @@ export class PageView {
   );
 
   protected readonly resource = this.pages.pageResource(this.guid);
+
+  protected readonly resolvedTitle = computed<string | null>(() => {
+    if (this.resource.status() !== 'resolved') return null;
+    return this.resource.value()?.title ?? null;
+  });
 
   async onBrokenLink(event: WikiBrokenLinkEvent): Promise<void> {
     const data: CreatePageFromLinkModalData = {

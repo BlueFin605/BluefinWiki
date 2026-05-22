@@ -24,7 +24,7 @@ import type { AttachmentMetadata } from './attachment.types';
         <p class="state">Loading attachments...</p>
       } @else if (resource.error()) {
         <p class="state error">Failed to load attachments.</p>
-      } @else if ((items() ?? []).length === 0) {
+      } @else if (items().length === 0) {
         <p class="state empty">No attachments yet.</p>
       } @else {
         <ul class="list">

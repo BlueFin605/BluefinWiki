@@ -51,6 +51,11 @@ describe('PageView', () => {
     for (let i = 0; i < 5; i++) await Promise.resolve();
     TestBed.tick();
     for (let i = 0; i < 5; i++) await Promise.resolve();
+    // The breadcrumbs component mounts and fires an ancestors fetch — drain it.
+    http.expectOne('/api/pages/g1/ancestors').flush({ ancestors: [] });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    TestBed.tick();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
     fixture.detectChanges();
     expect(screen.getByRole('heading', { name: 'Hello world' })).toBeInTheDocument();
   });

@@ -1,17 +1,18 @@
 import { Injectable } from '@angular/core';
+import type { PageProperty } from './page.types';
 
 /**
- * Minimal Phase 3 metadata shape. Phase 4 will widen this to include
- * pageType + custom properties + boardConfig as the inspector panel lands.
- * The fields here match what the React `PageMetadata` interface uses for
- * the save flow, so the localStorage JSON shape is unchanged.
+ * Minimal Phase 3 metadata shape, widened in Phase 4 with custom
+ * properties (driven by page-type schemas). The fields here match what
+ * the React `PageMetadata` interface uses for the save flow, so the
+ * localStorage JSON shape is unchanged.
  */
 export interface PageMetadata {
   title: string;
   tags: string[];
   status: 'draft' | 'published' | 'archived';
   pageType?: string;
-  properties?: Record<string, unknown>;
+  properties?: Record<string, PageProperty>;
   createdBy: string;
   modifiedBy: string;
   createdAt: string;
