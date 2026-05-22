@@ -14,6 +14,12 @@ import type {
 interface ChildrenResponse { children: PageSummary[] }
 interface AncestorsResponse { ancestors: PageSummary[] }
 
+/**
+ * Sentinel value: pass as the parentGuid signal value to disable the
+ * children fetch entirely (used by recursive tree items while collapsed).
+ */
+export const SKIP_CHILDREN_FETCH: unique symbol = Symbol('SKIP_CHILDREN_FETCH');
+
 @Injectable({ providedIn: 'root' })
 export class Pages {
   private readonly http = inject(HttpClient);
@@ -26,18 +32,27 @@ export class Pages {
   /**
    * Reactive children resource. `parentGuid` is a signal so consumers can
    * switch the request without recreating the resource. Pass `null` for the
-   * root level (the React app's `/pages/root/children` endpoint).
+   * root level (the React app's `/pages/root/children` endpoint). Pass
+   * the `SKIP_CHILDREN_FETCH` sentinel to disable the fetch entirely (used
+   * by `PageTreeItem` while collapsed).
    *
    * The resource also depends on `_version` so any successful mutation that
    * calls `bumpVersion()` triggers a refetch.
    */
-  childrenResource(parentGuid: Signal<string | null>) {
+  childrenResource(parentGuid: Signal<string | null | typeof SKIP_CHILDREN_FETCH>) {
     return rxResource({
       params: () => ({ parentGuid: parentGuid(), v: this._version() }),
       stream: ({ params }) => {
-        const path = params.parentGuid
-          ? `/api/pages/${params.parentGuid}/children`
-          : '/api/pages/root/children';
+        const pg = params.parentGuid;
+        if (pg === SKIP_CHILDREN_FETCH) {
+          throw new Error('childrenResource: fetch disabled');
+        }
+        let path: string;
+        if (typeof pg === 'string') {
+          path = `/api/pages/${pg}/children`;
+        } else {
+          path = '/api/pages/root/children';
+        }
         return this.http
           .get<ChildrenResponse>(path)
           .pipe(map((r) => r.children ?? []));
