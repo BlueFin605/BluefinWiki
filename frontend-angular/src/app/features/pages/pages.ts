@@ -5,6 +5,7 @@ import { firstValueFrom, map } from 'rxjs';
 import type {
   PageContent,
   PageSummary,
+  PageChildDetail,
   UpdatePageRequest,
   MovePageRequest,
   ReorderRequest,
@@ -16,6 +17,19 @@ interface ChildrenResponse { children: PageSummary[] }
 interface AncestorsResponse { ancestors: PageSummary[] }
 interface BacklinksResponse { guid: string; backlinks: Backlink[]; count: number }
 interface PageSearchResponse { results: PageSearchResult[] }
+
+export interface ChildrenWithPropertiesOptions {
+  targetTypeGuid?: string;
+  depth?: number;
+  limit?: number;
+  cursor?: string | null;
+}
+
+export interface ChildrenWithPropertiesResponse {
+  children: PageChildDetail[];
+  hasMore?: boolean;
+  nextCursor?: string | null;
+}
 
 export interface PageSearchResult {
   guid: string;
@@ -114,6 +128,39 @@ export class Pages {
       stream: ({ params }) => {
         if (!params.guid) throw new Error('backlinksResource called with null guid');
         return this.http.get<BacklinksResponse>(`/api/pages/${params.guid}/backlinks`);
+      },
+    });
+  }
+
+  /**
+   * Reactive child-list resource with full property metadata. Used by the
+   * Board view, which groups cards by their `state` property.
+   *
+   * Pass `null` for `parentGuid` to disable the fetch. The `options` signal
+   * may contribute `type=`, `depth=`, `limit=`, and `cursor=` query params.
+   * The resource also depends on `_version` so any successful mutation that
+   * calls `bumpVersion()` triggers a refetch.
+   */
+  childrenWithPropertiesResource(
+    parentGuid: Signal<string | null>,
+    options: Signal<ChildrenWithPropertiesOptions | null>,
+  ) {
+    return rxResource({
+      params: () => ({ parentGuid: parentGuid(), opts: options() ?? {}, v: this._version() }),
+      stream: ({ params }) => {
+        if (!params.parentGuid) {
+          throw new Error('childrenWithPropertiesResource: parentGuid is null');
+        }
+        const qs = new URLSearchParams();
+        qs.set('include', 'properties');
+        const opts = params.opts;
+        if (opts.targetTypeGuid) qs.set('type', opts.targetTypeGuid);
+        if (opts.depth !== undefined) qs.set('depth', String(opts.depth));
+        if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
+        if (opts.cursor) qs.set('cursor', opts.cursor);
+        return this.http.get<ChildrenWithPropertiesResponse>(
+          `/api/pages/${params.parentGuid}/children?${qs.toString()}`,
+        );
       },
     });
   }
