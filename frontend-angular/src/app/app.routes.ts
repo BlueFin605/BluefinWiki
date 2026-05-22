@@ -11,9 +11,11 @@ export const routes: Routes = [
       import('./features/callback/oauth-callback').then((m) => m.OAuthCallback),
   },
 
-  { path: 'pages', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
-  { path: 'pages/:guid', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/pages-placeholder').then((m) => m.PagesPlaceholder) },
-  { path: 'pages/:guid/edit', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/page-editor-placeholder').then((m) => m.PageEditorPlaceholder) },
+  {
+    path: 'pages',
+    canActivate: [authGuard],
+    loadChildren: () => import('./features/pages/pages.routes').then((m) => m.PAGES_ROUTES),
+  },
   { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/placeholder/profile-placeholder').then((m) => m.ProfilePlaceholder) },
 
   { path: 'settings', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/settings-placeholder').then((m) => m.SettingsPlaceholder) },
