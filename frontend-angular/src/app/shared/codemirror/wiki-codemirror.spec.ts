@@ -55,10 +55,6 @@ describe('WikiCodemirror', () => {
     const editable = host.querySelector('.cm-content') as HTMLElement;
     await user.click(editable);
     await user.keyboard('{Control>}s{/Control}');
-    // If userEvent doesn't fire the CodeMirror keymap binding in jsdom, try synthetic event
-    if (saved === 0) {
-      editable.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true }));
-    }
     expect(saved).toBe(1);
   });
 
