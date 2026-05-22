@@ -23,6 +23,9 @@ export const authInterceptor: HttpInterceptorFn = (
   return next(authedReq).pipe(
     catchError((err: unknown) => {
       if (err instanceof HttpErrorResponse && err.status === 401) {
+        // TODO: single-flight refresh. Concurrent 401s call refreshIdToken()
+        // in parallel; share the in-flight Promise on Auth before real /api
+        // traffic lands.
         return from(auth.refreshIdToken()).pipe(
           switchMap((refreshed) => {
             if (refreshed) {
