@@ -23,12 +23,6 @@ export const routes: Routes = [
   { path: 'admin/rebuild-page-index', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/placeholder/rebuild-index-placeholder').then((m) => m.RebuildIndexPlaceholder) },
 
   {
-    path: 'markdown-demo',
-    loadComponent: () =>
-      import('./features/placeholder/markdown-demo-placeholder').then((m) => m.MarkdownDemoPlaceholder),
-  },
-
-  {
     path: '**',
     loadComponent: () =>
       import('./features/not-found/not-found').then((m) => m.NotFound),
