@@ -106,4 +106,30 @@ describe('PageTreeItem', () => {
     await user.click(screen.getByRole('button', { name: /delete/i }));
     expect(events).toEqual(['g1']);
   });
+
+  it('enterPredicate rejects drops onto self', async () => {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ guid: 'g1' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    const item = fixture.componentInstance;
+    const fakeDrag = { data: summary({ guid: 'g1' }) } as unknown as Parameters<typeof item.enterPredicate>[0];
+    expect(item.enterPredicate(fakeDrag)).toBe(false);
+  });
+
+  it('enterPredicate respects pageTypesMap constraints', async () => {
+    const map = {
+      parent: { guid: 'parent', name: 'P', icon: '', properties: [],
+        allowedChildTypes: ['allowed-type'], allowWikiPageChildren: true,
+        allowedParentTypes: [], allowAnyParent: true,
+        createdBy: '', createdAt: '', updatedAt: '' },
+    };
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ guid: 'target', pageType: 'parent' }), level: 0, activeGuid: null, pageTypesMap: map },
+    });
+    const item = fixture.componentInstance;
+    const draggedAllowed = { data: summary({ guid: 'd', pageType: 'allowed-type' }) } as unknown as Parameters<typeof item.enterPredicate>[0];
+    const draggedBlocked = { data: summary({ guid: 'd', pageType: 'blocked-type' }) } as unknown as Parameters<typeof item.enterPredicate>[0];
+    expect(item.enterPredicate(draggedAllowed)).toBe(true);
+    expect(item.enterPredicate(draggedBlocked)).toBe(false);
+  });
 });

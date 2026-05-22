@@ -1,6 +1,7 @@
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
+import { checkTypeConstraints } from './check-type-constraints';
 import type { PageSummary, PageTypeDefinition } from './page.types';
 
 @Component({
@@ -136,8 +137,13 @@ export class PageTreeItem {
     return this.pageTypesMap()[type]?.name ?? null;
   });
 
-  // Predicate is replaced in Task 8.
-  readonly enterPredicate = (): boolean => true;
+  readonly enterPredicate = (drag: CdkDrag<PageSummary>): boolean => {
+    const dragged = drag.data;
+    if (!dragged) return true;
+    if (dragged.guid === this.page().guid) return false;
+    const warnings = checkTypeConstraints(dragged, this.page(), this.pageTypesMap());
+    return warnings.length === 0;
+  };
 
   toggleExpanded(event: MouseEvent): void {
     event.stopPropagation();
