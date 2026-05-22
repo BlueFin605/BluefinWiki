@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
+import type { MarkdownPipelineOptions } from '../../shared/markdown/unified-pipeline';
 import { WikiCodemirror } from '../../shared/codemirror/wiki-codemirror';
 
 const SAMPLE = `# Phase 2 markdown sanity check
@@ -53,7 +54,11 @@ flowchart TD
       </section>
       <section style="overflow: auto;">
         <h2 style="margin-top: 0;">Renderer (HAST walker)</h2>
-        <wiki-markdown-renderer [markdown]="markdown()" (brokenClick)="onBroken($event)" />
+        <wiki-markdown-renderer
+          [markdown]="markdown()"
+          [pipelineOptions]="pipelineOptions"
+          (brokenClick)="onBroken($event)"
+        />
         @if (lastEvent()) { <p><strong>Last event:</strong> {{ lastEvent() }}</p> }
       </section>
     </main>
@@ -62,6 +67,13 @@ flowchart TD
 export class MarkdownDemoPlaceholder {
   readonly markdown = signal(SAMPLE);
   readonly lastEvent = signal<string | null>(null);
+
+  // Force every wiki link to render as broken so the demo exercises the
+  // brokenClick handler. Phase 3 will wire a real `pageExists` against the
+  // pages service; until then there's no /wiki/* route to navigate to.
+  readonly pipelineOptions: MarkdownPipelineOptions = {
+    wikiLinks: { pageExists: () => false },
+  };
 
   onSave(): void {
     this.lastEvent.set(`save at ${new Date().toLocaleTimeString()}`);
