@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { MatSnackBar, type MatSnackBarRef } from '@angular/material/snack-bar';
 import { Subject } from 'rxjs';
 import { GlobalErrorHandler } from './global-error-handler';
+import { EditorErrorState } from './editor-error-state';
 
 describe('GlobalErrorHandler', () => {
   let snack: { open: jest.Mock };
@@ -26,6 +27,15 @@ describe('GlobalErrorHandler', () => {
       'Reload',
       expect.objectContaining({ duration: 6000 }),
     );
+    spy.mockRestore();
+  });
+
+  it('sets EditorErrorState on handleError', () => {
+    const handler = TestBed.inject(GlobalErrorHandler);
+    const state = TestBed.inject(EditorErrorState);
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    handler.handleError(new Error('kaboom'));
+    expect(state.current()?.message).toBe('kaboom');
     spy.mockRestore();
   });
 });
