@@ -5,8 +5,10 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { Auth } from '../../core/auth/auth';
 import { PagesView } from './pages-view';
+import { SearchDialog } from '../search/search-dialog';
 
 function baseProviders() {
   return [
@@ -94,5 +96,41 @@ describe('PagesView', () => {
 
     expect(screen.queryByRole('menuitem', { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /profile/i })).toBeInTheDocument();
+  });
+
+  it('opens the SearchDialog when Ctrl+K is pressed', async () => {
+    await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    await settle();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => ({ subscribe: () => undefined }) } as never);
+
+    const event = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true });
+    window.dispatchEvent(event);
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith(SearchDialog, expect.any(Object));
+  });
+
+  it('opens the SearchDialog when Cmd+K is pressed', async () => {
+    await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    await settle();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => ({ subscribe: () => undefined }) } as never);
+
+    const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true });
+    window.dispatchEvent(event);
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith(SearchDialog, expect.any(Object));
   });
 });

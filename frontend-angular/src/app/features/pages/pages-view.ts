@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,6 +13,7 @@ import { Pages } from './pages';
 import { PageTree } from './page-tree';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
+import { SearchDialog } from '../search/search-dialog';
 
 @Component({
   selector: 'wiki-pages-view',
@@ -207,6 +208,21 @@ export class PagesView {
 
   onMoveRequested(_guid: string): void {
     window.alert('Move dialog coming in a later phase');
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  onWindowKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.openSearch();
+    }
+  }
+
+  private openSearch(): void {
+    this.dialog.open<SearchDialog, void, string | null>(SearchDialog, {
+      width: '640px',
+      panelClass: 'wiki-search-dialog-panel',
+    });
   }
 
   onSettings(): void {
