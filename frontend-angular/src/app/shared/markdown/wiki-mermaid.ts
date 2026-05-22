@@ -46,6 +46,10 @@ export class WikiMermaid {
   private readonly _rawSvg = signal<string | null>(null);
   private readonly _error = signal<string | null>(null);
 
+  // Safe to bypass: mermaid is initialised with `securityLevel: 'strict'`,
+  // which strips `<script>` tags and event-handler attributes from the
+  // diagram source before producing the SVG. The output is mermaid-controlled
+  // markup, not user-controlled HTML.
   readonly svg = computed<SafeHtml | null>(() => {
     const raw = this._rawSvg();
     return raw ? this.sanitizer.bypassSecurityTrustHtml(raw) : null;
