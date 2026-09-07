@@ -16,10 +16,13 @@
  *       invitations.json
  *       attachments.json
  *       comments.json
- *       page-links.json
- *       activity-log.json
- *       site-config.json
- *       user-preferences.json
+ *       pageLinks.json
+ *       activityLog.json
+ *       siteConfig.json
+ *       userPreferences.json
+ *       pageIndex.json
+ *       tags.json
+ *       pageTypes.json
  *     s3/
  *       pages/
  *         {hash16}.md              # Hash-based filenames (prevents Windows path length issues)
@@ -92,6 +95,7 @@ const DYNAMODB_TABLES = {
   userPreferences: 'bluefinwiki-user-preferences-local',
   pageIndex: 'bluefinwiki-page-index-local',
   tags: 'bluefinwiki-tags-local',
+  pageTypes: 'bluefinwiki-page-types-local',
 };
 
 /**

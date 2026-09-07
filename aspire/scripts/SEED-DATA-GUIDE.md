@@ -28,7 +28,10 @@ Creates all DynamoDB tables in LocalStack with the correct schema.
 - bluefinwiki-comments-local (with pageGuid-createdAt-index GSI)
 - bluefinwiki-activity-log-local (with TTL)
 - bluefinwiki-user-preferences-local
+- bluefinwiki-page-index-local
+- bluefinwiki-tags-local
 - bluefinwiki-site-config-local
+- bluefinwiki-page-types-local
 
 **Usage:**
 ```bash
@@ -82,10 +85,13 @@ seed-snapshots/
       invitations.json
       attachments.json
       comments.json
-      page-links.json
-      site-config.json
-      user-preferences.json
-      activity-log.json
+      pageLinks.json
+      siteConfig.json
+      userPreferences.json
+      activityLog.json
+      pageIndex.json
+      tags.json
+      pageTypes.json
     s3/
       pages/
         {hash16}.md              # Hash-based filenames to avoid Windows path length issues

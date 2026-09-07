@@ -1,0 +1,54 @@
+[
+  {
+    "allowedChildTypes": "[\"9f3166aa-4ad4-4d08-811a-29bb6dd5f2cf\"]",
+    "createdAt": "2026-09-07T09:44:04.784Z",
+    "allowWikiPageChildren": false,
+    "createdBy": "local-dev-user-id",
+    "allowedParentTypes": "[\"f283f708-94a5-4077-90c7-a95c8531b83c\"]",
+    "icon": "📺",
+    "name": "TV Show",
+    "guid": "5a9785f3-2bed-4dee-a35a-edb042a4ce7d",
+    "properties": "[{\"name\":\"state\",\"type\":\"string\",\"required\":true,\"defaultValue\":\"Unwatched\"},{\"name\":\"genre\",\"type\":\"tags\",\"required\":false},{\"name\":\"service\",\"type\":\"tags\",\"required\":false},{\"name\":\"rating\",\"type\":\"tags\",\"required\":false}]",
+    "allowAnyParent": false,
+    "updatedAt": "2026-09-07T09:46:43.333Z"
+  },
+  {
+    "allowedChildTypes": "[\"5a9785f3-2bed-4dee-a35a-edb042a4ce7d\"]",
+    "createdAt": "2026-09-07T09:46:15.717Z",
+    "allowWikiPageChildren": false,
+    "createdBy": "local-dev-user-id",
+    "name": "TV Kanban",
+    "icon": "📄",
+    "allowedParentTypes": "[]",
+    "guid": "f283f708-94a5-4077-90c7-a95c8531b83c",
+    "properties": "[]",
+    "allowAnyParent": true,
+    "updatedAt": "2026-09-07T09:46:15.717Z"
+  },
+  {
+    "allowedChildTypes": "[]",
+    "createdAt": "2026-09-07T09:45:12.834Z",
+    "allowWikiPageChildren": false,
+    "createdBy": "local-dev-user-id",
+    "allowedParentTypes": "[\"5a9785f3-2bed-4dee-a35a-edb042a4ce7d\"]",
+    "icon": "🎬",
+    "name": "Season",
+    "guid": "9f3166aa-4ad4-4d08-811a-29bb6dd5f2cf",
+    "properties": "[{\"name\":\"state\",\"type\":\"string\",\"required\":true},{\"name\":\"episodes\",\"type\":\"number\",\"required\":false},{\"name\":\"rating\",\"type\":\"tags\",\"required\":false},{\"name\":\"service\",\"type\":\"tags\",\"required\":false}]",
+    "allowAnyParent": false,
+    "updatedAt": "2026-09-07T09:47:24.069Z"
+  },
+  {
+    "allowedChildTypes": "[]",
+    "createdAt": "2026-09-07T09:42:05.065Z",
+    "allowWikiPageChildren": true,
+    "createdBy": "local-dev-user-id",
+    "name": "Movie",
+    "icon": "🎞️",
+    "allowedParentTypes": "[]",
+    "guid": "738aa1e5-be9e-47fb-9320-85ba5d0fde7b",
+    "properties": "[{\"name\":\"state\",\"type\":\"string\",\"required\":true},{\"name\":\"rated\",\"type\":\"tags\",\"required\":false}]",
+    "allowAnyParent": true,
+    "updatedAt": "2026-09-07T09:42:05.065Z"
+  }
+]
