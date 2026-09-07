@@ -1,10 +1,10 @@
 {
-  "exportedAt": "2026-09-07T09:52:30.895Z",
+  "exportedAt": "2026-09-07T09:58:49.528Z",
   "exportedBy": "export-seed-data.js",
   "environment": "LocalStack",
   "statistics": {
     "s3": {
-      "pages": 4,
+      "pages": 6,
       "attachments": 0,
       "exports": 0
     },
