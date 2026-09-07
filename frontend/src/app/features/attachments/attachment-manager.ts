@@ -36,15 +36,17 @@ import type { AttachmentMetadata } from './attachment.types';
                 <span class="date">{{ item.uploadedAt }}</span>
               </div>
               <div class="actions">
-                <button
-                  mat-icon-button
-                  type="button"
-                  aria-label="Insert into page"
-                  title="Insert into page"
-                  (click)="onInsert(item)"
-                >
-                  <mat-icon>add_link</mat-icon>
-                </button>
+                @if (canInsert()) {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    aria-label="Insert into page"
+                    title="Insert into page"
+                    (click)="onInsert(item)"
+                  >
+                    <mat-icon>add_link</mat-icon>
+                  </button>
+                }
                 @if (canDelete(item)) {
                   <button
                     mat-icon-button
@@ -82,6 +84,8 @@ export class AttachmentManager {
 
   readonly pageGuid = input.required<string>();
   readonly pageAuthorId = input<string | null>(null);
+  /** Whether the "insert into page" action is available (needs a live editor). */
+  readonly canInsert = input<boolean>(true);
   readonly insertMarkdown = output<string>();
 
   private readonly guidSignal = computed(() => this.pageGuid());

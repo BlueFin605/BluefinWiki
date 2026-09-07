@@ -6,7 +6,7 @@ export interface EditorError {
 
 /**
  * Holds the most recent unhandled editor error. The `GlobalErrorHandler`
- * writes here; `PageEdit` reads here to render an inline retry panel and
+ * writes here; `PageDetail` reads here to render an inline retry panel and
  * to bump a remount-key for the CodeMirror surface.
  */
 @Injectable({ providedIn: 'root' })

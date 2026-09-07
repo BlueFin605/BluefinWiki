@@ -59,6 +59,7 @@ import type { PageProperty } from '../pages/page.types';
           <wiki-attachment-manager
             [pageGuid]="pageGuid()"
             [pageAuthorId]="pageAuthorId()"
+            [canInsert]="canInsert()"
             (insertMarkdown)="insertMarkdown.emit($event)"
           />
         }
@@ -82,6 +83,8 @@ export class InspectorPanel {
   readonly pageGuid = input.required<string>();
   readonly metadata = input.required<PageMetadata>();
   readonly pageAuthorId = input<string | null>(null);
+  /** Whether attachments can be inserted into a live editor (edit mode only). */
+  readonly canInsert = input<boolean>(true);
 
   readonly metadataChange = output<PageMetadata>();
   readonly insertMarkdown = output<string>();

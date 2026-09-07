@@ -12,11 +12,12 @@ export const PAGES_ROUTES: Routes = [
       },
       {
         path: ':guid/edit',
-        loadComponent: () => import('./page-edit').then((m) => m.PageEdit),
+        data: { editMode: true },
+        loadComponent: () => import('./page-detail').then((m) => m.PageDetail),
       },
       {
         path: ':guid',
-        loadComponent: () => import('./page-view').then((m) => m.PageView),
+        loadComponent: () => import('./page-detail').then((m) => m.PageDetail),
       },
     ],
   },
