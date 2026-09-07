@@ -96,14 +96,14 @@ describe('PageTreeItem', () => {
     expect(row?.classList.contains('active')).toBe(true);
   });
 
-  it('emits deleteRequested when the delete button is clicked', async () => {
+  it('emits newChildRequested when the add-child button is clicked', async () => {
     const user = userEvent.setup();
     const events: string[] = [];
     const { fixture } = await render(PageTreeItem, {
       inputs: { page: summary({ guid: 'g1' }), level: 0, activeGuid: null, pageTypesMap: {} },
     });
-    fixture.componentInstance.deleteRequested.subscribe((g: string) => events.push(g));
-    await user.click(screen.getByRole('button', { name: /delete/i }));
+    fixture.componentInstance.newChildRequested.subscribe((g: string) => events.push(g));
+    await user.click(screen.getByRole('button', { name: /add child page/i }));
     expect(events).toEqual(['g1']);
   });
 

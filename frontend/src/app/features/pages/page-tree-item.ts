@@ -54,11 +54,11 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
 
           <button
             type="button"
-            class="delete-button"
-            (click)="onDelete($event)"
-            aria-label="Delete page"
-            title="Delete page"
-          >🗑</button>
+            class="add-child-button"
+            (click)="onNewChild($event)"
+            aria-label="Add child page"
+            title="Create child page"
+          >+</button>
         </div>
       </div>
 
@@ -105,9 +105,9 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
     .chevron-spacer { display: inline-block; width: 16px; }
     .page-icon { width: 18px; text-align: center; }
     .page-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .delete-button { background: none; border: 0; cursor: pointer; opacity: 0; padding: 0.125rem; }
-    .page-tree-row:hover .delete-button { opacity: 0.7; }
-    .delete-button:hover { opacity: 1; color: #dc2626; }
+    .add-child-button { background: none; border: 0; cursor: pointer; opacity: 0; padding: 0.125rem; font-size: 1rem; line-height: 1; color: #6b7280; }
+    .page-tree-row:hover .add-child-button { opacity: 0.7; }
+    .add-child-button:hover { opacity: 1; color: #2563eb; }
     .cdk-drop-list-receiving .page-tree-row { background: #fef3c7; }
   `],
 })
@@ -174,9 +174,9 @@ export class PageTreeItem {
     this.renameRequested.emit(this.page().guid);
   }
 
-  onDelete(event: MouseEvent): void {
+  onNewChild(event: MouseEvent): void {
     event.stopPropagation();
-    this.deleteRequested.emit(this.page().guid);
+    this.newChildRequested.emit(this.page().guid);
   }
 
   onContextMenu(event: MouseEvent): void {
