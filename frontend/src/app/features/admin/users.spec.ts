@@ -97,6 +97,23 @@ describe('Users service', () => {
     await promise;
   });
 
+  it('activateUser re-requests usersResource via the invalidation bus', async () => {
+    const resource = TestBed.runInInjectionContext(() => users.usersResource());
+    await settle();
+    http.expectOne('/api/admin/users').flush({ users: [userRec({ userId: 'u-a', status: 'suspended' })] });
+    await settle();
+
+    const promise = users.activateUser('u-a');
+    await settle();
+    http.expectOne('/api/admin/users/u-a/activate').flush(userRec({ userId: 'u-a', status: 'active' }));
+    await promise;
+    await settle();
+
+    http.expectOne('/api/admin/users').flush({ users: [userRec({ userId: 'u-a', status: 'active' })] });
+    await settle();
+    expect(resource.value()?.[0].status).toBe('active');
+  });
+
   it('deleteUser DELETEs /api/admin/users/{id} and bumps version', async () => {
     const resource = TestBed.runInInjectionContext(() => users.usersResource());
     await settle();

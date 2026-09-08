@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map } from 'rxjs';
+import { InvalidationBus, usersListTag } from '../../core/api/invalidation';
 
 export type Role = 'Admin' | 'Standard';
 
@@ -24,15 +25,12 @@ export interface UpdateUserRequest {
 @Injectable({ providedIn: 'root' })
 export class Users {
   private readonly http = inject(HttpClient);
-  private readonly _version = signal(0);
+  private readonly bus = inject(InvalidationBus);
 
-  bumpVersion(): void {
-    this._version.update((v) => v + 1);
-  }
-
+  /** Keys on `users:list`; every mutation below bumps that one tag. */
   usersResource() {
     return rxResource({
-      params: () => this._version(),
+      params: () => this.bus.version(usersListTag()),
       stream: () =>
         this.http
           .get<{ users: UserRecord[] }>('/api/admin/users')
@@ -44,7 +42,7 @@ export class Users {
     const result = await firstValueFrom(
       this.http.put<UserRecord>(`/api/admin/users/${userId}`, body),
     );
-    this.bumpVersion();
+    this.bus.bump(usersListTag());
     return result;
   }
 
@@ -52,7 +50,7 @@ export class Users {
     const result = await firstValueFrom(
       this.http.post<UserRecord>(`/api/admin/users/${userId}/suspend`, {}),
     );
-    this.bumpVersion();
+    this.bus.bump(usersListTag());
     return result;
   }
 
@@ -60,12 +58,12 @@ export class Users {
     const result = await firstValueFrom(
       this.http.post<UserRecord>(`/api/admin/users/${userId}/activate`, {}),
     );
-    this.bumpVersion();
+    this.bus.bump(usersListTag());
     return result;
   }
 
   async deleteUser(userId: string): Promise<void> {
     await firstValueFrom(this.http.delete<void>(`/api/admin/users/${userId}`));
-    this.bumpVersion();
+    this.bus.bump(usersListTag());
   }
 }
