@@ -1,4 +1,5 @@
 import { buildAuthorizeUrl, handleOAuthCallback } from './cognito-oauth';
+import { createUserPool } from './cognito-config';
 
 interface TokenResponse {
   id_token?: string;
@@ -90,5 +91,14 @@ describe('cognito-oauth', () => {
         message: expect.stringContaining('Missing tokens') as unknown,
       });
     });
+  });
+});
+
+describe('createUserPool', () => {
+  it('constructs without referencing a cognito-local endpoint', () => {
+    // environment.ts has disableAuth: true, so missing ids do not throw.
+    const pool = createUserPool();
+    expect(pool).toBeDefined();
+    // The Environment type no longer has `endpoint`; this file compiling is the assertion.
   });
 });

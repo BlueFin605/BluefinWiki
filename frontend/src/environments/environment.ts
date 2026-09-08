@@ -9,7 +9,6 @@ export const environment: Environment = {
     clientId: 'testclientid1234567890ab',
     domain: 'auth.dev.bluefinwiki.bluefin605.com',
     redirectUri: 'http://localhost:5173/callback',
-    endpoint: undefined,
   },
   disableAuth: true, // local dev default; flip to false to exercise real Cognito
   aiAllowDestructive: true,

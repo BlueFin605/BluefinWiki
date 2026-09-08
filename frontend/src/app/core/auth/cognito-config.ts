@@ -9,7 +9,7 @@ import { environment } from '../../../environments/environment';
  * at module load.
  */
 export function createUserPool(): CognitoUserPool {
-  const { userPoolId, clientId, endpoint } = environment.cognito;
+  const { userPoolId, clientId } = environment.cognito;
 
   const missing: string[] = [];
   if (!userPoolId) missing.push('cognito.userPoolId');
@@ -25,7 +25,6 @@ export function createUserPool(): CognitoUserPool {
   return new CognitoUserPool({
     UserPoolId: userPoolId || 'us-east-1_placeholder',
     ClientId: clientId || 'placeholder',
-    endpoint: endpoint || undefined,
   });
 }
 
