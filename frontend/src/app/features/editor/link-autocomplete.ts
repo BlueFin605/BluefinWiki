@@ -1,7 +1,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostListener,
+  Renderer2,
   computed,
   effect,
   inject,
@@ -78,6 +80,8 @@ import { Pages, type PageSearchResult } from '../pages/pages';
 })
 export class LinkAutocomplete {
   private readonly pages = inject(Pages);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly renderer = inject(Renderer2);
 
   readonly query = input.required<string>();
   readonly position = input.required<{ top: number; left: number }>();
@@ -113,6 +117,21 @@ export class LinkAutocomplete {
     effect(() => {
       void this.itemsSafe();
       this.selectedIndex.set(0);
+    });
+
+    // Close the popup on a pointerdown that lands outside it — matches the
+    // dismiss-on-outside-interaction behaviour used elsewhere in the app.
+    // The document listener is registered only while the popup is open and
+    // torn down by the effect's cleanup on close or component destroy, so it
+    // never leaks.
+    effect((onCleanup) => {
+      if (!this.open()) return;
+      const unlisten = this.renderer.listen('document', 'pointerdown', (event: Event) => {
+        const target = event.target as Node | null;
+        if (target && this.host.nativeElement.contains(target)) return;
+        this.dismiss.emit();
+      });
+      onCleanup(unlisten);
     });
   }
 

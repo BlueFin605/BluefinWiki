@@ -102,4 +102,42 @@ describe('LinkAutocomplete', () => {
     fireEvent.click(screen.getByText('Click Me'));
     expect(auto.picks[0].guid).toBe('g1');
   });
+
+  it('pointerdown outside the popup emits dismiss', async () => {
+    const auto = await renderAuto();
+    await debouncePass();
+    auto.flush([{ guid: 'g1', title: 'A', path: '/a', folderId: null }]);
+    await settle();
+    auto.fixture.detectChanges();
+
+    fireEvent.pointerDown(document.body);
+    expect(auto.counter.dismisses).toBe(1);
+  });
+
+  it('pointerdown inside the popup does not emit dismiss', async () => {
+    const auto = await renderAuto();
+    await debouncePass();
+    auto.flush([{ guid: 'g1', title: 'A', path: '/a', folderId: null }]);
+    await settle();
+    auto.fixture.detectChanges();
+
+    fireEvent.pointerDown(screen.getByRole('listbox'));
+    fireEvent.pointerDown(screen.getByText('A'));
+    expect(auto.counter.dismisses).toBe(0);
+  });
+
+  it('removes the outside-pointerdown listener once the popup is hidden', async () => {
+    const auto = await renderAuto();
+    await debouncePass();
+    auto.flush([{ guid: 'g1', title: 'A', path: '/a', folderId: null }]);
+    await settle();
+    auto.fixture.detectChanges();
+
+    auto.fixture.componentRef.setInput('visible', false);
+    await settle();
+    auto.fixture.detectChanges();
+
+    fireEvent.pointerDown(document.body);
+    expect(auto.counter.dismisses).toBe(0);
+  });
 });
