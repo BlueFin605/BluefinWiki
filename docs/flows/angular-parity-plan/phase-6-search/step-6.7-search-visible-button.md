@@ -5,7 +5,7 @@
 | Phase | 6 — Search dialog |
 | Gap refs | §3.1 "no visible Search button anywhere", §3.6 "Open affordance"; punch list 🟠 |
 | Impact | 🟠 |
-| Depends on | 1.5 (mobile top bar) — soft; sidebar button can land first |
+| Depends on | Phase 1b (1b.4) for the mobile top bar — soft; the sidebar button lands first |
 | Est. size | XS |
 
 ## Problem
@@ -19,7 +19,7 @@ sidebar header and in the mobile bar. Angular's `pages-view` moved New page / AI
 - A visible Search button (magnifier icon, `aria-label="Search"`) that opens
   the same dialog `Ctrl/Cmd+K` opens.
 - Placement: the `pages-view` top toolbar (near "New page" / AI), and — once
-  step 1.5 lands — the mobile top bar.
+  Phase 1b (step 1b.4) lands — the mobile top bar.
 - Tooltip shows the `Ctrl/Cmd+K` hint.
 
 ## Implementation notes
@@ -38,7 +38,7 @@ existing open-search handler that the `@HostListener` calls).
 
 - [ ] Visible Search button in the pages toolbar; opens the dialog.
 - [ ] `Ctrl/Cmd+K` hint in the tooltip.
-- [ ] Mobile top-bar placement noted for step 1.5.
+- [ ] Mobile top-bar placement noted for Phase 1b (step 1b.4).
 - [ ] Test covers presence + click-opens.
 
 ## Out of scope

@@ -72,4 +72,4 @@ renders the tree/main/inspector flex row), `shared/components/resize-divider.ts`
 
 - Binding the inspector open/close to `inspectorVisible` (→ 4.1).
 - The editor Split view itself (→ 3.1).
-- Mobile drawer behaviour (→ 1.5 / F4).
+- Mobile drawer behaviour (→ Phase 1b).

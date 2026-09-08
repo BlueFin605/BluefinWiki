@@ -5,7 +5,7 @@
 | Phase | 3 — Editor & preview |
 | Gap refs | §3.4 "Table of contents" ("entirely absent"); §11 checklist; punch list 🔴 #8 |
 | Impact | 🔴 Functional |
-| Depends on | 1.5 (mobile collapsible bar) |
+| Depends on | Phase 1b (step 1b.8) for the mobile bar wiring |
 | Est. size | M |
 
 ## Problem
@@ -28,7 +28,7 @@ scroll + hash; mobile is a collapsible bar.
   highlighted via `IntersectionObserver`; clicking an entry smooth-scrolls to
   the slug and sets `location.hash`.
 - **Mobile:** a collapsible bar (collapsed by default) — behaviour detail owned
-  by step 1.5; expose a `compact`/`mobile` input.
+  by Phase 1b (step 1b.8); expose a `compact`/`mobile` input.
 - Placement: alongside the preview pane in View/Preview/Split modes.
 
 ## Implementation notes

@@ -5,7 +5,7 @@
 | Phase | 3 — Editor & preview |
 | Gap refs | §3.4 "Markdown toolbar"; §3.4 "Save the page before uploading attachments"; punch list 🔴 #6 |
 | Impact | 🔴 Functional |
-| Depends on | 1.5 (compact/mobile layout) for the mobile parts |
+| Depends on | Phase 1b (step 1b.6) for the mobile parts |
 | Est. size | M |
 
 ## Problem
@@ -29,7 +29,7 @@ OL/Task/codeblock, pinned to the bottom on mobile, heading menu opens upward).
   keep the insert logic shared).
 - **Compact variant**: an `input` (`compact` / `dense`) that hides OL, Task,
   and Code-block buttons and flips the heading menu to open upward. The
-  responsive layer (step 1.5) decides *when* to pass it and pins the toolbar to
+  responsive layer (Phase 1b, step 1b.6) decides *when* to pass it and pins the toolbar to
   the bottom on mobile.
 
 ## Implementation notes

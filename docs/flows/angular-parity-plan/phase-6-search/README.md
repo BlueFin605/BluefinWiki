@@ -4,7 +4,7 @@
 parity — keyboard navigation, pagination, rate limiting, recent searches,
 result highlighting, a11y, and a visible open affordance.
 
-**Depends on:** step 1.5 (mobile top bar) for step 6.7's mobile button — soft
+**Depends on:** Phase 1b step 1b.4 (mobile top bar) for step 6.7's mobile button — soft
 dependency; the sidebar button can land first.
 
 **Note:** semantic `/search` + input sanitisation already match
@@ -22,7 +22,7 @@ otherwise leave it.
 | 6.4 | [Recent searches](step-6.4-recent-searches.md) | 🟠 | — |
 | 6.5 | [Result highlighting + tags + clamp](step-6.5-search-result-highlighting.md) | 🟠 | — |
 | 6.6 | [`aria-live` region](step-6.6-search-aria-live.md) | 🟠 | 6.1 |
-| 6.7 | [Visible Search button](step-6.7-search-visible-button.md) | 🟠 | 1.5 (mobile) |
+| 6.7 | [Visible Search button](step-6.7-search-visible-button.md) | 🟠 | 1b.4 (mobile) |
 
 Parallel-safe: all seven touch `search-dialog.ts` / `search.ts` heavily —
 recommend **sequential** in listed order to avoid merge churn, or split
@@ -43,4 +43,4 @@ recommend **sequential** in listed order to avoid merge churn, or split
 - [ ] Manual: a screen reader announces "Searching…" / "N results found" /
       "No results".
 - [ ] Manual: a visible Search button opens the dialog (sidebar header; mobile
-      top bar once 1.5 lands).
+      top bar once Phase 1b lands).

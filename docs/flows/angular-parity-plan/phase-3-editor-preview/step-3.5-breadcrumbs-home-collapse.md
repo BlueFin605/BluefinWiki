@@ -5,7 +5,7 @@
 | Phase | 3 — Editor & preview |
 | Gap refs | §3.4 "Breadcrumbs"; punch list 🟠 |
 | Impact | 🟠 |
-| Depends on | 1.5 (mobile collapse behaviour) |
+| Depends on | Phase 1b (step 1b.7) for the breakpoint wiring |
 | Est. size | S |
 
 ## Problem
@@ -37,7 +37,7 @@ the `pages-view` level).
 - Home click → `router.navigate(['/pages'])`; selection clears because the
   route no longer has a `:guid` (confirm `pages-view.activeGuid` derives from
   the URL).
-- Collapse rule reads the breakpoint service (step 1.5). Until 1.5 lands, gate
+- Collapse rule reads the `Breakpoint` service (Phase 1b, step 1b.7). Until 1b lands, gate
   on a simple `@media` / `window.matchMedia` and leave a `TODO(1.5)` to swap
   in the service.
 - Keep the separator change optional (⚪) — not required.

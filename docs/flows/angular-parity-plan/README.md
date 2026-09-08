@@ -42,16 +42,23 @@ independent of each other and can run in parallel once 0–1 land.
 | **2** | Page tree & CRUD | 1 (`PageTypes` wiring) | [phase-2-tree-crud/](phase-2-tree-crud/README.md) |
 | **3** | Editor & preview | 1 (layout store) | [phase-3-editor-preview/](phase-3-editor-preview/README.md) |
 | **4** | Inspector | 1, 3.7 (authed images) | [phase-4-inspector/](phase-4-inspector/README.md) |
+| **1b** | Responsive / mobile layer (F4) | 1, **3, 4** | [phase-1b-responsive/](phase-1b-responsive/README.md) |
 | **5** | Board view | 1 (`PageTypes` wiring) | [phase-5-board/](phase-5-board/README.md) |
-| **6** | Search dialog | 1.5 (mobile bar, soft) | [phase-6-search/](phase-6-search/README.md) |
+| **6** | Search dialog | 1.5→1b (mobile bar, soft) | [phase-6-search/](phase-6-search/README.md) |
 | **7** | AI sidebar | 1.2 (invalidation) | [phase-7-ai/](phase-7-ai/README.md) |
 | **8** | Admin & profile polish | 0.6 (403) | [phase-8-admin-profile/](phase-8-admin-profile/README.md) |
+
+Phase **1b** is numbered out of order deliberately: it is designed up front
+(see [`phase-1b-responsive/DESIGN.md`](phase-1b-responsive/DESIGN.md)) but
+**executes after Phases 3 and 4**, because it refactors `page-detail` /
+`pages-view` and should wrap them once they are feature-complete. The
+mobile-tagged acceptance criteria in Phases 3 / 4 / 6 are ticked in 1b.
 
 ### Dependency graph
 
 ```
 Phase 0 ──► Phase 1 ──┬──► Phase 2
-                      ├──► Phase 3 ──► Phase 4
+                      ├──► Phase 3 ──► Phase 4 ──► Phase 1b (responsive)
                       ├──► Phase 5
                       ├──► Phase 6
                       ├──► Phase 7
@@ -59,7 +66,8 @@ Phase 0 ──► Phase 1 ──┬──► Phase 2
 step 1.1 (PageTypes) ──► 2.2, 2.4, 2.6, 4.4, 5.1, 5.5, 5.7
 step 1.3 (layout)    ──► 3.1 (split position), 4.1 (inspector width/visible)
 step 3.7 (authed img)──► 4.8 (thumbnails/lightbox)
-step 1.5 (F4)        ──► mobile variants in 3.4, 3.5, 3.10, 4.1, 6.7
+Phase 1b (F4)        ──► mobile variants in 3.4, 3.5, 3.10, 4.1, 6.7
+                         (those steps ship desktop-first; 1b completes them)
 ```
 
 ---
@@ -92,8 +100,9 @@ backend", that verification is part of the step.
 | 2 | 8 | 0/8 | not started |
 | 3 | 10 | 0/10 | not started |
 | 4 | 9 | 0/9 | not started |
+| 1b | 9 | 0/9 | designed, not started |
 | 5 | 7 | 0/7 | not started |
 | 6 | 7 | 0/7 | not started |
 | 7 | 4 | 0/4 | not started |
 | 8 | 6 | 0/6 | not started |
-| **Total** | **63** | **0/63** | |
+| **Total** | **72** | **0/72** | |

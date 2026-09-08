@@ -12,7 +12,7 @@ thumbnails/lightbox in step 4.8).
 
 | # | Step | Impact | Depends on |
 |---|---|---|---|
-| 4.1 | [Inspector layout binding](step-4.1-inspector-layout-binding.md) | 🟠 | 1.3, 1.5 |
+| 4.1 | [Inspector layout binding](step-4.1-inspector-layout-binding.md) | 🟠 | 1.3; 1b.5 (mobile) |
 | 4.2 | [Backlinks badge](step-4.2-backlinks-badge.md) | 🟠 | — |
 | 4.3 | [Title ↔ H1 sync + empty reset](step-4.3-title-h1-sync.md) | 🟠 | — |
 | 4.4 | [Page Type select + schema merge](step-4.4-page-type-select-schema-merge.md) | 🟠 | 1.1 |

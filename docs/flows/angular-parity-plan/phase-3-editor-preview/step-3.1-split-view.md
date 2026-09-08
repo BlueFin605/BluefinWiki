@@ -67,4 +67,4 @@ React has an `Edit | Split | Preview` segmented control. Angular has a
 ## Out of scope
 
 - Mobile: Split is disabled on mobile (edit/preview only) — that rule lives in
-  step 1.5 / the responsive sub-spec.
+  Phase 1b (step 1b.6).

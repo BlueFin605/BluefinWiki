@@ -5,7 +5,7 @@
 | Phase | 4 — Inspector |
 | Gap refs | §3.4 "Inspector panel" → "Panel placement"; F5; punch list 🟠 |
 | Impact | 🟠 |
-| Depends on | 1.3 (layout store + dividers), 1.5 (mobile sheet) |
+| Depends on | 1.3 (layout store + dividers); Phase 1b (1b.5) completes the mobile sheet |
 | Est. size | S |
 
 ## Problem
@@ -22,7 +22,7 @@ mobile sheet. React: desktop right resizable panel bound to
   changes.
 - Width binds to `layout.inspectorWidth()` with the divider wired in step 1.3
   (250–600 clamp). Remove the hardcoded 360 px.
-- Mobile: below the breakpoint (step 1.5) the panel renders as a bottom sheet /
+- Mobile: below the breakpoint (Phase 1b, step 1b.5) the panel renders as a bottom sheet /
   full-screen overlay instead of the side panel. Expose the hook; final
   behaviour owned by the responsive sub-spec.
 
