@@ -134,7 +134,8 @@ describe('BoardView', () => {
     });
     await dropped;
     await settle();
-    // refetch from bumpVersion
+    // updatePage bumps children:any on the invalidation bus, so the board's
+    // children-with-properties resource re-requests
     http.expectOne('/api/pages/parent-drop/children?include=properties&limit=200').flush({
       children: [], hasMore: false,
     });

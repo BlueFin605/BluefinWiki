@@ -79,8 +79,13 @@
  *   guid is not returned by the API nor passed by callers. Rather than widen
  *   the mutation signatures, these bump `children:any` (covered by every
  *   children resource). `movePage` additionally bumps the precise
- *   `children:<newParentGuid>` and `ancestors:<guid>`; `deletePage`
+ *   `children:<newParentGuid>`, `ancestors:<guid>`, and the moved page's own
+ *   `page:<guid>` (the move changes its `folderId`); `deletePage`
  *   additionally bumps `page:<guid>`.
+ * - `Pages.createPage` / `Pages.reorderPages`: bump the precise
+ *   `children:<body.parentGuid|root>` AND the coarse `children:any`, so a page
+ *   created or reordered under a *descendant* parent still refreshes a live
+ *   deep board that aggregates that descendant.
  * - `Pages.updatePage`: the request body carries only the changed fields, so
  *   invalidation is derived from which keys are present — `page:<guid>`
  *   always; `children:<result.folderId>` (`PageContent.folderId` is the owning
@@ -91,7 +96,6 @@
  *   descendants of some *other* parent and must still refresh on a card's
  *   property/order edit; additionally `backlinks:any` when `content` is in the
  *   body.
- * - `Pages.reorderPages`: bumps `children:<body.parentGuid>`.
  *
  * (`content`-only edits invalidate `page:<guid>` plus `backlinks:any` — a body
  * edit changes the link-graph edges into the pages it links to, and precise

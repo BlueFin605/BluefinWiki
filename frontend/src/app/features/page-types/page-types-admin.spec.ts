@@ -130,7 +130,8 @@ describe('PageTypesAdmin', () => {
     expect(body.icon).toBe('R');
     post.flush(pageType({ guid: 'r-1', name: 'Recipe', icon: 'R' }));
     await settle();
-    // bumpVersion triggers refetch
+    // createPageType bumps page-types:list on the invalidation bus, so
+    // pageTypesResource re-requests
     http.expectOne('/api/page-types').flush({
       pageTypes: [pageType({ guid: 'r-1', name: 'Recipe', icon: 'R' })],
     });

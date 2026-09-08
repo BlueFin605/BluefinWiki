@@ -174,12 +174,15 @@ export class Pages {
     options: Signal<ChildrenWithPropertiesOptions | null>,
   ) {
     return rxResource({
-      params: () => ({
-        parentGuid: parentGuid(),
-        opts: options() ?? {},
-        v: this.bus.version(childrenTag(parentGuid())),
-        any: this.bus.version(childrenAnyTag()),
-      }),
+      params: () => {
+        const pg = parentGuid();
+        return {
+          parentGuid: pg,
+          opts: options() ?? {},
+          v: pg ? this.bus.version(childrenTag(pg)) : 0,
+          any: this.bus.version(childrenAnyTag()),
+        };
+      },
       stream: ({ params }) => {
         if (!params.parentGuid) {
           throw new Error('childrenWithPropertiesResource: parentGuid is null');
@@ -220,7 +223,7 @@ export class Pages {
 
   async createPage(body: CreatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.post<PageContent>('/api/pages', body));
-    this.bus.bumpMany([childrenTag(body.parentGuid), backlinksAnyTag()]);
+    this.bus.bumpMany([childrenTag(body.parentGuid), childrenAnyTag(), backlinksAnyTag()]);
     return result;
   }
 
@@ -263,7 +266,8 @@ export class Pages {
    * The page's previous/owning parent is neither returned nor passed, so this
    * bumps the coarse `children:any` (covered by every children resource)
    * rather than widening the signature. It also bumps the precise
-   * `children:<newParentGuid>` and the moved page's `ancestors:<guid>`.
+   * `children:<newParentGuid>`, the moved page's `ancestors:<guid>`, and its
+   * own `page:<guid>` (the move changes the page's `folderId`).
    */
   async movePage(guid: string, body: MovePageRequest): Promise<void> {
     await firstValueFrom(this.http.put<void>(`/api/pages/${guid}/move`, body));
@@ -271,6 +275,7 @@ export class Pages {
       childrenAnyTag(),
       ancestorsTag(guid),
       childrenTag(body.newParentGuid),
+      pageTag(guid),
     ]);
   }
 
@@ -278,7 +283,7 @@ export class Pages {
     const result = await firstValueFrom(
       this.http.put<{ updated: number }>('/api/pages/reorder', body),
     );
-    this.bus.bump(childrenTag(body.parentGuid));
+    this.bus.bumpMany([childrenTag(body.parentGuid), childrenAnyTag()]);
     return result;
   }
 

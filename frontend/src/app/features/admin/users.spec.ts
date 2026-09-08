@@ -114,7 +114,7 @@ describe('Users service', () => {
     expect(resource.value()?.[0].status).toBe('active');
   });
 
-  it('deleteUser DELETEs /api/admin/users/{id} and bumps version', async () => {
+  it('deleteUser DELETEs /api/admin/users/{id} and invalidates the users list', async () => {
     const resource = TestBed.runInInjectionContext(() => users.usersResource());
     await settle();
     http.expectOne('/api/admin/users').flush({

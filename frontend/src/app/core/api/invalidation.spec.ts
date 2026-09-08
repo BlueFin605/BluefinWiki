@@ -1,3 +1,4 @@
+import { computed } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   InvalidationBus,
@@ -51,12 +52,15 @@ describe('InvalidationBus', () => {
     expect(bus.version('r')).toBe(0);
   });
 
-  it('version() reads as a signal so callers re-run when the tag bumps', () => {
-    // Reading inside a computed/effect-like closure: just assert the value moves.
-    const read = () => bus.version('sig');
+  it('version() reads as a signal so a computed re-evaluates only when that tag bumps', () => {
+    const read = TestBed.runInInjectionContext(() => computed(() => bus.version('sig')));
     expect(read()).toBe(0);
+
+    bus.bump('other');
+    expect(read()).toBe(0); // unrelated tag — computed does not change
+
     bus.bump('sig');
-    expect(read()).toBe(1);
+    expect(read()).toBe(1); // the tag it reads bumped — computed re-evaluates
   });
 });
 
