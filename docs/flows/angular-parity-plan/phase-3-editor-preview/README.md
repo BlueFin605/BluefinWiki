@@ -26,20 +26,27 @@ pipeline — sequence 3.7 → 3.8. 3.1 after 1.3. 3.10 standalone.
 
 ## Phase exit criteria
 
-- [ ] All step acceptance criteria met; `npm test` + `npm run lint` green.
-- [ ] Manual: `Edit | Split | Preview` control; Split shows live preview and its
+All ticked items below are jsdom / Testing-Library verified (83 suites / 613
+tests green, `npm run lint` clean at `2cc674f`). Real-browser drag-feel and
+scroll smoothness smoke checks are still owed — see follow-ups.
+
+- [x] All step acceptance criteria met; `npm test` + `npm run lint` green
+      (whole-branch review passed *with fixes* — 1 Critical + 6 Important fixed
+      in `59a93b7` / `2cc674f`; Minor findings rolled to the branch-finish sweep).
+- [x] `Edit | Split | Preview` control; Split shows live preview and its
       divider position persists.
-- [ ] Manual: Refresh discards the draft and reloads from server.
-- [ ] Manual: save-status pill cycles Read-only / Saving… / ● Unsaved / ✓ Saved;
+- [x] Refresh discards the draft and reloads from server.
+- [x] save-status pill cycles Read-only / Saving… / ● Unsaved / ✓ Saved;
       a failed save keeps the draft and shows the reassurance banner.
-- [ ] Manual: toolbar has Image + Attachment; attachment upload from the toolbar
-      inserts markdown at the cursor.
-- [ ] Manual: breadcrumb starts with Home (clears selection); long trails
-      collapse.
-- [ ] Manual: an image referenced by bare filename renders via an authed
-      request; `![alt|300]` can be drag-resized and the markdown updates.
-- [ ] Manual: `#heading` links smooth-scroll; `[[Page]]` links navigate and
-      never 404 on a title; a genuinely missing target renders broken + opens
-      the create modal.
-- [ ] Manual: a doc with ≥3 headings shows the TOC rail with active-heading
-      tracking.
+- [x] toolbar has Image + Attachment; attachment upload from the toolbar
+      inserts markdown at the cursor (also drains a queued insert if fired
+      from Preview sub-mode — I1 fix).
+- [x] breadcrumb starts with Home (clears selection); long trails collapse.
+- [x] an image referenced by bare filename renders via an authed request;
+      `![alt|300]` can be drag-resized and the markdown updates (resize now
+      targets by document-order index, not alt text — I2 fix).
+- [x] `#heading` links smooth-scroll; `[[Page]]` links navigate and never
+      404 on a title — unresolved / failed-resolve targets render as inert
+      non-navigable anchors, never a bare-title href (C1 fix); a genuinely
+      missing target renders broken + opens the create modal.
+- [x] a doc with ≥3 headings shows the TOC rail with active-heading tracking.

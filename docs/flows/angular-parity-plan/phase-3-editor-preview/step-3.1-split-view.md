@@ -24,9 +24,11 @@ React has an `Edit | Split | Preview` segmented control. Angular has a
   panes divided by a `wiki-resize-divider` bound to
   `layout.editorSplitPosition()` (clamp 20–80, from step 1.3). Dragging updates
   the store; position persists.
-- Preview in Split updates live as the buffer changes (reuse the existing
-  debounced value the autosave path already produces — do not add a second
-  debounce).
+- Preview in Split updates live as the buffer changes. **Adjudicated
+  2026-09-08:** the autosave path debounces only the `drafts.set` *write*, not a
+  buffer *signal* — there is no debounced value to reuse. The Split preview binds
+  the live `content()` signal directly. Do **not** add a second (preview-only)
+  debounce; do not refactor the autosave machinery to manufacture a shared one.
 - On load, if `drafts.get(guid)` exists **and** differs from the server
   content, open in **Split** (so the user sees both). Otherwise open in the
   mode implied by the route.
@@ -61,7 +63,7 @@ React has an `Edit | Split | Preview` segmented control. Angular has a
 - [ ] Edit / Split / Preview all selectable; Split is genuinely side-by-side.
 - [ ] Split divider bound to `editorSplitPosition`, clamped, persisted.
 - [ ] Draft-vs-server difference opens Split on load.
-- [ ] No second debounce added for the live preview.
+- [ ] No second debounce added for the live preview (live `content()` binding — see adjudication above).
 - [ ] Route/state model decision documented in the PR.
 
 ## Out of scope

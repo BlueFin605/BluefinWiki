@@ -98,11 +98,11 @@ backend", that verification is part of the step.
 | 0 | 7 | 7/7 | ✅ complete (branch `feat/angular-rewrite`) — CI prod-build wiring deferred (FOLLOWUP) |
 | 1 | 5 | 5/5 | ✅ complete (`529e35a..adb5860`) — 1.5 design-only, code is 1b |
 | 2 | 8 | 0/8 | not started |
-| 3 | 10 | 0/10 | not started |
+| 3 | 10 | 10/10 | ✅ complete (`c18a876..2cc674f`) — whole-branch review passed with fixes; Minor sweep deferred to branch finish |
 | 4 | 9 | 0/9 | not started |
 | 1b | 9 | 0/9 | designed, not started |
 | 5 | 7 | 0/7 | not started |
 | 6 | 7 | 0/7 | not started |
 | 7 | 4 | 0/4 | not started |
 | 8 | 6 | 0/6 | not started |
-| **Total** | **72** | **12/72** | |
+| **Total** | **72** | **22/72** | |
