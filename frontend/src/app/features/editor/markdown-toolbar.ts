@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -13,7 +13,7 @@ interface ToolbarButton {
   readonly label: string;
 }
 
-const BUTTONS: readonly ToolbarButton[] = [
+const FORMAT_BUTTONS: readonly ToolbarButton[] = [
   { action: 'bold', icon: 'format_bold', label: 'Bold' },
   { action: 'italic', icon: 'format_italic', label: 'Italic' },
   { action: 'strikethrough', icon: 'strikethrough_s', label: 'Strikethrough' },
@@ -25,11 +25,23 @@ const LIST_BUTTONS: readonly ToolbarButton[] = [
   { action: 'task', icon: 'check_box', label: 'Task list' },
 ] as const;
 
-const TRAILING_BUTTONS: readonly ToolbarButton[] = [
+const MEDIA_BUTTONS: readonly ToolbarButton[] = [
   { action: 'link', icon: 'link', label: 'Link' },
+  { action: 'image', icon: 'image', label: 'Image' },
+  { action: 'attachment', icon: 'attach_file', label: 'Attachment' },
+] as const;
+
+const CODE_BUTTONS: readonly ToolbarButton[] = [
   { action: 'code', icon: 'code', label: 'Inline code' },
   { action: 'codeblock', icon: 'data_object', label: 'Code block' },
 ] as const;
+
+/**
+ * Buttons dropped from the compact / mobile variant (React parity): ordered
+ * list, task list and code block. Bold / italic / strikethrough, the heading
+ * menu, bulleted list, link / image / attachment and inline code all stay.
+ */
+const COMPACT_HIDDEN: ReadonlySet<ToolbarAction> = new Set<ToolbarAction>(['ol', 'task', 'codeblock']);
 
 @Component({
   selector: 'wiki-markdown-toolbar',
@@ -38,7 +50,7 @@ const TRAILING_BUTTONS: readonly ToolbarButton[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="toolbar" role="toolbar" aria-label="Markdown formatting">
-      @for (b of buttons; track b.action) {
+      @for (b of formatButtons; track b.action) {
         <button
           mat-icon-button
           type="button"
@@ -61,7 +73,7 @@ const TRAILING_BUTTONS: readonly ToolbarButton[] = [
       >
         <mat-icon>title</mat-icon>
       </button>
-      <mat-menu #headingMenu="matMenu">
+      <mat-menu #headingMenu="matMenu" [yPosition]="headingMenuYPosition()">
         @for (h of headings; track h.action) {
           <button mat-menu-item type="button" (click)="emit(h.action)">
             {{ h.label }}
@@ -69,7 +81,7 @@ const TRAILING_BUTTONS: readonly ToolbarButton[] = [
         }
       </mat-menu>
 
-      @for (b of listButtons; track b.action) {
+      @for (b of listButtons(); track b.action) {
         <button
           mat-icon-button
           type="button"
@@ -82,7 +94,20 @@ const TRAILING_BUTTONS: readonly ToolbarButton[] = [
         </button>
       }
 
-      @for (b of trailingButtons; track b.action) {
+      @for (b of mediaButtons(); track b.action) {
+        <button
+          mat-icon-button
+          type="button"
+          [attr.aria-label]="b.label"
+          [matTooltip]="b.label"
+          [disabled]="disabled()"
+          (click)="emit(b.action)"
+        >
+          <mat-icon>{{ b.icon }}</mat-icon>
+        </button>
+      }
+
+      @for (b of codeButtons(); track b.action) {
         <button
           mat-icon-button
           type="button"
@@ -103,11 +128,25 @@ const TRAILING_BUTTONS: readonly ToolbarButton[] = [
 })
 export class MarkdownToolbar {
   readonly disabled = input<boolean>(false);
+  /**
+   * Compact / mobile variant: hides the ordered-list, task-list and code-block
+   * buttons and flips the heading menu so it opens upward. The responsive layer
+   * (Phase 1b, step 1b.6) decides *when* to pass this and pins the toolbar to
+   * the bottom of the screen.
+   */
+  readonly compact = input<boolean>(false);
   readonly action = output<ToolbarAction>();
 
-  protected readonly buttons = BUTTONS;
-  protected readonly listButtons = LIST_BUTTONS;
-  protected readonly trailingButtons = TRAILING_BUTTONS;
+  protected readonly formatButtons = FORMAT_BUTTONS;
+  protected readonly listButtons = computed(() => this.visible(LIST_BUTTONS));
+  protected readonly mediaButtons = computed(() => this.visible(MEDIA_BUTTONS));
+  protected readonly codeButtons = computed(() => this.visible(CODE_BUTTONS));
+
+  /** Compact pins the toolbar to the bottom, so the heading dropdown opens up. */
+  protected readonly headingMenuYPosition = computed<'above' | 'below'>(() =>
+    this.compact() ? 'above' : 'below',
+  );
+
   protected readonly headings: readonly { action: ToolbarAction; label: string }[] = [
     { action: 'h1', label: 'Heading 1' },
     { action: 'h2', label: 'Heading 2' },
@@ -119,5 +158,9 @@ export class MarkdownToolbar {
 
   emit(action: ToolbarAction): void {
     this.action.emit(action);
+  }
+
+  private visible(buttons: readonly ToolbarButton[]): readonly ToolbarButton[] {
+    return this.compact() ? buttons.filter((b) => !COMPACT_HIDDEN.has(b.action)) : buttons;
   }
 }

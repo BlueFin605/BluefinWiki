@@ -133,3 +133,21 @@ export function isImageFile(file: File): boolean {
   const imageTypes = FILE_LIMITS.IMAGE.types as readonly string[];
   return imageTypes.includes(file.type);
 }
+
+/**
+ * Build the markdown for an uploaded/stored attachment. The single source of
+ * truth for attachment → markdown across the app: the toolbar Attachment button
+ * (step 3.4), the attachment manager's "Copy Markdown" / "Insert" actions
+ * (step 4.8), and upload auto-insert (step 4.9) all call this.
+ *
+ * Ported from React's `EditorPane.buildMarkdownFromUpload`: image content types
+ * become an `![alt](path)` embed with the extension stripped from the alt text;
+ * everything else becomes a `[filename](path)` link. The path is the
+ * URL-encoded filename so spaces / special characters don't break the link.
+ */
+export function buildAttachmentMarkdown(filename: string, contentType: string): string {
+  const altText = filename.replace(/\.[^/.]+$/, '') || 'attachment';
+  const isImage = contentType.toLowerCase().startsWith('image/');
+  const path = encodeURIComponent(filename);
+  return isImage ? `![${altText}](${path})` : `[${filename}](${path})`;
+}

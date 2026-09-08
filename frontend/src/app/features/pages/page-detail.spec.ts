@@ -18,6 +18,8 @@ jest.mock('mermaid', () => ({
 }));
 
 import { PageDetail, resolveSaveStatus } from './page-detail';
+import { AttachmentUploader } from '../attachments/attachment-uploader';
+import { buildAttachmentMarkdown } from '../attachments/attachment.types';
 import { Drafts } from './drafts';
 import { Layout } from '../../core/layout/layout';
 import { ResizeDivider } from '../../shared/components/resize-divider';
@@ -876,6 +878,84 @@ describe('PageDetail', () => {
     fixture.detectChanges();
 
     expect(screen.getByRole('alert')).toHaveTextContent(REASSURANCE);
+  });
+
+  // ---- Step 3.4: Toolbar Image + Attachment --------------------------------
+
+  it('opens the attachment uploader when the toolbar attachment action fires', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    expect(fixture.debugElement.query(By.directive(AttachmentUploader))).toBeNull();
+
+    (fixture.componentInstance as unknown as { onAction: (a: string) => void }).onAction('attachment');
+    fixture.detectChanges();
+    await settle();
+
+    expect(fixture.debugElement.query(By.directive(AttachmentUploader))).not.toBeNull();
+  });
+
+  it('inserts the uploaded attachment markdown at the cursor via insertMarkdownAtCursor', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    const comp = fixture.componentInstance as unknown as {
+      onAction: (a: string) => void;
+      insertMarkdownAtCursor: (md: string) => void;
+    };
+    const insertSpy = jest.spyOn(comp, 'insertMarkdownAtCursor');
+
+    comp.onAction('attachment');
+    fixture.detectChanges();
+    await settle();
+
+    const uploader = fixture.debugElement.query(By.directive(AttachmentUploader))
+      .componentInstance as AttachmentUploader;
+    uploader.uploaded.emit({
+      attachmentGuid: 'a1',
+      filename: 'Diagram.png',
+      contentType: 'image/png',
+      size: 10,
+      url: 'cdn/Diagram.png',
+    });
+    await settle();
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    expect(insertSpy.mock.calls[0][0]).toContain(buildAttachmentMarkdown('Diagram.png', 'image/png'));
+  });
+
+  it('insertMarkdownAtCursor writes the markdown into the editor buffer', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'AB' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    (fixture.componentInstance as unknown as { insertMarkdownAtCursor: (m: string) => void })
+      .insertMarkdownAtCursor('![x](x.png)');
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toContain('![x](x.png)');
+  });
+
+  it('guards the toolbar attachment action when the page has no guid', async () => {
+    const { fixture } = await renderDetail({ editMode: true, guid: '' });
+    await settle();
+    fixture.detectChanges();
+
+    (fixture.componentInstance as unknown as { onAction: (a: string) => void }).onAction('attachment');
+    fixture.detectChanges();
+    await settle();
+
+    expect(screen.getByText(/save the page before uploading attachments\./i)).toBeInTheDocument();
+    expect(fixture.debugElement.query(By.directive(AttachmentUploader))).toBeNull();
   });
 });
 

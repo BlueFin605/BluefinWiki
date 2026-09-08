@@ -174,6 +174,30 @@ describe('WikiCodemirror', () => {
     expect(handled).toBe(true);
   });
 
+  it('applyAction("image") inserts an image placeholder skeleton at the cursor', async () => {
+    const { fixture } = await render(WikiCodemirror, { inputs: { value: '' } });
+    fixture.detectChanges();
+    fixture.componentInstance.applyAction('image');
+    expect(fixture.componentInstance.getView()!.state.doc.toString()).toBe('![alt text](image-url)');
+  });
+
+  it('applyAction("image") uses the current selection as the alt text', async () => {
+    const { fixture } = await render(WikiCodemirror, { inputs: { value: 'logo' } });
+    fixture.detectChanges();
+    const view = fixture.componentInstance.getView()!;
+    view.dispatch({ selection: { anchor: 0, head: 4 } });
+    fixture.componentInstance.applyAction('image');
+    expect(view.state.doc.toString()).toBe('![logo](image-url)');
+  });
+
+  it('applyAction("attachment") is a no-op in the editor (handled by the host)', async () => {
+    const { fixture } = await render(WikiCodemirror, { inputs: { value: 'unchanged' } });
+    fixture.detectChanges();
+    const view = fixture.componentInstance.getView()!;
+    fixture.componentInstance.applyAction('attachment');
+    expect(view.state.doc.toString()).toBe('unchanged');
+  });
+
   it('insertText replaces a range with the given text', async () => {
     const { fixture } = await render(WikiCodemirror, { inputs: { value: 'foo bar baz' } });
     fixture.detectChanges();

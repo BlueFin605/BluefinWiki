@@ -1,4 +1,10 @@
-import { FILE_LIMITS, formatFileSize, isImageFile, validateFile } from './attachment.types';
+import {
+  buildAttachmentMarkdown,
+  FILE_LIMITS,
+  formatFileSize,
+  isImageFile,
+  validateFile,
+} from './attachment.types';
 
 function fileWith(name: string, type: string, size: number): File {
   const file = new File([new Uint8Array(0)], name, { type });
@@ -50,6 +56,28 @@ describe('attachment.types', () => {
 
     it('returns false for non-image MIME types', () => {
       expect(isImageFile(fileWith('a.pdf', 'application/pdf', 1))).toBe(false);
+    });
+  });
+
+  describe('buildAttachmentMarkdown', () => {
+    it('builds an image embed for image content types, stripping the extension for the alt text', () => {
+      expect(buildAttachmentMarkdown('Diagram.png', 'image/png')).toBe('![Diagram](Diagram.png)');
+    });
+
+    it('URL-encodes the filename in the link target', () => {
+      expect(buildAttachmentMarkdown('My Photo.jpg', 'image/jpeg')).toBe('![My Photo](My%20Photo.jpg)');
+    });
+
+    it('builds a plain link for non-image content types, keeping the full filename as the text', () => {
+      expect(buildAttachmentMarkdown('report.pdf', 'application/pdf')).toBe('[report.pdf](report.pdf)');
+    });
+
+    it('falls back to "attachment" alt text when an image filename is only an extension', () => {
+      expect(buildAttachmentMarkdown('.png', 'image/png')).toBe('![attachment](.png)');
+    });
+
+    it('matches on the content-type prefix case-insensitively', () => {
+      expect(buildAttachmentMarkdown('a.PNG', 'IMAGE/PNG')).toBe('![a](a.PNG)');
     });
   });
 });

@@ -30,6 +30,8 @@ export type ToolbarAction =
   | 'ol'
   | 'task'
   | 'link'
+  | 'image'
+  | 'attachment'
   | 'code'
   | 'codeblock';
 
@@ -130,6 +132,12 @@ export class WikiCodemirror implements AfterViewInit, OnDestroy {
       case 'ol': changes = prefix('1. ', 'List item'); break;
       case 'task': changes = prefix('- [ ] ', 'Task'); break;
       case 'link': changes = wrap('[', '](url)', 'link text'); break;
+      // Image: insert a fill-in-the-blanks skeleton at the cursor, mirroring
+      // React's MarkdownEditor. The upload-driven image markdown comes in via
+      // `insertText` from the host instead (toolbar Attachment button / 4.9).
+      case 'image': changes = wrap('![', '](image-url)', 'alt text'); break;
+      // Attachment is host-driven (opens the uploader) — nothing to insert here.
+      case 'attachment': return;
       case 'code': changes = wrap('`', '`', 'code'); break;
       case 'codeblock': changes = wrap('```\n', '\n```', 'code'); break;
     }

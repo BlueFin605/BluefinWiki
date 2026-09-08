@@ -22,6 +22,8 @@ import { WikiCodemirror, type CursorContext, type ToolbarAction } from '../../sh
 import { MarkdownToolbar } from '../editor/markdown-toolbar';
 import { LinkAutocomplete } from '../editor/link-autocomplete';
 import { InspectorPanel } from '../editor/inspector-panel';
+import { AttachmentUploader } from '../attachments/attachment-uploader';
+import { buildAttachmentMarkdown, type AttachmentUploadResponse } from '../attachments/attachment.types';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
 import { Breadcrumbs } from '../../shared/components/breadcrumbs';
 import { ResizeDivider } from '../../shared/components/resize-divider';
@@ -91,6 +93,7 @@ export function resolveSaveStatus(state: {
     MarkdownToolbar,
     LinkAutocomplete,
     InspectorPanel,
+    AttachmentUploader,
     MarkdownRenderer,
     Breadcrumbs,
     BoardView,
@@ -213,6 +216,20 @@ export function resolveSaveStatus(state: {
         <mat-sidenav-content class="content-pane">
           @if (mode() === 'edit' && editorMode() !== 'preview') {
             <wiki-markdown-toolbar (action)="onAction($event)" />
+            @if (attachmentGuardMessage(); as msg) {
+              <div class="attachment-guard" role="alert">{{ msg }}</div>
+            }
+            @if (attachmentUploaderOpen() && guid(); as g) {
+              <div class="attachment-uploader-panel">
+                <wiki-attachment-uploader
+                  [pageGuid]="g"
+                  (uploaded)="onAttachmentUploaded($event)"
+                />
+                <button mat-button type="button" (click)="closeAttachmentUploader()">
+                  Done
+                </button>
+              </div>
+            }
           }
 
           <section class="body">
@@ -333,6 +350,17 @@ export function resolveSaveStatus(state: {
       background: #fef2f2; color: #b91c1c; font-size: 0.875rem;
     }
     .save-failed-msg { flex: 1; }
+    .attachment-guard {
+      margin: 0.5rem 1rem; padding: 0.25rem 0.75rem;
+      border: 1px solid #fca5a5; border-radius: 4px;
+      background: #fef2f2; color: #b91c1c; font-size: 0.875rem;
+    }
+    .attachment-uploader-panel {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;
+      margin: 0.5rem 1rem; padding: 0.75rem;
+      border: 1px solid #e5e7eb; border-radius: 4px; background: #ffffff;
+    }
+    .attachment-uploader-panel wiki-attachment-uploader { align-self: stretch; }
     .container { flex: 1; min-height: 0; }
     .content-pane { display: flex; flex-direction: column; height: 100%; }
     .body { flex: 1; min-height: 0; padding: 0; position: relative; overflow: auto; }
@@ -393,6 +421,15 @@ export class PageDetail {
 
   protected readonly cursorContext = signal<CursorContext | null>(null);
   protected readonly inspectorOpen = signal(false);
+
+  /** Toolbar Attachment button: whether the inline uploader panel is showing. */
+  protected readonly attachmentUploaderOpen = signal(false);
+  /**
+   * Defensive "Save the page before uploading attachments." message. Angular
+   * creates pages server-side first, so a guid always exists and this never
+   * really fires — but the guard mirrors React's toolbar behaviour.
+   */
+  protected readonly attachmentGuardMessage = signal<string | null>(null);
 
   private readonly _viewMode = signal<ViewMode>('content');
   protected readonly viewMode = this._viewMode.asReadonly();
@@ -675,11 +712,47 @@ export class PageDetail {
   }
 
   onAction(action: ToolbarAction): void {
+    // Attachment is host-driven: it opens the uploader rather than inserting a
+    // skeleton. Everything else (including `image`) goes to CodeMirror.
+    if (action === 'attachment') {
+      this.openAttachmentUploader();
+      return;
+    }
     try {
       this.editor()?.applyAction(action);
     } catch (err) {
       this.errorState.setError(this.editorErrMessage(err));
     }
+  }
+
+  /**
+   * Toolbar Attachment button. Opens the inline uploader for the current page.
+   * Guard: with no persisted guid there's nowhere to upload — surface React's
+   * "Save the page before uploading attachments." message instead. In practice
+   * Angular pages are created server-side first, so this rarely fires.
+   */
+  private openAttachmentUploader(): void {
+    if (!this.guid()) {
+      this.attachmentGuardMessage.set('Save the page before uploading attachments.');
+      return;
+    }
+    this.attachmentGuardMessage.set(null);
+    this.attachmentUploaderOpen.set(true);
+  }
+
+  closeAttachmentUploader(): void {
+    this.attachmentUploaderOpen.set(false);
+  }
+
+  /**
+   * A file finished uploading from the toolbar's inline uploader: drop its
+   * markdown in at the cursor (React parity — the returned markdown is
+   * auto-inserted; this is also step 4.9). The uploader panel stays open so
+   * several files can be added in a row.
+   */
+  onAttachmentUploaded(response: AttachmentUploadResponse): void {
+    const markdown = buildAttachmentMarkdown(response.filename, response.contentType);
+    this.insertMarkdownAtCursor(`${markdown}\n`);
   }
 
   onPickPage(page: PageSearchResult, ctx: CursorContext): void {
@@ -692,16 +765,29 @@ export class PageDetail {
     }
   }
 
-  onInsertMarkdown(text: string): void {
+  /**
+   * The single shared "insert markdown at the CodeMirror cursor" entry point.
+   * Replaces the current selection (if any) with `md` and moves the cursor to
+   * the end of the inserted text. Used by the inspector's attachment "Insert"
+   * action, the toolbar Attachment upload flow, and (steps 4.8 / 4.9) the
+   * attachment manager's Insert action and upload auto-insert — do not
+   * duplicate this cursor logic.
+   */
+  insertMarkdownAtCursor(md: string): void {
     try {
       const ed = this.editor();
       const view = ed?.getView();
       if (!view) return;
       const { from, to } = view.state.selection.main;
-      ed?.insertText(from, to, text);
+      ed?.insertText(from, to, md);
     } catch (err) {
       this.errorState.setError(this.editorErrMessage(err));
     }
+  }
+
+  /** Inspector `insertMarkdown` output → shared cursor insert. */
+  onInsertMarkdown(text: string): void {
+    this.insertMarkdownAtCursor(text);
   }
 
   reloadEditor(): void {
