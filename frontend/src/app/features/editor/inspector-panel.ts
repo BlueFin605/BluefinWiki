@@ -66,7 +66,15 @@ import type { PageProperty } from '../pages/page.types';
         }
       </mat-tab>
 
-      <mat-tab label="Linked">
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <span
+            [matBadge]="backlinkCount()"
+            [matBadgeHidden]="backlinkCount() === 0"
+            matBadgeOverlap="false"
+            matBadgeSize="small"
+          >Linked</span>
+        </ng-template>
         @if (selectedTab() === 2) {
           <wiki-linked-pages-panel [pageGuid]="pageGuid()" />
         }

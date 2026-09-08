@@ -40,7 +40,10 @@ function meta(): PageMetadata {
   };
 }
 
-async function renderInspector(extraInputs: Record<string, unknown> = {}) {
+async function renderInspector(
+  extraInputs: Record<string, unknown> = {},
+  backlinkCount = 0,
+) {
   const result = await render(InspectorPanel, {
     inputs: { pageGuid: 'g1', metadata: meta(), pageAuthorId: 'u', ...extraInputs },
     providers: [
@@ -56,7 +59,9 @@ async function renderInspector(extraInputs: Record<string, unknown> = {}) {
   // page types eagerly on mount. The backlinks resource is also eager (the
   // panel needs its count for the tab badge).
   http.expectOne('/api/page-types').flush({ pageTypes: [] });
-  http.expectOne('/api/pages/g1/backlinks').flush({ guid: 'g1', backlinks: [], count: 0 });
+  http
+    .expectOne('/api/pages/g1/backlinks')
+    .flush({ guid: 'g1', backlinks: [], count: backlinkCount });
   await settle();
   return { ...result, http };
 }
@@ -76,6 +81,23 @@ describe('InspectorPanel', () => {
     await settle();
     fixture.detectChanges();
     http.expectOne('/api/pages/g1/attachments').flush({ attachments: [] });
+  });
+
+  it('shows the backlink count as a badge on the Linked tab when non-zero', async () => {
+    await renderInspector({}, 3);
+    const tab = screen.getByRole('tab', { name: /linked/i });
+    const badge = tab.querySelector('.mat-badge');
+    expect(badge).not.toBeNull();
+    expect(badge!.classList.contains('mat-badge-hidden')).toBe(false);
+    expect(tab.querySelector('.mat-badge-content')?.textContent?.trim()).toBe('3');
+  });
+
+  it('hides the Linked tab badge when there are no backlinks (zero state)', async () => {
+    await renderInspector({}, 0);
+    const tab = screen.getByRole('tab', { name: /linked/i });
+    const badge = tab.querySelector('.mat-badge');
+    expect(badge).not.toBeNull();
+    expect(badge!.classList.contains('mat-badge-hidden')).toBe(true);
   });
 
   it('switching to linked tab causes its own backlinks panel to mount + refetch', async () => {
