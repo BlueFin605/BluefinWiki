@@ -28,6 +28,30 @@ interface AncestorsResponse { ancestors: PageSummary[] }
 interface BacklinksResponse { guid: string; backlinks: Backlink[]; count: number }
 interface PageSearchResponse { results: PageSearchResult[] }
 
+interface LinkResolveMatch {
+  guid: string;
+  title: string;
+  parentGuid: string | null;
+  status: string;
+  confidence: number;
+  path: string;
+}
+interface LinkResolveResponse {
+  query: string;
+  matches: LinkResolveMatch[];
+  exactMatch: boolean;
+  ambiguous: boolean;
+  exists: boolean;
+}
+
+/** Result of resolving a `[[wiki link]]` target to a concrete page. */
+export interface WikiLinkResolution {
+  /** The resolved page guid, or the original target when nothing matched. */
+  guid: string;
+  /** True only on an exact (confidence 1.0) match. */
+  exists: boolean;
+}
+
 export interface ChildrenWithPropertiesOptions {
   targetTypeGuid?: string;
   depth?: number;
@@ -228,6 +252,27 @@ export class Pages {
           .pipe(map((r) => r.results ?? []));
       },
     });
+  }
+
+  /**
+   * Resolve a single `[[wiki link]]` target (a page title or a raw guid) to a
+   * concrete page via `POST /api/pages/links/resolve`. Used by the preview to
+   * turn `[[…]]` into a `/pages/<guid>` href and to flag broken links.
+   *
+   * Read-only: bumps no invalidation tag. Callers cache per render pass.
+   */
+  async resolveLink(query: string): Promise<WikiLinkResolution> {
+    const res = await firstValueFrom(
+      this.http.post<LinkResolveResponse>('/api/pages/links/resolve', {
+        query,
+        maxResults: 1,
+      }),
+    );
+    const match = res.matches?.[0];
+    const exists = res.exactMatch === true && !!match;
+    // Only trust the resolved guid on an exact match; for a miss the target is
+    // echoed back (the broken link's href is never navigated to anyway).
+    return { guid: exists ? match.guid : query, exists };
   }
 
   // ---- mutations ----

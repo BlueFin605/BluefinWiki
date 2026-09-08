@@ -971,6 +971,71 @@ describe('PageDetail', () => {
     expect(screen.getByText(/save the page before uploading attachments\./i)).toBeInTheDocument();
     expect(fixture.debugElement.query(By.directive(AttachmentUploader))).toBeNull();
   });
+
+  // ---- Step 3.8: resolveWikiTarget wiring --------------------------------
+
+  const linkResolveResponse = (over: Record<string, unknown> = {}) => ({
+    query: 'q',
+    matches: [] as unknown[],
+    exactMatch: false,
+    ambiguous: false,
+    exists: false,
+    ...over,
+  });
+
+  it('provides resolveWikiTarget to the renderer; a resolved target drives the wiki-link href', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Real Page]].' });
+    await settle();
+
+    const rr = http.expectOne('/api/pages/links/resolve');
+    expect(rr.request.method).toBe('POST');
+    expect(rr.request.body).toEqual({ query: 'Real Page', maxResults: 1 });
+    rr.flush(
+      linkResolveResponse({
+        query: 'Real Page',
+        matches: [{ guid: 'guid-123', title: 'Real Page', parentGuid: null, status: 'published', confidence: 1, path: 'Real Page' }],
+        exactMatch: true,
+        exists: true,
+      }),
+    );
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'wiki-link a.wiki-link',
+    ) as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('/pages/guid-123');
+  });
+
+  it('opens the Create-Page-from-Link modal with the target prefilled when a broken wiki link is clicked', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Ghost Page]].' });
+    await settle();
+
+    const rr = http.expectOne('/api/pages/links/resolve');
+    rr.flush(linkResolveResponse({ query: 'Ghost Page' }));
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const broken = (fixture.nativeElement as HTMLElement).querySelector(
+      'wiki-link a.wiki-link-broken',
+    ) as HTMLElement;
+    expect(broken).toBeTruthy();
+    broken.click();
+    await settle();
+
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByRole('heading', { name: /create page from link/i }),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByLabelText<HTMLInputElement>('Title').value).toBe('Ghost Page');
+  });
 });
 
 describe('resolveSaveStatus', () => {

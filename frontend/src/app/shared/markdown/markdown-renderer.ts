@@ -1,7 +1,9 @@
 import { Component, ChangeDetectionStrategy, computed, input, output } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { buildMarkdownPipeline, type MarkdownPipelineOptions } from './unified-pipeline';
 import { WikiLink, type WikiBrokenLinkEvent } from './wiki-link';
+import type { WikiTargetResolver } from './plugins/remark-wiki-links';
 import { WikiMermaid } from './wiki-mermaid';
 import { WikiImage, type WikiImageResize } from './wiki-image';
 
@@ -45,7 +47,7 @@ function isWikiLink(node: HastElement): boolean {
 @Component({
   selector: 'wiki-markdown-renderer',
   standalone: true,
-  imports: [NgTemplateOutlet, WikiLink, WikiMermaid, WikiImage],
+  imports: [NgTemplateOutlet, RouterLink, WikiLink, WikiMermaid, WikiImage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="wiki-markdown" data-testid="markdown-renderer">
@@ -111,7 +113,17 @@ function isWikiLink(node: HastElement): boolean {
               <li [class]="classOf(node)">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</li>
             }
             @case ('a') {
-              <a [attr.href]="hrefOf(node)" target="_blank" rel="noopener noreferrer">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</a>
+              @switch (linkKind(node)) {
+                @case ('hash') {
+                  <a [attr.href]="hrefOf(node)" (click)="onAnchorClick($event, hrefOf(node))">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</a>
+                }
+                @case ('internal') {
+                  <a [routerLink]="hrefOf(node)">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</a>
+                }
+                @default {
+                  <a [attr.href]="hrefOf(node)" target="_blank" rel="noopener noreferrer">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</a>
+                }
+              }
             }
             @case ('strong') {
               <strong>@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</strong>
@@ -195,15 +207,28 @@ export class MarkdownRenderer {
   readonly pageGuid = input<string | undefined>(undefined);
   /** Edit / split preview: show the drag-to-resize handle on rendered images. */
   readonly editable = input<boolean>(false);
+  /**
+   * Step 3.8: resolves every `[[target]]` to `{ guid, exists }`. When provided,
+   * wiki links always render `routerLink="/pages/<guid>"` and a missing target
+   * (`exists: false`) renders the broken state. Omit it and wiki links fall
+   * back to the legacy slug href with no broken-link detection.
+   */
+  readonly resolveWikiTarget = input<WikiTargetResolver | undefined>(undefined);
   readonly brokenClick = output<WikiBrokenLinkEvent>();
   readonly imageResize = output<WikiImageResize>();
 
-  private readonly pipeline = computed(() =>
-    buildMarkdownPipeline({
-      ...this.pipelineOptions(),
+  private readonly pipeline = computed(() => {
+    const opts = this.pipelineOptions();
+    const resolveWikiTarget = this.resolveWikiTarget();
+    return buildMarkdownPipeline({
+      ...opts,
       attachments: { pageGuid: this.pageGuid() },
-    }),
-  );
+      wikiLinks: {
+        ...opts?.wikiLinks,
+        ...(resolveWikiTarget ? { resolveWikiTarget } : {}),
+      },
+    });
+  });
 
   readonly children = computed<HastNode[]>(() => {
     const md = this.markdown() ?? '';
@@ -250,6 +275,40 @@ export class MarkdownRenderer {
     if (node.type !== 'element') return '';
     const href = node.properties?.['href'];
     return typeof href === 'string' ? href : '';
+  }
+
+  /**
+   * Classifies a plain markdown `<a>` (wiki links are handled separately):
+   *  - `hash`     — `#slug` in-page link: smooth-scroll, no new tab.
+   *  - `internal` — same-origin `/path`: Angular `routerLink`, no new tab.
+   *  - `external` — everything else: keeps `target="_blank" rel="noopener"`.
+   */
+  linkKind(node: HastNode): 'hash' | 'internal' | 'external' {
+    const href = this.hrefOf(node);
+    if (href.startsWith('#')) return 'hash';
+    if (href.startsWith('/')) return 'internal';
+    return 'external';
+  }
+
+  /**
+   * In-page `#anchor` click: cancel the default jump, smooth-scroll to the
+   * element whose `id` matches the slug (heading ids are already slugified),
+   * and reflect the anchor in `location.hash` without a history entry.
+   */
+  onAnchorClick(event: Event, href: string): void {
+    if (!href.startsWith('#')) return;
+    event.preventDefault();
+    const id = decodeURIComponent(href.slice(1));
+    if (!id) return;
+    const el = typeof document !== 'undefined' ? document.getElementById(id) : null;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    try {
+      history.replaceState(history.state, '', href);
+    } catch {
+      window.location.hash = id;
+    }
   }
 
   wikiTargetOf(node: HastNode): string {

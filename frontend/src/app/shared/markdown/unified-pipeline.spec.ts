@@ -69,4 +69,60 @@ describe('buildMarkdownPipeline', () => {
     const link = hast.children[0].children?.[0];
     expect(link?.properties?.['dataBroken']).toBe('true');
   });
+
+  // ---- Step 3.8: resolveWikiTarget -> GUID href + broken flag --------------
+
+  type LinkHast = {
+    children: { tagName?: string; children?: { tagName?: string; properties?: Record<string, unknown> }[] }[];
+  };
+
+  function firstLink(hast: unknown) {
+    const root = hast as LinkHast;
+    for (const block of root.children) {
+      const link = block.children?.find((c) => c.tagName === 'a');
+      if (link) return link;
+    }
+    return undefined;
+  }
+
+  it('resolves [[Title]] to a /pages/<guid> href via resolveWikiTarget', () => {
+    const pipeline = buildMarkdownPipeline({
+      wikiLinks: { resolveWikiTarget: () => ({ guid: 'g1', exists: true }) },
+    });
+    const link = firstLink(pipeline.runSync(pipeline.parse('See [[Some Page]] now.')));
+    expect(link?.properties?.['href']).toBe('/pages/g1');
+    expect(link?.properties?.['dataBroken']).toBe('false');
+  });
+
+  it('marks [[Title]] broken (data-broken) when resolveWikiTarget reports exists:false', () => {
+    const pipeline = buildMarkdownPipeline({
+      wikiLinks: { resolveWikiTarget: () => ({ guid: 'x9', exists: false }) },
+    });
+    const link = firstLink(pipeline.runSync(pipeline.parse('[[Ghost]]')));
+    expect(link?.properties?.['dataBroken']).toBe('true');
+    expect(link?.properties?.['href']).toBe('/pages/x9');
+  });
+
+  it('uses a guid target directly for [[guid|alias]] links, ignoring the resolver guid', () => {
+    const guid = '550e8400-e29b-41d4-a716-446655440000';
+    const pipeline = buildMarkdownPipeline({
+      wikiLinks: { resolveWikiTarget: () => ({ guid: 'SHOULD-NOT-BE-USED', exists: true }) },
+    });
+    const link = firstLink(pipeline.runSync(pipeline.parse(`See [[${guid}|Home]] here.`)));
+    expect(link?.properties?.['href']).toBe(`/pages/${guid}`);
+  });
+
+  it('resolves each distinct target only once per render pass', () => {
+    const calls: string[] = [];
+    const pipeline = buildMarkdownPipeline({
+      wikiLinks: {
+        resolveWikiTarget: (t) => {
+          calls.push(t);
+          return { guid: t, exists: true };
+        },
+      },
+    });
+    pipeline.runSync(pipeline.parse('[[A]] then [[A]] again then [[B]]'));
+    expect(calls).toEqual(['A', 'B']);
+  });
 });

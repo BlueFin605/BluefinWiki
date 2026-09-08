@@ -321,6 +321,35 @@ describe('Pages service', () => {
     });
   });
 
+  describe('resolveLink', () => {
+    it('POSTs /api/pages/links/resolve and returns the exact match guid + exists', async () => {
+      const promise = pages.resolveLink('Getting Started');
+      const req = http.expectOne('/api/pages/links/resolve');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ query: 'Getting Started', maxResults: 1 });
+      req.flush({
+        query: 'Getting Started',
+        matches: [{ guid: 'g-123', title: 'Getting Started', parentGuid: null, status: 'published', confidence: 1, path: 'Getting Started' }],
+        exactMatch: true,
+        ambiguous: false,
+        exists: true,
+      });
+      await expect(promise).resolves.toEqual({ guid: 'g-123', exists: true });
+    });
+
+    it('reports exists:false (and echoes the target as guid) when there is no exact match', async () => {
+      const promise = pages.resolveLink('Ghost');
+      http.expectOne('/api/pages/links/resolve').flush({
+        query: 'Ghost',
+        matches: [{ guid: 'fuzzy', title: 'Ghostly', parentGuid: null, status: 'published', confidence: 0.6, path: 'Ghostly' }],
+        exactMatch: false,
+        ambiguous: false,
+        exists: true,
+      });
+      await expect(promise).resolves.toEqual({ guid: 'Ghost', exists: false });
+    });
+  });
+
   describe('backlinksResource', () => {
     it('GETs /api/pages/{guid}/backlinks', async () => {
       const guid = signal<string | null>('p1');

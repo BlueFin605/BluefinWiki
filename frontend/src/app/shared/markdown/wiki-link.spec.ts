@@ -37,6 +37,22 @@ describe('WikiLink', () => {
     expect(events).toEqual([{ target: 'Missing', displayText: 'Missing' }]);
   });
 
+  it('carries both target and display text on brokenClick so the create modal can prefill', async () => {
+    const user = userEvent.setup();
+    const events: { target: string; displayText: string }[] = [];
+    const { fixture } = await render(WikiLink, {
+      inputs: {
+        href: '/pages/x',
+        target: 'backend-guide',
+        broken: true,
+        displayText: 'Backend Guide',
+      },
+    });
+    fixture.componentInstance.brokenClick.subscribe((e) => events.push(e));
+    await user.click(screen.getByRole('link'));
+    expect(events).toEqual([{ target: 'backend-guide', displayText: 'Backend Guide' }]);
+  });
+
   it('does not emit brokenClick on a live link click', async () => {
     const user = userEvent.setup();
     let fired = false;

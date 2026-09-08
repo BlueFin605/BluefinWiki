@@ -127,6 +127,67 @@ describe('MarkdownRenderer', () => {
     expect(img?.getAttribute('src')).toBe('pic.png');
   });
 
+  // ---- Step 3.8: link post-processing (hash / external) -------------------
+
+  it('renders in-page #anchor links without target=_blank and smooth-scrolls on click', async () => {
+    const el = await renderMd('# Intro Section\n\nJump to [the intro](#intro-section).');
+    const link = Array.from(el.querySelectorAll('a')).find(
+      (a) => a.getAttribute('href') === '#intro-section',
+    ) as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('target')).toBeNull();
+
+    // jsdom does not implement scrollIntoView — install a spy so the hook can
+    // call it.
+    const heading = el.querySelector('#intro-section') as HTMLElement;
+    const scrollSpy = jest.fn();
+    heading.scrollIntoView = scrollSpy;
+
+    link.click();
+
+    expect(scrollSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: 'smooth' }),
+    );
+    expect(window.location.hash).toBe('#intro-section');
+  });
+
+  it('keeps target=_blank rel=noopener on external links', async () => {
+    const el = await renderMd('Visit [the site](https://x.com) today.');
+    const link = el.querySelector('a[href="https://x.com"]') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('routes [[Title]] to /pages/<guid> when a resolveWikiTarget is supplied', async () => {
+    const { fixture } = await render(MarkdownRenderer, {
+      inputs: {
+        markdown: 'See [[Some Page]].',
+        resolveWikiTarget: () => ({ guid: 'guid-abc', exists: true }),
+      },
+      providers: [provideRouter([{ path: '**', redirectTo: '' }])],
+    });
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'wiki-link a.wiki-link',
+    ) as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/pages/guid-abc');
+  });
+
+  it('renders the broken state for a [[Title]] the resolver reports missing', async () => {
+    const { fixture } = await render(MarkdownRenderer, {
+      inputs: {
+        markdown: 'See [[Gone]].',
+        resolveWikiTarget: () => ({ guid: 'gone', exists: false }),
+      },
+      providers: [provideRouter([{ path: '**', redirectTo: '' }])],
+    });
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'wiki-link a.wiki-link-broken',
+    );
+    expect(link).not.toBeNull();
+    expect(link?.textContent).toContain('?');
+  });
+
   it('updates rendered output when the markdown input changes', async () => {
     const { fixture } = await render(MarkdownRenderer, {
       inputs: { markdown: '# First' },

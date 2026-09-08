@@ -29,9 +29,11 @@ import { Breadcrumbs } from '../../shared/components/breadcrumbs';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { Layout } from '../../core/layout/layout';
 import type { WikiBrokenLinkEvent } from '../../shared/markdown/wiki-link';
+import type { WikiTargetResolver } from '../../shared/markdown/plugins/remark-wiki-links';
+import { parseWikiLinks } from '../../shared/markdown/wiki-link-parser';
 import type { WikiImageResize } from '../../shared/markdown/wiki-image';
 import { setImageWidth } from '../../shared/codemirror/set-image-width';
-import { Pages, type PageSearchResult } from './pages';
+import { Pages, type PageSearchResult, type WikiLinkResolution } from './pages';
 import { Drafts, type PageMetadata } from './drafts';
 import { PageTypes } from '../page-types/page-types';
 import { BoardView } from '../board/board-view';
@@ -295,6 +297,7 @@ export function resolveSaveStatus(state: {
                           [markdown]="content()"
                           [pageGuid]="guid() ?? undefined"
                           [editable]="true"
+                          [resolveWikiTarget]="resolveWikiTarget()"
                           (brokenClick)="onBrokenLink($event)"
                           (imageResize)="onImageResize($event)"
                         />
@@ -308,6 +311,7 @@ export function resolveSaveStatus(state: {
                 <wiki-markdown-renderer
                   [markdown]="content()"
                   [pageGuid]="guid() ?? undefined"
+                  [resolveWikiTarget]="resolveWikiTarget()"
                   (brokenClick)="onBrokenLink($event)"
                 />
               }
@@ -417,6 +421,28 @@ export class PageDetail {
   /** Working copy — hydrated from draft-or-server once the resource resolves. */
   readonly content = signal('');
   readonly metadata = signal<PageMetadata | null>(null);
+
+  /**
+   * Resolved `[[wiki link]]` targets for the current buffer, keyed by the raw
+   * target string. Populated lazily by {@link resolveWikiTargets} as the
+   * content changes; consulted synchronously by {@link resolveWikiTarget}
+   * during preview rendering.
+   */
+  private readonly wikiResolutions = signal<ReadonlyMap<string, WikiLinkResolution>>(new Map());
+  /** Targets with a `/pages/links/resolve` request in flight — dedupes fetches. */
+  private readonly wikiResolveInFlight = new Set<string>();
+
+  /**
+   * Synchronous resolver handed to `<wiki-markdown-renderer>`. Reads the
+   * {@link wikiResolutions} map (so its identity changes when a resolution
+   * lands, re-rendering the preview). An unresolved target is treated as
+   * existing — links only flip to the broken state on a definitive miss, never
+   * while a lookup is pending.
+   */
+  protected readonly resolveWikiTarget = computed<WikiTargetResolver>(() => {
+    const resolved = this.wikiResolutions();
+    return (target) => resolved.get(target) ?? { guid: target, exists: true };
+  });
 
   /** Raw server message from the last failed save (null when the last save
    * succeeded or none has run). The reassurance banner composes the full copy. */
@@ -567,6 +593,13 @@ export class PageDetail {
       timer = setTimeout(() => {
         if (this.dirty()) this.drafts.set(g, { content: c, metadata: m });
       }, DRAFT_DEBOUNCE_MS);
+    });
+
+    // Resolve every distinct `[[target]]` in the buffer to a guid + existence
+    // so the preview can render GUID hrefs and broken-link state. Fires as the
+    // content changes; each distinct target is fetched at most once.
+    effect(() => {
+      this.resolveWikiTargets(this.content());
     });
 
     // Final stash on destroy — covers navigation before the debounce fires
@@ -828,6 +861,36 @@ export class PageDetail {
     return err instanceof Error ? err.message : 'The editor hit an unexpected error.';
   }
 
+  /**
+   * Resolve every distinct `[[target]]` in `markdown` that has not been
+   * resolved (or started) yet. Results land in {@link wikiResolutions}, which
+   * re-renders the preview. Fire-and-forget per target; failures leave the
+   * target unresolved (rendered as a live link, not broken).
+   */
+  private resolveWikiTargets(markdown: string): void {
+    const known = this.wikiResolutions();
+    const targets = new Set(
+      parseWikiLinks(markdown)
+        .map((l) => l.target.trim())
+        .filter((t) => t.length > 0),
+    );
+    for (const target of targets) {
+      if (known.has(target) || this.wikiResolveInFlight.has(target)) continue;
+      this.wikiResolveInFlight.add(target);
+      void this.pages
+        .resolveLink(target)
+        .then((resolution) => {
+          this.wikiResolutions.update((m) => new Map(m).set(target, resolution));
+        })
+        .catch(() => {
+          // Leave unresolved — the link stays live rather than flip to broken.
+        })
+        .finally(() => {
+          this.wikiResolveInFlight.delete(target);
+        });
+    }
+  }
+
   async onBrokenLink(event: WikiBrokenLinkEvent): Promise<void> {
     const data: CreatePageFromLinkModalData = {
       target: event.displayText || event.target,
@@ -838,6 +901,9 @@ export class PageDetail {
       { data },
     );
     await firstValueFrom(ref.afterClosed());
+    // TODO(2.7): the modal resolves with the created page's guid on success —
+    // rewrite the [[target]] token to [[<newGuid>]] in the buffer after
+    // successful create (the source-markdown rewrite is step 2.7's job).
   }
 
   async openBoardSettings(): Promise<void> {
