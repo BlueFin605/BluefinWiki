@@ -71,6 +71,11 @@ import type { PageProperty } from '../pages/page.types';
           <span
             [matBadge]="backlinkCount()"
             [matBadgeHidden]="backlinkCount() === 0"
+            [attr.aria-label]="
+              backlinkCount() > 0
+                ? 'Linked, ' + backlinkCount() + ' backlinks'
+                : null
+            "
             matBadgeOverlap="false"
             matBadgeSize="small"
           >Linked</span>

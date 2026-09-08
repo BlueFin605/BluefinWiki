@@ -90,6 +90,9 @@ describe('InspectorPanel', () => {
     expect(badge).not.toBeNull();
     expect(badge!.classList.contains('mat-badge-hidden')).toBe(false);
     expect(tab.querySelector('.mat-badge-content')?.textContent?.trim()).toBe('3');
+    // The count must also reach assistive tech: the badge content span is
+    // aria-hidden, so the tab's accessible name has to carry the number.
+    expect(tab).toHaveAccessibleName('Linked, 3 backlinks');
   });
 
   it('hides the Linked tab badge when there are no backlinks (zero state)', async () => {
@@ -98,6 +101,8 @@ describe('InspectorPanel', () => {
     const badge = tab.querySelector('.mat-badge');
     expect(badge).not.toBeNull();
     expect(badge!.classList.contains('mat-badge-hidden')).toBe(true);
+    // No count announced when there are none.
+    expect(tab).toHaveAccessibleName('Linked');
   });
 
   it('switching to linked tab causes its own backlinks panel to mount + refetch', async () => {
