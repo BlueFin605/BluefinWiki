@@ -64,6 +64,7 @@ describe('tag helpers', () => {
   it('pageTag', () => expect(pageTag('g1')).toBe('page:g1'));
   it('childrenTag with a guid', () => expect(childrenTag('p1')).toBe('children:p1'));
   it('childrenTag with null → root', () => expect(childrenTag(null)).toBe('children:root'));
+  it('childrenTag with empty string → root', () => expect(childrenTag('')).toBe('children:root'));
   it('childrenAnyTag', () => expect(childrenAnyTag()).toBe('children:any'));
   it('ancestorsTag', () => expect(ancestorsTag('g1')).toBe('ancestors:g1'));
   it('backlinksTag', () => expect(backlinksTag('g1')).toBe('backlinks:g1'));

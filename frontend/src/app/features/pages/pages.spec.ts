@@ -194,6 +194,23 @@ describe('Pages service', () => {
       expect(resource.value()?.[0].guid).toBe('after-move');
     });
 
+    it('updatePage on a root page (folderId "") re-requests childrenResource(null)', async () => {
+      const parent = signal<string | null>(null);
+      const resource = TestBed.runInInjectionContext(() => pages.childrenResource(parent));
+      await settle();
+      http.expectOne('/api/pages/root/children').flush({ children: [summary({ guid: 'before' })] });
+      await settle();
+
+      const promise = pages.updatePage('g1', { title: 'Renamed' });
+      http.expectOne('/api/pages/g1').flush(pageContent({ guid: 'g1', folderId: '' }));
+      await promise;
+      await settle();
+
+      http.expectOne('/api/pages/root/children').flush({ children: [summary({ guid: 'after' })] });
+      await settle();
+      expect(resource.value()?.[0].guid).toBe('after');
+    });
+
     it('deletePage sends DELETE with body', async () => {
       const promise = pages.deletePage('g1', { recursive: true });
       const req = http.expectOne('/api/pages/g1');
@@ -243,6 +260,27 @@ describe('Pages service', () => {
       await settle();
       expect(resource.value()?.count).toBe(1);
       expect(resource.value()?.backlinks[0].title).toBe('Other');
+    });
+
+    it('re-requests after a createPage (link graph edges may have changed)', async () => {
+      const guid = signal<string | null>('some-guid');
+      const resource = TestBed.runInInjectionContext(() => pages.backlinksResource(guid));
+      await settle();
+      http
+        .expectOne('/api/pages/some-guid/backlinks')
+        .flush({ guid: 'some-guid', backlinks: [], count: 0 });
+      await settle();
+
+      const promise = pages.createPage({ title: 'Linker', parentGuid: null });
+      http.expectOne('/api/pages').flush(pageContent({ guid: 'linker' }));
+      await promise;
+      await settle();
+
+      http
+        .expectOne('/api/pages/some-guid/backlinks')
+        .flush({ guid: 'some-guid', backlinks: [{ guid: 'linker', title: 'Linker' }], count: 1 });
+      await settle();
+      expect(resource.value()?.count).toBe(1);
     });
   });
 

@@ -5,6 +5,7 @@ import { firstValueFrom, map } from 'rxjs';
 import {
   InvalidationBus,
   ancestorsTag,
+  backlinksAnyTag,
   backlinksTag,
   childrenAnyTag,
   childrenTag,
@@ -143,7 +144,11 @@ export class Pages {
     return rxResource({
       params: () => {
         const g = guid();
-        return { guid: g, v: g ? this.bus.version(backlinksTag(g)) : 0 };
+        return {
+          guid: g,
+          v: g ? this.bus.version(backlinksTag(g)) : 0,
+          any: this.bus.version(backlinksAnyTag()),
+        };
       },
       stream: ({ params }) => {
         if (!params.guid) throw new Error('backlinksResource called with null guid');
@@ -215,7 +220,7 @@ export class Pages {
 
   async createPage(body: CreatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.post<PageContent>('/api/pages', body));
-    this.bus.bump(childrenTag(body.parentGuid));
+    this.bus.bumpMany([childrenTag(body.parentGuid), backlinksAnyTag()]);
     return result;
   }
 
@@ -238,6 +243,9 @@ export class Pages {
    *   present — `PageContent.folderId` is the owning parent guid.
    * - `children:any` additionally when `properties` / `boardOrder` change, so
    *   deep boards (which aggregate descendants of some other parent) refresh.
+   * - `backlinks:any` additionally when `content` is in the body — a body edit
+   *   changes the link-graph edges into the pages it links to (precise
+   *   per-target invalidation would need a link resolver we lack here).
    */
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
@@ -246,6 +254,7 @@ export class Pages {
     const boardVisible = 'properties' in body || 'boardOrder' in body;
     if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId));
     if (boardVisible) tags.push(childrenAnyTag());
+    if ('content' in body) tags.push(backlinksAnyTag());
     this.bus.bumpMany(tags);
     return result;
   }
@@ -275,10 +284,11 @@ export class Pages {
 
   /**
    * The deleted page's parent is not known at the call site, so this bumps the
-   * coarse `children:any` plus the page's own `page:<guid>`.
+   * coarse `children:any` plus the page's own `page:<guid>`. It also bumps
+   * `backlinks:any` — removing a page drops the link-graph edges it owned.
    */
   async deletePage(guid: string, body: DeletePageRequest = {}): Promise<void> {
     await firstValueFrom(this.http.delete<void>(`/api/pages/${guid}`, { body }));
-    this.bus.bumpMany([childrenAnyTag(), pageTag(guid)]);
+    this.bus.bumpMany([childrenAnyTag(), pageTag(guid), backlinksAnyTag()]);
   }
 }

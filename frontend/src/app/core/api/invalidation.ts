@@ -26,7 +26,13 @@
  *   - `page:<guid>`              — a single page's content (`pageResource`)
  *   - `children:<parentGuid>`    — a folder's direct child list; `parentGuid`
  *                                  is the literal string `root` for the top
- *                                  level. Read by BOTH `childrenResource` and
+ *                                  level. A `null` OR empty-string parent both
+ *                                  normalise to `root` (`childrenTag` uses
+ *                                  `|| 'root'`), matching the backend's
+ *                                  empty-string root convention
+ *                                  (`PageContent.folderId` is `''` for a
+ *                                  top-level page). Read by BOTH
+ *                                  `childrenResource` and
  *                                  `childrenWithPropertiesResource` (the board
  *                                  must refresh when children change).
  *   - `children:any`             — coarse catch-all. EVERY children resource
@@ -37,6 +43,16 @@
  *                                  instead of a precise `children:<parent>`.
  *   - `ancestors:<guid>`         — a page's ancestor chain (`ancestorsResource`)
  *   - `backlinks:<guid>`         — pages linking to `<guid>` (`backlinksResource`)
+ *   - `backlinks:any`            — coarse catch-all. EVERY backlinks resource
+ *                                  also reads this. Editing page X's body adds
+ *                                  or removes link-graph edges pointing at X's
+ *                                  link *targets* — not at X itself — and the
+ *                                  affected target guids are not resolvable at
+ *                                  this layer. Rather than a precise
+ *                                  `backlinks:<target>`, every mutation that
+ *                                  changes page content or existence
+ *                                  (`createPage`, `updatePage` with `content`,
+ *                                  `deletePage`) bumps this.
  *
  *   `pageSearchResource` re-keys on the query string itself and depends on NO
  *   tag — no mutation needs to invalidate it.
@@ -68,15 +84,19 @@
  * - `Pages.updatePage`: the request body carries only the changed fields, so
  *   invalidation is derived from which keys are present — `page:<guid>`
  *   always; `children:<result.folderId>` (`PageContent.folderId` is the owning
- *   parent guid) when a tree- or board-visible field (`title` / `status` /
- *   `pageType` / `properties` / `boardOrder`) is in the body; additionally
- *   `children:any` when `properties` / `boardOrder` change, because a deep
- *   board aggregates descendants of some *other* parent and must still
- *   refresh on a card's property/order edit.
+ *   parent guid, `''` for a top-level page → normalised to `children:root`)
+ *   when a tree- or board-visible field (`title` / `status` / `pageType` /
+ *   `properties` / `boardOrder`) is in the body; additionally `children:any`
+ *   when `properties` / `boardOrder` change, because a deep board aggregates
+ *   descendants of some *other* parent and must still refresh on a card's
+ *   property/order edit; additionally `backlinks:any` when `content` is in the
+ *   body.
  * - `Pages.reorderPages`: bumps `children:<body.parentGuid>`.
  *
- * (`content`-only edits invalidate just `page:<guid>` — backlink invalidation
- * for the pages a body links to is out of scope for this step.)
+ * (`content`-only edits invalidate `page:<guid>` plus `backlinks:any` — a body
+ * edit changes the link-graph edges into the pages it links to, and precise
+ * per-target `backlinks:<guid>` invalidation would need a link resolver that
+ * this layer does not have.)
  */
 import { Injectable, type WritableSignal, signal } from '@angular/core';
 
@@ -119,8 +139,8 @@ export class InvalidationBus {
 
 export const pageTag = (guid: string): string => `page:${guid}`;
 
-export const childrenTag = (parentGuid: string | null): string =>
-  `children:${parentGuid ?? 'root'}`;
+export const childrenTag = (parentGuid: string | null | undefined): string =>
+  `children:${parentGuid || 'root'}`;
 
 /** Coarse catch-all every children resource also reads. */
 export const childrenAnyTag = (): string => 'children:any';
@@ -128,6 +148,9 @@ export const childrenAnyTag = (): string => 'children:any';
 export const ancestorsTag = (guid: string): string => `ancestors:${guid}`;
 
 export const backlinksTag = (guid: string): string => `backlinks:${guid}`;
+
+/** Coarse catch-all every backlinks resource also reads. */
+export const backlinksAnyTag = (): string => 'backlinks:any';
 
 export const pageTypesListTag = (): string => 'page-types:list';
 
