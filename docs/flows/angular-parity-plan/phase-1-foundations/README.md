@@ -17,26 +17,57 @@ here is user-visible on its own except the resize dividers and the editor keymap
 
 ## Steps
 
-| # | Step | Impact | Notes |
-|---|---|---|---|
-| 1.1 | [PageTypes wiring](step-1.1-pagetypes-wiring.md) | 🔴 root cause | Highest leverage. Do first. |
-| 1.2 | [Per-resource invalidation](step-1.2-per-resource-invalidation.md) | 🟠 (F2) | Establish pattern, migrate all services. |
-| 1.3 | [Layout store + resize dividers](step-1.3-layout-store-resize-dividers.md) | 🔴 (F5) | `ResizeDivider` + `Layout` both exist; wire them. |
-| 1.4 | [Editor formatting keymap](step-1.4-editor-formatting-keymap.md) | 🟠 (§0.7) | CodeMirror keymap only. |
-| 1.5 | [Responsive layer → Phase 1b](step-1.5-responsive-layer.md) | 🔴 (F4) | **Designed** — see [`../phase-1b-responsive/`](../phase-1b-responsive/README.md). Executes after Phases 3 & 4. |
+| # | Step | Impact | Status | Notes |
+|---|---|---|---|---|
+| 1.1 | [PageTypes wiring](step-1.1-pagetypes-wiring.md) | 🔴 root cause | ✅ done | Highest leverage. Do first. |
+| 1.2 | [Per-resource invalidation](step-1.2-per-resource-invalidation.md) | 🟠 (F2) | ✅ done | Establish pattern, migrate all services. |
+| 1.3 | [Layout store + resize dividers](step-1.3-layout-store-resize-dividers.md) | 🔴 (F5) | ✅ done | `ResizeDivider` + `Layout` both exist; wire them. |
+| 1.4 | [Editor formatting keymap](step-1.4-editor-formatting-keymap.md) | 🟠 (§0.7) | ✅ done | CodeMirror keymap only. |
+| 1.5 | [Responsive layer → Phase 1b](step-1.5-responsive-layer.md) | 🔴 (F4) | ✅ design approved (code = 1b) | **Designed** — see [`../phase-1b-responsive/`](../phase-1b-responsive/README.md). Executes after Phases 3 & 4. |
 
 Order: 1.1 → 1.2 → 1.3 → 1.4 in sequence (1.1/1.2 touch many service files;
 avoid merge churn). 1.5 is design-only in this phase; its code is Phase 1b.
 
 ## Phase exit criteria
 
-- [ ] Every step's acceptance criteria met (1.5: design approved — code is 1b).
-- [ ] `npm test` green, `npm run lint` clean.
-- [ ] `pages-view` feeds a real page-types map to `PageTree` (visible: type
+- [x] Every step's acceptance criteria met (1.5: design approved — code is 1b).
+- [x] `npm test` green (77 suites / 465 tests), `npm run lint` clean.
+- [x] `pages-view` feeds a real page-types map to `PageTree` (visible: type
       emoji appears on typed rows).
-- [ ] Dragging the tree / inspector divider resizes the pane and the width
-      survives a reload, clamped to range.
-- [ ] `Ctrl/Cmd+B / I / \` / Shift+X` format text in the editor;
+- [x] Dragging the tree / inspector divider resizes the pane and the width
+      survives a reload, clamped to range. *(jsdom-verified; real-browser
+      drag-feel smoke check still owed — see follow-ups.)*
+- [x] `Ctrl/Cmd+B / I / \` / Shift+X` format text in the editor;
       `Ctrl/Cmd+K` inserts a link when the editor is focused.
-- [ ] A single mutation no longer refetches every unrelated resource of a
-      service (spot-check via network panel or a spy).
+- [x] A single mutation no longer refetches every unrelated resource of a
+      service (per-resource `InvalidationBus`; negative `expectNone` tests
+      prove scoped-not-blanket for pages / page-types / attachments).
+
+## Completion
+
+Executed via `superpowers:subagent-driven-development` on branch
+`feat/angular-rewrite`, commits `529e35a..adb5860` (15 commits). Per-task
+reviews + an opus whole-branch review; whole-branch review found 3 Important
+stale-UI regressions (`ancestors:any` / deep-board `children:any` /
+`Prec.high` keymap), all fixed and re-reviewed clean.
+
+**Deferred follow-ups (non-blocking, from the whole-branch review):**
+
+- Extract a shared `toPageTypeMap(list)` — the array→`Record` reduction is
+  duplicated in `pages-view.ts` and `board-view.ts` (do at step 5.1 latest).
+- Page-types fetch failure is fail-*open*: `check-type-constraints` gets `{}`
+  and permits every drop with no feedback. Add a `console.warn` + one-time
+  snackbar.
+- One shared memoized `pageTypesResource()` on the service — 5 live instances
+  today (all now share the `page-types:list` tag). Separately: `page-detail.ts`
+  `openBoardSettings()` builds a fresh `rxResource` and reads `.value()`
+  synchronously → empty `pageTypes` in the Board Settings dialog on first open.
+- `InvalidationBus.counters` map has no eviction (bounded by tags seen per
+  session — accepted).
+- `readStored()` in `layout.ts` doesn't run the clamp loop — legacy/corrupt
+  storage bypasses bounds until the next `update()`.
+- Inspector `ResizeDivider` sits inside `mat-sidenav`'s scroll container →
+  handle can scroll off with tall content (hoist at step 4.1).
+- `ResizeDivider` needs an `ariaLabel` input (two unlabelled
+  `role="separator"` at runtime once `page-detail` renders in `pages-view`).
+- Real-browser drag-feel check for both dividers.
