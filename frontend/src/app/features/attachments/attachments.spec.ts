@@ -147,18 +147,42 @@ describe('Attachments service', () => {
       expect(resource.value()?.[0].filename).toBe('a.pdf');
     });
 
-    it('reruns after bumpVersion()', async () => {
+    it('re-requests after deleteAttachment for the same page (scoped invalidation)', async () => {
       const guid = signal<string | null>('p1');
       const resource = TestBed.runInInjectionContext(() => attachments.listResource(guid));
       await settle();
       http.expectOne('/api/pages/p1/attachments').flush({ attachments: [meta({ filename: 'one.pdf' })] });
       await settle();
 
-      attachments.bumpVersion();
+      const promise = attachments.deleteAttachment('p1', 'one.pdf');
+      http.expectOne('/api/pages/p1/attachments/one.pdf').flush(null);
+      await promise;
       await settle();
+
       http.expectOne('/api/pages/p1/attachments').flush({ attachments: [meta({ filename: 'two.pdf' })] });
       await settle();
       expect(resource.value()?.[0].filename).toBe('two.pdf');
+    });
+
+    it('deleteAttachment on p1 does not re-request listResource(p2)', async () => {
+      const g1 = signal<string | null>('p1');
+      const g2 = signal<string | null>('p2');
+      TestBed.runInInjectionContext(() => attachments.listResource(g1));
+      const r2 = TestBed.runInInjectionContext(() => attachments.listResource(g2));
+      await settle();
+      http.expectOne('/api/pages/p1/attachments').flush({ attachments: [meta()] });
+      http.expectOne('/api/pages/p2/attachments').flush({ attachments: [meta({ filename: 'keep.pdf' })] });
+      await settle();
+
+      const promise = attachments.deleteAttachment('p1', 'doc.pdf');
+      http.expectOne('/api/pages/p1/attachments/doc.pdf').flush(null);
+      await promise;
+      await settle();
+
+      http.expectOne('/api/pages/p1/attachments').flush({ attachments: [] });
+      http.expectNone('/api/pages/p2/attachments');
+      await settle();
+      expect(r2.value()?.[0].filename).toBe('keep.pdf');
     });
 
     it('does not fetch when guid is null', async () => {

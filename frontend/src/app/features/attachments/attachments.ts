@@ -1,7 +1,8 @@
 import { HttpClient, HttpEventType, type HttpEvent } from '@angular/common/http';
-import { Injectable, type Signal, inject, signal } from '@angular/core';
+import { Injectable, type Signal, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { filter, firstValueFrom, map, tap } from 'rxjs';
+import { InvalidationBus, attachmentsTag } from '../../core/api/invalidation';
 import type {
   AttachmentMetadata,
   AttachmentUploadResponse,
@@ -17,11 +18,7 @@ interface PresignResponse {
 @Injectable({ providedIn: 'root' })
 export class Attachments {
   private readonly http = inject(HttpClient);
-  private readonly _version = signal(0);
-
-  bumpVersion(): void {
-    this._version.update((v) => v + 1);
-  }
+  private readonly bus = inject(InvalidationBus);
 
   /**
    * Upload a file via the three-step presigned-URL pipeline. The S3 PUT uses
@@ -79,13 +76,17 @@ export class Attachments {
       ),
     );
     onProgress?.(100);
-    this.bumpVersion();
+    this.bus.bump(attachmentsTag(pageGuid));
     return confirmed;
   }
 
+  /** Keys on `attachments:<pageGuid>`. */
   listResource(pageGuid: Signal<string | null>) {
     return rxResource({
-      params: () => ({ guid: pageGuid(), v: this._version() }),
+      params: () => {
+        const g = pageGuid();
+        return { guid: g, v: g ? this.bus.version(attachmentsTag(g)) : 0 };
+      },
       stream: ({ params }) => {
         if (!params.guid) {
           throw new Error('listResource: pageGuid is null');
@@ -103,6 +104,6 @@ export class Attachments {
         `/api/pages/${pageGuid}/attachments/${encodeURIComponent(filename)}`,
       ),
     );
-    this.bumpVersion();
+    this.bus.bump(attachmentsTag(pageGuid));
   }
 }
