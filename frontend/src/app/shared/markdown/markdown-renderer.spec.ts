@@ -159,6 +159,29 @@ describe('MarkdownRenderer', () => {
     expect(link.getAttribute('rel')).toContain('noopener');
   });
 
+  it('renders an internal /pages link via routerLink, with no new tab', async () => {
+    const el = await renderMd('Open [the page](/pages/abc) now.');
+    // RouterLink resolves the href attribute from the route; an external `<a>`
+    // would instead carry target="_blank".
+    const link = el.querySelector('a[href="/pages/abc"]') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('target')).toBeNull();
+  });
+
+  it('does not dead-click an #anchor with a malformed hash (safe decode)', async () => {
+    const { fixture } = await render(MarkdownRenderer, {
+      inputs: { markdown: 'Broken [anchor](#%).' },
+      providers: [provideRouter([{ path: '**', redirectTo: '' }])],
+    });
+    const comp = fixture.componentInstance as unknown as {
+      onAnchorClick: (e: Event, href: string) => void;
+    };
+    const event = new MouseEvent('click', { cancelable: true });
+    expect(() => comp.onAnchorClick(event, '#%')).not.toThrow();
+    // preventDefault still ran — the click is handled, not dead.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   it('routes [[Title]] to /pages/<guid> when a resolveWikiTarget is supplied', async () => {
     const { fixture } = await render(MarkdownRenderer, {
       inputs: {

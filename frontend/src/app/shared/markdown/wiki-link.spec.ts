@@ -53,6 +53,14 @@ describe('WikiLink', () => {
     expect(events).toEqual([{ target: 'backend-guide', displayText: 'Backend Guide' }]);
   });
 
+  it('locks the exact broken-link tooltip copy', async () => {
+    await render(WikiLink, {
+      inputs: { href: '/pages/x', target: 'Backend Guide', broken: true, displayText: 'Backend Guide' },
+    });
+    const link = screen.getByRole('link', { name: /Backend Guide/ });
+    expect(link.getAttribute('title')).toBe('Page not found: Backend Guide. Click to create.');
+  });
+
   it('does not emit brokenClick on a live link click', async () => {
     const user = userEvent.setup();
     let fired = false;

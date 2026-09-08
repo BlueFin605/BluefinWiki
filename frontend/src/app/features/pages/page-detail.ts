@@ -595,6 +595,22 @@ export class PageDetail {
       }, DRAFT_DEBOUNCE_MS);
     });
 
+    // The `[[wiki link]]` resolution cache is per-page. PageDetail is reused
+    // across `/pages/:guid` -> `/pages/:guid2` navigations (the page resource is
+    // a signal-param resource), so drop every resolved / in-flight entry
+    // whenever the route guid changes. Otherwise a return visit serves stale
+    // existence results (a page created elsewhere still renders as a broken
+    // `[[link]]`) and the map grows for the whole session. Registered before the
+    // resolve effect below so the clear always lands first on a guid change.
+    let wikiCacheGuid: string | null = null;
+    effect(() => {
+      const g = this.guid();
+      if (g === wikiCacheGuid) return;
+      wikiCacheGuid = g;
+      this.wikiResolutions.set(new Map());
+      this.wikiResolveInFlight.clear();
+    });
+
     // Resolve every distinct `[[target]]` in the buffer to a guid + existence
     // so the preview can render GUID hrefs and broken-link state. Fires as the
     // content changes; each distinct target is fetched at most once.
@@ -869,9 +885,13 @@ export class PageDetail {
    */
   private resolveWikiTargets(markdown: string): void {
     const known = this.wikiResolutions();
+    // `parseWikiLinks` already trims each target (both the `page-title` and the
+    // `[[guid|alias]]` branches), so these keys match the plugin's
+    // `wikiLink.target` lookups and the `resolveWikiTarget` computed's
+    // `resolved.get(target)` exactly — no extra `.trim()` needed here.
     const targets = new Set(
       parseWikiLinks(markdown)
-        .map((l) => l.target.trim())
+        .map((l) => l.target)
         .filter((t) => t.length > 0),
     );
     for (const target of targets) {

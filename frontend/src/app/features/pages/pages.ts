@@ -269,6 +269,9 @@ export class Pages {
       }),
     );
     const match = res.matches?.[0];
+    // Existence is derived from `exactMatch` — a fuzzy / substring-only hit must
+    // still render broken and offer "create" ("never a bare title"). The
+    // server's own `res.exists` is intentionally not used here.
     const exists = res.exactMatch === true && !!match;
     // Only trust the resolved guid on an exact match; for a miss the target is
     // echoed back (the broken link's href is never navigated to anyway).

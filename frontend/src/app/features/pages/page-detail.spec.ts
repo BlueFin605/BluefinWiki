@@ -7,7 +7,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { convertToParamMap, type ParamMap } from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 
 jest.mock('mermaid', () => ({
   default: {
@@ -1035,6 +1035,99 @@ describe('PageDetail', () => {
       within(dialog).getByRole('heading', { name: /create page from link/i }),
     ).toBeInTheDocument();
     expect(within(dialog).getByLabelText<HTMLInputElement>('Title').value).toBe('Ghost Page');
+  });
+
+  it('resolves a padded [[  Target  ]] to the same result as [[Target]]', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[  Real Page  ]].' });
+    await settle();
+
+    // Stored key and lookup key agree — one request, keyed by the trimmed target.
+    const rr = http.expectOne('/api/pages/links/resolve');
+    expect(rr.request.body).toEqual({ query: 'Real Page', maxResults: 1 });
+    rr.flush(
+      linkResolveResponse({
+        query: 'Real Page',
+        matches: [{ guid: 'guid-777', title: 'Real Page', parentGuid: null, status: 'published', confidence: 1, path: 'Real Page' }],
+        exactMatch: true,
+        exists: true,
+      }),
+    );
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'wiki-link a.wiki-link',
+    ) as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('/pages/guid-777');
+  });
+
+  it('degrades a wiki link to a live (non-broken) link when the backend resolve fails', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Flaky Page]].' });
+    await settle();
+
+    const rr = http.expectOne('/api/pages/links/resolve');
+    rr.flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('wiki-link a.wiki-link')).toBeTruthy();
+    expect(host.querySelector('wiki-link a.wiki-link-broken')).toBeNull();
+  });
+
+  it('clears the wiki-resolution cache when the route guid changes', async () => {
+    const paramMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ guid: 'gA' }));
+    const { fixture } = await render(PageDetail, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { paramMap: paramMap$, data: of({}) } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+
+    http.expectOne('/api/pages/gA').flush({ ...serverPage, guid: 'gA', content: 'See [[Foo]].' });
+    await settle();
+
+    const rrA = http.expectOne('/api/pages/links/resolve');
+    expect(rrA.request.body).toEqual({ query: 'Foo', maxResults: 1 });
+    rrA.flush(linkResolveResponse({ query: 'Foo' })); // exactMatch:false -> broken
+    await settle();
+    drain();
+    await settle();
+
+    const comp = fixture.componentInstance as unknown as {
+      wikiResolutions: () => ReadonlyMap<string, unknown>;
+      wikiResolveInFlight: Set<string>;
+    };
+    expect(comp.wikiResolutions().size).toBe(1);
+
+    // Navigate to page B on the SAME component instance.
+    paramMap$.next(convertToParamMap({ guid: 'gB' }));
+    await settle();
+
+    // Stale broken entry is gone — not served on the return visit.
+    expect(comp.wikiResolutions().size).toBe(0);
+
+    http.expectOne('/api/pages/gB').flush({ ...serverPage, guid: 'gB', content: 'See [[Foo]].' });
+    await settle();
+
+    // [[Foo]] is re-resolved against page B rather than blocked by the old
+    // `known.has('Foo')` guard.
+    const rrB = http.expectOne('/api/pages/links/resolve');
+    expect(rrB.request.body).toEqual({ query: 'Foo', maxResults: 1 });
+    rrB.flush(linkResolveResponse({ query: 'Foo' }));
+    await settle();
+    drain();
   });
 });
 

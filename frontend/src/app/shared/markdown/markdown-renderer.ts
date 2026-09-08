@@ -21,6 +21,20 @@ function slugify(text: string): string {
   return text.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
 }
 
+/**
+ * `decodeURIComponent` throws a `URIError` on a malformed escape (e.g. a lone
+ * `%`). By the time an `#anchor` click reaches the decode it has already run
+ * `preventDefault()`, so an uncaught throw here is a dead click — fall back to
+ * the raw (still-encoded) slug instead.
+ */
+function safeDecodeHash(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 function textOf(node: HastNode): string {
   if (node.type === 'text') return node.value;
   if (node.type === 'element' || node.type === 'root') {
@@ -298,7 +312,7 @@ export class MarkdownRenderer {
   onAnchorClick(event: Event, href: string): void {
     if (!href.startsWith('#')) return;
     event.preventDefault();
-    const id = decodeURIComponent(href.slice(1));
+    const id = safeDecodeHash(href.slice(1));
     if (!id) return;
     const el = typeof document !== 'undefined' ? document.getElementById(id) : null;
     if (el && typeof el.scrollIntoView === 'function') {
