@@ -17,7 +17,7 @@ jest.mock('mermaid', () => ({
   },
 }));
 
-import { PageDetail } from './page-detail';
+import { PageDetail, resolveSaveStatus } from './page-detail';
 import { Drafts } from './drafts';
 import { Layout } from '../../core/layout/layout';
 import { ResizeDivider } from '../../shared/components/resize-divider';
@@ -686,5 +686,204 @@ describe('PageDetail', () => {
     );
     await flushOverlay();
     http.expectNone('/api/pages/g1');
+  });
+
+  // ---- Step 3.3: Save-status pill + failure reassurance -----------------
+
+  const REASSURANCE = /your changes are still here — click save again to retry\./i;
+
+  it('shows the "Read-only" pill in view mode', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    expect(screen.getByText(/^read-only$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/all changes saved/i)).toBeNull();
+  });
+
+  it('shows the "✓ All changes saved" pill in edit mode with a clean buffer', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    expect(dirty(fixture)).toBe(false);
+    expect(screen.getByText(/all changes saved/i)).toBeInTheDocument();
+  });
+
+  it('shows the "● Unsaved changes" pill when the buffer is dirty', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Changed');
+    fixture.detectChanges();
+    await settle();
+
+    expect(dirty(fixture)).toBe(true);
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+    expect(screen.queryByText(/all changes saved/i)).toBeNull();
+  });
+
+  it('shows the "Saving…" pill while a save is in flight', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    const router = TestBed.inject(Router);
+    jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Edited');
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    fixture.detectChanges();
+
+    expect(screen.getByText(/^saving…$/i)).toBeInTheDocument();
+
+    // Resolve the in-flight PUT so the test tears down cleanly.
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Edited' });
+    await settle();
+  });
+
+  it('reads "✓ All changes saved" again after a successful save', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    const router = TestBed.inject(Router);
+    jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Edited');
+    fixture.detectChanges();
+    await settle();
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Edited' });
+    await settle();
+
+    // updatePage bumps page:g1, so the resource refetches the saved content.
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Edited' });
+    await settle();
+    fixture.detectChanges();
+
+    expect(dirty(fixture)).toBe(false);
+    expect(screen.getByText(/all changes saved/i)).toBeInTheDocument();
+  });
+
+  it('shows a dismissible reassurance banner with the server message on save failure', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Edited');
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    http.expectOne('/api/pages/g1').flush(
+      { message: 'Server on fire' },
+      { status: 500, statusText: 'Server Error' },
+    );
+    await settle();
+    fixture.detectChanges();
+
+    const banner = screen.getByRole('alert');
+    expect(banner).toHaveTextContent(/save failed:/i);
+    expect(banner).toHaveTextContent(/500 server error/i);
+    expect(banner).toHaveTextContent(REASSURANCE);
+    // The old non-dismissible generic span is gone.
+    expect(screen.queryByText('Save failed: Save failed. Try again.')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: /dismiss save error/i }));
+    fixture.detectChanges();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('returns the pill to "● Unsaved changes" after a failed save', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Edited');
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    http.expectOne('/api/pages/g1').flush(
+      { message: 'nope' },
+      { status: 500, statusText: 'Server Error' },
+    );
+    await settle();
+    fixture.detectChanges();
+
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+  });
+
+  it('retains the draft on save failure (drafts.clear only on success)', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    const drafts = TestBed.inject(Drafts);
+    const clearSpy = jest.spyOn(drafts, 'clear');
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Edited');
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    http.expectOne('/api/pages/g1').flush(
+      { message: 'nope' },
+      { status: 500, statusText: 'Server Error' },
+    );
+    await settle();
+
+    expect(clearSpy).not.toHaveBeenCalledWith('g1');
+    expect(drafts.hasDraft('g1')).toBe(true);
+  });
+
+  it('re-arms the banner when a fresh save attempt is made after dismissing', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Edited');
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    http.expectOne('/api/pages/g1').flush(
+      { message: 'first' },
+      { status: 500, statusText: 'Server Error' },
+    );
+    await settle();
+    fixture.detectChanges();
+
+    await userEvent.click(screen.getByRole('button', { name: /dismiss save error/i }));
+    fixture.detectChanges();
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    http.expectOne('/api/pages/g1').flush(
+      { message: 'second' },
+      { status: 500, statusText: 'Server Error' },
+    );
+    await settle();
+    fixture.detectChanges();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(REASSURANCE);
+  });
+});
+
+describe('resolveSaveStatus', () => {
+  it('prioritises read-only, then saving, then unsaved, then saved', () => {
+    expect(resolveSaveStatus({ canEdit: false, saving: true, dirty: true })).toBe('read-only');
+    expect(resolveSaveStatus({ canEdit: true, saving: true, dirty: true })).toBe('saving');
+    expect(resolveSaveStatus({ canEdit: true, saving: false, dirty: true })).toBe('unsaved');
+    expect(resolveSaveStatus({ canEdit: true, saving: false, dirty: false })).toBe('saved');
   });
 });

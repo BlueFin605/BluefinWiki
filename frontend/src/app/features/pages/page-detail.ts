@@ -44,6 +44,33 @@ type EditorMode = 'edit' | 'split' | 'preview';
 
 const DRAFT_DEBOUNCE_MS = 400;
 
+/** The four save-status pill states, in priority order. */
+export type SaveStatus = 'read-only' | 'saving' | 'unsaved' | 'saved';
+
+/** Pill label for each {@link SaveStatus}. */
+export const SAVE_STATUS_LABEL: Record<SaveStatus, string> = {
+  'read-only': 'Read-only',
+  saving: 'Saving…',
+  unsaved: '● Unsaved changes',
+  saved: '✓ All changes saved',
+};
+
+/**
+ * Pure resolver for the save-status pill. Priority order mirrors React:
+ * read-only (not editing / no permission) beats an in-flight save, which beats
+ * unsaved changes, which beats the settled "all saved" state.
+ */
+export function resolveSaveStatus(state: {
+  canEdit: boolean;
+  saving: boolean;
+  dirty: boolean;
+}): SaveStatus {
+  if (!state.canEdit) return 'read-only';
+  if (state.saving) return 'saving';
+  if (state.dirty) return 'unsaved';
+  return 'saved';
+}
+
 /**
  * Unified page screen. A single component backs both `/pages/:guid` (view) and
  * `/pages/:guid/edit` (edit) — the `:guid/edit` route carries `data.editMode`.
@@ -100,10 +127,6 @@ const DRAFT_DEBOUNCE_MS = 400;
 
         <span class="spacer"></span>
 
-        @if (saveError()) {
-          <span class="error">{{ saveError() }}</span>
-        }
-
         @if (mode() === 'edit') {
           <mat-button-toggle-group
             class="mode-toggle"
@@ -149,12 +172,36 @@ const DRAFT_DEBOUNCE_MS = 400;
           <mat-icon>info</mat-icon>
         </button>
 
+        @if (resource.hasValue()) {
+          <span class="save-status" [attr.data-status]="saveStatus()" aria-live="polite">
+            {{ saveStatusLabel() }}
+          </span>
+        }
+
         @if (mode() === 'edit' || dirty()) {
           <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
-            @if (saving()) { Saving... } @else { Save }
+            Save
           </button>
         }
       </header>
+
+      @if (saveError(); as err) {
+        @if (!saveErrorDismissed()) {
+          <div class="save-failed" role="alert">
+            <span class="save-failed-msg">
+              Save failed: {{ err }}. Your changes are still here — click Save again to retry.
+            </span>
+            <button
+              mat-icon-button
+              type="button"
+              aria-label="Dismiss save error"
+              (click)="dismissSaveError()"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+      }
 
       @if (guid(); as g) {
         @if (resolvedTitle(); as t) {
@@ -276,7 +323,16 @@ const DRAFT_DEBOUNCE_MS = 400;
     .title { font-weight: 600; }
     .view-toggle { margin-left: 0.5rem; }
     .spacer { flex: 1; }
-    .error { color: #b91c1c; font-size: 0.875rem; }
+    .save-status { font-size: 0.8125rem; color: #6b7280; white-space: nowrap; }
+    .save-status[data-status='unsaved'] { color: #b45309; }
+    .save-status[data-status='saved'] { color: #15803d; }
+    .save-failed {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin: 0.5rem 1rem; padding: 0.25rem 0.25rem 0.25rem 0.75rem;
+      border: 1px solid #fca5a5; border-radius: 4px;
+      background: #fef2f2; color: #b91c1c; font-size: 0.875rem;
+    }
+    .save-failed-msg { flex: 1; }
     .container { flex: 1; min-height: 0; }
     .content-pane { display: flex; flex-direction: column; height: 100%; }
     .body { flex: 1; min-height: 0; padding: 0; position: relative; overflow: auto; }
@@ -328,7 +384,11 @@ export class PageDetail {
   readonly content = signal('');
   readonly metadata = signal<PageMetadata | null>(null);
 
+  /** Raw server message from the last failed save (null when the last save
+   * succeeded or none has run). The reassurance banner composes the full copy. */
   protected readonly saveError = signal<string | null>(null);
+  /** Set when the user closes the failure banner; reset on the next save attempt. */
+  protected readonly saveErrorDismissed = signal(false);
   protected readonly saving = signal(false);
 
   protected readonly cursorContext = signal<CursorContext | null>(null);
@@ -379,6 +439,21 @@ export class PageDetail {
     if (JSON.stringify(m.tags ?? []) !== JSON.stringify(page.tags ?? [])) return true;
     return JSON.stringify(m.properties ?? {}) !== JSON.stringify(page.properties ?? {});
   });
+
+  /**
+   * Single save-status pill. A pure projection of `mode` / `saving` / `dirty`
+   * (see {@link resolveSaveStatus}) — read-only in view mode, otherwise
+   * Saving… / Unsaved / All saved. Replaces the old "Saving..." label and the
+   * generic `saveError` span.
+   */
+  protected readonly saveStatus = computed<SaveStatus>(() =>
+    resolveSaveStatus({
+      canEdit: this.mode() === 'edit',
+      saving: this.saving(),
+      dirty: this.dirty(),
+    }),
+  );
+  protected readonly saveStatusLabel = computed(() => SAVE_STATUS_LABEL[this.saveStatus()]);
 
   private syncedGuid: string | null = null;
 
@@ -694,6 +769,7 @@ export class PageDetail {
 
     this.saving.set(true);
     this.saveError.set(null);
+    this.saveErrorDismissed.set(false);
     try {
       await this.pages.updatePage(g, {
         content,
@@ -709,9 +785,16 @@ export class PageDetail {
     } catch (err) {
       const message =
         (err as { message?: string })?.message ?? 'Save failed. Try again.';
-      this.saveError.set(`Save failed: ${message}`);
+      // Store the raw server message — the banner template composes the
+      // "Save failed: … Your changes are still here" reassurance copy.
+      this.saveError.set(message);
     } finally {
       this.saving.set(false);
     }
+  }
+
+  /** Close the save-failure banner until the next save attempt. */
+  dismissSaveError(): void {
+    this.saveErrorDismissed.set(true);
   }
 }
