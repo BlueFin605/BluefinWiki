@@ -16,7 +16,18 @@ const DEFAULTS: LayoutPreferences = {
   editorSplitPosition: 50,
 };
 
-function readStored(): LayoutPreferences {
+/** Inclusive [min, max] bounds for each numeric preference. */
+const CLAMPS: Record<'treeWidth' | 'inspectorWidth' | 'editorSplitPosition', readonly [number, number]> = {
+  treeWidth: [200, 600],
+  inspectorWidth: [250, 600],
+  editorSplitPosition: [20, 80],
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+export function readStored(): LayoutPreferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULTS };
@@ -48,7 +59,21 @@ export class Layout {
     });
   }
 
+  /**
+   * The single choke point for layout mutations. Numeric keys are clamped to
+   * their bounds (see `CLAMPS`) before the patch is applied; non-numeric keys
+   * (`inspectorVisible`) pass through untouched. The constructor `effect()`
+   * then persists the whole prefs object to localStorage.
+   */
   update(changes: Partial<LayoutPreferences>): void {
-    this._prefs.update((prev) => ({ ...prev, ...changes }));
+    const next: Partial<LayoutPreferences> = { ...changes };
+    for (const key of Object.keys(CLAMPS) as (keyof typeof CLAMPS)[]) {
+      const value = next[key];
+      if (typeof value === 'number') {
+        const [min, max] = CLAMPS[key];
+        next[key] = clamp(value, min, max);
+      }
+    }
+    this._prefs.update((prev) => ({ ...prev, ...next }));
   }
 }

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Layout, type LayoutPreferences } from './layout';
+import { Layout, readStored, type LayoutPreferences } from './layout';
 
 describe('Layout service', () => {
   beforeEach(() => {
@@ -52,5 +52,81 @@ describe('Layout service', () => {
     await Promise.resolve();
     expect(layout.preferences().inspectorVisible).toBe(true);
     expect(layout.preferences().treeWidth).toBe(320);
+  });
+});
+
+describe('Layout service — clamps (F5 step 1.3)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [Layout] });
+  });
+
+  it('clamps treeWidth up to the 200 minimum', () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ treeWidth: 50 });
+    expect(layout.preferences().treeWidth).toBe(200);
+  });
+
+  it('clamps treeWidth down to the 600 maximum', () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ treeWidth: 999 });
+    expect(layout.preferences().treeWidth).toBe(600);
+  });
+
+  it('keeps an in-range treeWidth untouched', () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ treeWidth: 350 });
+    expect(layout.preferences().treeWidth).toBe(350);
+  });
+
+  it('clamps inspectorWidth to the 250-600 range', () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ inspectorWidth: 100 });
+    expect(layout.preferences().inspectorWidth).toBe(250);
+    layout.update({ inspectorWidth: 5000 });
+    expect(layout.preferences().inspectorWidth).toBe(600);
+  });
+
+  it('clamps editorSplitPosition to the 20-80 range', () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ editorSplitPosition: 5 });
+    expect(layout.preferences().editorSplitPosition).toBe(20);
+    layout.update({ editorSplitPosition: 95 });
+    expect(layout.preferences().editorSplitPosition).toBe(80);
+  });
+
+  it('passes the non-numeric inspectorVisible key through untouched', () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ inspectorVisible: true });
+    expect(layout.preferences().inspectorVisible).toBe(true);
+  });
+});
+
+describe('Layout service — persistence round-trip (F5 step 1.3)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [Layout] });
+  });
+
+  it('round-trips inspectorVisible through readStored()', async () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ inspectorVisible: true });
+    TestBed.tick();
+    await Promise.resolve();
+    expect(readStored().inspectorVisible).toBe(true);
+  });
+
+  it('a clamped value set via update survives a fresh Layout construction (reload proxy)', async () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ treeWidth: 5000 });
+    TestBed.tick();
+    await Promise.resolve();
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [Layout] });
+    const reloaded = TestBed.inject(Layout);
+    expect(reloaded.treeWidth()).toBe(600);
   });
 });
