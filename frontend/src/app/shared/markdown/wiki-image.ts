@@ -43,7 +43,7 @@ type Request =
  * full-screen lightbox.
  *
  * When `[resizable]` is set (edit / split preview) a drag handle is shown on the
- * rendered image; dragging emits `(resize)` with the final pixel width, which
+ * rendered image; dragging emits `(resized)` with the final pixel width, which
  * `page-detail` feeds to `setImageWidth` to rewrite `![alt|WIDTH]` in the source.
  */
 @Component({
@@ -65,6 +65,7 @@ type Request =
             [attr.src]="displaySrc()"
             [attr.alt]="alt()"
             [attr.width]="width()"
+            [attr.height]="height()"
             [style.width.px]="livePx()"
           />
           @if (resizable()) {
@@ -107,6 +108,8 @@ export class WikiImage {
   readonly alt = input<string>('');
   /** Passthrough width attribute (e.g. `"200px"` from `remark-image-size`). */
   readonly width = input<string | null>(null);
+  /** Passthrough height attribute (e.g. `"200px"` from `remark-image-size`'s `WxH` syntax). */
+  readonly height = input<string | null>(null);
   /** Show the drag-to-resize handle (edit / split preview only). */
   readonly resizable = input<boolean>(false);
 

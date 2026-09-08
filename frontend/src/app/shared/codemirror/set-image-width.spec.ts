@@ -28,4 +28,29 @@ describe('setImageWidth', () => {
   it('strips the width when passed a non-positive value', () => {
     expect(setImageWidth('![a|120](x.png)', 'a', 0)).toBe('![a](x.png)');
   });
+
+  it('does not rewrite an image token inside a fenced code block', () => {
+    const md = ['```', '![a](x.png)', '```', '', '![a](y.png)'].join('\n');
+    expect(setImageWidth(md, 'a', 300)).toBe(
+      ['```', '![a](x.png)', '```', '', '![a|300](y.png)'].join('\n'),
+    );
+  });
+
+  it('does not rewrite an image token inside a tilde fenced code block', () => {
+    const md = ['~~~', '![a](x.png)', '~~~'].join('\n');
+    expect(setImageWidth(md, 'a', 300)).toBe(md);
+  });
+
+  it('does not rewrite an image token inside an inline code span', () => {
+    expect(setImageWidth('`![a](x.png)` and ![a](y.png)', 'a', 300)).toBe(
+      '`![a](x.png)` and ![a|300](y.png)',
+    );
+  });
+
+  it('counts only non-code images when matching by numeric index', () => {
+    const md = ['```', '![a](code.png)', '```', '', '![b](0.png) ![c](1.png)'].join('\n');
+    expect(setImageWidth(md, 1, 99)).toBe(
+      ['```', '![a](code.png)', '```', '', '![b](0.png) ![c|99](1.png)'].join('\n'),
+    );
+  });
 });

@@ -84,6 +84,14 @@ describe('MarkdownRenderer', () => {
     expect(img?.getAttribute('alt')).toBe('alt');
   });
 
+  it('renders <img> with both width and height from remark-image-size WxH syntax', async () => {
+    const el = await renderMd('![alt|300x200](x.png)');
+    const img = el.querySelector('img');
+    expect(img?.getAttribute('width')).toBe('300px');
+    expect(img?.getAttribute('height')).toBe('200px');
+    expect(img?.getAttribute('alt')).toBe('alt');
+  });
+
   it('renders task list checkboxes', async () => {
     const el = await renderMd('- [x] done\n- [ ] todo');
     const inputs = el.querySelectorAll('input[type="checkbox"]');

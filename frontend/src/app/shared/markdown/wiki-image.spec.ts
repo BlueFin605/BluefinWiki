@@ -94,7 +94,7 @@ describe('WikiImage', () => {
     http.verify();
   });
 
-  it('emits `resize` with the final width when the drag handle is dragged', async () => {
+  it('emits `resized` with the final width when the drag handle is dragged', async () => {
     const { fixture } = await render(WikiImage, {
       inputs: { src: 'https://cdn.example.com/x.png', alt: 'ext', width: '100px', resizable: true },
       providers: httpProviders,

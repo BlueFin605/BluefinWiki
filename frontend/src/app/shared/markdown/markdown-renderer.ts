@@ -63,6 +63,7 @@ function isWikiLink(node: HastElement): boolean {
             [src]="stringProp(node, 'src') ?? ''"
             [alt]="stringProp(node, 'alt') ?? ''"
             [width]="stringProp(node, 'width')"
+            [height]="stringProp(node, 'height')"
             [pageGuid]="pageGuid() ?? ''"
             [resizable]="editable()"
             (resized)="imageResize.emit($event)"
