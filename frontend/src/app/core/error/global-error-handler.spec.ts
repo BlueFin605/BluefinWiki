@@ -30,12 +30,12 @@ describe('GlobalErrorHandler', () => {
     spy.mockRestore();
   });
 
-  it('sets EditorErrorState on handleError', () => {
+  it('does NOT populate EditorErrorState', () => {
     const handler = TestBed.inject(GlobalErrorHandler);
     const state = TestBed.inject(EditorErrorState);
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     handler.handleError(new Error('kaboom'));
-    expect(state.current()?.message).toBe('kaboom');
+    expect(state.current()).toBeNull();
     spy.mockRestore();
   });
 });

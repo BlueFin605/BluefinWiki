@@ -146,8 +146,12 @@ const DRAFT_DEBOUNCE_MS = 400;
             } @else if (mode() === 'edit' && editorError(); as err) {
               <div class="state error">
                 <p>The editor crashed: {{ err.message }}</p>
+                <p>Your recent changes were saved to this browser automatically — reloading is safe.</p>
                 <button mat-flat-button color="primary" type="button" (click)="reloadEditor()">
-                  Reload editor
+                  Try Again
+                </button>
+                <button mat-stroked-button type="button" (click)="reloadPage()">
+                  Reload Page
                 </button>
               </div>
             } @else if (resource.value(); as page) {
@@ -368,25 +372,45 @@ export class PageDetail {
   }
 
   onAction(action: ToolbarAction): void {
-    this.editor()?.applyAction(action);
+    try {
+      this.editor()?.applyAction(action);
+    } catch (err) {
+      this.errorState.setError(this.editorErrMessage(err));
+    }
   }
 
   onPickPage(page: PageSearchResult, ctx: CursorContext): void {
-    const replacement = `[[${page.title}]]`;
-    this.editor()?.insertText(ctx.from, ctx.to, replacement);
-    this.cursorContext.set(null);
+    try {
+      const replacement = `[[${page.title}]]`;
+      this.editor()?.insertText(ctx.from, ctx.to, replacement);
+      this.cursorContext.set(null);
+    } catch (err) {
+      this.errorState.setError(this.editorErrMessage(err));
+    }
   }
 
   onInsertMarkdown(text: string): void {
-    const ed = this.editor();
-    const view = ed?.getView();
-    if (!view) return;
-    const { from, to } = view.state.selection.main;
-    ed?.insertText(from, to, text);
+    try {
+      const ed = this.editor();
+      const view = ed?.getView();
+      if (!view) return;
+      const { from, to } = view.state.selection.main;
+      ed?.insertText(from, to, text);
+    } catch (err) {
+      this.errorState.setError(this.editorErrMessage(err));
+    }
   }
 
   reloadEditor(): void {
     this.errorState.clear();
+  }
+
+  reloadPage(): void {
+    window.location.reload();
+  }
+
+  private editorErrMessage(err: unknown): string {
+    return err instanceof Error ? err.message : 'The editor hit an unexpected error.';
   }
 
   async onBrokenLink(event: WikiBrokenLinkEvent): Promise<void> {

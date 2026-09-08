@@ -18,6 +18,7 @@ jest.mock('mermaid', () => ({
 
 import { PageDetail } from './page-detail';
 import { Drafts } from './drafts';
+import { EditorErrorState } from '../../core/error/editor-error-state';
 
 const serverPage = {
   guid: 'g1',
@@ -201,6 +202,32 @@ describe('PageDetail', () => {
     await settle();
 
     expect(drafts.hasDraft('g1')).toBe(false);
+  });
+
+  it('routes an editor-action throw into EditorErrorState, not a snackbar', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    const state = TestBed.inject(EditorErrorState);
+    (fixture.componentInstance as unknown as { editor: unknown }).editor = () => ({
+      applyAction: () => {
+        throw new Error('CM exploded');
+      },
+    });
+    (fixture.componentInstance as unknown as { onAction: (a: unknown) => void }).onAction({
+      type: 'bold',
+    });
+    expect(state.current()?.message).toContain('CM exploded');
+  });
+
+  it('renders Reload Page + reassurance in the editor-crash panel', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    TestBed.inject(EditorErrorState).setError('boom');
+    fixture.detectChanges();
+    expect(screen.getByRole('button', { name: /reload page/i })).toBeInTheDocument();
+    expect(screen.getByText(/saved to this browser/i)).toBeInTheDocument();
   });
 
   it('does not show the board toggle when the page has no boardConfig', async () => {
