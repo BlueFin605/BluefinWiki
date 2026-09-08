@@ -1,4 +1,4 @@
-import { effect } from '@angular/core';
+import type { WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -1088,7 +1088,7 @@ describe('PageDetail', () => {
     expect(link.getAttribute('href')).toBe('/pages/guid-123');
   });
 
-  it('applies all landing wiki-link resolutions in a single wikiResolutions update (I4)', async () => {
+  it('applies all landing wiki-link resolutions in a single wikiResolutions write (I4)', async () => {
     const { http, fixture } = await renderDetail();
     http.expectOne('/api/pages/g1').flush({
       ...serverPage,
@@ -1097,17 +1097,18 @@ describe('PageDetail', () => {
     await settle();
 
     const comp = fixture.componentInstance as unknown as {
-      wikiResolutions: () => ReadonlyMap<string, unknown>;
+      wikiResolutions: WritableSignal<ReadonlyMap<string, unknown>>;
     };
 
-    const sizes: number[] = [];
-    TestBed.runInInjectionContext(() => {
-      effect(() => { sizes.push(comp.wikiResolutions().size); });
-    });
-    await settle();
-    sizes.length = 0; // drop the initial effect run
+    // Spy the write path itself. The pre-fix code called `wikiResolutions.update`
+    // once per resolved target (N writes -> N `resolveWikiTarget` identity flips
+    // -> N full pipeline re-parses); the batched fix collects the whole landing
+    // and applies exactly one `update`. This assertion is what actually
+    // distinguishes the two — it fails (called 3x) if the batching hunk in
+    // `resolveWikiTargets` is reverted.
+    const updateSpy = jest.spyOn(comp.wikiResolutions, 'update');
 
-    // One POST per distinct target, all issued before any response.
+    // Three distinct targets -> three POSTs, all in flight before any response.
     const reqs = http.match('/api/pages/links/resolve');
     expect(reqs).toHaveLength(3);
     reqs.forEach((r, i) =>
@@ -1123,9 +1124,10 @@ describe('PageDetail', () => {
     drain();
     await settle();
 
-    // 0 -> 3 in a single update: no intermediate size 1 or 2 was observed.
     expect(comp.wikiResolutions().size).toBe(3);
-    expect(sizes).toEqual([3]);
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+
+    updateSpy.mockRestore();
   });
 
   it('opens the Create-Page-from-Link modal with the target prefilled when a broken wiki link is clicked', async () => {
