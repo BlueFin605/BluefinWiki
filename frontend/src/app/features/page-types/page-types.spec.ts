@@ -59,18 +59,46 @@ describe('PageTypes service', () => {
       expect(resource.value()?.[0].guid).toBe('a');
     });
 
-    it('refetches after bumpVersion()', async () => {
+    it('refetches after createPageType (scoped invalidation via the bus)', async () => {
       const resource = TestBed.runInInjectionContext(() => pageTypes.pageTypesResource());
       await settle();
       http.expectOne('/api/page-types').flush({ pageTypes: [pageType({ guid: 'v1' })] });
       await settle();
 
-      pageTypes.bumpVersion();
+      const promise = pageTypes.createPageType({ name: 'N', icon: 'i' });
       await settle();
+      http.expectOne('/api/page-types').flush(pageType({ guid: 'v2' }));
+      await promise;
+      await settle();
+
       http.expectOne('/api/page-types').flush({ pageTypes: [pageType({ guid: 'v2' })] });
       await settle();
 
       expect(resource.value()?.[0].guid).toBe('v2');
+    });
+
+    it('updatePageType does not refetch an unrelated pageTypeResource', async () => {
+      const other = signal<string | null | typeof SKIP_PAGE_TYPE_FETCH>('other');
+      const list = TestBed.runInInjectionContext(() => pageTypes.pageTypesResource());
+      TestBed.runInInjectionContext(() => pageTypes.pageTypeResource(other));
+      await settle();
+      http.expectOne('/api/page-types').flush({ pageTypes: [] });
+      http.expectOne('/api/page-types/other').flush(pageType({ guid: 'other' }));
+      await settle();
+
+      const promise = pageTypes.updatePageType('pt-9', { name: 'R' });
+      await settle();
+      http.expectOne('/api/page-types/pt-9').flush(pageType({ guid: 'pt-9', name: 'R' }));
+      await promise;
+      await settle();
+
+      // the list re-requests (page-types:list bumped)...
+      http.expectOne('/api/page-types').flush({ pageTypes: [] });
+      // ...but the unrelated single type does not.
+      http.expectNone('/api/page-types/other');
+      await settle();
+
+      expect(list.value()).toEqual([]);
     });
   });
 

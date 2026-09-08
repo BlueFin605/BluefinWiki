@@ -1,7 +1,13 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, type Signal, inject, signal } from '@angular/core';
+import { Injectable, type Signal, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map } from 'rxjs';
+import {
+  InvalidationBus,
+  allowedChildrenTag,
+  pageTypeTag,
+  pageTypesListTag,
+} from '../../core/api/invalidation';
 import type { PageTypeDefinition, PageTypeProperty } from '../pages/page.types';
 
 export interface CreatePageTypeRequest {
@@ -31,16 +37,12 @@ interface AllowedChildrenResponse {
 @Injectable({ providedIn: 'root' })
 export class PageTypes {
   private readonly http = inject(HttpClient);
-  private readonly _version = signal(0);
+  private readonly bus = inject(InvalidationBus);
 
-  bumpVersion(): void {
-    this._version.update((v) => v + 1);
-  }
-
-  /** All defined page types (read-only in Phase 4; Phase 6 admin component will mutate). */
+  /** All defined page types. Keys on `page-types:list`. */
   pageTypesResource() {
     return rxResource({
-      params: () => this._version(),
+      params: () => this.bus.version(pageTypesListTag()),
       stream: () =>
         this.http
           .get<{ pageTypes: PageTypeDefinition[] }>('/api/page-types')
@@ -50,7 +52,13 @@ export class PageTypes {
 
   pageTypeResource(guid: Signal<string | null | typeof SKIP_PAGE_TYPE_FETCH>) {
     return rxResource({
-      params: () => ({ guid: guid(), v: this._version() }),
+      params: () => {
+        const g = guid();
+        return {
+          guid: g,
+          v: typeof g === 'string' ? this.bus.version(pageTypeTag(g)) : 0,
+        };
+      },
       stream: ({ params }) => {
         const g = params.guid;
         if (g === SKIP_PAGE_TYPE_FETCH || typeof g !== 'string') {
@@ -65,7 +73,7 @@ export class PageTypes {
     const result = await firstValueFrom(
       this.http.post<PageTypeDefinition>('/api/page-types', body),
     );
-    this.bumpVersion();
+    this.bus.bump(pageTypesListTag());
     return result;
   }
 
@@ -76,18 +84,30 @@ export class PageTypes {
     const result = await firstValueFrom(
       this.http.put<PageTypeDefinition>(`/api/page-types/${guid}`, body),
     );
-    this.bumpVersion();
+    this.bus.bumpMany([pageTypesListTag(), pageTypeTag(guid)]);
     return result;
   }
 
   async deletePageType(guid: string): Promise<void> {
     await firstValueFrom(this.http.delete<void>(`/api/page-types/${guid}`));
-    this.bumpVersion();
+    this.bus.bumpMany([pageTypesListTag(), pageTypeTag(guid)]);
   }
 
+  /**
+   * Keys on `page-type:allowed-children:<guid>` AND `page-types:list` — the
+   * allowed-children set is derived from the full type set, so a create/
+   * update/delete of any type may change it.
+   */
   allowedChildTypesResource(parentTypeGuid: Signal<string | null | typeof SKIP_PAGE_TYPE_FETCH>) {
     return rxResource({
-      params: () => ({ guid: parentTypeGuid(), v: this._version() }),
+      params: () => {
+        const g = parentTypeGuid();
+        return {
+          guid: g,
+          v: typeof g === 'string' ? this.bus.version(allowedChildrenTag(g)) : 0,
+          list: this.bus.version(pageTypesListTag()),
+        };
+      },
       stream: ({ params }) => {
         const g = params.guid;
         if (g === SKIP_PAGE_TYPE_FETCH || typeof g !== 'string') {
