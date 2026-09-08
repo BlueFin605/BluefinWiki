@@ -117,3 +117,34 @@ describe('Auth.whenReady', () => {
     await expect(auth.whenReady()).resolves.toBeUndefined();
   });
 });
+
+describe('Auth.refreshIdToken single-flight', () => {
+  it('shares one in-flight refresh across concurrent callers', async () => {
+    let resolveSession!: (s: unknown) => void;
+    const getSession = jest.fn((cb: (e: unknown, s: unknown) => void) => {
+      void new Promise((r) => (resolveSession = r)).then((s) => cb(null, s));
+    });
+    const cognitoUser = { getSession };
+    // Let bootstrap short-circuit (no getSession call) so whenReady() settles,
+    // then exercise the real refresh path below.
+    environment.disableAuth = true;
+    TestBed.configureTestingModule({
+      providers: [{ provide: USER_POOL, useValue: { getCurrentUser: () => cognitoUser } }],
+    });
+    const auth = TestBed.inject(Auth);
+    await auth.whenReady();
+    environment.disableAuth = false;
+    getSession.mockClear();
+
+    const a = auth.refreshIdToken();
+    const b = auth.refreshIdToken();
+    resolveSession({
+      isValid: () => true,
+      getIdToken: () => ({ getJwtToken: () => 'fresh' }),
+      getAccessToken: () => ({ getJwtToken: () => 'fresh-access' }),
+    });
+
+    await Promise.all([a, b]);
+    expect(getSession).toHaveBeenCalledTimes(1);
+  });
+});

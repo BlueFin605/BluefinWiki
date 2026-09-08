@@ -115,7 +115,17 @@ export class Auth {
     return localStorage.getItem(ID_TOKEN_KEY);
   }
 
+  private _refreshInFlight: Promise<string | null> | null = null;
+
   async refreshIdToken(): Promise<string | null> {
+    if (this._refreshInFlight) return this._refreshInFlight;
+    this._refreshInFlight = this._doRefresh().finally(() => {
+      this._refreshInFlight = null;
+    });
+    return this._refreshInFlight;
+  }
+
+  private async _doRefresh(): Promise<string | null> {
     if (environment.disableAuth) return localStorage.getItem(ID_TOKEN_KEY);
     const cognitoUser = this.userPool.getCurrentUser();
     if (!cognitoUser) return null;
