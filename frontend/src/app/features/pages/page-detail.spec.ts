@@ -367,4 +367,141 @@ describe('PageDetail', () => {
     // The stash ran before the reload.
     expect(setSpy.mock.invocationCallOrder[0]).toBeLessThan(reload.mock.invocationCallOrder[0]);
   });
+
+  // ---- Step 3.1: Split view -------------------------------------------------
+
+  const editorMode = (fixture: { componentInstance: unknown }): string =>
+    (fixture.componentInstance as { editorMode: () => string }).editorMode();
+
+  function draftJson(content: string): string {
+    return JSON.stringify({
+      content,
+      metadata: {
+        title: serverPage.title, tags: [], status: serverPage.status,
+        createdBy: 'u', modifiedBy: 'u', createdAt: '', modifiedAt: '', guid: 'g1',
+      },
+    });
+  }
+
+  it('switches the editor surface between Edit / Split / Preview via the segmented control', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    expect(editorMode(fixture)).toBe('edit');
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Split' }));
+    expect(editorMode(fixture)).toBe('split');
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Preview' }));
+    expect(editorMode(fixture)).toBe('preview');
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Edit' }));
+    expect(editorMode(fixture)).toBe('edit');
+  });
+
+  it('Split mode renders both the editor and the live preview side by side', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Split' }));
+    fixture.detectChanges();
+    await settle();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.editor-surface.split')).toBeTruthy();
+    expect(host.querySelector('wiki-codemirror')).toBeTruthy();
+    expect(screen.getByTestId('markdown-renderer')).toBeInTheDocument();
+  });
+
+  it('binds the Split left pane width to the persisted editorSplitPosition', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('radio', { name: 'Split' }));
+    fixture.detectChanges();
+    await settle();
+
+    TestBed.inject(Layout).update({ editorSplitPosition: 35 });
+    fixture.detectChanges();
+
+    const pane = (fixture.nativeElement as HTMLElement)
+      .querySelector('.editor-surface.split .editor-pane') as HTMLElement;
+    expect(pane.style.flexBasis).toBe('35%');
+  });
+
+  it('maps the Split divider pointer X to an editorSplitPosition, clamped through the layout store', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('radio', { name: 'Split' }));
+    fixture.detectChanges();
+    await settle();
+
+    const surface = (fixture.nativeElement as HTMLElement)
+      .querySelector('.editor-surface') as HTMLElement;
+    jest.spyOn(surface, 'getBoundingClientRect').mockReturnValue(
+      { left: 0, right: 1000, top: 0, bottom: 0, width: 1000, height: 0, x: 0, y: 0, toJSON: () => ({}) },
+    );
+
+    const layout = TestBed.inject(Layout);
+    const updateSpy = jest.spyOn(layout, 'update');
+
+    const divider = fixture.debugElement
+      .query(By.css('.editor-surface'))
+      .query(By.directive(ResizeDivider)).componentInstance as ResizeDivider;
+
+    // 900 / 1000 = 90% -> outside the 20-80 band, so the store clamps to 80.
+    divider.resized.emit(900);
+    await settle();
+
+    expect(updateSpy).toHaveBeenCalledWith({ editorSplitPosition: 90 });
+    expect(layout.editorSplitPosition()).toBe(80);
+  });
+
+  it('updates the Split preview as the content buffer changes', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('radio', { name: 'Split' }));
+    fixture.detectChanges();
+    await settle();
+
+    fixture.componentInstance.content.set('# Live Preview Heading');
+    fixture.detectChanges();
+    await settle();
+
+    expect(screen.getByRole('heading', { name: 'Live Preview Heading' })).toBeInTheDocument();
+  });
+
+  it('opens in Split on load when a stored draft differs from the server content', async () => {
+    localStorage.setItem('bluefinwiki:draft:g1', draftJson('# Diverged draft'));
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    expect(editorMode(fixture)).toBe('split');
+  });
+
+  it('does not open in Split when there is no draft', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    expect(editorMode(fixture)).toBe('edit');
+  });
+
+  it('does not open in Split when the stored draft equals the server content', async () => {
+    localStorage.setItem('bluefinwiki:draft:g1', draftJson(serverPage.content));
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    expect(editorMode(fixture)).toBe('edit');
+  });
 });

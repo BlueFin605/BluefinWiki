@@ -38,6 +38,8 @@ import type { BoardConfig } from './page.types';
 
 type Mode = 'view' | 'edit';
 type ViewMode = 'content' | 'board';
+/** Editor-surface layout on the `/edit` route (client state, not a route param). */
+type EditorMode = 'edit' | 'split' | 'preview';
 
 const DRAFT_DEBOUNCE_MS = 400;
 
@@ -101,15 +103,28 @@ const DRAFT_DEBOUNCE_MS = 400;
           <span class="error">{{ saveError() }}</span>
         }
 
-        <mat-button-toggle-group
-          class="mode-toggle"
-          [value]="mode()"
-          (change)="onModeToggle($event.value)"
-          aria-label="Edit mode"
-        >
-          <mat-button-toggle value="view">View</mat-button-toggle>
-          <mat-button-toggle value="edit">Edit</mat-button-toggle>
-        </mat-button-toggle-group>
+        @if (mode() === 'edit') {
+          <mat-button-toggle-group
+            class="mode-toggle"
+            [value]="editorMode()"
+            (change)="onEditorModeToggle($event.value)"
+            aria-label="Editor view mode"
+          >
+            <mat-button-toggle value="edit">Edit</mat-button-toggle>
+            <mat-button-toggle value="split">Split</mat-button-toggle>
+            <mat-button-toggle value="preview">Preview</mat-button-toggle>
+          </mat-button-toggle-group>
+        } @else {
+          <mat-button-toggle-group
+            class="mode-toggle"
+            [value]="mode()"
+            (change)="onModeToggle($event.value)"
+            aria-label="Edit mode"
+          >
+            <mat-button-toggle value="view">View</mat-button-toggle>
+            <mat-button-toggle value="edit">Edit</mat-button-toggle>
+          </mat-button-toggle-group>
+        }
 
         <button
           mat-icon-button
@@ -135,7 +150,7 @@ const DRAFT_DEBOUNCE_MS = 400;
 
       <mat-sidenav-container class="container" #sidenavContainer>
         <mat-sidenav-content class="content-pane">
-          @if (mode() === 'edit') {
+          @if (mode() === 'edit' && editorMode() !== 'preview') {
             <wiki-markdown-toolbar (action)="onAction($event)" />
           }
 
@@ -161,24 +176,48 @@ const DRAFT_DEBOUNCE_MS = 400;
             } @else if (resource.value(); as page) {
               @if (mode() === 'edit') {
                 @if (metadata()) {
-                  <wiki-codemirror
-                    #editor
-                    [(value)]="content"
-                    (save)="save()"
-                    (cursorContext)="cursorContext.set($event)"
-                    style="height: 100%; display:block;"
-                  />
-                  @if (cursorContext(); as ctx) {
-                    @if (ctx.coords) {
-                      <wiki-link-autocomplete
-                        [query]="ctx.query"
-                        [position]="{ top: ctx.coords.bottom, left: ctx.coords.left }"
-                        [visible]="true"
-                        (pick)="onPickPage($event, ctx)"
-                        (dismiss)="cursorContext.set(null)"
-                      />
+                  <div
+                    class="editor-surface"
+                    [class.split]="editorMode() === 'split'"
+                    #editorSurface
+                  >
+                    @if (editorMode() !== 'preview') {
+                      <div
+                        class="editor-pane"
+                        [style.flex-basis.%]="editorMode() === 'split' ? editorSplitPosition() : null"
+                      >
+                        <wiki-codemirror
+                          #editor
+                          [(value)]="content"
+                          (save)="save()"
+                          (cursorContext)="cursorContext.set($event)"
+                          style="height: 100%; display:block;"
+                        />
+                        @if (cursorContext(); as ctx) {
+                          @if (ctx.coords) {
+                            <wiki-link-autocomplete
+                              [query]="ctx.query"
+                              [position]="{ top: ctx.coords.bottom, left: ctx.coords.left }"
+                              [visible]="true"
+                              (pick)="onPickPage($event, ctx)"
+                              (dismiss)="cursorContext.set(null)"
+                            />
+                          }
+                        }
+                      </div>
                     }
-                  }
+                    @if (editorMode() === 'split') {
+                      <wiki-resize-divider (resized)="onSplitResize($event)" />
+                    }
+                    @if (editorMode() !== 'edit') {
+                      <div class="preview-pane">
+                        <wiki-markdown-renderer
+                          [markdown]="content()"
+                          (brokenClick)="onBrokenLink($event)"
+                        />
+                      </div>
+                    }
+                  </div>
                 }
               } @else if (viewMode() === 'board') {
                 <wiki-board-view [parentGuid]="page.guid" [boardConfig]="page.boardConfig ?? null" />
@@ -227,6 +266,12 @@ const DRAFT_DEBOUNCE_MS = 400;
     .container { flex: 1; min-height: 0; }
     .content-pane { display: flex; flex-direction: column; height: 100%; }
     .body { flex: 1; min-height: 0; padding: 0; position: relative; overflow: auto; }
+    .editor-surface { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    .editor-surface .editor-pane { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+    .editor-surface .preview-pane { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; }
+    .editor-surface.split { flex-direction: row; }
+    .editor-surface.split .editor-pane { flex-grow: 0; flex-shrink: 0; }
+    .editor-surface.split .preview-pane { border-left: 1px solid #e5e7eb; }
     .state { padding: 2rem; color: #6b7280; }
     .state.error { color: #b91c1c; }
     .inspector { position: relative; }
@@ -277,6 +322,21 @@ export class PageDetail {
 
   private readonly _viewMode = signal<ViewMode>('content');
   protected readonly viewMode = this._viewMode.asReadonly();
+
+  private readonly editorSurfaceEl = viewChild('editorSurface', { read: ElementRef });
+
+  /**
+   * Editor-surface layout on the `/edit` route. Client state, not a route
+   * param: the route only distinguishes read (`/pages/:guid`) from edit
+   * (`/pages/:guid/edit`); the three-way Edit / Split / Preview choice lives
+   * here. Initialised to `split` on load when a local draft diverges from the
+   * server copy (see the hydrate effect).
+   */
+  private readonly _editorMode = signal<EditorMode>('edit');
+  readonly editorMode = this._editorMode.asReadonly();
+
+  /** Split left-pane width (%), from the persisted layout store. Clamp 20-80. */
+  protected readonly editorSplitPosition = computed(() => this.layout.editorSplitPosition());
 
   protected readonly editorError = computed(() => this.errorState.current());
 
@@ -348,6 +408,13 @@ export class PageDetail {
       };
       this.metadata.set(draft?.metadata ?? meta);
       this.content.set(draft?.content ?? (page.content ?? ''));
+
+      // React parity: a local draft that diverges from the server copy opens
+      // in Split so the user sees both surfaces. The route still governs
+      // read-only vs edit; this only sets the editor-surface layout.
+      if (draft && draft.content !== (page.content ?? '')) {
+        this._editorMode.set('split');
+      }
     });
 
     // Debounced draft autosave whenever the working copy diverges from the
@@ -397,6 +464,10 @@ export class PageDetail {
     this._viewMode.set(mode);
   }
 
+  onEditorModeToggle(next: EditorMode): void {
+    this._editorMode.set(next);
+  }
+
   toggleInspector(): void {
     this.inspectorOpen.update((v) => !v);
   }
@@ -411,6 +482,20 @@ export class PageDetail {
     if (!host) return;
     const width = host.getBoundingClientRect().right - pointerX;
     this.layout.update({ inspectorWidth: width });
+  }
+
+  /**
+   * The Split divider emits an absolute pointer X. Convert it to the left
+   * (editor) pane's share of the editor-surface width, as a percentage;
+   * `Layout.update()` clamps to 20-80 and drops a non-finite value (e.g. from
+   * a zero-width surface).
+   */
+  onSplitResize(pointerX: number): void {
+    const host = this.editorSurfaceEl()?.nativeElement as HTMLElement | undefined;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    const pct = ((pointerX - rect.left) / rect.width) * 100;
+    this.layout.update({ editorSplitPosition: pct });
   }
 
   onAction(action: ToolbarAction): void {
