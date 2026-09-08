@@ -103,3 +103,17 @@ describe('Auth', () => {
     });
   });
 });
+
+describe('Auth.whenReady', () => {
+  it('resolves after the first bootstrap settles and is reusable', async () => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: USER_POOL, useValue: { getCurrentUser: () => null } }],
+    });
+    const auth = TestBed.inject(Auth);
+
+    await expect(auth.whenReady()).resolves.toBeUndefined();
+    expect(auth.isLoading()).toBe(false);
+    // second call returns an already-resolved promise
+    await expect(auth.whenReady()).resolves.toBeUndefined();
+  });
+});

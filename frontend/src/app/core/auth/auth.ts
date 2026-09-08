@@ -37,8 +37,15 @@ export class Auth {
     return u ? [u.role] : [];
   });
 
+  private _ready: Promise<void>;
+
   constructor() {
-    void this.bootstrap();
+    this._ready = this.bootstrap();
+  }
+
+  /** Resolves after the first bootstrap() settles (success or failure). */
+  whenReady(): Promise<void> {
+    return this._ready;
   }
 
   private async bootstrap(): Promise<void> {

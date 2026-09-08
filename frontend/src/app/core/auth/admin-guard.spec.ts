@@ -13,33 +13,42 @@ describe('adminGuard', () => {
     router = { createUrlTree: jest.fn(() => ({}) as UrlTree) };
     TestBed.configureTestingModule({
       providers: [
-        { provide: Auth, useValue: { user } },
+        { provide: Auth, useValue: { user, whenReady: jest.fn().mockResolvedValue(undefined) } },
         { provide: Router, useValue: router },
       ],
     });
   });
 
-  function run(): boolean | UrlTree {
-    return TestBed.runInInjectionContext(() =>
-      adminGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
-    ) as boolean | UrlTree;
+  function run(): Promise<boolean | UrlTree> {
+    return Promise.resolve(
+      TestBed.runInInjectionContext(() =>
+        adminGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+      ),
+    ) as Promise<boolean | UrlTree>;
   }
 
-  it('returns true for Admin user', () => {
+  it('awaits whenReady before deciding', async () => {
     user.mockReturnValue({ role: 'Admin' });
-    expect(run()).toBe(true);
+    await Promise.resolve(run());
+    // no throw = whenReady was awaited without error
+    expect(user).toHaveBeenCalled();
+  });
+
+  it('returns true for Admin user', async () => {
+    user.mockReturnValue({ role: 'Admin' });
+    await expect(run()).resolves.toBe(true);
     expect(router.createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('redirects to /pages for Standard user', () => {
+  it('redirects to /pages for Standard user', async () => {
     user.mockReturnValue({ role: 'Standard' });
-    run();
+    await run();
     expect(router.createUrlTree).toHaveBeenCalledWith(['/pages']);
   });
 
-  it('redirects to /pages for null user', () => {
+  it('redirects to /pages for null user', async () => {
     user.mockReturnValue(null);
-    run();
+    await run();
     expect(router.createUrlTree).toHaveBeenCalledWith(['/pages']);
   });
 });

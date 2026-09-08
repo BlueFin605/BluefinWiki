@@ -6,30 +6,42 @@ import { authGuard } from './auth-guard';
 describe('authGuard', () => {
   let redirect: jest.Mock;
   let isAuthenticated: jest.Mock;
+  let whenReady: jest.Mock;
 
   beforeEach(() => {
     redirect = jest.fn();
     isAuthenticated = jest.fn();
+    whenReady = jest.fn().mockResolvedValue(undefined);
     TestBed.configureTestingModule({
-      providers: [{ provide: Auth, useValue: { isAuthenticated, redirectToLogin: redirect } }],
+      providers: [
+        { provide: Auth, useValue: { isAuthenticated, redirectToLogin: redirect, whenReady } },
+      ],
     });
   });
 
-  function run(): unknown {
-    return TestBed.runInInjectionContext(() =>
-      authGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+  function run(): Promise<unknown> {
+    return Promise.resolve(
+      TestBed.runInInjectionContext(() =>
+        authGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+      ),
     );
   }
 
-  it('returns true when authenticated', () => {
+  it('awaits whenReady before deciding', async () => {
     isAuthenticated.mockReturnValue(true);
-    expect(run()).toBe(true);
+    await run();
+    expect(whenReady).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns true when authenticated', async () => {
+    isAuthenticated.mockReturnValue(true);
+    await expect(run()).resolves.toBe(true);
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it('redirects and returns false when not authenticated', () => {
+  it('redirects and returns false when not authenticated', async () => {
     isAuthenticated.mockReturnValue(false);
-    expect(run()).toBe(false);
+    await expect(run()).resolves.toBe(false);
     expect(redirect).toHaveBeenCalledTimes(1);
   });
 });
