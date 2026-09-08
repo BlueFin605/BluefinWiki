@@ -19,11 +19,24 @@ describe('authInterceptor', () => {
     redirectToLogin: jest.Mock;
     signOut: jest.Mock;
   };
+  // The real Auth.refreshIdToken() single-flights; the stub below reproduces
+  // that so tests exercise production behaviour, not interceptor-local state.
+  // `refreshWork` is the underlying work that single-flighting must collapse.
+  let refreshWork: jest.Mock;
 
   beforeEach(() => {
+    let inFlight: Promise<string | null> | null = null;
+    refreshWork = jest.fn().mockResolvedValue('tok-2');
     auth = {
       getIdToken: jest.fn().mockReturnValue('tok-1'),
-      refreshIdToken: jest.fn().mockResolvedValue('tok-2'),
+      refreshIdToken: jest.fn((): Promise<string | null> => {
+        inFlight ??= Promise.resolve()
+          .then(() => refreshWork() as Promise<string | null>)
+          .finally(() => {
+            inFlight = null;
+          });
+        return inFlight;
+      }),
       redirectToLogin: jest.fn(),
       signOut: jest.fn(),
     };
@@ -54,12 +67,14 @@ describe('authInterceptor', () => {
     req.flush({});
   });
 
-  it('single-flights refresh across two concurrent 401s and retries each once', (done) => {
+  it('shares one in-flight refresh across two concurrent 401s and retries each once', (done) => {
     let done1 = false;
     let done2 = false;
     const finish = () => {
       if (done1 && done2) {
-        expect(auth.refreshIdToken).toHaveBeenCalledTimes(1);
+        // Both pipelines asked Auth to refresh, but the single-flight in
+        // refreshIdToken() collapsed them into one actual refresh.
+        expect(refreshWork).toHaveBeenCalledTimes(1);
         done();
       }
     };
@@ -96,11 +111,50 @@ describe('authInterceptor', () => {
     }, 0);
   });
 
-  it('signs out and propagates when refresh returns null', (done) => {
+  it('signs out per failing pipeline and propagates 401 when concurrent retried requests 401 again', (done) => {
+    let err1: HttpErrorResponse | undefined;
+    let err2: HttpErrorResponse | undefined;
+    const finish = () => {
+      if (err1 && err2) {
+        expect(err1.status).toBe(401);
+        expect(err2.status).toBe(401);
+        // One shared refresh...
+        expect(refreshWork).toHaveBeenCalledTimes(1);
+        // ...but signOut runs once per failing retry pipeline (2 here). That is
+        // safe: Auth.signOut() is idempotent and does not redirect, so there is
+        // no module-global dedupe flag in the interceptor.
+        expect(auth.signOut).toHaveBeenCalledTimes(2);
+        done();
+      }
+    };
+    http.get('/api/a').subscribe({
+      error: (e: HttpErrorResponse) => {
+        err1 = e;
+        finish();
+      },
+    });
+    http.get('/api/b').subscribe({
+      error: (e: HttpErrorResponse) => {
+        err2 = e;
+        finish();
+      },
+    });
+
+    httpMock.expectOne('/api/a').flush({}, { status: 401, statusText: 'Unauthorized' });
+    httpMock.expectOne('/api/b').flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    setTimeout(() => {
+      httpMock.expectOne('/api/a').flush({}, { status: 401, statusText: 'Unauthorized' });
+      httpMock.expectOne('/api/b').flush({}, { status: 401, statusText: 'Unauthorized' });
+    }, 0);
+  });
+
+  it('signs out and propagates a 401 when refresh returns null', (done) => {
     auth.refreshIdToken.mockResolvedValueOnce(null);
     http.get('/api/pages').subscribe({
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         expect(auth.signOut).toHaveBeenCalledTimes(1);
+        expect(err.status).toBe(401);
         done();
       },
     });

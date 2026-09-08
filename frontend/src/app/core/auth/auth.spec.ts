@@ -119,6 +119,14 @@ describe('Auth.whenReady', () => {
 });
 
 describe('Auth.refreshIdToken single-flight', () => {
+  let savedDisableAuth: boolean;
+  beforeEach(() => {
+    savedDisableAuth = environment.disableAuth;
+  });
+  afterEach(() => {
+    environment.disableAuth = savedDisableAuth;
+  });
+
   it('shares one in-flight refresh across concurrent callers', async () => {
     let resolveSession!: (s: unknown) => void;
     const getSession = jest.fn((cb: (e: unknown, s: unknown) => void) => {
