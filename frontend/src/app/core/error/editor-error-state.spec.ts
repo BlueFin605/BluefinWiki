@@ -23,13 +23,4 @@ describe('EditorErrorState', () => {
     state.clear();
     expect(state.current()).toBeNull();
   });
-
-  it('exposes a version that bumps on each setError', () => {
-    const initial = state.version();
-    state.setError('a');
-    expect(state.version()).toBeGreaterThan(initial);
-    const after = state.version();
-    state.setError('b');
-    expect(state.version()).toBeGreaterThan(after);
-  });
 });

@@ -1,5 +1,6 @@
 import type { HttpInterceptorFn, HttpRequest } from '@angular/common/http';
 import {
+  HttpContext,
   HttpContextToken,
   HttpErrorResponse,
   type HttpHandlerFn,
@@ -12,6 +13,9 @@ const API_PREFIX = '/api';
 
 /**
  * Set on the single retry so a second 401 does not loop back into refresh.
+ * The retry clone is given a FRESH `HttpContext` carrying this token, so the
+ * original request's context is never mutated (`HttpContext.set` mutates in
+ * place and `HttpRequest.clone` reuses the same context object).
  *
  * Two separate guards read this token and BOTH must stay:
  *  - the top-level `catchError` check guards a full interceptor-chain
@@ -58,7 +62,7 @@ export const authInterceptor: HttpInterceptorFn = (
           }
           const retry = req.clone({
             setHeaders: { Authorization: `Bearer ${refreshed}` },
-            context: req.context.set(RETRIED, true),
+            context: new HttpContext().set(RETRIED, true),
           });
           return next(retry).pipe(
             catchError((retryErr: unknown) => {

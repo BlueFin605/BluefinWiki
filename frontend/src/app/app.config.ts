@@ -18,7 +18,14 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
+    // Order matters. Angular runs interceptors forward on the request path and
+    // in REVERSE on the response/error path. authInterceptor must sit LAST so it
+    // is innermost: on an error it then sees the raw `HttpErrorResponse` (needed
+    // for its 401 refresh/retry/sign-out logic). errorInterceptor sits first so
+    // it is outermost on the error path and maps whatever finally escapes into
+    // an `ApiError` for callers. Both are request-path pass-throughs (aside from
+    // authInterceptor's Authorization header clone), so request order is a no-op.
+    provideHttpClient(withInterceptors([errorInterceptor, authInterceptor])),
     provideAnimationsAsync(),
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
     provideServiceWorker('ngsw-worker.js', {

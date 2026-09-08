@@ -313,6 +313,11 @@ export class PageDetail {
       if (this.syncedGuid === currentGuid) return;
       this.syncedGuid = currentGuid;
 
+      // A new page identity starts clean: drop any editor-crash panel left over
+      // from a previous page (EditorErrorState is root-scoped, so it otherwise
+      // follows the user across navigations).
+      this.errorState.clear();
+
       const draft = this.drafts.get(currentGuid);
       const meta: PageMetadata = {
         title: page.title,
@@ -349,12 +354,22 @@ export class PageDetail {
     // (including the View/Edit toggle, which recreates this component).
     this.destroyRef.onDestroy(() => {
       if (timer) clearTimeout(timer);
-      const g = this.guid();
-      const m = this.metadata();
-      if (g && m && this.dirty()) {
-        this.drafts.set(g, { content: this.content(), metadata: m });
-      }
+      this.stashDraft();
     });
+  }
+
+  /**
+   * Synchronously persist the working copy to the Drafts store if it diverges
+   * from the server. Used by the destroy hook and by `reloadPage()`, where the
+   * 400 ms autosave debounce and the destroy hook would otherwise both be
+   * skipped by a hard reload.
+   */
+  private stashDraft(): void {
+    const g = this.guid();
+    const m = this.metadata();
+    if (g && m && this.dirty()) {
+      this.drafts.set(g, { content: this.content(), metadata: m });
+    }
   }
 
   onModeToggle(next: Mode): void {
@@ -406,6 +421,15 @@ export class PageDetail {
   }
 
   reloadPage(): void {
+    // The destroy hook and the debounced autosave both miss a hard reload, so
+    // stash synchronously first — otherwise the panel's "reloading is safe"
+    // copy would be false inside the debounce window.
+    this.stashDraft();
+    this.hardReload();
+  }
+
+  /** Seam over `window.location.reload()` (non-configurable under jsdom). */
+  protected hardReload(): void {
     window.location.reload();
   }
 

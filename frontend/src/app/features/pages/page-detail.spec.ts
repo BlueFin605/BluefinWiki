@@ -252,4 +252,50 @@ describe('PageDetail', () => {
     fixture.detectChanges();
     expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
   });
+
+  it('clears a stale editor-crash panel when a fresh page resolves', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    const state = TestBed.inject(EditorErrorState);
+    // A crash on a previous page — EditorErrorState is root-scoped so it would
+    // otherwise follow the user here.
+    state.setError('stale boom');
+    expect(state.current()).not.toBeNull();
+
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+
+    expect(state.current()).toBeNull();
+    expect(
+      (fixture.componentInstance as unknown as { editorError: () => unknown }).editorError(),
+    ).toBeNull();
+    expect(screen.queryByText(/the editor crashed/i)).toBeNull();
+  });
+
+  it('stashes the current draft before a hard page reload', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    const drafts = TestBed.inject(Drafts);
+    const setSpy = jest.spyOn(drafts, 'set');
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Unsaved edit');
+    fixture.detectChanges();
+    await settle();
+    setSpy.mockClear();
+
+    // `window.location.reload` is non-configurable under jsdom; spy the seam.
+    const comp = fixture.componentInstance as unknown as {
+      hardReload: () => void;
+      reloadPage: () => void;
+    };
+    const reload = jest.spyOn(comp, 'hardReload').mockImplementation(() => {});
+
+    comp.reloadPage();
+
+    expect(setSpy).toHaveBeenCalledWith('g1', expect.objectContaining({ content: '# Unsaved edit' }));
+    expect(reload).toHaveBeenCalledTimes(1);
+    // The stash ran before the reload.
+    expect(setSpy.mock.invocationCallOrder[0]).toBeLessThan(reload.mock.invocationCallOrder[0]);
+  });
 });

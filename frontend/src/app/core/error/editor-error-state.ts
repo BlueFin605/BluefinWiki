@@ -5,21 +5,22 @@ export interface EditorError {
 }
 
 /**
- * Holds the most recent unhandled editor error. The `GlobalErrorHandler`
- * writes here; `PageDetail` reads here to render an inline retry panel and
- * to bump a remount-key for the CodeMirror surface.
+ * Holds the most recent editor-interaction error.
+ *
+ * Written by `PageDetail`'s editor-interaction handlers
+ * (`onAction` / `onPickPage` / `onInsertMarkdown`) when a CodeMirror call
+ * throws. Read by `PageDetail` to render the inline crash panel in place of the
+ * editor. Cleared by `PageDetail` when the page identity changes and by
+ * `reloadEditor()` ("Try Again").
  */
 @Injectable({ providedIn: 'root' })
 export class EditorErrorState {
   private readonly _current = signal<EditorError | null>(null);
-  private readonly _version = signal(0);
 
   readonly current = this._current.asReadonly();
-  readonly version = this._version.asReadonly();
 
   setError(message: string): void {
     this._current.set({ message });
-    this._version.update((v) => v + 1);
   }
 
   clear(): void {
