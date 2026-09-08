@@ -33,8 +33,9 @@ import { PageTypes } from '../page-types/page-types';
 import { BoardView } from '../board/board-view';
 import { BoardSettingsPanel, type BoardSettingsPanelData } from '../board/board-settings-panel';
 import { CreatePageFromLinkModal, type CreatePageFromLinkModalData } from './create-page-from-link-modal';
+import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { EditorErrorState } from '../../core/error/editor-error-state';
-import type { BoardConfig } from './page.types';
+import type { BoardConfig, PageContent } from './page.types';
 
 type Mode = 'view' | 'edit';
 type ViewMode = 'content' | 'board';
@@ -124,6 +125,18 @@ const DRAFT_DEBOUNCE_MS = 400;
             <mat-button-toggle value="view">View</mat-button-toggle>
             <mat-button-toggle value="edit">Edit</mat-button-toggle>
           </mat-button-toggle-group>
+        }
+
+        @if (resource.hasValue()) {
+          <button
+            mat-icon-button
+            type="button"
+            aria-label="Refresh"
+            title="Discard local changes and reload from the server"
+            (click)="refresh()"
+          >
+            <mat-icon>refresh</mat-icon>
+          </button>
         }
 
         <button
@@ -394,26 +407,21 @@ export class PageDetail {
       this.errorState.clear();
 
       const draft = this.drafts.get(currentGuid);
-      const meta: PageMetadata = {
-        title: page.title,
-        tags: page.tags ?? [],
-        status: page.status,
-        ...(page.pageType ? { pageType: page.pageType } : {}),
-        ...(page.properties ? { properties: page.properties } : {}),
-        createdBy: page.createdBy,
-        modifiedBy: page.modifiedBy,
-        createdAt: page.createdAt,
-        modifiedAt: page.modifiedAt,
-        guid: page.guid,
-      };
-      this.metadata.set(draft?.metadata ?? meta);
-      this.content.set(draft?.content ?? (page.content ?? ''));
 
-      // React parity: a local draft that diverges from the server copy opens
-      // in Split so the user sees both surfaces. The route still governs
-      // read-only vs edit; this only sets the editor-surface layout.
-      if (draft && draft.content !== (page.content ?? '')) {
-        this._editorMode.set('split');
+      // Dirty-detection baseline = freshly fetched server content. Factored so
+      // the Refresh action resets it exactly the same way (see `refresh()`).
+      this.resetWorkingCopyToServer(page);
+
+      if (draft) {
+        this.metadata.set(draft.metadata);
+        this.content.set(draft.content);
+
+        // React parity: a local draft that diverges from the server copy opens
+        // in Split so the user sees both surfaces. The route still governs
+        // read-only vs edit; this only sets the editor-surface layout.
+        if (draft.content !== (page.content ?? '')) {
+          this._editorMode.set('split');
+        }
       }
     });
 
@@ -452,6 +460,59 @@ export class PageDetail {
     if (g && m && this.dirty()) {
       this.drafts.set(g, { content: this.content(), metadata: m });
     }
+  }
+
+  /**
+   * Reset the working copy — the `dirty()` baseline — to the given server page.
+   * Called by the initial-load hydrate effect (before layering any local draft
+   * on top) and by `refresh()` (via the effect, once the reloaded resource
+   * re-resolves with no draft in the way).
+   */
+  private resetWorkingCopyToServer(page: PageContent): void {
+    this.metadata.set({
+      title: page.title,
+      tags: page.tags ?? [],
+      status: page.status,
+      ...(page.pageType ? { pageType: page.pageType } : {}),
+      ...(page.properties ? { properties: page.properties } : {}),
+      createdBy: page.createdBy,
+      modifiedBy: page.modifiedBy,
+      createdAt: page.createdAt,
+      modifiedAt: page.modifiedAt,
+      guid: page.guid,
+    });
+    this.content.set(page.content ?? '');
+  }
+
+  /**
+   * Toolbar Refresh: discard the local draft, refetch the page, and reset the
+   * dirty baseline to the fresh server content. Prompts first only when there
+   * are unsaved changes. Clearing `syncedGuid` re-arms the hydrate effect, so
+   * the reloaded resource flows back through `resetWorkingCopyToServer` — the
+   * same path the initial load uses.
+   */
+  async refresh(): Promise<void> {
+    const g = this.guid();
+    if (!g) return;
+
+    if (this.dirty()) {
+      const data: ConfirmDialogData = {
+        title: 'Discard unsaved changes?',
+        message: 'Discard unsaved changes and reload this page from the server?',
+        confirmLabel: 'Discard & reload',
+        cancelLabel: 'Keep editing',
+        destructive: true,
+      };
+      const ref = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data });
+      const confirmed = await firstValueFrom(ref.afterClosed());
+      if (!confirmed) return;
+    }
+
+    // `Drafts.clear` drops both the in-memory Map entry and the localStorage row.
+    this.drafts.clear(g);
+    this.saveError.set(null);
+    this.syncedGuid = null;
+    this.resource.reload();
   }
 
   onModeToggle(next: Mode): void {

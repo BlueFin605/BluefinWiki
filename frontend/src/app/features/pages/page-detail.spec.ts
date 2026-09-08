@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
@@ -503,5 +503,113 @@ describe('PageDetail', () => {
     await settle();
 
     expect(editorMode(fixture)).toBe('edit');
+  });
+
+  // ---- Step 3.2: Refresh button ------------------------------------------
+
+  const dirty = (fixture: { componentInstance: unknown }): boolean =>
+    (fixture.componentInstance as { dirty: () => boolean }).dirty();
+
+  /** Let the MatDialog open/close animation settle so `afterClosed()` emits. */
+  async function flushOverlay(): Promise<void> {
+    await new Promise((r) => setTimeout(r, 250));
+    await settle();
+  }
+
+  it('Refresh reloads the page immediately, with no prompt, when the buffer is clean', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+    expect(dirty(fixture)).toBe(false);
+
+    await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    await settle();
+
+    // A clean buffer skips the confirm dialog entirely.
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    // resource.reload() issued a fresh GET (same affordance as the "Retry" link).
+    const req = http.expectOne('/api/pages/g1');
+    expect(req.request.method).toBe('GET');
+    req.flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+
+    expect(dirty(fixture)).toBe(false);
+  });
+
+  it('Refresh prompts to confirm before discarding when there are unsaved changes', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Unsaved edit');
+    fixture.detectChanges();
+    await settle();
+    expect(dirty(fixture)).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByRole('heading', { name: /discard unsaved changes/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: /discard & reload/i }),
+    ).toBeInTheDocument();
+    // Still no reload while the prompt is open.
+    http.expectNone('/api/pages/g1');
+  });
+
+  it('Refresh on confirm clears the draft, reloads, and resets the dirty baseline', async () => {
+    localStorage.setItem('bluefinwiki:draft:g1', draftJson('# Diverged draft'));
+    const { http, fixture } = await renderDetail({ editMode: true });
+    const drafts = TestBed.inject(Drafts);
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    expect(dirty(fixture)).toBe(true);
+    expect(drafts.hasDraft('g1')).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /discard & reload/i }));
+    await flushOverlay();
+
+    // The draft is gone from both the in-memory Map and localStorage.
+    expect(drafts.hasDraft('g1')).toBe(false);
+    expect(localStorage.getItem('bluefinwiki:draft:g1')).toBeNull();
+
+    // The page resource refetched.
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    // Baseline reset to the freshly fetched server content.
+    expect(fixture.componentInstance.content()).toBe('# Original');
+    expect(dirty(fixture)).toBe(false);
+  });
+
+  it('Refresh on cancel changes nothing — no reload, draft and dirty state intact', async () => {
+    localStorage.setItem('bluefinwiki:draft:g1', draftJson('# Diverged draft'));
+    const { http, fixture } = await renderDetail({ editMode: true });
+    const drafts = TestBed.inject(Drafts);
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    expect(dirty(fixture)).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /keep editing/i }));
+    await flushOverlay();
+
+    // No refetch was triggered.
+    http.expectNone('/api/pages/g1');
+    expect(drafts.hasDraft('g1')).toBe(true);
+    expect(fixture.componentInstance.content()).toBe('# Diverged draft');
+    expect(dirty(fixture)).toBe(true);
   });
 });
