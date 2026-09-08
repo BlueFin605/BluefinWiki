@@ -40,15 +40,15 @@ describe('adminGuard', () => {
     expect(router.createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('redirects to /pages for Standard user', async () => {
+  it('redirects to /403 for Standard user', async () => {
     user.mockReturnValue({ role: 'Standard' });
     await run();
-    expect(router.createUrlTree).toHaveBeenCalledWith(['/pages']);
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/403']);
   });
 
-  it('redirects to /pages for null user', async () => {
+  it('redirects to /403 for null user', async () => {
     user.mockReturnValue(null);
     await run();
-    expect(router.createUrlTree).toHaveBeenCalledWith(['/pages']);
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/403']);
   });
 });

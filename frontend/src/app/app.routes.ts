@@ -18,11 +18,14 @@ export const routes: Routes = [
   },
   { path: 'profile', canActivate: [authGuard], loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage) },
 
-  { path: 'settings', canActivate: [authGuard], loadComponent: () => import('./features/admin/settings-page').then((m) => m.SettingsPage) },
+  { path: 'settings', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/settings-page').then((m) => m.SettingsPage) },
   { path: 'admin/page-types', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/page-types/page-types-admin').then((m) => m.PageTypesAdmin) },
   { path: 'admin/users', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/user-management').then((m) => m.UserManagement) },
   { path: 'admin/invitations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/invitation-management').then((m) => m.InvitationManagement) },
   { path: 'admin/rebuild-page-index', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/rebuild-page-index').then((m) => m.RebuildPageIndex) },
+
+  { path: '403', loadComponent: () => import('./features/errors/forbidden').then((m) => m.ForbiddenComponent) },
+  { path: 'redirecting', loadComponent: () => import('./features/errors/redirecting').then((m) => m.RedirectingComponent) },
 
   {
     path: '**',

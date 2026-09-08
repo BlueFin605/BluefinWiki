@@ -8,5 +8,5 @@ export const adminGuard: CanActivateFn = async () => {
   const router = inject(Router);
   await auth.whenReady();
   if (auth.user()?.role === 'Admin') return true;
-  return router.createUrlTree(['/pages']);
+  return router.createUrlTree(['/403']);
 };

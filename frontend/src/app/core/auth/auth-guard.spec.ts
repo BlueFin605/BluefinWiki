@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import type { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { Auth } from './auth';
 import { authGuard } from './auth-guard';
@@ -7,14 +8,17 @@ describe('authGuard', () => {
   let redirect: jest.Mock;
   let isAuthenticated: jest.Mock;
   let whenReady: jest.Mock;
+  let router: { createUrlTree: jest.Mock };
 
   beforeEach(() => {
     redirect = jest.fn();
     isAuthenticated = jest.fn();
     whenReady = jest.fn().mockResolvedValue(undefined);
+    router = { createUrlTree: jest.fn(() => ({ __urlTree: true })) };
     TestBed.configureTestingModule({
       providers: [
         { provide: Auth, useValue: { isAuthenticated, redirectToLogin: redirect, whenReady } },
+        { provide: Router, useValue: router },
       ],
     });
   });
@@ -39,9 +43,10 @@ describe('authGuard', () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it('redirects and returns false when not authenticated', async () => {
+  it('routes to /redirecting when not authenticated', async () => {
     isAuthenticated.mockReturnValue(false);
-    await expect(run()).resolves.toBe(false);
-    expect(redirect).toHaveBeenCalledTimes(1);
+    const result = await run();
+    expect(result).toEqual({ __urlTree: true });
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/redirecting']);
   });
 });
