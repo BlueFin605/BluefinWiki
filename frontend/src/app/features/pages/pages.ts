@@ -4,6 +4,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map } from 'rxjs';
 import {
   InvalidationBus,
+  ancestorsAnyTag,
   ancestorsTag,
   backlinksAnyTag,
   backlinksTag,
@@ -125,11 +126,21 @@ export class Pages {
     });
   }
 
+  /**
+   * Invalidation: keys on `ancestors:<guid>` plus the coarse `ancestors:any`
+   * (bumped by move/rename, whose affected descendant guids are unknown at the
+   * mutation site — a folder rename must still refresh every descendant's
+   * breadcrumb).
+   */
   ancestorsResource(guid: Signal<string | null>) {
     return rxResource({
       params: () => {
         const g = guid();
-        return { guid: g, v: g ? this.bus.version(ancestorsTag(g)) : 0 };
+        return {
+          guid: g,
+          v: g ? this.bus.version(ancestorsTag(g)) : 0,
+          any: this.bus.version(ancestorsAnyTag()),
+        };
       },
       stream: ({ params }) => {
         if (!params.guid) throw new Error('ancestorsResource called with null guid');
@@ -241,11 +252,15 @@ export class Pages {
    * Invalidation is derived from which keys the request body carries (it only
    * sends changed fields):
    * - `page:<guid>` always.
-   * - `children:<result.folderId>` when a tree- or board-visible field
-   *   (`title` / `status` / `pageType` / `properties` / `boardOrder`) is
-   *   present — `PageContent.folderId` is the owning parent guid.
-   * - `children:any` additionally when `properties` / `boardOrder` change, so
-   *   deep boards (which aggregate descendants of some other parent) refresh.
+   * - `children:<result.folderId>` AND the coarse `children:any` when ANY tree-
+   *   or board-visible field (`title` / `status` / `pageType` / `properties` /
+   *   `boardOrder`) is present — `PageContent.folderId` is the owning parent
+   *   guid, and a deep board aggregates descendants of some *other* parent and
+   *   renders their titles/state, so it must refresh on a descendant card's
+   *   title/status/pageType edit just as on a property/order edit.
+   * - `ancestors:any` additionally when `title` is in the body — a folder
+   *   rename changes the ancestor chain shown in every descendant's breadcrumb
+   *   (precise per-descendant invalidation is not available at this layer).
    * - `backlinks:any` additionally when `content` is in the body — a body edit
    *   changes the link-graph edges into the pages it links to (precise
    *   per-target invalidation would need a link resolver we lack here).
@@ -255,8 +270,8 @@ export class Pages {
     const tags = [pageTag(guid)];
     const treeVisible = 'title' in body || 'status' in body || 'pageType' in body;
     const boardVisible = 'properties' in body || 'boardOrder' in body;
-    if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId));
-    if (boardVisible) tags.push(childrenAnyTag());
+    if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId), childrenAnyTag());
+    if ('title' in body) tags.push(ancestorsAnyTag());
     if ('content' in body) tags.push(backlinksAnyTag());
     this.bus.bumpMany(tags);
     return result;
@@ -266,14 +281,17 @@ export class Pages {
    * The page's previous/owning parent is neither returned nor passed, so this
    * bumps the coarse `children:any` (covered by every children resource)
    * rather than widening the signature. It also bumps the precise
-   * `children:<newParentGuid>`, the moved page's `ancestors:<guid>`, and its
-   * own `page:<guid>` (the move changes the page's `folderId`).
+   * `children:<newParentGuid>`, the moved page's `ancestors:<guid>`, the coarse
+   * `ancestors:any` (the move re-parents the page, changing the ancestor chain
+   * of every descendant's breadcrumb), and its own `page:<guid>` (the move
+   * changes the page's `folderId`).
    */
   async movePage(guid: string, body: MovePageRequest): Promise<void> {
     await firstValueFrom(this.http.put<void>(`/api/pages/${guid}/move`, body));
     this.bus.bumpMany([
       childrenAnyTag(),
       ancestorsTag(guid),
+      ancestorsAnyTag(),
       childrenTag(body.newParentGuid),
       pageTag(guid),
     ]);

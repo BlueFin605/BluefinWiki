@@ -42,6 +42,15 @@
  *                                  neither returned nor passed) bump this
  *                                  instead of a precise `children:<parent>`.
  *   - `ancestors:<guid>`         — a page's ancestor chain (`ancestorsResource`)
+ *   - `ancestors:any`            — coarse catch-all. EVERY ancestors resource
+ *                                  also reads this. A folder rename/move changes
+ *                                  the ancestor chain shown in every
+ *                                  *descendant's* breadcrumb, but precise
+ *                                  per-descendant invalidation is not available
+ *                                  at the mutation site (the descendant guids
+ *                                  are neither returned nor passed). Bumped by
+ *                                  `movePage` and by `updatePage` when `title`
+ *                                  is in the body.
  *   - `backlinks:<guid>`         — pages linking to `<guid>` (`backlinksResource`)
  *   - `backlinks:any`            — coarse catch-all. EVERY backlinks resource
  *                                  also reads this. Editing page X's body adds
@@ -79,9 +88,10 @@
  *   guid is not returned by the API nor passed by callers. Rather than widen
  *   the mutation signatures, these bump `children:any` (covered by every
  *   children resource). `movePage` additionally bumps the precise
- *   `children:<newParentGuid>`, `ancestors:<guid>`, and the moved page's own
- *   `page:<guid>` (the move changes its `folderId`); `deletePage`
- *   additionally bumps `page:<guid>`.
+ *   `children:<newParentGuid>`, `ancestors:<guid>`, the coarse `ancestors:any`
+ *   (the move re-parents the page, changing the ancestor chain of every
+ *   descendant's breadcrumb), and the moved page's own `page:<guid>` (the move
+ *   changes its `folderId`); `deletePage` additionally bumps `page:<guid>`.
  * - `Pages.createPage` / `Pages.reorderPages`: bump the precise
  *   `children:<body.parentGuid|root>` AND the coarse `children:any`, so a page
  *   created or reordered under a *descendant* parent still refreshes a live
@@ -90,12 +100,14 @@
  *   invalidation is derived from which keys are present — `page:<guid>`
  *   always; `children:<result.folderId>` (`PageContent.folderId` is the owning
  *   parent guid, `''` for a top-level page → normalised to `children:root`)
- *   when a tree- or board-visible field (`title` / `status` / `pageType` /
- *   `properties` / `boardOrder`) is in the body; additionally `children:any`
- *   when `properties` / `boardOrder` change, because a deep board aggregates
- *   descendants of some *other* parent and must still refresh on a card's
- *   property/order edit; additionally `backlinks:any` when `content` is in the
- *   body.
+ *   AND the coarse `children:any` when ANY tree- or board-visible field
+ *   (`title` / `status` / `pageType` / `properties` / `boardOrder`) is in the
+ *   body — a deep board aggregates descendants of some *other* parent and
+ *   renders their titles/state, so it must refresh on a descendant card's
+ *   title/status/pageType edit just as it does on a property/order edit;
+ *   additionally `ancestors:any` when `title` is in the body (a folder rename
+ *   changes the ancestor chain shown in every descendant's breadcrumb);
+ *   additionally `backlinks:any` when `content` is in the body.
  *
  * (`content`-only edits invalidate `page:<guid>` plus `backlinks:any` — a body
  * edit changes the link-graph edges into the pages it links to, and precise
@@ -150,6 +162,9 @@ export const childrenTag = (parentGuid: string | null | undefined): string =>
 export const childrenAnyTag = (): string => 'children:any';
 
 export const ancestorsTag = (guid: string): string => `ancestors:${guid}`;
+
+/** Coarse catch-all every ancestors resource also reads. */
+export const ancestorsAnyTag = (): string => 'ancestors:any';
 
 export const backlinksTag = (guid: string): string => `backlinks:${guid}`;
 

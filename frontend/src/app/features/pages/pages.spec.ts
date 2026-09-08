@@ -194,6 +194,77 @@ describe('Pages service', () => {
       expect(resource.value()?.[0].guid).toBe('after-move');
     });
 
+    it('updatePage with a title change re-requests a descendant ancestorsResource (folder rename)', async () => {
+      const descendant = signal<string | null>('descendant-guid');
+      const resource = TestBed.runInInjectionContext(() => pages.ancestorsResource(descendant));
+      await settle();
+      http
+        .expectOne('/api/pages/descendant-guid/ancestors')
+        .flush({ ancestors: [summary({ guid: 'folder', title: 'Old Folder' })] });
+      await settle();
+
+      const promise = pages.updatePage('folder', { title: 'New Folder' });
+      http.expectOne('/api/pages/folder').flush(pageContent({ guid: 'folder', title: 'New Folder' }));
+      await promise;
+      await settle();
+
+      http
+        .expectOne('/api/pages/descendant-guid/ancestors')
+        .flush({ ancestors: [summary({ guid: 'folder', title: 'New Folder' })] });
+      await settle();
+      expect(resource.value()?.[0].title).toBe('New Folder');
+    });
+
+    it('movePage re-requests a descendant ancestorsResource', async () => {
+      const descendant = signal<string | null>('descendant-guid');
+      const resource = TestBed.runInInjectionContext(() => pages.ancestorsResource(descendant));
+      await settle();
+      http
+        .expectOne('/api/pages/descendant-guid/ancestors')
+        .flush({ ancestors: [summary({ guid: 'folder' })] });
+      await settle();
+
+      const promise = pages.movePage('folder', { newParentGuid: 'new-parent' });
+      http.expectOne('/api/pages/folder/move').flush(null);
+      await promise;
+      await settle();
+
+      http
+        .expectOne('/api/pages/descendant-guid/ancestors')
+        .flush({ ancestors: [summary({ guid: 'after' })] });
+      await settle();
+      expect(resource.value()?.[0].guid).toBe('after');
+    });
+
+    it('updatePage with a title change re-requests a deep board aggregating the renamed page as a descendant', async () => {
+      const ancestor = signal<string | null>('ancestor-guid');
+      const opts = signal<{ targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null } | null>({
+        depth: 10,
+      });
+      const resource = TestBed.runInInjectionContext(() =>
+        pages.childrenWithPropertiesResource(ancestor, opts),
+      );
+      await settle();
+      http
+        .expectOne('/api/pages/ancestor-guid/children?include=properties&depth=10')
+        .flush({ children: [], hasMore: false });
+      await settle();
+
+      // The renamed page's own folderId is a mid-level parent, NOT the board's root.
+      const promise = pages.updatePage('grandchild-guid', { title: 'Renamed Card' });
+      http
+        .expectOne('/api/pages/grandchild-guid')
+        .flush(pageContent({ guid: 'grandchild-guid', folderId: 'mid-guid' }));
+      await promise;
+      await settle();
+
+      http
+        .expectOne('/api/pages/ancestor-guid/children?include=properties&depth=10')
+        .flush({ children: [], hasMore: false });
+      await settle();
+      expect(resource.value()?.children).toEqual([]);
+    });
+
     it('updatePage on a root page (folderId "") re-requests childrenResource(null)', async () => {
       const parent = signal<string | null>(null);
       const resource = TestBed.runInInjectionContext(() => pages.childrenResource(parent));

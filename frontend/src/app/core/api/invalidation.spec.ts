@@ -6,7 +6,9 @@ import {
   childrenTag,
   childrenAnyTag,
   ancestorsTag,
+  ancestorsAnyTag,
   backlinksTag,
+  backlinksAnyTag,
   pageTypesListTag,
   pageTypeTag,
   allowedChildrenTag,
@@ -71,7 +73,9 @@ describe('tag helpers', () => {
   it('childrenTag with empty string → root', () => expect(childrenTag('')).toBe('children:root'));
   it('childrenAnyTag', () => expect(childrenAnyTag()).toBe('children:any'));
   it('ancestorsTag', () => expect(ancestorsTag('g1')).toBe('ancestors:g1'));
+  it('ancestorsAnyTag', () => expect(ancestorsAnyTag()).toBe('ancestors:any'));
   it('backlinksTag', () => expect(backlinksTag('g1')).toBe('backlinks:g1'));
+  it('backlinksAnyTag', () => expect(backlinksAnyTag()).toBe('backlinks:any'));
   it('pageTypesListTag', () => expect(pageTypesListTag()).toBe('page-types:list'));
   it('pageTypeTag', () => expect(pageTypeTag('pt1')).toBe('page-type:pt1'));
   it('allowedChildrenTag', () =>
