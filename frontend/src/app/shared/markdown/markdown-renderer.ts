@@ -7,6 +7,7 @@ import type { WikiTargetResolver } from './plugins/remark-wiki-links';
 import { WikiMermaid } from './wiki-mermaid';
 import { WikiImage, type WikiImageResize } from './wiki-image';
 import { slugify } from './slugify';
+import { scrollToSlug } from './scroll-to-slug';
 
 interface HastElement {
   type: 'element';
@@ -55,6 +56,29 @@ function isWikiLink(node: HastElement): boolean {
   return node.tagName === 'a' && node.properties?.['dataWikiLink'] === 'true';
 }
 
+/**
+ * Stamp every `<img>` with its zero-based document-order index (`dataWikiImageIndex`).
+ * The drag-to-resize handler rewrites the source token by this index — matching
+ * by alt text rewrites *every* image that shares an alt, and the common
+ * `![](x.png)` form gives them all the same empty alt. Images inside fenced /
+ * inline code never reach the HAST (they stay literal text), so this ordering
+ * lines up with `setImageWidth`'s own code-masked token count.
+ */
+function stampImageIndices(nodes: HastNode[]): void {
+  let next = 0;
+  const walk = (list: HastNode[]): void => {
+    for (const node of list) {
+      if (node.type !== 'element') continue;
+      if (node.tagName === 'img') {
+        node.properties = node.properties ?? {};
+        node.properties['dataWikiImageIndex'] = next++;
+      }
+      walk(node.children);
+    }
+  };
+  walk(nodes);
+}
+
 @Component({
   selector: 'wiki-markdown-renderer',
   standalone: true,
@@ -83,6 +107,7 @@ function isWikiLink(node: HastElement): boolean {
             [height]="stringProp(node, 'height')"
             [pageGuid]="pageGuid() ?? ''"
             [resizable]="editable()"
+            [imageIndex]="imageIndexOf(node)"
             (resized)="imageResize.emit($event)"
           ></wiki-image>
         }
@@ -92,6 +117,7 @@ function isWikiLink(node: HastElement): boolean {
             [target]="wikiTargetOf(node)"
             [displayText]="textOfNode(node)"
             [broken]="brokenOf(node)"
+            [pending]="pendingOf(node)"
             (brokenClick)="brokenClick.emit($event)"
           ></wiki-link>
         }
@@ -185,7 +211,12 @@ function isWikiLink(node: HastElement): boolean {
               <span [class]="classOf(node)">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</span>
             }
             @case ('div') {
-              <div [class]="classOf(node)">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</div>
+              <div
+                [class]="classOf(node)"
+                [attr.tabindex]="stringProp(node, 'tabIndex')"
+                [attr.role]="stringProp(node, 'role')"
+                [attr.aria-label]="stringProp(node, 'aria-label')"
+              >@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</div>
             }
             @default {
               <span>@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</span>
@@ -267,7 +298,9 @@ export class MarkdownRenderer {
     const pipeline = this.pipeline();
     const mdast = pipeline.parse(md);
     const hast = pipeline.runSync(mdast);
-    return (hast as HastRoot).children ?? [];
+    const children = (hast as HastRoot).children ?? [];
+    stampImageIndices(children);
+    return children;
   });
 
   /** Classifies a node into a switch case in the template. */
@@ -329,17 +362,9 @@ export class MarkdownRenderer {
   onAnchorClick(event: Event, href: string): void {
     if (!href.startsWith('#')) return;
     event.preventDefault();
-    const id = safeDecodeHash(href.slice(1));
-    if (!id) return;
-    const el = typeof document !== 'undefined' ? document.getElementById(id) : null;
-    if (el && typeof el.scrollIntoView === 'function') {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    try {
-      history.replaceState(history.state, '', href);
-    } catch {
-      window.location.hash = id;
-    }
+    // Shared with the table-of-contents rail: smooth-scroll + reflect the slug
+    // in the URL fragment without pushing a history entry.
+    scrollToSlug(safeDecodeHash(href.slice(1)));
   }
 
   wikiTargetOf(node: HastNode): string {
@@ -351,6 +376,15 @@ export class MarkdownRenderer {
   brokenOf(node: HastNode): boolean {
     if (node.type !== 'element') return false;
     return node.properties?.['dataBroken'] === 'true';
+  }
+
+  /**
+   * The `[[target]]` resolution is still pending (or failed): the plugin emitted
+   * a non-navigable anchor so the link never dead-ends on a bare title.
+   */
+  pendingOf(node: HastNode): boolean {
+    if (node.type !== 'element') return false;
+    return node.properties?.['dataWikiPending'] === 'true';
   }
 
   headingId(node: HastNode): string {
@@ -371,5 +405,12 @@ export class MarkdownRenderer {
   boolProp(node: HastNode, name: string): boolean {
     if (node.type !== 'element') return false;
     return Boolean(node.properties?.[name]);
+  }
+
+  /** Document-order index stamped onto an `<img>` by {@link stampImageIndices}. */
+  imageIndexOf(node: HastNode): number {
+    if (node.type !== 'element') return 0;
+    const v = node.properties?.['dataWikiImageIndex'];
+    return typeof v === 'number' ? v : 0;
   }
 }

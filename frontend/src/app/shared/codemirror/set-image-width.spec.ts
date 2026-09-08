@@ -16,6 +16,27 @@ describe('setImageWidth', () => {
     );
   });
 
+  // I2: the common case is `![](x.png)` with no alt — every such image shares
+  // the empty-string key, so an alt match rewrites them all. Index targeting
+  // rewrites exactly one.
+  it('by index rewrites only the targeted empty-alt image among several', () => {
+    expect(setImageWidth('![](a.png) ![](b.png) ![](c.png)', 1, 200)).toBe(
+      '![](a.png) ![|200](b.png) ![](c.png)',
+    );
+  });
+
+  it('by empty-alt string still rewrites every empty-alt image (documents the I2 hazard)', () => {
+    expect(setImageWidth('![](a.png) ![](b.png)', '', 200)).toBe(
+      '![|200](a.png) ![|200](b.png)',
+    );
+  });
+
+  it('by index rewrites only one of two images that share the same non-empty alt', () => {
+    expect(setImageWidth('![pic](a.png) ![pic](b.png)', 0, 90)).toBe(
+      '![pic|90](a.png) ![pic](b.png)',
+    );
+  });
+
   it('leaves the markdown unchanged when nothing matches', () => {
     expect(setImageWidth('![a](x.png)', 'missing', 300)).toBe('![a](x.png)');
     expect(setImageWidth('![a](x.png)', 4, 300)).toBe('![a](x.png)');

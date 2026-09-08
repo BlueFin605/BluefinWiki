@@ -23,7 +23,11 @@ const MOBILE_BREAKPOINT_QUERY = '(max-width: 1023.98px)';
 
         @if (collapsed()) {
           <li>
-            <span class="crumb ellipsis" [title]="hiddenTitle()">…</span>
+            <span
+              class="crumb ellipsis"
+              [title]="hiddenTitle()"
+              aria-label="Show hidden breadcrumb segments"
+              >…</span>
             <span class="sep" aria-hidden="true">/</span>
           </li>
         } @else {
@@ -36,7 +40,7 @@ const MOBILE_BREAKPOINT_QUERY = '(max-width: 1023.98px)';
         }
 
         <li class="current">
-          <span class="crumb" [title]="currentTitle()">{{ currentTitle() }}</span>
+          <span class="crumb" [title]="currentTitle()" aria-current="page">{{ currentTitle() }}</span>
         </li>
       </ol>
     </nav>

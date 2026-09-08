@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { filter, firstValueFrom, map, skipWhile, take } from 'rxjs';
+import { filter, firstValueFrom, map, race, skipWhile, take, timer } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
@@ -50,6 +50,16 @@ type ViewMode = 'content' | 'board';
 type EditorMode = 'edit' | 'split' | 'preview';
 
 const DRAFT_DEBOUNCE_MS = 400;
+
+/**
+ * Ceiling on how long {@link PageDetail.reloadPageResource} waits for the page
+ * resource to settle after `reload()`. Guards the `skipWhile` bridge below: if
+ * the status stream ever coalesces the reload's `loading`/`reloading` away, the
+ * promise would otherwise never resolve and `_isRefreshing` would latch `true`,
+ * permanently disabling the Refresh button. Unreachable with a real HTTP
+ * round-trip today; this makes it unreachable by construction.
+ */
+const RELOAD_SETTLE_TIMEOUT_MS = 10_000;
 
 /** The four save-status pill states, in priority order. */
 export type SaveStatus = 'read-only' | 'saving' | 'unsaved' | 'saved';
@@ -447,13 +457,17 @@ export class PageDetail {
   /**
    * Synchronous resolver handed to `<wiki-markdown-renderer>`. Reads the
    * {@link wikiResolutions} map (so its identity changes when a resolution
-   * lands, re-rendering the preview). An unresolved target is treated as
-   * existing — links only flip to the broken state on a definitive miss, never
-   * while a lookup is pending.
+   * lands, re-rendering the preview). An unresolved target returns
+   * `{ guid: null, exists: true }` — the pending state: the link renders with
+   * normal (non-broken) styling but is **not navigable**, so a `[[…]]` never
+   * dead-ends on a bare title while a lookup is pending, and stays
+   * non-navigable-to-a-title permanently if the resolve request fails (the
+   * target is never added to the map). Links only flip to the broken state on a
+   * definitive miss.
    */
   protected readonly resolveWikiTarget = computed<WikiTargetResolver>(() => {
     const resolved = this.wikiResolutions();
-    return (target) => resolved.get(target) ?? { guid: target, exists: true };
+    return (target) => resolved.get(target) ?? { guid: null, exists: true };
   });
 
   /** Raw server message from the last failed save (null when the last save
@@ -465,6 +479,15 @@ export class PageDetail {
 
   protected readonly cursorContext = signal<CursorContext | null>(null);
   protected readonly inspectorOpen = signal(false);
+
+  /**
+   * Markdown queued for insertion once CodeMirror (re)mounts. Set when an insert
+   * is requested while the editor is unmounted — i.e. the Preview sub-mode
+   * (`editorMode() === 'preview'`). {@link insertMarkdownAtCursor} flips the
+   * surface back to Split and stashes the text here; a constructor effect
+   * performs the insert on the next render, once `editor()` resolves.
+   */
+  private readonly pendingInsertText = signal<string | null>(null);
 
   /** Toolbar Attachment button: whether the inline uploader panel is showing. */
   protected readonly attachmentUploaderOpen = signal(false);
@@ -630,6 +653,25 @@ export class PageDetail {
       this.resolveWikiTargets(this.content());
     });
 
+    // Drain a queued inspector/toolbar insert once CodeMirror mounts. Requested
+    // from the Preview sub-mode, `insertMarkdownAtCursor` cannot reach a view
+    // synchronously (the editor is unmounted there), so it flips to Split and
+    // parks the text; this runs it on the render where `editor()` resolves.
+    effect(() => {
+      const md = this.pendingInsertText();
+      if (md == null) return;
+      const ed = this.editor();
+      const view = ed?.getView();
+      if (!view) return;
+      this.pendingInsertText.set(null);
+      try {
+        const { from, to } = view.state.selection.main;
+        ed?.insertText(from, to, md);
+      } catch (err) {
+        this.errorState.setError(this.editorErrMessage(err));
+      }
+    });
+
     // Final stash on destroy — covers navigation before the debounce fires
     // (including the View/Edit toggle, which recreates this component).
     this.destroyRef.onDestroy(() => {
@@ -720,18 +762,21 @@ export class PageDetail {
    * stream replays its current `resolved` on subscribe, so `skipWhile` waits
    * for the reload to actually start (`loading`/`reloading`) before watching
    * for the *next* settle — otherwise we'd resolve against the stale
-   * pre-reload value.
+   * pre-reload value. A {@link RELOAD_SETTLE_TIMEOUT_MS} race caps the wait so a
+   * coalesced status stream can never wedge `_isRefreshing` on permanently.
    */
   private reloadPageResource(): Promise<PageContent | undefined> {
-    const settled = firstValueFrom(
-      this.resourceStatus$.pipe(
-        skipWhile((s) => s !== 'loading' && s !== 'reloading'),
-        filter((s) => s === 'resolved' || s === 'error'),
-        take(1),
-      ),
+    const settled = this.resourceStatus$.pipe(
+      skipWhile((s) => s !== 'loading' && s !== 'reloading'),
+      filter((s) => s === 'resolved' || s === 'error'),
+      take(1),
     );
+    // Bounded wait: whichever of the settle signal or the timeout fires first
+    // ends the wait, so a coalesced status stream can never leave this promise
+    // (and `_isRefreshing`) pending forever.
+    const done = firstValueFrom(race(settled, timer(RELOAD_SETTLE_TIMEOUT_MS)));
     this.resource.reload();
-    return settled.then(() => (this.resource.hasValue() ? this.resource.value() : undefined));
+    return done.then(() => (this.resource.hasValue() ? this.resource.value() : undefined));
   }
 
   onModeToggle(next: Mode): void {
@@ -844,7 +889,16 @@ export class PageDetail {
     try {
       const ed = this.editor();
       const view = ed?.getView();
-      if (!view) return;
+      if (!view) {
+        // Preview sub-mode unmounts CodeMirror, so there is no view to insert
+        // into. Rather than silently drop the action (I1), flip the surface back
+        // to Split and let the mount effect perform the insert once the editor
+        // is live. Only meaningful on the edit route.
+        if (this.mode() !== 'edit') return;
+        this._editorMode.set('split');
+        this.pendingInsertText.set(md);
+        return;
+      }
       const { from, to } = view.state.selection.main;
       ed?.insertText(from, to, md);
     } catch (err) {
@@ -859,12 +913,14 @@ export class PageDetail {
 
   /**
    * A rendered preview image was drag-resized (split / preview edit mode).
-   * Rewrite the matching `![alt|WIDTH]` token in the working buffer; the
-   * CodeMirror `[(value)]` binding and the debounced autosave carry it from
-   * there. Pure string edit — no direct CodeMirror dispatch needed.
+   * Rewrite the `![alt|WIDTH]` token at the reported document-order index in the
+   * working buffer; the CodeMirror `[(value)]` binding and the debounced
+   * autosave carry it from there. Pure string edit — no direct CodeMirror
+   * dispatch needed. Indexing (not alt matching) is deliberate: most images are
+   * authored as `![](x.png)` with no alt, so an alt match would resize them all.
    */
   onImageResize(event: WikiImageResize): void {
-    const next = setImageWidth(this.content(), event.alt, event.width);
+    const next = setImageWidth(this.content(), event.index, event.width);
     if (next !== this.content()) this.content.set(next);
   }
 
@@ -892,8 +948,14 @@ export class PageDetail {
   /**
    * Resolve every distinct `[[target]]` in `markdown` that has not been
    * resolved (or started) yet. Results land in {@link wikiResolutions}, which
-   * re-renders the preview. Fire-and-forget per target; failures leave the
-   * target unresolved (rendered as a live link, not broken).
+   * re-renders the preview.
+   *
+   * The whole batch is applied with a **single** `wikiResolutions.update` once
+   * all lookups settle (I4). Writing per target flipped the `resolveWikiTarget`
+   * computed's identity once per link, so a page with N distinct `[[links]]`
+   * triggered N full markdown re-parses on load. A rejected lookup is simply
+   * omitted — its target stays unresolved and renders as a pending
+   * (non-navigable) link, never a title href.
    */
   private resolveWikiTargets(markdown: string): void {
     const known = this.wikiResolutions();
@@ -901,26 +963,35 @@ export class PageDetail {
     // `[[guid|alias]]` branches), so these keys match the plugin's
     // `wikiLink.target` lookups and the `resolveWikiTarget` computed's
     // `resolved.get(target)` exactly — no extra `.trim()` needed here.
-    const targets = new Set(
-      parseWikiLinks(markdown)
-        .map((l) => l.target)
-        .filter((t) => t.length > 0),
+    const targets = [
+      ...new Set(
+        parseWikiLinks(markdown)
+          .map((l) => l.target)
+          .filter((t) => t.length > 0),
+      ),
+    ];
+    const pending = targets.filter(
+      (t) => !known.has(t) && !this.wikiResolveInFlight.has(t),
     );
-    for (const target of targets) {
-      if (known.has(target) || this.wikiResolveInFlight.has(target)) continue;
-      this.wikiResolveInFlight.add(target);
-      void this.pages
-        .resolveLink(target)
-        .then((resolution) => {
-          this.wikiResolutions.update((m) => new Map(m).set(target, resolution));
-        })
-        .catch(() => {
-          // Leave unresolved — the link stays live rather than flip to broken.
-        })
-        .finally(() => {
-          this.wikiResolveInFlight.delete(target);
+    if (pending.length === 0) return;
+
+    for (const target of pending) this.wikiResolveInFlight.add(target);
+
+    void Promise.allSettled(pending.map((t) => this.pages.resolveLink(t))).then(
+      (results) => {
+        const resolved: [string, WikiLinkResolution][] = [];
+        results.forEach((r, i) => {
+          this.wikiResolveInFlight.delete(pending[i]);
+          if (r.status === 'fulfilled') resolved.push([pending[i], r.value]);
         });
-    }
+        if (resolved.length === 0) return;
+        this.wikiResolutions.update((m) => {
+          const next = new Map(m);
+          for (const [target, resolution] of resolved) next.set(target, resolution);
+          return next;
+        });
+      },
+    );
   }
 
   async onBrokenLink(event: WikiBrokenLinkEvent): Promise<void> {

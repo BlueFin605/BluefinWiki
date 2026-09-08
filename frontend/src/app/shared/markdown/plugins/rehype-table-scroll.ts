@@ -17,6 +17,11 @@ function classListOf(node: Element): string[] {
  * body. The renderer styles `.wiki-markdown .table-scroll` with
  * `overflow-x: auto`.
  *
+ * The wrapper is a focusable, labelled `role="region"` (`tabIndex: 0`) so a
+ * keyboard-only user can actually scroll a wide table (WCAG 2.1 SC 2.1.1) —
+ * without `tabindex` the scroll container takes no focus and the overflow is
+ * unreachable by keyboard.
+ *
  * Runs on the HAST tree (after `remark-rehype`). Idempotent — a table already
  * inside a `div.table-scroll` is left alone — and it does not descend into the
  * wrapper it just created.
@@ -37,7 +42,12 @@ const rehypeTableScroll: Plugin<[], Root> = () => {
       const wrapper: Element = {
         type: 'element',
         tagName: 'div',
-        properties: { className: [WRAPPER_CLASS] },
+        properties: {
+          className: [WRAPPER_CLASS],
+          tabIndex: 0,
+          role: 'region',
+          'aria-label': 'Table',
+        },
         children: [node],
       };
       parent.children[index] = wrapper;

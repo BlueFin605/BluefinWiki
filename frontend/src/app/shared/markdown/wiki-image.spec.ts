@@ -94,12 +94,12 @@ describe('WikiImage', () => {
     http.verify();
   });
 
-  it('emits `resized` with the final width when the drag handle is dragged', async () => {
+  it('emits `resized` with the final width and the document-order index when the drag handle is dragged', async () => {
     const { fixture } = await render(WikiImage, {
-      inputs: { src: 'https://cdn.example.com/x.png', alt: 'ext', width: '100px', resizable: true },
+      inputs: { src: 'https://cdn.example.com/x.png', alt: 'ext', width: '100px', resizable: true, imageIndex: 3 },
       providers: httpProviders,
     });
-    const emitted: { alt: string; width: number }[] = [];
+    const emitted: { index: number; width: number }[] = [];
     fixture.componentInstance.resized.subscribe((e) => emitted.push(e));
 
     const handle = (fixture.nativeElement as HTMLElement).querySelector('.wiki-image-handle') as HTMLElement;
@@ -111,7 +111,7 @@ describe('WikiImage', () => {
     await settle();
 
     expect(emitted).toHaveLength(1);
-    expect(emitted[0].alt).toBe('ext');
+    expect(emitted[0].index).toBe(3);
     expect(emitted[0].width).toBe(140);
   });
 

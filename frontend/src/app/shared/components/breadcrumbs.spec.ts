@@ -177,4 +177,19 @@ describe('Breadcrumbs', () => {
       'Ancestor 1 / Ancestor 2 / Ancestor 3 / Ancestor 4 / Ancestor 5',
     );
   });
+
+  it('marks the last crumb with aria-current="page" (I6)', async () => {
+    setViewport(false);
+    await renderBreadcrumbs({ currentTitle: 'Deep Page', ancestors: [makeAncestor(1)] });
+    expect(screen.getByText('Deep Page')).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('gives the collapsed ellipsis an accessible name (I6)', async () => {
+    setViewport(true);
+    await renderBreadcrumbs({ ancestors: [1, 2, 3, 4, 5].map(makeAncestor) });
+    expect(screen.getByText('…')).toHaveAttribute(
+      'aria-label',
+      'Show hidden breadcrumb segments',
+    );
+  });
 });

@@ -15,8 +15,13 @@ import type { ElementRef } from '@angular/core';
 import { Attachments } from '../../features/attachments/attachments';
 
 export interface WikiImageResize {
-  /** Size-stripped alt text of the resized image (matches the markdown token). */
-  alt: string;
+  /**
+   * Zero-based document-order index of the resized image among all rendered
+   * `![…](…)` tokens. Used to rewrite the *exact* source token — matching by alt
+   * text rewrites every image that shares an alt, and the common `![](x.png)`
+   * case gives every image the same empty alt.
+   */
+  index: number;
   /** New width in CSS pixels. */
   width: number;
 }
@@ -112,6 +117,12 @@ export class WikiImage {
   readonly height = input<string | null>(null);
   /** Show the drag-to-resize handle (edit / split preview only). */
   readonly resizable = input<boolean>(false);
+  /**
+   * Zero-based document-order index of this image among all rendered
+   * `![…](…)` tokens. Stamped by `<wiki-markdown-renderer>`; echoed back on
+   * `(resized)` so the source rewrite targets the exact token.
+   */
+  readonly imageIndex = input<number>(0);
 
   readonly resized = output<WikiImageResize>();
 
@@ -204,7 +215,7 @@ export class WikiImage {
     this.detachDrag();
     const px = this._livePx();
     this._livePx.set(null);
-    if (px != null) this.resized.emit({ alt: this.alt(), width: px });
+    if (px != null) this.resized.emit({ index: this.imageIndex(), width: px });
   };
 
   onHandleDown(event: MouseEvent): void {
@@ -223,7 +234,7 @@ export class WikiImage {
     else return;
     event.preventDefault();
     const next = Math.max(MIN_WIDTH, this.currentWidth() + delta);
-    this.resized.emit({ alt: this.alt(), width: Math.round(next) });
+    this.resized.emit({ index: this.imageIndex(), width: Math.round(next) });
   }
 
   private detachDrag(): void {

@@ -1,3 +1,4 @@
+import { effect } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -690,6 +691,42 @@ describe('PageDetail', () => {
     http.expectNone('/api/pages/g1');
   });
 
+  it('Refresh re-enables itself even if the resource status stream never re-emits loading (I3)', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    const comp = fixture.componentInstance as unknown as {
+      refresh: () => Promise<void>;
+      isRefreshing: () => boolean;
+      resource: { reload: () => void };
+    };
+
+    // Simulate the scheduler-coalescing hang: reload() never drives the status
+    // stream through loading/reloading, so the `skipWhile` settle bridge would
+    // never fire. Without the timeout race this wedges `_isRefreshing` true for
+    // the life of the component.
+    jest.spyOn(comp.resource, 'reload').mockImplementation(() => {});
+
+    jest.useFakeTimers();
+    try {
+      const done = comp.refresh();
+      expect(comp.isRefreshing()).toBe(true);
+
+      await jest.advanceTimersByTimeAsync(10_000);
+      await done;
+
+      // The promise resolved and the guard released — Refresh is usable again.
+      expect(comp.isRefreshing()).toBe(false);
+      fixture.detectChanges();
+      expect(screen.getByRole('button', { name: /refresh/i })).not.toBeDisabled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   // ---- Step 3.3: Save-status pill + failure reassurance -----------------
 
   const REASSURANCE = /your changes are still here — click save again to retry\./i;
@@ -945,18 +982,58 @@ describe('PageDetail', () => {
     expect(fixture.componentInstance.content()).toContain('![x](x.png)');
   });
 
-  it('onImageResize rewrites the matching image width in the working buffer', async () => {
+  it('insertMarkdownAtCursor from the Preview sub-mode flips to Split and still inserts (I1)', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'AB' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    // Preview sub-mode: CodeMirror is unmounted.
+    await userEvent.click(screen.getByRole('radio', { name: 'Preview' }));
+    fixture.detectChanges();
+    await settle();
+    expect(editorMode(fixture)).toBe('preview');
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror')).toBeNull();
+
+    (fixture.componentInstance as unknown as { onInsertMarkdown: (m: string) => void })
+      .onInsertMarkdown('![x](x.png)');
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    // Action succeeded rather than being silently swallowed.
+    expect(editorMode(fixture)).toBe('split');
+    expect(fixture.componentInstance.content()).toContain('![x](x.png)');
+  });
+
+  it('onImageResize rewrites the image at the reported document-order index', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '![hero](pic.png)' });
     await settle();
     fixture.detectChanges();
     await settle();
 
-    (fixture.componentInstance as unknown as { onImageResize: (e: { alt: string; width: number }) => void })
-      .onImageResize({ alt: 'hero', width: 250 });
+    (fixture.componentInstance as unknown as { onImageResize: (e: { index: number; width: number }) => void })
+      .onImageResize({ index: 0, width: 250 });
     await settle();
 
     expect(fixture.componentInstance.content()).toBe('![hero|250](pic.png)');
+  });
+
+  it('onImageResize by index resizes only the dragged empty-alt image, not every ![](…)', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '![](a.png)\n\n![](b.png)' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    (fixture.componentInstance as unknown as { onImageResize: (e: { index: number; width: number }) => void })
+      .onImageResize({ index: 1, width: 120 });
+    await settle();
+
+    expect(fixture.componentInstance.content()).toBe('![](a.png)\n\n![|120](b.png)');
   });
 
   it('guards the toolbar attachment action when the page has no guid', async () => {
@@ -1009,6 +1086,46 @@ describe('PageDetail', () => {
     ) as HTMLAnchorElement;
     expect(link).toBeTruthy();
     expect(link.getAttribute('href')).toBe('/pages/guid-123');
+  });
+
+  it('applies all landing wiki-link resolutions in a single wikiResolutions update (I4)', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      content: 'See [[Alpha]], [[Bravo]] and [[Charlie]].',
+    });
+    await settle();
+
+    const comp = fixture.componentInstance as unknown as {
+      wikiResolutions: () => ReadonlyMap<string, unknown>;
+    };
+
+    const sizes: number[] = [];
+    TestBed.runInInjectionContext(() => {
+      effect(() => { sizes.push(comp.wikiResolutions().size); });
+    });
+    await settle();
+    sizes.length = 0; // drop the initial effect run
+
+    // One POST per distinct target, all issued before any response.
+    const reqs = http.match('/api/pages/links/resolve');
+    expect(reqs).toHaveLength(3);
+    reqs.forEach((r, i) =>
+      r.flush(
+        linkResolveResponse({
+          matches: [{ guid: `g-${i}`, title: 't', parentGuid: null, status: 'published', confidence: 1, path: 't' }],
+          exactMatch: true,
+          exists: true,
+        }),
+      ),
+    );
+    await settle();
+    drain();
+    await settle();
+
+    // 0 -> 3 in a single update: no intermediate size 1 or 2 was observed.
+    expect(comp.wikiResolutions().size).toBe(3);
+    expect(sizes).toEqual([3]);
   });
 
   it('opens the Create-Page-from-Link modal with the target prefilled when a broken wiki link is clicked', async () => {
@@ -1065,7 +1182,7 @@ describe('PageDetail', () => {
     expect(link.getAttribute('href')).toBe('/pages/guid-777');
   });
 
-  it('degrades a wiki link to a live (non-broken) link when the backend resolve fails', async () => {
+  it('degrades a wiki link to a non-broken, non-navigable link when the backend resolve fails', async () => {
     const { http, fixture } = await renderDetail();
     http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Flaky Page]].' });
     await settle();
@@ -1078,8 +1195,13 @@ describe('PageDetail', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.querySelector('wiki-link a.wiki-link')).toBeTruthy();
+    const link = host.querySelector('wiki-link a.wiki-link') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
     expect(host.querySelector('wiki-link a.wiki-link-broken')).toBeNull();
+    // Plan-wide MUST: a failed resolve must NOT leave a navigable /pages/<title>
+    // routerLink — the href stays absent until (if ever) a real guid resolves.
+    expect(link.getAttribute('href')).toBeNull();
+    expect(link.getAttribute('href')).not.toBe('/pages/Flaky%20Page');
   });
 
   it('clears the wiki-resolution cache when the route guid changes', async () => {

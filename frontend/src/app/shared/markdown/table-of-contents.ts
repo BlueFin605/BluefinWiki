@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { extractHeadings } from './extract-headings';
+import { scrollToSlug } from './scroll-to-slug';
 
 /** Minimum h2–h6 headings before the rail is shown at all (React parity). */
 const MIN_HEADINGS = 3;
@@ -24,7 +25,8 @@ const ACTIVE_ROOT_MARGIN = '0px 0px -70% 0px';
  * Desktop "On this page" table of contents — a sticky ~224px right rail listing
  * the h2–h6 headings of the rendered markdown, nested by level, with the
  * currently-visible section highlighted via `IntersectionObserver`. Clicking an
- * entry smooth-scrolls to the heading and sets `location.hash`.
+ * entry smooth-scrolls to the heading and reflects the slug in the URL fragment
+ * via `history.replaceState` (no history entry) — see {@link scrollToSlug}.
  *
  * Fed the raw markdown (not the rendered DOM): it extracts the heading list with
  * the shared {@link extractHeadings} / `slugify`, then resolves each entry to a
@@ -52,7 +54,11 @@ const ACTIVE_ROOT_MARGIN = '0px 0px -70% 0px';
               [class.active]="h.slug === activeSlug()"
               [style.padding-left.rem]="(h.level - 2) * 0.75"
             >
-              <a [attr.href]="'#' + h.slug" (click)="onEntryClick($event, h.slug)">{{ h.text }}</a>
+              <a
+                [attr.href]="'#' + h.slug"
+                [attr.aria-current]="h.slug === activeSlug() ? 'location' : null"
+                (click)="onEntryClick($event, h.slug)"
+              >{{ h.text }}</a>
             </li>
           }
         </ul>
@@ -143,16 +149,11 @@ export class WikiTableOfContents {
 
   onEntryClick(event: Event, slug: string): void {
     event.preventDefault();
-    const el = typeof document !== 'undefined' ? document.getElementById(slug) : null;
-    if (el && typeof el.scrollIntoView === 'function') {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
     this._activeSlug.set(slug);
-    try {
-      window.location.hash = slug;
-    } catch {
-      // Some embedded contexts disallow hash writes — the scroll already ran.
-    }
+    // Shared "smooth scroll + reflect hash without a history entry" — a bare
+    // `location.hash =` here would instant-jump over the smooth scroll and add a
+    // history entry per click.
+    scrollToSlug(slug);
   }
 
   private syncObserver(): void {

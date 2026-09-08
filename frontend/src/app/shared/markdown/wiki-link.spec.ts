@@ -17,6 +17,31 @@ describe('WikiLink', () => {
     expect(link).not.toHaveClass('wiki-link-broken');
   });
 
+  it('renders a pending link with normal styling but no navigable href/routerLink', async () => {
+    await render(WikiLink, {
+      inputs: { href: '', target: 'Flaky Page', broken: false, pending: true, displayText: 'Flaky Page' },
+      providers: testRouterProviders,
+    });
+    const link = screen.getByText('Flaky Page').closest('a') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link).toHaveClass('wiki-link');
+    expect(link).not.toHaveClass('wiki-link-broken');
+    // Never a navigable href to a bare title.
+    expect(link.getAttribute('href')).toBeNull();
+  });
+
+  it('swallows a click on a pending link (no navigation, no brokenClick)', async () => {
+    const user = userEvent.setup();
+    let fired = false;
+    const { fixture } = await render(WikiLink, {
+      inputs: { href: '', target: 'Flaky Page', broken: false, pending: true, displayText: 'Flaky Page' },
+      providers: testRouterProviders,
+    });
+    fixture.componentInstance.brokenClick.subscribe(() => { fired = true; });
+    await user.click(screen.getByText('Flaky Page'));
+    expect(fired).toBe(false);
+  });
+
   it('renders a broken link with the broken class and a ? marker', async () => {
     await render(WikiLink, {
       inputs: { href: '/wiki/missing', target: 'Missing', broken: true, displayText: 'Missing' },

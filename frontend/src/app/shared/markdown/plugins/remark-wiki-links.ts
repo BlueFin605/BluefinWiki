@@ -31,11 +31,18 @@ export type WikiTargetType = 'page-title' | 'page-guid';
  * `guid` is the page's guid: the rendered link's `routerLink` is always
  * `/pages/<guid>`. For a `page-guid` target the plugin uses the target itself
  * and ignores this `guid` (the target is already a guid).
+ *
+ * `guid: null` is the **pending / unresolved** state — the async lookup has not
+ * landed (or has failed). The plan-wide MUST is that a `[[…]]` never renders a
+ * navigable href to a bare title, so for a `page-title` target with `guid: null`
+ * the plugin emits a non-navigable anchor (`data-wiki-pending="true"`, no
+ * `routerLink`) rather than dead-ending on the title. `page-guid` targets are
+ * always navigable — the target is already a guid.
  */
 export type WikiTargetResolver = (
   target: string,
   type: WikiTargetType,
-) => { guid: string; exists: boolean };
+) => { guid: string | null; exists: boolean };
 
 export interface WikiLinksOptions {
   baseUrl?: string;
@@ -78,7 +85,7 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
    * `resolveWikiTarget` exactly once per render.
    */
   type PassResolver = (target: string, type: WikiTargetType) =>
-    | { guid: string; exists: boolean }
+    | { guid: string | null; exists: boolean }
     | undefined;
 
   function wikiLinkToMdastLink(wikiLink: WikiLink, resolvePass: PassResolver): Link {
@@ -86,13 +93,25 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
 
     let url: string;
     let broken: boolean;
+    let pending = false;
     const resolution = resolvePass(wikiLink.target, wikiLink.type);
     if (resolution) {
-      // Step 3.8: always a GUID href. A `page-guid` target is already a guid —
-      // use it directly rather than the resolver's echo.
-      const guid = wikiLink.type === 'page-guid' ? wikiLink.target : resolution.guid;
-      url = `/pages/${guid}`;
-      broken = !resolution.exists;
+      if (wikiLink.type === 'page-guid') {
+        // A `page-guid` target is already a guid — use it directly rather than
+        // the resolver's echo, and it is always navigable.
+        url = `/pages/${wikiLink.target}`;
+        broken = !resolution.exists;
+      } else if (resolution.guid == null) {
+        // Pending / failed resolve. Plan-wide MUST: never a navigable href to a
+        // bare title. Emit a non-navigable anchor instead of dead-ending.
+        url = '';
+        broken = false;
+        pending = true;
+      } else {
+        // Step 3.8: resolved — always a GUID href.
+        url = `/pages/${resolution.guid}`;
+        broken = !resolution.exists;
+      }
     } else {
       url = generateUrl(wikiLink.target, wikiLink.type);
       broken = isBroken(wikiLink.target, wikiLink.type);
@@ -114,6 +133,7 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
           dataWikiType: wikiLink.type,
           dataWikiTarget: wikiLink.target,
           dataBroken: broken ? 'true' : 'false',
+          dataWikiPending: pending ? 'true' : 'false',
         },
       },
     };
@@ -142,7 +162,7 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
   return (tree: Root) => {
     // Fresh per render pass: dedupes resolver calls within one `runSync` and
     // is discarded afterwards so a later render sees current data.
-    const passCache = new Map<string, { guid: string; exists: boolean } | undefined>();
+    const passCache = new Map<string, { guid: string | null; exists: boolean } | undefined>();
     const resolvePass: PassResolver = (target, type) => {
       if (!resolveWikiTarget) return undefined;
       const key = `${type}:${target}`;

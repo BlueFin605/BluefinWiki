@@ -129,6 +129,27 @@ describe('MarkdownRenderer', () => {
     expect(img?.getAttribute('src')).toBe('pic.png');
   });
 
+  it('stamps <img> nodes with their zero-based document-order index (I2 resize targeting)', async () => {
+    const { fixture } = await render(MarkdownRenderer, {
+      inputs: { markdown: '![](a.png)\n\n![](b.png)\n\n![](c.png)' },
+      providers: [provideRouter([{ path: '**', redirectTo: '' }])],
+    });
+    const comp = fixture.componentInstance as unknown as {
+      children: () => unknown[];
+      imageIndexOf: (n: unknown) => number;
+    };
+    const imgs: unknown[] = [];
+    const walk = (list: unknown[]): void => {
+      for (const n of list as { type?: string; tagName?: string; children?: unknown[] }[]) {
+        if (n.type === 'element' && n.tagName === 'img') imgs.push(n);
+        if (n.children) walk(n.children);
+      }
+    };
+    walk(comp.children());
+    expect(imgs).toHaveLength(3);
+    expect(imgs.map((n) => comp.imageIndexOf(n))).toEqual([0, 1, 2]);
+  });
+
   // ---- Step 3.8: link post-processing (hash / external) -------------------
 
   it('renders in-page #anchor links without target=_blank and smooth-scrolls on click', async () => {
@@ -213,6 +234,22 @@ describe('MarkdownRenderer', () => {
     expect(link?.textContent).toContain('?');
   });
 
+  it('renders a [[Title]] as a non-navigable anchor while the resolver is pending (guid:null)', async () => {
+    const { fixture } = await render(MarkdownRenderer, {
+      inputs: {
+        markdown: 'See [[Flaky]].',
+        resolveWikiTarget: () => ({ guid: null, exists: true }),
+      },
+      providers: [provideRouter([{ path: '**', redirectTo: '' }])],
+    });
+    const host = fixture.nativeElement as HTMLElement;
+    const link = host.querySelector('wiki-link a.wiki-link') as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(host.querySelector('wiki-link a.wiki-link-broken')).toBeNull();
+    // Never a navigable /pages/<title> href.
+    expect(link.getAttribute('href')).toBeNull();
+  });
+
   // ---- Step 3.9: empty state + typography polish -------------------------
 
   describe('empty state', () => {
@@ -240,6 +277,15 @@ describe('MarkdownRenderer', () => {
     expect(wrap).not.toBeNull();
     expect(wrap?.children[0]?.tagName.toLowerCase()).toBe('table');
     expect(wrap?.querySelector('th')?.textContent?.trim()).toBe('h');
+  });
+
+  it('makes the rendered table-scroll wrapper a focusable, labelled region (I6 / WCAG 2.1.1)', async () => {
+    const el = await renderMd('| h |\n|---|\n| c |');
+    const wrap = el.querySelector('div.table-scroll') as HTMLElement;
+    expect(wrap).not.toBeNull();
+    expect(wrap.getAttribute('tabindex')).toBe('0');
+    expect(wrap.getAttribute('role')).toBe('region');
+    expect(wrap.getAttribute('aria-label')).toBe('Table');
   });
 
   it('renders h4-h6 headings with slug ids', async () => {

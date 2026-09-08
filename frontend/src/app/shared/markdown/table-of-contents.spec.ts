@@ -109,11 +109,15 @@ describe('WikiTableOfContents', () => {
     expect(levels).toEqual(['2', '3', '4']);
   });
 
-  it('smooth-scrolls to the target and sets location.hash on click', async () => {
+  it('smooth-scrolls to the target and reflects the hash without a history entry on click (I5)', async () => {
     const [, beta] = mountHeadings('alpha', 'beta', 'gamma');
     const scrollSpy = jest.fn();
     beta.scrollIntoView = scrollSpy;
     await render(WikiTableOfContents, { inputs: { markdown: THREE } });
+
+    const replaceSpy = jest.spyOn(history, 'replaceState').mockClear();
+    const pushSpy = jest.spyOn(history, 'pushState').mockClear();
+    const lenBefore = history.length;
 
     const betaLink = screen.getByRole('link', { name: 'Beta' });
     betaLink.click();
@@ -122,6 +126,14 @@ describe('WikiTableOfContents', () => {
       expect.objectContaining({ behavior: 'smooth' }),
     );
     expect(window.location.hash).toBe('#beta');
+    // The renderer's sibling anchor handler uses replaceState for the same
+    // interaction — the TOC must not diverge by pushing history / instant-jumping.
+    expect(replaceSpy).toHaveBeenCalledTimes(1);
+    expect(replaceSpy.mock.calls[0].slice(1)).toEqual(['', '#beta']);
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(history.length).toBe(lenBefore);
+
+    jest.restoreAllMocks();
   });
 
   it('marks the entry reported active by the IntersectionObserver', async () => {
@@ -145,6 +157,11 @@ describe('WikiTableOfContents', () => {
     const active = container.querySelector('li.active');
     expect(active?.getAttribute('data-level')).toBe('2');
     expect(active?.textContent?.trim()).toBe('Beta');
+    // I6: the highlight must not be visual-only.
+    expect(active?.querySelector('a')?.getAttribute('aria-current')).toBe('location');
+    // Non-active entries carry no aria-current.
+    const inactive = container.querySelector('li:not(.active) a');
+    expect(inactive?.getAttribute('aria-current')).toBeNull();
   });
 
   it('disconnects the IntersectionObserver on destroy', async () => {

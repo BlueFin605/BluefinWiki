@@ -10,13 +10,6 @@ describe('buildMarkdownPipeline', () => {
     expect(root.children[0].tagName).toBe('h1');
   });
 
-  it('renders GFM tables (proves remark-gfm wired)', () => {
-    const pipeline = buildMarkdownPipeline();
-    const mdast = pipeline.parse('| a | b |\n|---|---|\n| 1 | 2 |');
-    const hast = pipeline.runSync(mdast);
-    expect(JSON.stringify(hast)).toContain('"tagName":"table"');
-  });
-
   it('wraps GFM tables in a div.table-scroll container (proves rehype-table-scroll wired)', () => {
     const pipeline = buildMarkdownPipeline();
     const mdast = pipeline.parse('| a | b |\n|---|---|\n| 1 | 2 |');
@@ -35,6 +28,11 @@ describe('buildMarkdownPipeline', () => {
     expect(wrapper?.children?.some((c) => c.tagName === 'table')).toBe(true);
     // the table is no longer a bare child of the root
     expect(hast.children.some((c) => c.tagName === 'table')).toBe(false);
+    // I6: the scroll container must be keyboard-focusable and labelled so a
+    // keyboard-only user can scroll a wide table (WCAG 2.1.1).
+    expect(wrapper?.properties?.['tabIndex']).toBe(0);
+    expect(wrapper?.properties?.['role']).toBe('region');
+    expect(wrapper?.properties?.['aria-label']).toBe('Table');
   });
 
   it('converts soft breaks to <br> (proves remark-breaks wired)', () => {
@@ -120,6 +118,27 @@ describe('buildMarkdownPipeline', () => {
     const link = firstLink(pipeline.runSync(pipeline.parse('[[Ghost]]')));
     expect(link?.properties?.['dataBroken']).toBe('true');
     expect(link?.properties?.['href']).toBe('/pages/x9');
+  });
+
+  it('emits a non-navigable pending anchor (no /pages/<title> href) when resolveWikiTarget returns guid:null', () => {
+    const pipeline = buildMarkdownPipeline({
+      wikiLinks: { resolveWikiTarget: () => ({ guid: null, exists: true }) },
+    });
+    const link = firstLink(pipeline.runSync(pipeline.parse('See [[Flaky Page]] now.')));
+    expect(link?.properties?.['dataWikiPending']).toBe('true');
+    expect(link?.properties?.['dataBroken']).toBe('false');
+    // Never a navigable href to a bare title.
+    expect(link?.properties?.['href']).toBe('');
+  });
+
+  it('keeps a [[guid|alias]] link navigable even when resolveWikiTarget is pending (guid:null)', () => {
+    const guid = '550e8400-e29b-41d4-a716-446655440000';
+    const pipeline = buildMarkdownPipeline({
+      wikiLinks: { resolveWikiTarget: () => ({ guid: null, exists: true }) },
+    });
+    const link = firstLink(pipeline.runSync(pipeline.parse(`See [[${guid}|Home]] here.`)));
+    expect(link?.properties?.['href']).toBe(`/pages/${guid}`);
+    expect(link?.properties?.['dataWikiPending']).toBe('false');
   });
 
   it('uses a guid target directly for [[guid|alias]] links, ignoring the resolver guid', () => {
