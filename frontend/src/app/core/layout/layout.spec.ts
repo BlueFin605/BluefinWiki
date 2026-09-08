@@ -101,6 +101,18 @@ describe('Layout service — clamps (F5 step 1.3)', () => {
     layout.update({ inspectorVisible: true });
     expect(layout.preferences().inspectorVisible).toBe(true);
   });
+
+  it('drops a NaN numeric value, leaving the prior value intact and nothing null persisted', async () => {
+    const layout = TestBed.inject(Layout);
+    layout.update({ treeWidth: NaN });
+    TestBed.tick();
+    await Promise.resolve();
+
+    expect(layout.preferences().treeWidth).toBe(320);
+    const stored = JSON.parse(localStorage.getItem('bluefinwiki-layout') ?? '{}') as Partial<LayoutPreferences>;
+    expect(stored.treeWidth).toBe(320);
+    expect(stored.treeWidth).not.toBeNull();
+  });
 });
 
 describe('Layout service — persistence round-trip (F5 step 1.3)', () => {

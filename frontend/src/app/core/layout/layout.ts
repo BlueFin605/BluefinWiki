@@ -62,17 +62,24 @@ export class Layout {
   /**
    * The single choke point for layout mutations. Numeric keys are clamped to
    * their bounds (see `CLAMPS`) before the patch is applied; non-numeric keys
-   * (`inspectorVisible`) pass through untouched. The constructor `effect()`
-   * then persists the whole prefs object to localStorage.
+   * (`inspectorVisible`) pass through untouched. A non-finite numeric value
+   * (`NaN` / `Infinity`) is dropped from the patch entirely — otherwise it
+   * would survive the clamp (`clamp(NaN, …)` is `NaN`), get JSON-serialised to
+   * `null` by the persistence `effect()`, and poison every later `readStored()`
+   * (a `null` spread over the default). The constructor `effect()` then
+   * persists the whole prefs object to localStorage.
    */
   update(changes: Partial<LayoutPreferences>): void {
     const next: Partial<LayoutPreferences> = { ...changes };
     for (const key of Object.keys(CLAMPS) as (keyof typeof CLAMPS)[]) {
       const value = next[key];
-      if (typeof value === 'number') {
-        const [min, max] = CLAMPS[key];
-        next[key] = clamp(value, min, max);
+      if (typeof value !== 'number') continue;
+      if (!Number.isFinite(value)) {
+        delete next[key];
+        continue;
       }
+      const [min, max] = CLAMPS[key];
+      next[key] = clamp(value, min, max);
     }
     this._prefs.update((prev) => ({ ...prev, ...next }));
   }
