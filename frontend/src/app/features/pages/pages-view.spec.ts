@@ -141,6 +141,53 @@ describe('PagesView', () => {
     expect(openSpy).toHaveBeenCalledWith(SearchDialog, expect.any(Object));
   });
 
+  it('does NOT open the SearchDialog for Ctrl+K originating inside a .cm-editor', async () => {
+    await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => ({ subscribe: () => undefined }) } as never);
+
+    const cm = document.createElement('div');
+    cm.className = 'cm-editor';
+    const inner = document.createElement('div');
+    cm.appendChild(inner);
+    document.body.appendChild(cm);
+    try {
+      const event = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true });
+      inner.dispatchEvent(event);
+      await settle();
+      expect(openSpy).not.toHaveBeenCalled();
+    } finally {
+      document.body.removeChild(cm);
+    }
+  });
+
+  it('does NOT open the SearchDialog for a Ctrl+K whose default was already prevented', async () => {
+    await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => ({ subscribe: () => undefined }) } as never);
+
+    const event = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, cancelable: true });
+    event.preventDefault();
+    window.dispatchEvent(event);
+    await settle();
+
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
   it('toggles the AI sidebar when the AI button is clicked', async () => {
     const { fixture } = await render(PagesView, {
       providers: [...baseProviders(), ...authProviders('Admin')],

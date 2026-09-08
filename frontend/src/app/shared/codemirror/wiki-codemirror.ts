@@ -156,6 +156,52 @@ export class WikiCodemirror implements AfterViewInit, OnDestroy {
       history(),
       markdown(),
       syntaxHighlighting(defaultHighlightStyle),
+      // Formatting chords, mirroring the markdown toolbar actions. Kept in a
+      // dedicated keymap ahead of defaultKeymap so the editor wins the keys it
+      // shares with CodeMirror defaults (e.g. Mod-i / selectParentSyntax) and
+      // with the global Search shortcut (Mod-k) while the editor is focused.
+      keymap.of([
+        {
+          key: 'Mod-b',
+          preventDefault: true,
+          run: () => {
+            this.applyAction('bold');
+            return true;
+          },
+        },
+        {
+          key: 'Mod-i',
+          preventDefault: true,
+          run: () => {
+            this.applyAction('italic');
+            return true;
+          },
+        },
+        {
+          key: 'Mod-`',
+          preventDefault: true,
+          run: () => {
+            this.applyAction('code');
+            return true;
+          },
+        },
+        {
+          key: 'Mod-Shift-x',
+          preventDefault: true,
+          run: () => {
+            this.applyAction('strikethrough');
+            return true;
+          },
+        },
+        {
+          key: 'Mod-k',
+          preventDefault: true,
+          run: () => {
+            this.applyAction('link');
+            return true;
+          },
+        },
+      ]),
       keymap.of([
         ...defaultKeymap,
         ...historyKeymap,

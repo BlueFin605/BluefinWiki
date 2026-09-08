@@ -270,6 +270,11 @@ export class PagesView {
   @HostListener('window:keydown', ['$event'])
   onWindowKeydown(event: KeyboardEvent): void {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      // The focused CodeMirror editor binds Mod-k to "insert link" and calls
+      // preventDefault(); when that has happened the editor keymap wins and the
+      // global Search shortcut must stay closed.
+      if (event.defaultPrevented) return;
+      if ((event.target as HTMLElement | null)?.closest?.('.cm-editor')) return;
       event.preventDefault();
       this.openSearch();
     }
