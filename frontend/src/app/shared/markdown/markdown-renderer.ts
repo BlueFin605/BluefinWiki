@@ -6,6 +6,7 @@ import { WikiLink, type WikiBrokenLinkEvent } from './wiki-link';
 import type { WikiTargetResolver } from './plugins/remark-wiki-links';
 import { WikiMermaid } from './wiki-mermaid';
 import { WikiImage, type WikiImageResize } from './wiki-image';
+import { slugify } from './slugify';
 
 interface HastElement {
   type: 'element';
@@ -16,10 +17,6 @@ interface HastElement {
 interface HastText { type: 'text'; value: string; }
 interface HastRoot { type: 'root'; children: HastNode[]; }
 type HastNode = HastElement | HastText | HastRoot | { type: 'comment' | 'doctype'; value?: string };
-
-function slugify(text: string): string {
-  return text.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
-}
 
 /**
  * `decodeURIComponent` throws a `URIError` on a malformed escape (e.g. a lone

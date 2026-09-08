@@ -25,6 +25,7 @@ import { InspectorPanel } from '../editor/inspector-panel';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { buildAttachmentMarkdown, type AttachmentUploadResponse } from '../attachments/attachment.types';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
+import { WikiTableOfContents } from '../../shared/markdown/table-of-contents';
 import { Breadcrumbs } from '../../shared/components/breadcrumbs';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { Layout } from '../../core/layout/layout';
@@ -99,6 +100,7 @@ export function resolveSaveStatus(state: {
     InspectorPanel,
     AttachmentUploader,
     MarkdownRenderer,
+    WikiTableOfContents,
     Breadcrumbs,
     BoardView,
     ResizeDivider,
@@ -301,6 +303,7 @@ export function resolveSaveStatus(state: {
                           (brokenClick)="onBrokenLink($event)"
                           (imageResize)="onImageResize($event)"
                         />
+                        <wiki-toc [markdown]="content()" />
                       </div>
                     }
                   </div>
@@ -308,12 +311,15 @@ export function resolveSaveStatus(state: {
               } @else if (viewMode() === 'board') {
                 <wiki-board-view [parentGuid]="page.guid" [boardConfig]="page.boardConfig ?? null" />
               } @else {
-                <wiki-markdown-renderer
-                  [markdown]="content()"
-                  [pageGuid]="guid() ?? undefined"
-                  [resolveWikiTarget]="resolveWikiTarget()"
-                  (brokenClick)="onBrokenLink($event)"
-                />
+                <div class="view-with-toc">
+                  <wiki-markdown-renderer
+                    [markdown]="content()"
+                    [pageGuid]="guid() ?? undefined"
+                    [resolveWikiTarget]="resolveWikiTarget()"
+                    (brokenClick)="onBrokenLink($event)"
+                  />
+                  <wiki-toc [markdown]="content()" />
+                </div>
               }
             }
           </section>
@@ -376,7 +382,13 @@ export function resolveSaveStatus(state: {
     .body { flex: 1; min-height: 0; padding: 0; position: relative; overflow: auto; }
     .editor-surface { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     .editor-surface .editor-pane { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
-    .editor-surface .preview-pane { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; }
+    .editor-surface .preview-pane { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; display: flex; align-items: flex-start; }
+    .editor-surface .preview-pane wiki-markdown-renderer { flex: 1 1 auto; min-width: 0; }
+    .editor-surface .preview-pane wiki-toc { flex: 0 0 auto; padding: 1.5rem 1rem; }
+    /* Read-mode content + its table-of-contents rail (scrolls inside .body). */
+    .view-with-toc { display: flex; align-items: flex-start; }
+    .view-with-toc wiki-markdown-renderer { flex: 1 1 auto; min-width: 0; }
+    .view-with-toc wiki-toc { flex: 0 0 auto; padding: 1.5rem 1rem; }
     .editor-surface.split { flex-direction: row; }
     .editor-surface.split .editor-pane { flex-grow: 0; flex-shrink: 0; }
     .editor-surface.split .preview-pane { border-left: 1px solid #e5e7eb; }
