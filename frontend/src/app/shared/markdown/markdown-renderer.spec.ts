@@ -249,6 +249,17 @@ describe('MarkdownRenderer', () => {
     expect(el.querySelector('h6')?.id).toBe('six');
   });
 
+  // Anchors the assumption `extract-headings.ts` relies on: heading ids come
+  // from the *rendered* (visible) text, so inline link/image syntax is gone.
+  it('slugifies heading ids from visible text (inline link kept, image dropped)', async () => {
+    const el = await renderMd(
+      '## See [the docs](/guide)\n\n## Logo ![brand alt](/logo.png) Here',
+    );
+    const headings = el.querySelectorAll('h2');
+    expect(headings[0].id).toBe('see-the-docs');
+    expect(headings[1].id).toBe('logo-here');
+  });
+
   it('defines h4-h6 + table-scroll rules in the .wiki-markdown stylesheet', () => {
     // jest-preset-angular strips component `styles` from the compiled output,
     // so the rule text is asserted against the source stylesheet directly.

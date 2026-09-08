@@ -4,10 +4,32 @@ import { slugify } from './slugify';
 export interface TocHeading {
   /** Heading level, 2–6 (`#`/h1 is never captured). */
   level: number;
-  /** Trimmed heading text, closing `#`s removed. */
+  /** Visible heading text: closing `#`s and inline link/image syntax removed. */
   text: string;
   /** Anchor id — {@link slugify}(text); matches the id the renderer stamps. */
   slug: string;
+}
+
+/**
+ * Reduce inline link / image markup to the text the renderer would slugify.
+ * `markdown-renderer` slugifies a heading's *rendered* text (`slugify(textOf(node))`),
+ * so `## See [the docs](/guide)` gets the id `see-the-docs` — the `/guide` URL is
+ * gone. `extractHeadings` works off the raw source line, so it must strip the
+ * same syntax or `document.getElementById` misses that entry.
+ *
+ * - `[text](url)` / `[text][ref]` → `text` (renderer keeps the link's text).
+ * - `![alt](url)` / `![alt][ref]` → `` (an `<img>` is a void element, so
+ *   `textOf` contributes nothing — the alt text is NOT in the renderer's id).
+ *
+ * Shortcut references (`[text]`) are left as-is: `slugify` strips the brackets,
+ * and the renderer's id ends up identical whether or not the reference resolves.
+ */
+function stripInlineMarkup(text: string): string {
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/!\[[^\]]*\]\[[^\]]*\]/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1');
 }
 
 /** Opening or closing fence for a code block: ``` or ~~~ (>= 3), <= 3 indent. */
@@ -45,7 +67,7 @@ export function extractHeadings(markdown: string): TocHeading[] {
 
     const m = ATX_HEADING.exec(line);
     if (!m) continue;
-    const text = m[2].trim();
+    const text = stripInlineMarkup(m[2]).replace(/\s+/g, ' ').trim();
     if (!text) continue;
     headings.push({ level: m[1].length, text, slug: slugify(text) });
   }

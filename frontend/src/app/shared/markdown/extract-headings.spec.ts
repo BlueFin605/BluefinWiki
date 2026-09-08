@@ -59,6 +59,35 @@ describe('extractHeadings', () => {
     expect(headings[1].slug).toBe(slugify('API & SDK notes'));
   });
 
+  describe('inline link / image markup (slug must match the renderer id)', () => {
+    it('reduces an inline link to its visible text', () => {
+      const [h] = extractHeadings('## See [the docs](/guide)');
+      expect(h.text).toBe('See the docs');
+      // renderer: slugify(textOf(node)) === slugify('See the docs')
+      expect(h.slug).toBe(slugify('See the docs'));
+      expect(h.slug).toBe('see-the-docs');
+    });
+
+    it('reduces a reference-style link to its visible text', () => {
+      const [h] = extractHeadings('## Read the [manual][man] first');
+      expect(h.text).toBe('Read the manual first');
+      expect(h.slug).toBe(slugify('Read the manual first'));
+    });
+
+    it('drops an inline image entirely (renderer <img> contributes no text)', () => {
+      const [h] = extractHeadings('## Logo ![brand alt](/logo.png) Here');
+      expect(h.text).toBe('Logo Here');
+      expect(h.slug).toBe(slugify('Logo Here'));
+      expect(h.slug).toBe('logo-here');
+    });
+
+    it('handles a heading that is only a link', () => {
+      const [h] = extractHeadings('### [Overview](/overview)');
+      expect(h.text).toBe('Overview');
+      expect(h.slug).toBe('overview');
+    });
+  });
+
   it('strips trailing closing hashes from ATX headings', () => {
     expect(extractHeadings('## Closed ##')[0]).toEqual({
       level: 2,

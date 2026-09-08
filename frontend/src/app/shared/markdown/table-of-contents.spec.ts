@@ -147,6 +147,17 @@ describe('WikiTableOfContents', () => {
     expect(active?.textContent?.trim()).toBe('Beta');
   });
 
+  it('disconnects the IntersectionObserver on destroy', async () => {
+    mountHeadings('alpha', 'beta', 'gamma');
+    const { fixture } = await render(WikiTableOfContents, { inputs: { markdown: THREE } });
+
+    const io = MockIntersectionObserver.last();
+    expect(io.disconnected).toBe(false);
+
+    fixture.destroy();
+    expect(io.disconnected).toBe(true);
+  });
+
   it('exposes a compact input (not yet wired to a responsive driver)', async () => {
     mountHeadings('alpha', 'beta', 'gamma');
     const { fixture } = await render(WikiTableOfContents, {

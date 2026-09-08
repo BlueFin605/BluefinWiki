@@ -60,13 +60,24 @@ const ACTIVE_ROOT_MARGIN = '0px 0px -70% 0px';
     }
   `,
   styles: [`
-    :host { display: block; }
-    .wiki-toc {
+    /*
+     * The rail sticks as the preview scrolls. The host is the sticky element:
+     * its containing block is the flex row it sits in (\`.view-with-toc\` /
+     * \`.preview-pane\`), whose height tracks the tall markdown renderer beside
+     * it, so a short \`flex-start\`-aligned host has scroll range within it.
+     * \`align-self: flex-start\` guarantees the host is not stretched to the full
+     * row height (which would leave sticky nothing to travel over).
+     */
+    :host {
+      display: block;
       position: sticky;
       top: 1rem;
-      width: 224px;
+      align-self: flex-start;
       max-height: calc(100vh - 2rem);
       overflow-y: auto;
+    }
+    .wiki-toc {
+      width: 224px;
       font-size: 0.8125rem;
       line-height: 1.5;
     }
