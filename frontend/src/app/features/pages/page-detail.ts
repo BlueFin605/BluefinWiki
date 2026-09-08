@@ -10,8 +10,8 @@ import {
   viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { firstValueFrom, map } from 'rxjs';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { filter, firstValueFrom, map, skipWhile, take } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
@@ -133,6 +133,7 @@ const DRAFT_DEBOUNCE_MS = 400;
             type="button"
             aria-label="Refresh"
             title="Discard local changes and reload from the server"
+            [disabled]="isRefreshing()"
             (click)="refresh()"
           >
             <mat-icon>refresh</mat-icon>
@@ -381,6 +382,14 @@ export class PageDetail {
 
   private syncedGuid: string | null = null;
 
+  /** Guards against a second Refresh (and a second confirm dialog) while one
+   * refresh is already in flight — see `refresh()`. */
+  private readonly _isRefreshing = signal(false);
+  protected readonly isRefreshing = this._isRefreshing.asReadonly();
+
+  /** Page-resource status as a stream, for the `refresh()` reload bridge. */
+  private readonly resourceStatus$ = toObservable(this.resource.status);
+
   constructor() {
     // Sync the board default view from boardConfig once the page resolves.
     effect(() => {
@@ -413,7 +422,9 @@ export class PageDetail {
       this.resetWorkingCopyToServer(page);
 
       if (draft) {
-        this.metadata.set(draft.metadata);
+        // Defensive: fall back to the server-derived metadata (just set by
+        // resetWorkingCopyToServer) if a persisted draft row is missing it.
+        this.metadata.set(draft.metadata ?? this.metadata());
         this.content.set(draft.content);
 
         // React parity: a local draft that diverges from the server copy opens
@@ -465,8 +476,7 @@ export class PageDetail {
   /**
    * Reset the working copy — the `dirty()` baseline — to the given server page.
    * Called by the initial-load hydrate effect (before layering any local draft
-   * on top) and by `refresh()` (via the effect, once the reloaded resource
-   * re-resolves with no draft in the way).
+   * on top) and directly by `refresh()` once its reload round-trip settles.
    */
   private resetWorkingCopyToServer(page: PageContent): void {
     this.metadata.set({
@@ -487,32 +497,62 @@ export class PageDetail {
   /**
    * Toolbar Refresh: discard the local draft, refetch the page, and reset the
    * dirty baseline to the fresh server content. Prompts first only when there
-   * are unsaved changes. Clearing `syncedGuid` re-arms the hydrate effect, so
-   * the reloaded resource flows back through `resetWorkingCopyToServer` — the
-   * same path the initial load uses.
+   * are unsaved changes. The baseline reset is a *direct* call to
+   * `resetWorkingCopyToServer` here — the same method the initial-load hydrate
+   * effect uses — so it can't be silently broken by a future change to that
+   * effect. An `isRefreshing` guard drops a second click (and a second confirm
+   * dialog) while one refresh is still in flight.
    */
   async refresh(): Promise<void> {
     const g = this.guid();
-    if (!g) return;
+    if (!g || this.isRefreshing()) return;
 
-    if (this.dirty()) {
-      const data: ConfirmDialogData = {
-        title: 'Discard unsaved changes?',
-        message: 'Discard unsaved changes and reload this page from the server?',
-        confirmLabel: 'Discard & reload',
-        cancelLabel: 'Keep editing',
-        destructive: true,
-      };
-      const ref = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data });
-      const confirmed = await firstValueFrom(ref.afterClosed());
-      if (!confirmed) return;
+    this._isRefreshing.set(true);
+    try {
+      if (this.dirty()) {
+        const data: ConfirmDialogData = {
+          title: 'Discard unsaved changes?',
+          message: 'Discard unsaved changes and reload this page from the server?',
+          confirmLabel: 'Discard & reload',
+          cancelLabel: 'Keep editing',
+          destructive: true,
+        };
+        const ref = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data });
+        const confirmed = await firstValueFrom(ref.afterClosed());
+        if (!confirmed) return;
+      }
+
+      // `Drafts.clear` drops both the in-memory Map entry and the localStorage row.
+      this.drafts.clear(g);
+      this.saveError.set(null);
+      this.errorState.clear();
+
+      const page = await this.reloadPageResource();
+      if (page) this.resetWorkingCopyToServer(page);
+    } finally {
+      this._isRefreshing.set(false);
     }
+  }
 
-    // `Drafts.clear` drops both the in-memory Map entry and the localStorage row.
-    this.drafts.clear(g);
-    this.saveError.set(null);
-    this.syncedGuid = null;
+  /**
+   * Promise bridge over `rxResource.reload()` (otherwise fire-and-forget):
+   * kicks a reload and resolves once the resource settles again, with the
+   * freshly fetched server page (`undefined` if the reload errored). The status
+   * stream replays its current `resolved` on subscribe, so `skipWhile` waits
+   * for the reload to actually start (`loading`/`reloading`) before watching
+   * for the *next* settle — otherwise we'd resolve against the stale
+   * pre-reload value.
+   */
+  private reloadPageResource(): Promise<PageContent | undefined> {
+    const settled = firstValueFrom(
+      this.resourceStatus$.pipe(
+        skipWhile((s) => s !== 'loading' && s !== 'reloading'),
+        filter((s) => s === 'resolved' || s === 'error'),
+        take(1),
+      ),
+    );
     this.resource.reload();
+    return settled.then(() => (this.resource.hasValue() ? this.resource.value() : undefined));
   }
 
   onModeToggle(next: Mode): void {

@@ -612,4 +612,79 @@ describe('PageDetail', () => {
     expect(fixture.componentInstance.content()).toBe('# Diverged draft');
     expect(dirty(fixture)).toBe(true);
   });
+
+  it('Refresh resets the baseline via its own direct call, not the re-armed hydrate effect', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    // Dirty the buffer so we can watch the reset bring it back.
+    fixture.componentInstance.content.set('# Local edit');
+    fixture.detectChanges();
+    await settle();
+    expect(dirty(fixture)).toBe(true);
+
+    const comp = fixture.componentInstance as unknown as {
+      resetWorkingCopyToServer: (p: unknown) => void;
+    };
+    const resetSpy = jest.spyOn(comp, 'resetWorkingCopyToServer');
+    // Freeze the hydrate effect's per-guid guard as permanently "already
+    // synced" and swallow writes — simulating a future effect that no longer
+    // re-hydrates on reload. Only refresh()'s own direct reset can restore the
+    // baseline now; the transitive "re-arm syncedGuid + let the effect do it"
+    // path is dead.
+    Object.defineProperty(comp, 'syncedGuid', {
+      configurable: true,
+      get: () => 'g1',
+      set: () => {
+        /* swallow */
+      },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /discard & reload/i }));
+    await flushOverlay();
+
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Reloaded from server' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    expect(resetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ content: '# Reloaded from server' }),
+    );
+    expect(fixture.componentInstance.content()).toBe('# Reloaded from server');
+    expect(dirty(fixture)).toBe(false);
+  });
+
+  it('Refresh ignores a second trigger while one refresh is already in flight', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Unsaved edit');
+    fixture.detectChanges();
+    await settle();
+    expect(dirty(fixture)).toBe(true);
+
+    const comp = fixture.componentInstance as unknown as { refresh: () => Promise<void> };
+    // Rapid double trigger — the second must be dropped by the in-flight guard.
+    void comp.refresh();
+    void comp.refresh();
+    await settle();
+
+    // Exactly one confirm dialog, not two stacked.
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+
+    // The button is disabled while the refresh is pending.
+    expect(screen.getByRole('button', { name: /refresh/i })).toBeDisabled();
+
+    // Cancel to let the in-flight refresh unwind cleanly.
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /keep editing/i }),
+    );
+    await flushOverlay();
+    http.expectNone('/api/pages/g1');
+  });
 });
