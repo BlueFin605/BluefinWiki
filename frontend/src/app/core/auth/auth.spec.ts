@@ -118,6 +118,20 @@ describe('Auth.whenReady', () => {
   });
 });
 
+describe('Auth.getAccessToken', () => {
+  it('returns the stored access token or null', () => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: USER_POOL, useValue: { getCurrentUser: () => null } }],
+    });
+    const auth = TestBed.inject(Auth);
+    localStorage.removeItem('accessToken');
+    expect(auth.getAccessToken()).toBeNull();
+    localStorage.setItem('accessToken', 'acc-9');
+    expect(auth.getAccessToken()).toBe('acc-9');
+    localStorage.removeItem('accessToken');
+  });
+});
+
 describe('Auth.refreshIdToken single-flight', () => {
   let savedDisableAuth: boolean;
   beforeEach(() => {

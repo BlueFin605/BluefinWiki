@@ -115,6 +115,10 @@ export class Auth {
     return localStorage.getItem(ID_TOKEN_KEY);
   }
 
+  getAccessToken(): string | null {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  }
+
   private _refreshInFlight: Promise<string | null> | null = null;
 
   async refreshIdToken(): Promise<string | null> {

@@ -15,6 +15,7 @@ describe('authInterceptor', () => {
   let httpMock: HttpTestingController;
   let auth: {
     getIdToken: jest.Mock;
+    getAccessToken: jest.Mock;
     refreshIdToken: jest.Mock;
     redirectToLogin: jest.Mock;
     signOut: jest.Mock;
@@ -29,6 +30,7 @@ describe('authInterceptor', () => {
     refreshWork = jest.fn().mockResolvedValue('tok-2');
     auth = {
       getIdToken: jest.fn().mockReturnValue('tok-1'),
+      getAccessToken: jest.fn().mockReturnValue(null),
       refreshIdToken: jest.fn((): Promise<string | null> => {
         inFlight ??= Promise.resolve()
           .then(() => refreshWork() as Promise<string | null>)
@@ -57,6 +59,24 @@ describe('authInterceptor', () => {
     http.get('/api/pages').subscribe();
     const req = httpMock.expectOne('/api/pages');
     expect(req.request.headers.get('Authorization')).toBe('Bearer tok-1');
+    req.flush({});
+  });
+
+  it('falls back to the access token when there is no id token', () => {
+    auth.getIdToken.mockReturnValue(null);
+    (auth as unknown as { getAccessToken: jest.Mock }).getAccessToken = jest.fn().mockReturnValue('acc-1');
+    http.get('/api/pages').subscribe();
+    const req = httpMock.expectOne('/api/pages');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer acc-1');
+    req.flush({});
+  });
+
+  it('sends no Authorization header when neither token exists', () => {
+    auth.getIdToken.mockReturnValue(null);
+    (auth as unknown as { getAccessToken: jest.Mock }).getAccessToken = jest.fn().mockReturnValue(null);
+    http.get('/api/pages').subscribe();
+    const req = httpMock.expectOne('/api/pages');
+    expect(req.request.headers.get('Authorization')).toBeNull();
     req.flush({});
   });
 

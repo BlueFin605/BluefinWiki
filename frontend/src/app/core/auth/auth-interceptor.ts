@@ -32,7 +32,7 @@ export const authInterceptor: HttpInterceptorFn = (
   }
 
   const auth = inject(Auth);
-  const token = auth.getIdToken();
+  const token = auth.getIdToken() ?? auth.getAccessToken();
   const authedReq = token
     ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
     : req;
