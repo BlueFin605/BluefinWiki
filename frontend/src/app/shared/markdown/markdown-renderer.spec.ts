@@ -1,6 +1,15 @@
 import { render, screen } from '@testing-library/angular';
 import { provideRouter } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MarkdownRenderer } from './markdown-renderer';
+
+async function settle(): Promise<void> {
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  TestBed.tick();
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+}
 
 jest.mock('mermaid', () => ({
   __esModule: true,
@@ -81,6 +90,33 @@ describe('MarkdownRenderer', () => {
     expect(inputs).toHaveLength(2);
     expect((inputs[0] as HTMLInputElement).checked).toBe(true);
     expect((inputs[1] as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('rewrites bare image URLs to the attachments endpoint when pageGuid is set', async () => {
+    const { fixture } = await render(MarkdownRenderer, {
+      inputs: { markdown: '![pic](pic.png)', pageGuid: 'g1' },
+      providers: [
+        provideRouter([{ path: '**', redirectTo: '' }]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+
+    const req = http.expectOne('/api/pages/g1/attachments/pic.png');
+    req.flush({ url: 'https://s3.example.com/signed/pic.png' });
+    await settle();
+    fixture.detectChanges();
+
+    const img = (fixture.nativeElement as HTMLElement).querySelector('img');
+    expect(img?.getAttribute('src')).toBe('https://s3.example.com/signed/pic.png');
+    http.verify();
+  });
+
+  it('leaves relative image URLs alone when pageGuid is omitted (no crash)', async () => {
+    const el = await renderMd('![pic](pic.png)');
+    const img = el.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('pic.png');
   });
 
   it('updates rendered output when the markdown input changes', async () => {

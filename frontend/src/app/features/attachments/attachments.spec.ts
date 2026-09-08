@@ -193,6 +193,31 @@ describe('Attachments service', () => {
     });
   });
 
+  describe('getAttachmentUrl', () => {
+    it('GETs the attachment endpoint and returns the presigned url', async () => {
+      const promise = attachments.getAttachmentUrl('p1', 'photo.jpg');
+      const req = http.expectOne('/api/pages/p1/attachments/photo.jpg');
+      expect(req.request.method).toBe('GET');
+      req.flush({ url: 'https://s3.example.com/signed/photo.jpg' });
+      await expect(promise).resolves.toBe('https://s3.example.com/signed/photo.jpg');
+    });
+
+    it('URL-encodes the filename', async () => {
+      const promise = attachments.getAttachmentUrl('p1', 'my file.pdf');
+      const req = http.expectOne('/api/pages/p1/attachments/my%20file.pdf');
+      req.flush({ url: 'https://s3.example.com/signed/x' });
+      await promise;
+    });
+
+    it('rejects when the request errors', async () => {
+      const promise = attachments.getAttachmentUrl('p1', 'photo.jpg');
+      http
+        .expectOne('/api/pages/p1/attachments/photo.jpg')
+        .flush('boom', { status: 500, statusText: 'Server Error' });
+      await expect(promise).rejects.toBeTruthy();
+    });
+  });
+
   describe('deleteAttachment', () => {
     it('sends DELETE /api/pages/{guid}/attachments/{filename}', async () => {
       const promise = attachments.deleteAttachment('p1', 'photo.jpg');

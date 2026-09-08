@@ -29,6 +29,8 @@ import { Breadcrumbs } from '../../shared/components/breadcrumbs';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { Layout } from '../../core/layout/layout';
 import type { WikiBrokenLinkEvent } from '../../shared/markdown/wiki-link';
+import type { WikiImageResize } from '../../shared/markdown/wiki-image';
+import { setImageWidth } from '../../shared/codemirror/set-image-width';
 import { Pages, type PageSearchResult } from './pages';
 import { Drafts, type PageMetadata } from './drafts';
 import { PageTypes } from '../page-types/page-types';
@@ -291,7 +293,10 @@ export function resolveSaveStatus(state: {
                       <div class="preview-pane">
                         <wiki-markdown-renderer
                           [markdown]="content()"
+                          [pageGuid]="guid() ?? undefined"
+                          [editable]="true"
                           (brokenClick)="onBrokenLink($event)"
+                          (imageResize)="onImageResize($event)"
                         />
                       </div>
                     }
@@ -302,6 +307,7 @@ export function resolveSaveStatus(state: {
               } @else {
                 <wiki-markdown-renderer
                   [markdown]="content()"
+                  [pageGuid]="guid() ?? undefined"
                   (brokenClick)="onBrokenLink($event)"
                 />
               }
@@ -788,6 +794,17 @@ export class PageDetail {
   /** Inspector `insertMarkdown` output → shared cursor insert. */
   onInsertMarkdown(text: string): void {
     this.insertMarkdownAtCursor(text);
+  }
+
+  /**
+   * A rendered preview image was drag-resized (split / preview edit mode).
+   * Rewrite the matching `![alt|WIDTH]` token in the working buffer; the
+   * CodeMirror `[(value)]` binding and the debounced autosave carry it from
+   * there. Pure string edit — no direct CodeMirror dispatch needed.
+   */
+  onImageResize(event: WikiImageResize): void {
+    const next = setImageWidth(this.content(), event.alt, event.width);
+    if (next !== this.content()) this.content.set(next);
   }
 
   reloadEditor(): void {

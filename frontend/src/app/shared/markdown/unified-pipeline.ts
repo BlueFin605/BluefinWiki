@@ -6,9 +6,11 @@ import remarkRehype from 'remark-rehype';
 import rehypeHighlight from 'rehype-highlight';
 import remarkWikiLinks, { type WikiLinksOptions } from './plugins/remark-wiki-links';
 import remarkImageSize from './plugins/remark-image-size';
+import remarkAttachmentUrls, { type AttachmentUrlsOptions } from './plugins/remark-attachment-urls';
 
 export interface MarkdownPipelineOptions {
   wikiLinks?: WikiLinksOptions;
+  attachments?: AttachmentUrlsOptions;
 }
 
 /**
@@ -20,8 +22,9 @@ export interface MarkdownPipelineOptions {
  *  3. remark-breaks — soft \n → <br>
  *  4. remark-wiki-links — [[Title]] / [[guid|alias]] → <a data-wiki-link>
  *  5. remark-image-size — ![alt|SIZE](url) → <img width/height>
- *  6. remark-rehype  — mdast → hast
- *  7. rehype-highlight — code-block class → hljs token spans
+ *  6. remark-attachment-urls — bare/legacy image URL → /api/pages/:guid/attachments/:file
+ *  7. remark-rehype  — mdast → hast
+ *  8. rehype-highlight — code-block class → hljs token spans
  *
  * Return type: the bare `Processor` form (all type params at their `undefined`
  * defaults). The full inferred type of the chain is a deeply-nested generic
@@ -42,6 +45,7 @@ export function buildMarkdownPipeline(
     .use(remarkBreaks)
     .use(remarkWikiLinks, options.wikiLinks)
     .use(remarkImageSize)
+    .use(remarkAttachmentUrls, options.attachments)
     .use(remarkRehype, { allowDangerousHtml: false })
     .use(rehypeHighlight, { detect: true, ignoreMissing: true });
 }

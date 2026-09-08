@@ -98,6 +98,24 @@ export class Attachments {
     });
   }
 
+  /**
+   * Resolve an attachment's temporary (presigned) URL.
+   * `GET /api/pages/:guid/attachments/:filename` → `{ url }`. The auth
+   * interceptor adds the bearer token; the returned URL is a short-lived S3
+   * signed URL the browser loads directly.
+   *
+   * Consumed by `WikiImage` (preview attachment images, step 3.7) and the
+   * attachment manager's thumbnails / lightbox / Download action (step 4.8).
+   */
+  async getAttachmentUrl(pageGuid: string, filename: string): Promise<string> {
+    const res = await firstValueFrom(
+      this.http.get<{ url: string }>(
+        `/api/pages/${pageGuid}/attachments/${encodeURIComponent(filename)}`,
+      ),
+    );
+    return res.url;
+  }
+
   async deleteAttachment(pageGuid: string, filename: string): Promise<void> {
     await firstValueFrom(
       this.http.delete<void>(

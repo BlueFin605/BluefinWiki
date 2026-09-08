@@ -945,6 +945,20 @@ describe('PageDetail', () => {
     expect(fixture.componentInstance.content()).toContain('![x](x.png)');
   });
 
+  it('onImageResize rewrites the matching image width in the working buffer', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '![hero](pic.png)' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    (fixture.componentInstance as unknown as { onImageResize: (e: { alt: string; width: number }) => void })
+      .onImageResize({ alt: 'hero', width: 250 });
+    await settle();
+
+    expect(fixture.componentInstance.content()).toBe('![hero|250](pic.png)');
+  });
+
   it('guards the toolbar attachment action when the page has no guid', async () => {
     const { fixture } = await renderDetail({ editMode: true, guid: '' });
     await settle();

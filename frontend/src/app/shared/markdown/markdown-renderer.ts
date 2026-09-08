@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { buildMarkdownPipeline, type MarkdownPipelineOptions } from './unified-pipeline';
 import { WikiLink, type WikiBrokenLinkEvent } from './wiki-link';
 import { WikiMermaid } from './wiki-mermaid';
+import { WikiImage, type WikiImageResize } from './wiki-image';
 
 interface HastElement {
   type: 'element';
@@ -44,7 +45,7 @@ function isWikiLink(node: HastElement): boolean {
 @Component({
   selector: 'wiki-markdown-renderer',
   standalone: true,
-  imports: [NgTemplateOutlet, WikiLink, WikiMermaid],
+  imports: [NgTemplateOutlet, WikiLink, WikiMermaid, WikiImage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="wiki-markdown" data-testid="markdown-renderer">
@@ -57,6 +58,16 @@ function isWikiLink(node: HastElement): boolean {
       @switch (nodeKind(node)) {
         @case ('text') {{{ node.value }}}
         @case ('mermaid') { <wiki-mermaid [chart]="mermaidChart(node)"></wiki-mermaid> }
+        @case ('wiki-image') {
+          <wiki-image
+            [src]="stringProp(node, 'src') ?? ''"
+            [alt]="stringProp(node, 'alt') ?? ''"
+            [width]="stringProp(node, 'width')"
+            [pageGuid]="pageGuid() ?? ''"
+            [resizable]="editable()"
+            (resized)="imageResize.emit($event)"
+          ></wiki-image>
+        }
         @case ('wiki-link') {
           <wiki-link
             [href]="hrefOf(node)"
@@ -115,9 +126,6 @@ function isWikiLink(node: HastElement): boolean {
             }
             @case ('hr') { <hr /> }
             @case ('br') { <br /> }
-            @case ('img') {
-              <img [attr.src]="stringProp(node, 'src')" [attr.alt]="stringProp(node, 'alt')" [attr.width]="stringProp(node, 'width')" [attr.height]="stringProp(node, 'height')" />
-            }
             @case ('input') {
               <input type="checkbox" [checked]="boolProp(node, 'checked')" [attr.disabled]="''" />
             }
@@ -177,9 +185,24 @@ function isWikiLink(node: HastElement): boolean {
 export class MarkdownRenderer {
   readonly markdown = input.required<string>();
   readonly pipelineOptions = input<MarkdownPipelineOptions | undefined>(undefined);
+  /**
+   * The page the preview belongs to. Threaded into the pipeline so
+   * `remark-attachment-urls` can rewrite bare-filename image URLs to the authed
+   * `/api/pages/:guid/attachments/:file` endpoint. Omit it and relative image
+   * URLs are left untouched (no rewrite, no crash).
+   */
+  readonly pageGuid = input<string | undefined>(undefined);
+  /** Edit / split preview: show the drag-to-resize handle on rendered images. */
+  readonly editable = input<boolean>(false);
   readonly brokenClick = output<WikiBrokenLinkEvent>();
+  readonly imageResize = output<WikiImageResize>();
 
-  private readonly pipeline = computed(() => buildMarkdownPipeline(this.pipelineOptions()));
+  private readonly pipeline = computed(() =>
+    buildMarkdownPipeline({
+      ...this.pipelineOptions(),
+      attachments: { pageGuid: this.pageGuid() },
+    }),
+  );
 
   readonly children = computed<HastNode[]>(() => {
     const md = this.markdown() ?? '';
@@ -191,7 +214,7 @@ export class MarkdownRenderer {
   });
 
   /** Classifies a node into a switch case in the template. */
-  nodeKind(node: HastNode): 'text' | 'mermaid' | 'wiki-link' | 'element' | 'skip' {
+  nodeKind(node: HastNode): 'text' | 'mermaid' | 'wiki-link' | 'wiki-image' | 'element' | 'skip' {
     if (node.type === 'text') return 'text';
     if (node.type !== 'element') return 'skip';
     if (node.tagName === 'pre') {
@@ -201,6 +224,7 @@ export class MarkdownRenderer {
       if (codeChild && isMermaidCode(codeChild)) return 'mermaid';
     }
     if (isWikiLink(node)) return 'wiki-link';
+    if (node.tagName === 'img') return 'wiki-image';
     return 'element';
   }
 
