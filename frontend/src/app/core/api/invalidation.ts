@@ -66,10 +66,17 @@
  *   `children:<newParentGuid>` and `ancestors:<guid>`; `deletePage`
  *   additionally bumps `page:<guid>`.
  * - `Pages.updatePage`: the request body carries only the changed fields, so
- *   invalidation is derived from which keys are present —
- *   `page:<guid>` always; `children:<result.folderId>` when a tree-visible
- *   field (`title` / `status` / `pageType`) is in the body; `backlinks:<guid>`
- *   when `content` is in the body (links live in the markdown).
+ *   invalidation is derived from which keys are present — `page:<guid>`
+ *   always; `children:<result.folderId>` (`PageContent.folderId` is the owning
+ *   parent guid) when a tree- or board-visible field (`title` / `status` /
+ *   `pageType` / `properties` / `boardOrder`) is in the body; additionally
+ *   `children:any` when `properties` / `boardOrder` change, because a deep
+ *   board aggregates descendants of some *other* parent and must still
+ *   refresh on a card's property/order edit.
+ * - `Pages.reorderPages`: bumps `children:<body.parentGuid>`.
+ *
+ * (`content`-only edits invalidate just `page:<guid>` — backlink invalidation
+ * for the pages a body links to is out of scope for this step.)
  */
 import { Injectable, type WritableSignal, signal } from '@angular/core';
 

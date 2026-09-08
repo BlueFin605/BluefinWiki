@@ -1,7 +1,15 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, type Signal, inject, signal } from '@angular/core';
+import { Injectable, type Signal, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map } from 'rxjs';
+import {
+  InvalidationBus,
+  ancestorsTag,
+  backlinksTag,
+  childrenAnyTag,
+  childrenTag,
+  pageTag,
+} from '../../core/api/invalidation';
 import type {
   PageContent,
   PageSummary,
@@ -54,11 +62,7 @@ export const SKIP_CHILDREN_FETCH: unique symbol = Symbol('SKIP_CHILDREN_FETCH');
 @Injectable({ providedIn: 'root' })
 export class Pages {
   private readonly http = inject(HttpClient);
-  private readonly _version = signal(0);
-
-  bumpVersion(): void {
-    this._version.update((v) => v + 1);
-  }
+  private readonly bus = inject(InvalidationBus);
 
   /**
    * Reactive children resource. `parentGuid` is a signal so consumers can
@@ -67,12 +71,19 @@ export class Pages {
    * the `SKIP_CHILDREN_FETCH` sentinel to disable the fetch entirely (used
    * by `PageTreeItem` while collapsed).
    *
-   * The resource also depends on `_version` so any successful mutation that
-   * calls `bumpVersion()` triggers a refetch.
+   * Invalidation: keys on `children:<parentGuid|root>` plus the coarse
+   * `children:any` (bumped by move/delete, whose owning parent is unknown).
    */
   childrenResource(parentGuid: Signal<string | null | typeof SKIP_CHILDREN_FETCH>) {
     return rxResource({
-      params: () => ({ parentGuid: parentGuid(), v: this._version() }),
+      params: () => {
+        const pg = parentGuid();
+        return {
+          parentGuid: pg,
+          v: pg === SKIP_CHILDREN_FETCH ? 0 : this.bus.version(childrenTag(pg)),
+          any: this.bus.version(childrenAnyTag()),
+        };
+      },
       stream: ({ params }) => {
         const pg = params.parentGuid;
         if (pg === SKIP_CHILDREN_FETCH) {
@@ -93,11 +104,14 @@ export class Pages {
 
   /**
    * Reactive page-content resource. Pass `null` to disable the fetch (the
-   * resource value stays undefined). Bumps when `_version` bumps.
+   * resource value stays undefined). Keys on `page:<guid>`.
    */
   pageResource(guid: Signal<string | null>) {
     return rxResource({
-      params: () => ({ guid: guid(), v: this._version() }),
+      params: () => {
+        const g = guid();
+        return { guid: g, v: g ? this.bus.version(pageTag(g)) : 0 };
+      },
       stream: ({ params }) => {
         if (!params.guid) {
           // Caller passed null — no request. Returning the existing value
@@ -112,7 +126,10 @@ export class Pages {
 
   ancestorsResource(guid: Signal<string | null>) {
     return rxResource({
-      params: () => ({ guid: guid(), v: this._version() }),
+      params: () => {
+        const g = guid();
+        return { guid: g, v: g ? this.bus.version(ancestorsTag(g)) : 0 };
+      },
       stream: ({ params }) => {
         if (!params.guid) throw new Error('ancestorsResource called with null guid');
         return this.http
@@ -124,7 +141,10 @@ export class Pages {
 
   backlinksResource(guid: Signal<string | null>) {
     return rxResource({
-      params: () => ({ guid: guid(), v: this._version() }),
+      params: () => {
+        const g = guid();
+        return { guid: g, v: g ? this.bus.version(backlinksTag(g)) : 0 };
+      },
       stream: ({ params }) => {
         if (!params.guid) throw new Error('backlinksResource called with null guid');
         return this.http.get<BacklinksResponse>(`/api/pages/${params.guid}/backlinks`);
@@ -138,15 +158,23 @@ export class Pages {
    *
    * Pass `null` for `parentGuid` to disable the fetch. The `options` signal
    * may contribute `type=`, `depth=`, `limit=`, and `cursor=` query params.
-   * The resource also depends on `_version` so any successful mutation that
-   * calls `bumpVersion()` triggers a refetch.
+   *
+   * Invalidation: shares `children:<parentGuid|root>` with `childrenResource`
+   * (the board must refresh when children change) plus the coarse
+   * `children:any` (deep boards aggregate descendants whose owning parent is
+   * not this `parentGuid`, so property/order edits bump the coarse tag).
    */
   childrenWithPropertiesResource(
     parentGuid: Signal<string | null>,
     options: Signal<ChildrenWithPropertiesOptions | null>,
   ) {
     return rxResource({
-      params: () => ({ parentGuid: parentGuid(), opts: options() ?? {}, v: this._version() }),
+      params: () => ({
+        parentGuid: parentGuid(),
+        opts: options() ?? {},
+        v: this.bus.version(childrenTag(parentGuid())),
+        any: this.bus.version(childrenAnyTag()),
+      }),
       stream: ({ params }) => {
         if (!params.parentGuid) {
           throw new Error('childrenWithPropertiesResource: parentGuid is null');
@@ -165,9 +193,13 @@ export class Pages {
     });
   }
 
+  /**
+   * Search resource. Re-keys on the (trimmed) query string itself and depends
+   * on NO invalidation tag — no mutation needs to invalidate a search.
+   */
   pageSearchResource(query: Signal<string | null>) {
     return rxResource({
-      params: () => ({ q: query()?.trim() ?? '', v: this._version() }),
+      params: () => ({ q: query()?.trim() ?? '' }),
       stream: ({ params }) => {
         if (!params.q) throw new Error('pageSearchResource: empty query');
         return this.http
@@ -183,7 +215,7 @@ export class Pages {
 
   async createPage(body: CreatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.post<PageContent>('/api/pages', body));
-    this.bumpVersion();
+    this.bus.bump(childrenTag(body.parentGuid));
     return result;
   }
 
@@ -197,27 +229,56 @@ export class Pages {
     return response.children ?? [];
   }
 
+  /**
+   * Invalidation is derived from which keys the request body carries (it only
+   * sends changed fields):
+   * - `page:<guid>` always.
+   * - `children:<result.folderId>` when a tree- or board-visible field
+   *   (`title` / `status` / `pageType` / `properties` / `boardOrder`) is
+   *   present — `PageContent.folderId` is the owning parent guid.
+   * - `children:any` additionally when `properties` / `boardOrder` change, so
+   *   deep boards (which aggregate descendants of some other parent) refresh.
+   */
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
-    this.bumpVersion();
+    const tags = [pageTag(guid)];
+    const treeVisible = 'title' in body || 'status' in body || 'pageType' in body;
+    const boardVisible = 'properties' in body || 'boardOrder' in body;
+    if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId));
+    if (boardVisible) tags.push(childrenAnyTag());
+    this.bus.bumpMany(tags);
     return result;
   }
 
+  /**
+   * The page's previous/owning parent is neither returned nor passed, so this
+   * bumps the coarse `children:any` (covered by every children resource)
+   * rather than widening the signature. It also bumps the precise
+   * `children:<newParentGuid>` and the moved page's `ancestors:<guid>`.
+   */
   async movePage(guid: string, body: MovePageRequest): Promise<void> {
     await firstValueFrom(this.http.put<void>(`/api/pages/${guid}/move`, body));
-    this.bumpVersion();
+    this.bus.bumpMany([
+      childrenAnyTag(),
+      ancestorsTag(guid),
+      childrenTag(body.newParentGuid),
+    ]);
   }
 
   async reorderPages(body: ReorderRequest): Promise<{ updated: number }> {
     const result = await firstValueFrom(
       this.http.put<{ updated: number }>('/api/pages/reorder', body),
     );
-    this.bumpVersion();
+    this.bus.bump(childrenTag(body.parentGuid));
     return result;
   }
 
+  /**
+   * The deleted page's parent is not known at the call site, so this bumps the
+   * coarse `children:any` plus the page's own `page:<guid>`.
+   */
   async deletePage(guid: string, body: DeletePageRequest = {}): Promise<void> {
     await firstValueFrom(this.http.delete<void>(`/api/pages/${guid}`, { body }));
-    this.bumpVersion();
+    this.bus.bumpMany([childrenAnyTag(), pageTag(guid)]);
   }
 }

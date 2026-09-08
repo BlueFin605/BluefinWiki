@@ -93,7 +93,7 @@ describe('Pages service', () => {
       expect(resource.value()?.[0].guid).toBe('bb');
     });
 
-    it('reruns after bumpVersion()', async () => {
+    it('re-requests after a createPage under the same parent (scoped invalidation)', async () => {
       const parent = signal<string | null>(null);
       const resource = TestBed.runInInjectionContext(() => pages.childrenResource(parent));
 
@@ -101,12 +101,40 @@ describe('Pages service', () => {
       http.expectOne('/api/pages/root/children').flush({ children: [summary({ guid: 'v1' })] });
       await settle();
 
-      pages.bumpVersion();
+      const promise = pages.createPage({ title: 'New', parentGuid: null });
+      http.expectOne('/api/pages').flush(pageContent({ guid: 'new', title: 'New' }));
+      await promise;
       await settle();
+
       http.expectOne('/api/pages/root/children').flush({ children: [summary({ guid: 'v2' })] });
       await settle();
 
       expect(resource.value()?.[0].guid).toBe('v2');
+    });
+
+    it('createPage under parent A refetches childrenResource(A) but NOT an unrelated pageResource', async () => {
+      const parentA = signal<string | null>('A');
+      const otherGuid = signal<string | null>('other');
+      const childrenA = TestBed.runInInjectionContext(() => pages.childrenResource(parentA));
+      TestBed.runInInjectionContext(() => pages.pageResource(otherGuid));
+
+      await settle();
+      http.expectOne('/api/pages/A/children').flush({ children: [] });
+      http.expectOne('/api/pages/other').flush(pageContent({ guid: 'other' }));
+      await settle();
+
+      const promise = pages.createPage({ title: 'X', parentGuid: 'A' });
+      http.expectOne('/api/pages').flush(pageContent({ guid: 'x' }));
+      await promise;
+      await settle();
+
+      // children of A re-requests...
+      http.expectOne('/api/pages/A/children').flush({ children: [summary({ guid: 'x' })] });
+      // ...the unrelated page resource does not.
+      http.expectNone('/api/pages/other');
+      await settle();
+
+      expect(childrenA.value()?.[0].guid).toBe('x');
     });
   });
 
