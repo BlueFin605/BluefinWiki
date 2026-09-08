@@ -11,9 +11,22 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { By } from '@angular/platform-browser';
 import { Auth } from '../../core/auth/auth';
 import { PagesView } from './pages-view';
+import { PageTree } from './page-tree';
 import { SearchDialog } from '../search/search-dialog';
+import type { PageTypeDefinition } from './page.types';
+
+function makeType(over: Partial<PageTypeDefinition>): PageTypeDefinition {
+  return {
+    guid: 'g', name: 'N', icon: '📦', properties: [],
+    allowedChildTypes: [], allowWikiPageChildren: true,
+    allowedParentTypes: [], allowAnyParent: true,
+    createdBy: 'u', createdAt: '', updatedAt: '',
+    ...over,
+  };
+}
 
 function baseProviders() {
   return [
@@ -56,6 +69,7 @@ describe('PagesView', () => {
     expect(screen.getByText(/loading pages/i)).toBeInTheDocument();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
   });
 
   it('renders an enabled New page button (Phase 4 opens NewPageModal)', async () => {
@@ -64,6 +78,7 @@ describe('PagesView', () => {
     expect(newBtn).not.toBeDisabled();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
   });
 
   it('opens a user menu showing Settings for admins', async () => {
@@ -72,6 +87,7 @@ describe('PagesView', () => {
     });
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
     await settle();
     fixture.detectChanges();
 
@@ -91,6 +107,7 @@ describe('PagesView', () => {
     });
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
     await settle();
     fixture.detectChanges();
 
@@ -107,6 +124,7 @@ describe('PagesView', () => {
     await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
     await settle();
 
     const dialog = TestBed.inject(MatDialog);
@@ -127,6 +145,7 @@ describe('PagesView', () => {
     });
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
     await settle();
     fixture.detectChanges();
 
@@ -145,6 +164,7 @@ describe('PagesView', () => {
     await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
     await settle();
 
     const dialog = TestBed.inject(MatDialog);
@@ -157,5 +177,51 @@ describe('PagesView', () => {
     await settle();
 
     expect(openSpy).toHaveBeenCalledWith(SearchDialog, expect.any(Object));
+  });
+
+  it('feeds the PageTree a page-types map keyed by type guid (not an empty map)', async () => {
+    const { fixture } = await render(PagesView, {
+      providers: [...baseProviders(), ...authProviders('Admin')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({
+      pageTypes: [
+        makeType({ guid: 'pt-recipe', name: 'Recipe', icon: '🍲' }),
+        makeType({ guid: 'pt-tv', name: 'TV Show', icon: '📺' }),
+      ],
+    });
+    await settle();
+
+    const tree = fixture.debugElement.query(By.directive(PageTree))
+      .componentInstance as PageTree;
+    const map = tree.pageTypesMap();
+    expect(Object.keys(map).sort()).toEqual(['pt-recipe', 'pt-tv']);
+    expect(map['pt-recipe'].name).toBe('Recipe');
+    expect(map['pt-tv'].icon).toBe('📺');
+  });
+
+  it('renders the page-type emoji for a typed page once the map is populated', async () => {
+    const { fixture } = await render(PagesView, {
+      providers: [...baseProviders(), ...authProviders('Admin')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({
+      children: [
+        {
+          guid: 'p1', title: 'Carbonara', parentGuid: null, status: 'published',
+          modifiedAt: '2026-01-01', modifiedBy: 'u', hasChildren: false,
+          pageType: 'pt-recipe',
+        },
+      ],
+    });
+    http.expectOne('/api/page-types').flush({
+      pageTypes: [makeType({ guid: 'pt-recipe', name: 'Recipe', icon: '🍲' })],
+    });
+    await settle();
+    fixture.detectChanges();
+
+    const icon = screen.getByTitle('Recipe');
+    expect(icon).toHaveTextContent('🍲');
   });
 });

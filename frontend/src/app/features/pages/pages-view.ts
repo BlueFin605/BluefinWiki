@@ -10,9 +10,11 @@ import { firstValueFrom } from 'rxjs';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
 import { Pages } from './pages';
+import { PageTypes } from '../page-types/page-types';
 import { PageTree } from './page-tree';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
+import type { PageTypeDefinition } from './page.types';
 import { SearchDialog } from '../search/search-dialog';
 import { AiButton } from '../ai/ai-button';
 import { AiSidebar } from '../ai/ai-sidebar';
@@ -127,15 +129,26 @@ export class PagesView {
   private readonly layout = inject(Layout);
   private readonly dialog = inject(MatDialog);
   private readonly auth = inject(Auth);
+  private readonly pageTypes = inject(PageTypes);
 
   protected readonly treeWidth = computed(() => this.layout.treeWidth());
 
   protected readonly isAdmin = computed(() => this.auth.user()?.role === 'Admin');
 
-  // Phase 6 will inject PageTypesService and bind this to its resource.
-  // Phase 3 ships an empty map — the tree still works, drag-drop has no
-  // type constraints to enforce.
-  protected readonly pageTypesMap = signal<Record<string, never>>({});
+  // All page-type definitions, streamed from GET /api/page-types. Refreshes
+  // when the PageTypes service bumps its version (step 1.2 replaces the
+  // service-wide version with per-resource invalidation).
+  private readonly pageTypesRes = this.pageTypes.pageTypesResource();
+
+  // Page-type definitions keyed by type GUID. Feeds the tree's type emoji,
+  // drag-drop constraint checks (check-type-constraints) and modal scoping.
+  protected readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() => {
+    const map: Record<string, PageTypeDefinition> = {};
+    for (const type of this.pageTypesRes.value() ?? []) {
+      map[type.guid] = type;
+    }
+    return map;
+  });
 
   // The active guid is parsed from the URL by the child route components in
   // Phase 3; here we expose it as a signal so the tree can highlight the
