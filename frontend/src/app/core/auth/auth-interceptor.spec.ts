@@ -1,6 +1,6 @@
 import {
   HttpClient,
-  type HttpErrorResponse,
+  HttpErrorResponse,
   provideHttpClient,
   withInterceptors,
 } from '@angular/common/http';
@@ -262,11 +262,16 @@ describe('authInterceptor (production interceptor chain order)', () => {
 
   it('signs out once and propagates when the retried request 401s again', (done) => {
     http.get('/api/pages').subscribe({
-      error: (err: { status?: number }) => {
+      error: (err: { status?: number; code?: string }) => {
         expect(auth.refreshIdToken).toHaveBeenCalledTimes(1);
         expect(auth.signOut).toHaveBeenCalledTimes(1);
-        // errorInterceptor has mapped it to an ApiError, but .status survives.
         expect(err.status).toBe(401);
+        // errorInterceptor is still the outermost interceptor: what escapes
+        // authInterceptor is mapped to an ApiError, not a raw HttpErrorResponse.
+        // This pins the order from the other direction too — drop errorInterceptor
+        // from the chain and this assertion fails.
+        expect(err).not.toBeInstanceOf(HttpErrorResponse);
+        expect(err.code).toBe('http_error');
         done();
       },
     });

@@ -29,7 +29,7 @@ describe('RedirectingComponent', () => {
       providers: [{ provide: Auth, useValue: { redirectToLogin } }],
     });
 
-    expect(screen.getByText(/couldn't reach sign-in/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign-in is unavailable/i)).toBeInTheDocument();
     expect(screen.queryByText(/redirecting to sign in/i)).toBeNull();
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();

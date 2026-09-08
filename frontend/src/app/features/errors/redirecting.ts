@@ -6,7 +6,10 @@ import { Auth } from '../../core/auth/auth';
   template: `
     <main style="padding:2rem; text-align:center;">
       @if (failed()) {
-        <p>Couldn't reach sign-in. <a href="/">Return to the app</a>.</p>
+        <p>
+          Sign-in is unavailable — this looks like a configuration problem.
+          Please contact the site administrator.
+        </p>
       } @else {
         <p>Redirecting to sign in…</p>
       }

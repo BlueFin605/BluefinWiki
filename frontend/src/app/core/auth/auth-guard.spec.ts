@@ -48,5 +48,7 @@ describe('authGuard', () => {
     const result = await run();
     expect(result).toEqual({ __urlTree: true });
     expect(router.createUrlTree).toHaveBeenCalledWith(['/redirecting']);
+    // The guard must NOT redirect directly — that is RedirectingComponent's job.
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
