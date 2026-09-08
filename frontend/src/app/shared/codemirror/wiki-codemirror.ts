@@ -10,7 +10,7 @@ import {
   output,
   viewChild,
 } from '@angular/core';
-import { Compartment, EditorState, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, type Extension, Prec } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -156,52 +156,56 @@ export class WikiCodemirror implements AfterViewInit, OnDestroy {
       history(),
       markdown(),
       syntaxHighlighting(defaultHighlightStyle),
-      // Formatting chords, mirroring the markdown toolbar actions. Kept in a
-      // dedicated keymap ahead of defaultKeymap so the editor wins the keys it
-      // shares with CodeMirror defaults (e.g. Mod-i / selectParentSyntax) and
-      // with the global Search shortcut (Mod-k) while the editor is focused.
-      keymap.of([
-        {
-          key: 'Mod-b',
-          preventDefault: true,
-          run: () => {
-            this.applyAction('bold');
-            return true;
+      // Formatting chords, mirroring the markdown toolbar actions. Wrapped in
+      // `Prec.high` so the editor explicitly wins the keys it shares with
+      // CodeMirror defaults (e.g. Mod-i / selectParentSyntax) and with the
+      // global Search shortcut (Mod-k) while the editor is focused — precedence
+      // is now explicit, not dependent on this keymap's array position ahead of
+      // defaultKeymap.
+      Prec.high(
+        keymap.of([
+          {
+            key: 'Mod-b',
+            preventDefault: true,
+            run: () => {
+              this.applyAction('bold');
+              return true;
+            },
           },
-        },
-        {
-          key: 'Mod-i',
-          preventDefault: true,
-          run: () => {
-            this.applyAction('italic');
-            return true;
+          {
+            key: 'Mod-i',
+            preventDefault: true,
+            run: () => {
+              this.applyAction('italic');
+              return true;
+            },
           },
-        },
-        {
-          key: 'Mod-`',
-          preventDefault: true,
-          run: () => {
-            this.applyAction('code');
-            return true;
+          {
+            key: 'Mod-`',
+            preventDefault: true,
+            run: () => {
+              this.applyAction('code');
+              return true;
+            },
           },
-        },
-        {
-          key: 'Mod-Shift-x',
-          preventDefault: true,
-          run: () => {
-            this.applyAction('strikethrough');
-            return true;
+          {
+            key: 'Mod-Shift-x',
+            preventDefault: true,
+            run: () => {
+              this.applyAction('strikethrough');
+              return true;
+            },
           },
-        },
-        {
-          key: 'Mod-k',
-          preventDefault: true,
-          run: () => {
-            this.applyAction('link');
-            return true;
+          {
+            key: 'Mod-k',
+            preventDefault: true,
+            run: () => {
+              this.applyAction('link');
+              return true;
+            },
           },
-        },
-      ]),
+        ]),
+      ),
       keymap.of([
         ...defaultKeymap,
         ...historyKeymap,
