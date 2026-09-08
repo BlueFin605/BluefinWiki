@@ -2,6 +2,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertProdApiBaseUrl } from './lib/assert-prod-api-base-url.mjs';
 
 const REQUIRED = [
   'NG_APP_API_BASE_URL',
@@ -17,6 +18,10 @@ if (missing.length > 0) {
   console.error(`build-env: missing required env vars: ${missing.join(', ')}`);
   process.exit(1);
 }
+
+assertProdApiBaseUrl(process.env.NG_APP_API_BASE_URL, {
+  allowLocal: process.env.ALLOW_LOCAL_API_URL === '1',
+});
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outPath = resolve(__dirname, '../src/environments/environment.production.ts');
