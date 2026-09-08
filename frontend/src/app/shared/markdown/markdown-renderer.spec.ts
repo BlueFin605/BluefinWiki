@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen } from '@testing-library/angular';
 import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
@@ -209,6 +211,52 @@ describe('MarkdownRenderer', () => {
     );
     expect(link).not.toBeNull();
     expect(link?.textContent).toContain('?');
+  });
+
+  // ---- Step 3.9: empty state + typography polish -------------------------
+
+  describe('empty state', () => {
+    it('shows the italic placeholder for empty markdown', async () => {
+      const el = await renderMd('');
+      expect(el.textContent).toContain('No content yet. Start writing…');
+      expect(el.querySelector('em')).not.toBeNull();
+    });
+
+    it('shows the placeholder for whitespace-only markdown', async () => {
+      const el = await renderMd('   \n\t\n  ');
+      expect(el.textContent).toContain('No content yet. Start writing…');
+    });
+
+    it('does not show the placeholder when there is content', async () => {
+      const el = await renderMd('# Real heading');
+      expect(el.textContent).not.toContain('No content yet');
+      expect(el.querySelector('h1')?.textContent).toBe('Real heading');
+    });
+  });
+
+  it('wraps rendered tables in a scrollable div.table-scroll', async () => {
+    const el = await renderMd('| h |\n|---|\n| c |');
+    const wrap = el.querySelector('div.table-scroll');
+    expect(wrap).not.toBeNull();
+    expect(wrap?.children[0]?.tagName.toLowerCase()).toBe('table');
+    expect(wrap?.querySelector('th')?.textContent?.trim()).toBe('h');
+  });
+
+  it('renders h4-h6 headings with slug ids', async () => {
+    const el = await renderMd('#### Four\n\n##### Five\n\n###### Six');
+    expect(el.querySelector('h4')?.id).toBe('four');
+    expect(el.querySelector('h5')?.id).toBe('five');
+    expect(el.querySelector('h6')?.id).toBe('six');
+  });
+
+  it('defines h4-h6 + table-scroll rules in the .wiki-markdown stylesheet', () => {
+    // jest-preset-angular strips component `styles` from the compiled output,
+    // so the rule text is asserted against the source stylesheet directly.
+    const src = readFileSync(join(__dirname, 'markdown-renderer.ts'), 'utf8');
+    expect(src).toMatch(/\.wiki-markdown h4\s*\{/);
+    expect(src).toMatch(/\.wiki-markdown h5\s*\{/);
+    expect(src).toMatch(/\.wiki-markdown h6\s*\{/);
+    expect(src).toMatch(/\.wiki-markdown \.table-scroll\s*\{[^}]*overflow-x:\s*auto/);
   });
 
   it('updates rendered output when the markdown input changes', async () => {

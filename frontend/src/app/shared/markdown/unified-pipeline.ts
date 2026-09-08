@@ -7,6 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 import remarkWikiLinks, { type WikiLinksOptions } from './plugins/remark-wiki-links';
 import remarkImageSize from './plugins/remark-image-size';
 import remarkAttachmentUrls, { type AttachmentUrlsOptions } from './plugins/remark-attachment-urls';
+import rehypeTableScroll from './plugins/rehype-table-scroll';
 
 export interface MarkdownPipelineOptions {
   wikiLinks?: WikiLinksOptions;
@@ -25,6 +26,7 @@ export interface MarkdownPipelineOptions {
  *  6. remark-attachment-urls — bare/legacy image URL → /api/pages/:guid/attachments/:file
  *  7. remark-rehype  — mdast → hast
  *  8. rehype-highlight — code-block class → hljs token spans
+ *  9. rehype-table-scroll — wrap <table> in div.table-scroll (horizontal scroll)
  *
  * Return type: the bare `Processor` form (all type params at their `undefined`
  * defaults). The full inferred type of the chain is a deeply-nested generic
@@ -47,5 +49,6 @@ export function buildMarkdownPipeline(
     .use(remarkImageSize)
     .use(remarkAttachmentUrls, options.attachments)
     .use(remarkRehype, { allowDangerousHtml: false })
-    .use(rehypeHighlight, { detect: true, ignoreMissing: true });
+    .use(rehypeHighlight, { detect: true, ignoreMissing: true })
+    .use(rehypeTableScroll);
 }

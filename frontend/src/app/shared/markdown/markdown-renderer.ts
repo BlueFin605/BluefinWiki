@@ -65,8 +65,12 @@ function isWikiLink(node: HastElement): boolean {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="wiki-markdown" data-testid="markdown-renderer">
-      @for (child of children(); track $index) {
-        <ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: child }"></ng-container>
+      @if (isEmpty()) {
+        <p class="wiki-markdown-empty"><em>No content yet. Start writing…</em></p>
+      } @else {
+        @for (child of children(); track $index) {
+          <ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: child }"></ng-container>
+        }
       }
     </div>
 
@@ -183,6 +187,9 @@ function isWikiLink(node: HastElement): boolean {
             @case ('span') {
               <span [class]="classOf(node)">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</span>
             }
+            @case ('div') {
+              <div [class]="classOf(node)">@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</div>
+            }
             @default {
               <span>@for (c of node.children; track $index) {<ng-container *ngTemplateOutlet="nodeTpl; context: { $implicit: c }"></ng-container>}</span>
             }
@@ -197,11 +204,17 @@ function isWikiLink(node: HastElement): boolean {
     .wiki-markdown h1 { font-size: 1.875rem; font-weight: 700; margin: 1.5rem 0 1rem; }
     .wiki-markdown h2 { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.75rem; }
     .wiki-markdown h3 { font-size: 1.25rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+    .wiki-markdown h4 { font-size: 1.125rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+    .wiki-markdown h5 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.5rem; }
+    .wiki-markdown h6 { font-size: 0.875rem; font-weight: 600; margin: 0.75rem 0 0.5rem; color: #475569; }
     .wiki-markdown p { margin-bottom: 1rem; line-height: 1.625; }
+    .wiki-markdown .wiki-markdown-empty { color: #64748b; font-style: italic; }
     .wiki-markdown ul, .wiki-markdown ol { margin-bottom: 1rem; padding-left: 1.5rem; }
     .wiki-markdown pre { margin: 1rem 0; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; background: #f8fafc; }
     .wiki-markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size: 0.875rem; }
     .wiki-markdown blockquote { border-left: 4px solid #cbd5e1; padding-left: 1rem; margin: 1rem 0; font-style: italic; color: #475569; }
+    .wiki-markdown .table-scroll { overflow-x: auto; max-width: 100%; margin-bottom: 1rem; }
+    .wiki-markdown .table-scroll > table { margin-bottom: 0; }
     .wiki-markdown table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
     .wiki-markdown th, .wiki-markdown td { border: 1px solid #cbd5e1; padding: 0.5rem 1rem; text-align: left; }
     .wiki-markdown thead { background: #f1f5f9; }
@@ -244,9 +257,16 @@ export class MarkdownRenderer {
     });
   });
 
+  /**
+   * Empty (or whitespace-only) markdown renders the italic
+   * "No content yet. Start writing…" placeholder instead of the pipeline
+   * output — parity with React's `MarkdownPreview`.
+   */
+  readonly isEmpty = computed(() => !(this.markdown() ?? '').trim());
+
   readonly children = computed<HastNode[]>(() => {
     const md = this.markdown() ?? '';
-    if (!md) return [];
+    if (!md.trim()) return [];
     const pipeline = this.pipeline();
     const mdast = pipeline.parse(md);
     const hast = pipeline.runSync(mdast);

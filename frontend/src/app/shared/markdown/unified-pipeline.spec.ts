@@ -14,8 +14,27 @@ describe('buildMarkdownPipeline', () => {
     const pipeline = buildMarkdownPipeline();
     const mdast = pipeline.parse('| a | b |\n|---|---|\n| 1 | 2 |');
     const hast = pipeline.runSync(mdast);
-    const root = hast as { children: { type: string; tagName?: string }[] };
-    expect(root.children.some((c) => c.tagName === 'table')).toBe(true);
+    expect(JSON.stringify(hast)).toContain('"tagName":"table"');
+  });
+
+  it('wraps GFM tables in a div.table-scroll container (proves rehype-table-scroll wired)', () => {
+    const pipeline = buildMarkdownPipeline();
+    const mdast = pipeline.parse('| a | b |\n|---|---|\n| 1 | 2 |');
+    const hast = pipeline.runSync(mdast) as {
+      children: {
+        type: string;
+        tagName?: string;
+        properties?: Record<string, unknown>;
+        children?: { tagName?: string }[];
+      }[];
+    };
+    const wrapper = hast.children.find((c) => c.tagName === 'div');
+    expect(wrapper).toBeDefined();
+    const cls = wrapper?.properties?.['className'];
+    expect(Array.isArray(cls) ? cls : [cls]).toContain('table-scroll');
+    expect(wrapper?.children?.some((c) => c.tagName === 'table')).toBe(true);
+    // the table is no longer a bare child of the root
+    expect(hast.children.some((c) => c.tagName === 'table')).toBe(false);
   });
 
   it('converts soft breaks to <br> (proves remark-breaks wired)', () => {
