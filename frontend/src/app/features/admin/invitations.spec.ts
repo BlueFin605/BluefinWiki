@@ -88,4 +88,25 @@ describe('Invitations service', () => {
     del.flush(null);
     await promise;
   });
+
+  it('revokeInvitation re-requests invitationsResource via the invalidation bus', async () => {
+    const resource = TestBed.runInInjectionContext(() => invitations.invitationsResource());
+    await settle();
+    http.expectOne('/api/admin/invitations').flush({
+      invitations: [invite({ inviteCode: 'inv-r', status: 'pending' })],
+    });
+    await settle();
+
+    const promise = invitations.revokeInvitation('inv-r');
+    await settle();
+    http.expectOne('/api/admin/invitations/inv-r').flush(null);
+    await promise;
+    await settle();
+
+    http.expectOne('/api/admin/invitations').flush({
+      invitations: [invite({ inviteCode: 'inv-r', status: 'revoked' })],
+    });
+    await settle();
+    expect(resource.value()?.[0].status).toBe('revoked');
+  });
 });

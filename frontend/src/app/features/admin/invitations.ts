@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map } from 'rxjs';
+import { InvalidationBus, invitationsListTag } from '../../core/api/invalidation';
 import type { Role } from './users';
 
 export interface InviteUserRef {
@@ -31,15 +32,12 @@ export interface CreateInvitationRequest {
 @Injectable({ providedIn: 'root' })
 export class Invitations {
   private readonly http = inject(HttpClient);
-  private readonly _version = signal(0);
+  private readonly bus = inject(InvalidationBus);
 
-  bumpVersion(): void {
-    this._version.update((v) => v + 1);
-  }
-
+  /** Keys on `invitations:list`; both mutations below bump that one tag. */
   invitationsResource() {
     return rxResource({
-      params: () => this._version(),
+      params: () => this.bus.version(invitationsListTag()),
       stream: () =>
         this.http
           .get<{ invitations: Invitation[] }>('/api/admin/invitations')
@@ -51,7 +49,7 @@ export class Invitations {
     const result = await firstValueFrom(
       this.http.post<Invitation>('/api/admin/invitations', body),
     );
-    this.bumpVersion();
+    this.bus.bump(invitationsListTag());
     return result;
   }
 
@@ -59,6 +57,6 @@ export class Invitations {
     await firstValueFrom(
       this.http.delete<void>(`/api/admin/invitations/${inviteCode}`),
     );
-    this.bumpVersion();
+    this.bus.bump(invitationsListTag());
   }
 }
