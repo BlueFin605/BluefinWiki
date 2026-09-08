@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   effect,
   inject,
@@ -23,6 +24,8 @@ import { LinkAutocomplete } from '../editor/link-autocomplete';
 import { InspectorPanel } from '../editor/inspector-panel';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
 import { Breadcrumbs } from '../../shared/components/breadcrumbs';
+import { ResizeDivider } from '../../shared/components/resize-divider';
+import { Layout } from '../../core/layout/layout';
 import type { WikiBrokenLinkEvent } from '../../shared/markdown/wiki-link';
 import { Pages, type PageSearchResult } from './pages';
 import { Drafts, type PageMetadata } from './drafts';
@@ -61,6 +64,7 @@ const DRAFT_DEBOUNCE_MS = 400;
     MarkdownRenderer,
     Breadcrumbs,
     BoardView,
+    ResizeDivider,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -129,7 +133,7 @@ const DRAFT_DEBOUNCE_MS = 400;
         }
       }
 
-      <mat-sidenav-container class="container">
+      <mat-sidenav-container class="container" #sidenavContainer>
         <mat-sidenav-content class="content-pane">
           @if (mode() === 'edit') {
             <wiki-markdown-toolbar (action)="onAction($event)" />
@@ -194,7 +198,11 @@ const DRAFT_DEBOUNCE_MS = 400;
           mode="side"
           [opened]="inspectorOpen()"
           class="inspector"
+          [style.width.px]="inspectorWidth()"
         >
+          <div class="inspector-divider">
+            <wiki-resize-divider (resized)="onInspectorResize($event)" />
+          </div>
           @if (guid() && metadata(); as m) {
             <wiki-inspector-panel
               [pageGuid]="guid()!"
@@ -221,7 +229,8 @@ const DRAFT_DEBOUNCE_MS = 400;
     .body { flex: 1; min-height: 0; padding: 0; position: relative; overflow: auto; }
     .state { padding: 2rem; color: #6b7280; }
     .state.error { color: #b91c1c; }
-    .inspector { width: 360px; }
+    .inspector { position: relative; }
+    .inspector-divider { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; z-index: 5; }
   `],
 })
 export class PageDetail {
@@ -234,8 +243,14 @@ export class PageDetail {
   private readonly snack = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
   private readonly errorState = inject(EditorErrorState);
+  private readonly layout = inject(Layout);
 
   protected readonly editor = viewChild<WikiCodemirror>('editor');
+  private readonly sidenavContainerEl = viewChild('sidenavContainer', { read: ElementRef });
+
+  /** Inspector width, driven by the persisted layout store (replaces a
+   * hardcoded 360px CSS constant). `Layout.update()` clamps to 250-600. */
+  protected readonly inspectorWidth = computed(() => this.layout.inspectorWidth());
 
   protected readonly guid = toSignal(
     this.route.paramMap.pipe(map((p) => p.get('guid'))),
@@ -384,6 +399,18 @@ export class PageDetail {
 
   toggleInspector(): void {
     this.inspectorOpen.update((v) => !v);
+  }
+
+  /**
+   * The inspector divider emits an absolute pointer X. The inspector is
+   * right-anchored, so its width is the distance from the pointer to the
+   * container's right edge; `Layout.update()` clamps to 250-600.
+   */
+  onInspectorResize(pointerX: number): void {
+    const host = this.sidenavContainerEl()?.nativeElement as HTMLElement | undefined;
+    if (!host) return;
+    const width = host.getBoundingClientRect().right - pointerX;
+    this.layout.update({ inspectorWidth: width });
   }
 
   onAction(action: ToolbarAction): void {

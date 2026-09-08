@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, type ElementRef, HostListener, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,6 +12,7 @@ import { Layout } from '../../core/layout/layout';
 import { Pages } from './pages';
 import { PageTypes } from '../page-types/page-types';
 import { PageTree } from './page-tree';
+import { ResizeDivider } from '../../shared/components/resize-divider';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
 import type { PageTypeDefinition } from './page.types';
@@ -30,6 +31,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
     MatIconModule,
     MatMenuModule,
     PageTree,
+    ResizeDivider,
     PageRenameInline,
     AiButton,
     AiSidebar,
@@ -68,7 +70,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
           </button>
         </mat-menu>
       </mat-toolbar>
-      <div class="body">
+      <div class="body" #body>
         <aside class="sidebar" [style.width.px]="treeWidth()">
           <wiki-page-tree
             [activeGuid]="activeGuid()"
@@ -81,6 +83,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
             (moveRequested)="onMoveRequested($event)"
           />
         </aside>
+        <wiki-resize-divider (resized)="onTreeResize($event)" />
         <main class="main">
           <router-outlet />
         </main>
@@ -131,7 +134,20 @@ export class PagesView {
   private readonly auth = inject(Auth);
   private readonly pageTypes = inject(PageTypes);
 
+  private readonly bodyEl = viewChild<ElementRef<HTMLElement>>('body');
+
   protected readonly treeWidth = computed(() => this.layout.treeWidth());
+
+  /**
+   * The tree divider emits an absolute pointer X. Convert it to a width
+   * relative to the shell's left edge; `Layout.update()` clamps to 200-600.
+   */
+  onTreeResize(pointerX: number): void {
+    const host = this.bodyEl()?.nativeElement;
+    if (!host) return;
+    const width = pointerX - host.getBoundingClientRect().left;
+    this.layout.update({ treeWidth: width });
+  }
 
   protected readonly isAdmin = computed(() => this.auth.user()?.role === 'Admin');
 

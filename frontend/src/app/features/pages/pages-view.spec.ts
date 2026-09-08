@@ -13,8 +13,10 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { MatDialog } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { Auth } from '../../core/auth/auth';
+import { Layout } from '../../core/layout/layout';
 import { PagesView } from './pages-view';
 import { PageTree } from './page-tree';
+import { ResizeDivider } from '../../shared/components/resize-divider';
 import { SearchDialog } from '../search/search-dialog';
 import type { PageTypeDefinition } from './page.types';
 
@@ -199,6 +201,62 @@ describe('PagesView', () => {
     expect(Object.keys(map).sort()).toEqual(['pt-recipe', 'pt-tv']);
     expect(map['pt-recipe'].name).toBe('Recipe');
     expect(map['pt-tv'].icon).toBe('📺');
+  });
+
+  it('resizes the tree column via the resize divider, clamped through the layout store', async () => {
+    localStorage.clear();
+    const { fixture } = await render(PagesView, {
+      providers: [...baseProviders(), ...authProviders('Admin')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+
+    const layout = TestBed.inject(Layout);
+    const updateSpy = jest.spyOn(layout, 'update');
+
+    const divider = fixture.debugElement.query(By.directive(ResizeDivider))
+      .componentInstance as ResizeDivider;
+    // jsdom getBoundingClientRect() is all-zero, so the emitted pointer X maps
+    // 1:1 to a candidate width; 50 is below the 200 floor.
+    divider.resized.emit(50);
+    await settle();
+    fixture.detectChanges();
+
+    // jsdom rects are all-zero, so the raw candidate width is the pointer X;
+    // the store clamps it up to the 200 floor.
+    expect(updateSpy).toHaveBeenCalledWith({ treeWidth: 50 });
+    expect(layout.treeWidth()).toBe(200);
+
+    const host = fixture.nativeElement as HTMLElement;
+    const sidebar = host.querySelector('.sidebar') as HTMLElement;
+    expect(sidebar.style.width).toBe('200px');
+  });
+
+  it('maps the divider pointer X to a width relative to the shell left edge', async () => {
+    localStorage.clear();
+    const { fixture } = await render(PagesView, {
+      providers: [...baseProviders(), ...authProviders('Admin')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+
+    const layout = TestBed.inject(Layout);
+    const host = fixture.nativeElement as HTMLElement;
+    const body = host.querySelector('.body') as HTMLElement;
+    jest
+      .spyOn(body, 'getBoundingClientRect')
+      .mockReturnValue({ left: 100, right: 1000, top: 0, bottom: 0, width: 900, height: 0, x: 100, y: 0, toJSON: () => ({}) });
+
+    const divider = fixture.debugElement.query(By.directive(ResizeDivider))
+      .componentInstance as ResizeDivider;
+    divider.resized.emit(450); // 450 - 100 = 350, within 200-600
+    await settle();
+
+    expect(layout.treeWidth()).toBe(350);
   });
 
   it('renders the page-type emoji for a typed page once the map is populated', async () => {

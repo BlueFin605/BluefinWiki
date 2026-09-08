@@ -6,6 +6,7 @@ import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { convertToParamMap, type ParamMap } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
 
 jest.mock('mermaid', () => ({
@@ -18,6 +19,8 @@ jest.mock('mermaid', () => ({
 
 import { PageDetail } from './page-detail';
 import { Drafts } from './drafts';
+import { Layout } from '../../core/layout/layout';
+import { ResizeDivider } from '../../shared/components/resize-divider';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 
 const serverPage = {
@@ -270,6 +273,72 @@ describe('PageDetail', () => {
       (fixture.componentInstance as unknown as { editorError: () => unknown }).editorError(),
     ).toBeNull();
     expect(screen.queryByText(/the editor crashed/i)).toBeNull();
+  });
+
+  it('binds the inspector width to the layout store, not a hardcoded 360px', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const layout = TestBed.inject(Layout);
+    const host = fixture.nativeElement as HTMLElement;
+    const inspector = host.querySelector('.inspector') as HTMLElement;
+    expect(inspector.style.width).toBe(`${layout.inspectorWidth()}px`);
+    expect(inspector.style.width).not.toBe('360px');
+  });
+
+  it('resizes the inspector via the divider, clamped through the layout store', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const layout = TestBed.inject(Layout);
+    const updateSpy = jest.spyOn(layout, 'update');
+
+    const divider = fixture.debugElement.query(By.directive(ResizeDivider))
+      .componentInstance as ResizeDivider;
+    // Inspector is right-anchored: width = containerRect.right - pointerX. jsdom
+    // rects are all-zero, so any positive pointer X drives width below the 250
+    // floor.
+    divider.resized.emit(80);
+    await settle();
+
+    // jsdom rects are all-zero, so the raw right-anchored width is negative;
+    // the store clamps it up to the 250 floor.
+    expect(updateSpy).toHaveBeenCalledWith({ inspectorWidth: -80 });
+    expect(layout.inspectorWidth()).toBe(250);
+  });
+
+  it('maps the inspector divider pointer X to a right-anchored width', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const layout = TestBed.inject(Layout);
+    const host = fixture.nativeElement as HTMLElement;
+    const container = host.querySelector('.container') as HTMLElement;
+    jest
+      .spyOn(container, 'getBoundingClientRect')
+      .mockReturnValue({ left: 0, right: 1000, top: 0, bottom: 0, width: 1000, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+
+    const divider = fixture.debugElement.query(By.directive(ResizeDivider))
+      .componentInstance as ResizeDivider;
+    divider.resized.emit(600); // 1000 - 600 = 400, within 250-600
+    await settle();
+
+    expect(layout.inspectorWidth()).toBe(400);
   });
 
   it('stashes the current draft before a hard page reload', async () => {
