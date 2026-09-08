@@ -1253,6 +1253,90 @@ describe('PageDetail', () => {
     await settle();
     drain();
   });
+
+  // ---- Step 4.1: Inspector layout binding --------------------------------
+
+  it('toggling the inspector writes inspectorVisible through the Layout store', async () => {
+    const { http } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    const layout = TestBed.inject(Layout);
+    const updateSpy = jest.spyOn(layout, 'update');
+    expect(layout.inspectorVisible()).toBe(false);
+
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    await settle();
+
+    expect(updateSpy).toHaveBeenCalledWith({ inspectorVisible: true });
+    expect(layout.inspectorVisible()).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    await settle();
+
+    expect(updateSpy).toHaveBeenLastCalledWith({ inspectorVisible: false });
+    expect(layout.inspectorVisible()).toBe(false);
+  });
+
+  it('persists the inspector open state across a remount via the Layout store', async () => {
+    const first = await renderDetail();
+    first.http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    await settle();
+    expect(TestBed.inject(Layout).inspectorVisible()).toBe(true);
+
+    // The Layout service is providedIn:'root' and hydrates from localStorage on
+    // construction, so a fresh mount reads back the persisted flag.
+    const stored = JSON.parse(
+      localStorage.getItem('bluefinwiki-layout') ?? '{}',
+    ) as { inspectorVisible?: boolean };
+    expect(stored.inspectorVisible).toBe(true);
+  });
+
+  it('opens the inspector on mount when the Layout store already has it visible', async () => {
+    localStorage.setItem('bluefinwiki-layout', JSON.stringify({ inspectorVisible: true }));
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    // Sidenav is open with no user interaction — the inspector tabs are live.
+    expect(screen.getByRole('tab', { name: /properties/i })).toBeInTheDocument();
+    expect((fixture.componentInstance as unknown as { inspectorOpen: () => boolean }).inspectorOpen())
+      .toBe(true);
+  });
+
+  it('reflects a later Layout inspectorWidth change in the panel width style', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    drain();
+    await settle();
+
+    TestBed.inject(Layout).update({ inspectorWidth: 480 });
+    fixture.detectChanges();
+
+    const inspector = (fixture.nativeElement as HTMLElement).querySelector('.inspector') as HTMLElement;
+    expect(inspector.style.width).toBe('480px');
+  });
+
+  it('passes the inspector presentation seam through to the panel host', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel');
+    expect(panel?.getAttribute('data-presentation')).toBe('side');
+  });
 });
 
 describe('resolveSaveStatus', () => {

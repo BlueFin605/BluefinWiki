@@ -40,9 +40,9 @@ function meta(): PageMetadata {
   };
 }
 
-async function renderInspector() {
+async function renderInspector(extraInputs: Record<string, unknown> = {}) {
   const result = await render(InspectorPanel, {
-    inputs: { pageGuid: 'g1', metadata: meta(), pageAuthorId: 'u' },
+    inputs: { pageGuid: 'g1', metadata: meta(), pageAuthorId: 'u', ...extraInputs },
     providers: [
       provideAnimationsAsync(),
       provideRouter([]),
@@ -86,5 +86,17 @@ describe('InspectorPanel', () => {
     fixture.detectChanges();
     // The LinkedPagesPanel inside the tab has its own resource.
     http.expectOne('/api/pages/g1/backlinks').flush({ guid: 'g1', backlinks: [], count: 0 });
+  });
+
+  // ---- Step 4.1: mobile-sheet presentation seam --------------------------
+
+  it('defaults to the "side" presentation and reflects it on the host', async () => {
+    const { fixture } = await renderInspector();
+    expect((fixture.nativeElement as HTMLElement).getAttribute('data-presentation')).toBe('side');
+  });
+
+  it('reflects presentation="sheet" on the host (the mobile-sheet hook for 1b.5)', async () => {
+    const { fixture } = await renderInspector({ presentation: 'sheet' });
+    expect((fixture.nativeElement as HTMLElement).getAttribute('data-presentation')).toBe('sheet');
   });
 });

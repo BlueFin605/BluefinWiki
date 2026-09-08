@@ -351,6 +351,7 @@ export function resolveSaveStatus(state: {
               [pageGuid]="guid()!"
               [metadata]="m"
               [pageAuthorId]="m.createdBy"
+              [presentation]="inspectorPresentation"
               [canInsert]="mode() === 'edit'"
               (metadataChange)="metadata.set($event)"
               (insertMarkdown)="onInsertMarkdown($event)"
@@ -478,7 +479,23 @@ export class PageDetail {
   protected readonly saving = signal(false);
 
   protected readonly cursorContext = signal<CursorContext | null>(null);
-  protected readonly inspectorOpen = signal(false);
+
+  /**
+   * Inspector open/close state — read straight from the persisted layout store
+   * (replaces a local `signal(false)`), so it survives reloads and the
+   * View/Edit route toggle that recreates this component. Written only through
+   * {@link toggleInspector} → `Layout.update({ inspectorVisible })`.
+   */
+  protected readonly inspectorOpen = computed(() => this.layout.inspectorVisible());
+
+  /**
+   * Inspector presentation mode. Fixed to `'side'` for step 4.1; this is the
+   * documented seam Phase 1b step 1b.5 will drive from a responsive breakpoint
+   * so the panel renders as a bottom sheet on mobile. Keeping the flip here (not
+   * in the layout-store binding above) lets 1b.5 land without touching 4.1's
+   * persistence wiring.
+   */
+  protected readonly inspectorPresentation: 'side' | 'sheet' = 'side';
 
   /**
    * Markdown queued for insertion once CodeMirror (re)mounts. Set when an insert
@@ -794,7 +811,7 @@ export class PageDetail {
   }
 
   toggleInspector(): void {
-    this.inspectorOpen.update((v) => !v);
+    this.layout.update({ inspectorVisible: !this.layout.inspectorVisible() });
   }
 
   /**

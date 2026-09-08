@@ -22,6 +22,7 @@ import type { PageProperty } from '../pages/page.types';
 @Component({
   selector: 'wiki-inspector-panel',
   standalone: true,
+  host: { '[attr.data-presentation]': 'presentation()' },
   imports: [
     MatTabsModule,
     MatBadgeModule,
@@ -85,6 +86,14 @@ export class InspectorPanel {
   readonly pageAuthorId = input<string | null>(null);
   /** Whether attachments can be inserted into a live editor (edit mode only). */
   readonly canInsert = input<boolean>(true);
+  /**
+   * How the panel is presented. `'side'` (default) is the desktop right-hand
+   * resizable panel; `'sheet'` is the mobile bottom-sheet / full-screen
+   * overlay. Step 4.1 only exposes this seam and reflects it on the host as
+   * `data-presentation` — the responsive breakpoint that flips it and the
+   * sheet's drag / dismiss behaviour are owned by Phase 1b step 1b.5.
+   */
+  readonly presentation = input<'side' | 'sheet'>('side');
 
   readonly metadataChange = output<PageMetadata>();
   readonly insertMarkdown = output<string>();
