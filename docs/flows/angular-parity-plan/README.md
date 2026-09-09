@@ -99,10 +99,10 @@ backend", that verification is part of the step.
 | 1 | 5 | 5/5 | ✅ complete (`529e35a..adb5860`) — 1.5 design-only, code is 1b |
 | 2 | 8 | 0/8 | not started |
 | 3 | 10 | 10/10 | ✅ complete (`c18a876..2cc674f`) — whole-branch review passed with fixes; Minor sweep deferred to branch finish |
-| 4 | 9 | 0/9 | not started |
+| 4 | 9 | 9/9 | ✅ complete (`bd38aeb..6b416db`) — whole-branch review passed with fixes; retry status text + tab-switch refetch deferred to 1b.3; Minor sweep deferred to branch finish |
 | 1b | 9 | 0/9 | designed, not started |
 | 5 | 7 | 0/7 | not started |
 | 6 | 7 | 0/7 | not started |
 | 7 | 4 | 0/4 | not started |
 | 8 | 6 | 0/6 | not started |
-| **Total** | **72** | **22/72** | |
+| **Total** | **72** | **31/72** | |
