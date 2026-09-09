@@ -1,12 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Breakpoint } from '../../core/layout/breakpoint';
 import { Pages } from '../../features/pages/pages';
-
-/**
- * Interim mobile-breakpoint media query for the `>3`-segment collapse gate.
- * TODO(1b.7): replace window.matchMedia with the Breakpoint service (step-1b.7).
- */
-const MOBILE_BREAKPOINT_QUERY = '(max-width: 1023.98px)';
 
 @Component({
   selector: 'wiki-breadcrumbs',
@@ -67,6 +62,7 @@ const MOBILE_BREAKPOINT_QUERY = '(max-width: 1023.98px)';
 })
 export class Breadcrumbs {
   private readonly pages = inject(Pages);
+  private readonly bp = inject(Breakpoint);
 
   readonly guid = input.required<string>();
   readonly currentTitle = input.required<string>();
@@ -81,30 +77,17 @@ export class Breadcrumbs {
 
   /**
    * React parity: when the trail has more than three segments
-   * (Home + ancestors + Current) *and* the viewport is below the mobile
+   * (Home + ancestors + Current) *and* the viewport is below the desktop
    * breakpoint, the middle collapses to a static `…` — `Home ▸ … ▸ Current`.
-   * The gate reads an interim `matchMedia`.
-   * TODO(1b.7): replace window.matchMedia with the Breakpoint service (step-1b.7).
+   * `Breakpoint.isDesktop()` is a signal, so this re-evaluates on resize/rotate.
    */
   protected readonly collapsed = computed(() => {
     const segmentCount = this.ancestors().length + 2; // Home + ancestors + Current
-    return segmentCount > 3 && this.matchesMobileBreakpoint();
+    return !this.bp.isDesktop() && segmentCount > 3;
   });
 
   /** Full text of the ancestors hidden behind the collapsed `…`. */
   protected readonly hiddenTitle = computed(() =>
     this.ancestors().map((a) => a.title).join(' / '),
   );
-
-  /**
-   * Interim viewport check for the collapse gate.
-   * TODO(1b.7): replace window.matchMedia with the Breakpoint service (step-1b.7).
-   */
-  private matchesMobileBreakpoint(): boolean {
-    return (
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia(MOBILE_BREAKPOINT_QUERY).matches
-    );
-  }
 }

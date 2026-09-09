@@ -5,6 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Breadcrumbs } from './breadcrumbs';
+import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -12,23 +13,9 @@ async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
 }
 
-const originalMatchMedia = window.matchMedia;
-
-/** Override the global jsdom `matchMedia` stub so the collapse gate can be
- *  driven from a test. Restored in `afterEach`. */
-function setViewport(mobile: boolean): void {
-  const stub: (query: string) => MediaQueryList = (query) => ({
-    matches: mobile && /max-width/.test(query),
-    media: query,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  });
-  window.matchMedia = stub;
-}
+// Captured per `renderBreadcrumbs` call so a test can flip `bpStub.isDesktop`
+// after render (DI hands Breadcrumbs this exact signal instance).
+let bpStub: ReturnType<typeof provideBreakpointStub>;
 
 function makeAncestor(n: number): Record<string, unknown> {
   return {
@@ -45,7 +32,9 @@ function makeAncestor(n: number): Record<string, unknown> {
 async function renderBreadcrumbs(opts: {
   currentTitle?: string;
   ancestors: unknown[];
+  isDesktop?: boolean;
 }): Promise<Awaited<ReturnType<typeof render>>> {
+  bpStub = provideBreakpointStub(opts.isDesktop ?? true);
   const view = await render(Breadcrumbs, {
     inputs: { guid: 'g1', currentTitle: opts.currentTitle ?? 'Current Page' },
     providers: [
@@ -55,6 +44,7 @@ async function renderBreadcrumbs(opts: {
       ]),
       provideHttpClient(),
       provideHttpClientTesting(),
+      ...bpStub.providers,
     ],
   });
   const http = TestBed.inject(HttpTestingController);
@@ -64,13 +54,8 @@ async function renderBreadcrumbs(opts: {
   return view;
 }
 
-afterEach(() => {
-  window.matchMedia = originalMatchMedia;
-});
-
 describe('Breadcrumbs', () => {
   it('renders ancestor links and the current title', async () => {
-    setViewport(false);
     await renderBreadcrumbs({
       currentTitle: 'Deep Page',
       ancestors: [makeAncestor(1), makeAncestor(2)],
@@ -81,7 +66,6 @@ describe('Breadcrumbs', () => {
   });
 
   it('renders the current title (no ancestor links) when there are no ancestors', async () => {
-    setViewport(false);
     await renderBreadcrumbs({ currentTitle: 'Root Page', ancestors: [] });
     expect(screen.getByText('Root Page')).toBeInTheDocument();
     // Only the leading Home segment is a link.
@@ -91,7 +75,6 @@ describe('Breadcrumbs', () => {
   });
 
   it('renders a leading Home segment linking to /pages', async () => {
-    setViewport(false);
     await renderBreadcrumbs({ ancestors: [makeAncestor(1)] });
     const home = screen.getByRole('link', { name: 'Home' });
     expect(home).toBeInTheDocument();
@@ -99,33 +82,33 @@ describe('Breadcrumbs', () => {
   });
 
   it('navigates to /pages when Home is clicked (clears the active page selection)', async () => {
-    setViewport(false);
     await renderBreadcrumbs({ ancestors: [makeAncestor(1), makeAncestor(2)] });
     await userEvent.click(screen.getByRole('link', { name: 'Home' }));
     await settle();
     expect(TestBed.inject(Router).url).toBe('/pages');
   });
 
-  it('collapses the middle to an ellipsis when >3 segments and the viewport is mobile', async () => {
-    setViewport(true);
+  it('collapses the middle to an ellipsis when >3 segments and the breakpoint is not desktop', async () => {
     await renderBreadcrumbs({
       currentTitle: 'Current Page',
       ancestors: [1, 2, 3, 4, 5].map(makeAncestor),
+      isDesktop: false,
     });
     // Home … Current
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getByText('…')).toBeInTheDocument();
     expect(screen.getByText('Current Page')).toBeInTheDocument();
-    // The middle ancestor links are hidden behind the ellipsis.
-    expect(screen.queryByRole('link', { name: 'Ancestor 3' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Ancestor 5' })).toBeNull();
+    // Every middle ancestor link is hidden behind the ellipsis.
+    for (const n of [1, 2, 3, 4, 5]) {
+      expect(screen.queryByRole('link', { name: `Ancestor ${n}` })).toBeNull();
+    }
   });
 
-  it('renders the full trail on desktop even with >3 segments', async () => {
-    setViewport(false);
+  it('renders the full trail when desktop even with >3 segments', async () => {
     await renderBreadcrumbs({
       currentTitle: 'Current Page',
       ancestors: [1, 2, 3, 4, 5].map(makeAncestor),
+      isDesktop: true,
     });
     for (const n of [1, 2, 3, 4, 5]) {
       expect(screen.getByRole('link', { name: `Ancestor ${n}` })).toBeInTheDocument();
@@ -133,18 +116,46 @@ describe('Breadcrumbs', () => {
     expect(screen.queryByText('…')).toBeNull();
   });
 
-  it('never collapses when there are 3 or fewer segments, even on mobile', async () => {
-    setViewport(true);
+  it('never collapses with 3 or fewer segments when the breakpoint is not desktop', async () => {
     await renderBreadcrumbs({
       currentTitle: 'Current Page',
       ancestors: [makeAncestor(1)],
+      isDesktop: false,
     });
     expect(screen.getByRole('link', { name: 'Ancestor 1' })).toBeInTheDocument();
     expect(screen.queryByText('…')).toBeNull();
   });
 
+  it('never collapses with 3 or fewer segments when the breakpoint is desktop', async () => {
+    await renderBreadcrumbs({
+      currentTitle: 'Current Page',
+      ancestors: [makeAncestor(1)],
+      isDesktop: true,
+    });
+    expect(screen.getByRole('link', { name: 'Ancestor 1' })).toBeInTheDocument();
+    expect(screen.queryByText('…')).toBeNull();
+  });
+
+  it('flips full -> collapsed when isDesktop goes true -> false without re-rendering (3.5-M3 reactivity fix)', async () => {
+    const view = await renderBreadcrumbs({
+      currentTitle: 'Current Page',
+      ancestors: [1, 2, 3, 4, 5].map(makeAncestor),
+      isDesktop: true,
+    });
+    // Full trail while desktop.
+    expect(screen.getByRole('link', { name: 'Ancestor 3' })).toBeInTheDocument();
+    expect(screen.queryByText('…')).toBeNull();
+
+    // Same component instance — only the Breakpoint signal changes.
+    bpStub.isDesktop.set(false);
+    view.fixture.detectChanges();
+
+    expect(screen.queryByRole('link', { name: 'Ancestor 3' })).toBeNull();
+    expect(screen.getByText('…')).toBeInTheDocument();
+    expect(screen.getByText('Current Page')).toBeInTheDocument();
+  });
+
   it('truncates every segment with a title tooltip carrying the full text', async () => {
-    setViewport(false);
     await renderBreadcrumbs({
       currentTitle: 'A Very Long Current Page Title That Would Overflow',
       ancestors: [makeAncestor(1)],
@@ -168,8 +179,10 @@ describe('Breadcrumbs', () => {
   });
 
   it('gives the collapsed ellipsis a title listing the hidden ancestors', async () => {
-    setViewport(true);
-    await renderBreadcrumbs({ ancestors: [1, 2, 3, 4, 5].map(makeAncestor) });
+    await renderBreadcrumbs({
+      ancestors: [1, 2, 3, 4, 5].map(makeAncestor),
+      isDesktop: false,
+    });
     const ellipsis = screen.getByText('…');
     expect(ellipsis).toHaveClass('crumb');
     expect(ellipsis).toHaveAttribute(
@@ -179,14 +192,15 @@ describe('Breadcrumbs', () => {
   });
 
   it('marks the last crumb with aria-current="page" (I6)', async () => {
-    setViewport(false);
     await renderBreadcrumbs({ currentTitle: 'Deep Page', ancestors: [makeAncestor(1)] });
     expect(screen.getByText('Deep Page')).toHaveAttribute('aria-current', 'page');
   });
 
   it('gives the collapsed ellipsis an accessible name (I6)', async () => {
-    setViewport(true);
-    await renderBreadcrumbs({ ancestors: [1, 2, 3, 4, 5].map(makeAncestor) });
+    await renderBreadcrumbs({
+      ancestors: [1, 2, 3, 4, 5].map(makeAncestor),
+      isDesktop: false,
+    });
     expect(screen.getByText('…')).toHaveAttribute(
       'aria-label',
       'Show hidden breadcrumb segments',
