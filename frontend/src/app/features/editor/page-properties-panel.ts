@@ -393,5 +393,4 @@ export class PagePropertiesPanel {
       properties: mergeSchema(this.metadata().properties, schema),
     });
   }
-
 }

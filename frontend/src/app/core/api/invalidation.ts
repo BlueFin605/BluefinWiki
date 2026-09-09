@@ -78,10 +78,9 @@
  * Tags (`features/tags/page-tags.ts`):
  *   - `page-tags:list`           — the shared page-level tag vocabulary
  *                                  (`pageTagsResource`, `GET /tags?scope=_page`).
- *                                  Bumped by `Pages.createPage` and
- *                                  `Pages.updatePage` when the body carries
- *                                  `tags` — the backend auto-registers page
- *                                  tags on write, so the vocabulary grows.
+ *                                  Bumped by `Pages.updatePage` when the body
+ *                                  carries `tags` — the backend auto-registers
+ *                                  page tags on write, so the vocabulary grows.
  *
  * Attachments (`features/attachments/attachments.ts`):
  *   - `attachments:<pageGuid>`   — a page's attachment list (`listResource`)
