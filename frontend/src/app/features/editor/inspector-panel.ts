@@ -57,7 +57,7 @@ import type { PageProperty } from '../pages/page.types';
         @if (selectedTab() === 1) {
           <wiki-attachment-uploader
             [pageGuid]="pageGuid()"
-            (uploaded)="attachmentUploaded.set($event.filename)"
+            (uploaded)="insertMarkdown.emit($event.markdown)"
           />
           <wiki-attachment-manager
             [pageGuid]="pageGuid()"
@@ -111,6 +111,12 @@ export class InspectorPanel {
   readonly presentation = input<'side' | 'sheet'>('side');
 
   readonly metadataChange = output<PageMetadata>();
+  /**
+   * Markdown to drop in at the editor cursor. Carries both the attachment
+   * manager's Insert action (step 4.8) and, on the uploader's `uploaded` event,
+   * the ready-to-insert markdown of a freshly uploaded attachment (step 4.9) —
+   * one route to `page-detail`'s shared `insertMarkdownAtCursor`.
+   */
   readonly insertMarkdown = output<string>();
   /**
    * Forwarded from {@link PagePropertiesPanel.titleH1Sync}: the host rewrites a
@@ -124,9 +130,6 @@ export class InspectorPanel {
   readonly pageTypeChange = output<PageTypeChange>();
 
   protected readonly selectedTab = signal(0);
-
-  // Track the most recent successful upload for downstream consumers.
-  protected readonly attachmentUploaded = signal<string | null>(null);
 
   private readonly pageTypeSignal = computed(() =>
     this.metadata().pageType ?? SKIP_PAGE_TYPE_FETCH,

@@ -4,8 +4,9 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AttachmentUploader } from './attachment-uploader';
-import { FILE_LIMITS } from './attachment.types';
-import type { AttachmentUploadResponse } from './attachment.types';
+import { FILE_LIMITS, buildAttachmentMarkdown } from './attachment.types';
+import type { AttachmentUploadedEvent } from './attachment.types';
+import { InvalidationBus, attachmentsTag } from '../../core/api/invalidation';
 
 function file(name: string, type: string, size: number): File {
   const f = new File([new Uint8Array(0)], name, { type });
@@ -54,37 +55,106 @@ describe('AttachmentUploader', () => {
     expect(screen.getByText(/too large/i)).toBeInTheDocument();
   });
 
-  it('emits uploaded with the response after a successful upload', async () => {
-    const rendered = await render(AttachmentUploader, {
-      inputs: { pageGuid: 'p1' },
-      providers: [provideAnimationsAsync(), provideHttpClient(), provideHttpClientTesting()],
-    });
-    const responses: AttachmentUploadResponse[] = [];
-    rendered.fixture.componentInstance.uploaded.subscribe((r) => responses.push(r));
-
-    const small = file('a.txt', 'text/plain', 100);
-    const uploadPromise = rendered.fixture.componentInstance.handleFiles([small]);
-
+  async function driveUpload(
+    componentInstance: AttachmentUploader,
+    f: File,
+    confirmBody: Record<string, unknown>,
+  ): Promise<void> {
+    const uploadPromise = componentInstance.handleFiles([f]);
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/pages/p1/attachments/presign').flush({
       uploadUrl: 'https://s3.example.com/x',
       attachmentKey: 'k',
-      filename: 'a.txt',
+      filename: f.name,
     });
     await settle();
     http.expectOne('https://s3.example.com/x').flush(null);
     await settle();
-    http.expectOne('/api/pages/p1/attachments/confirm').flush({
+    http.expectOne('/api/pages/p1/attachments/confirm').flush(confirmBody);
+    await uploadPromise;
+    await settle();
+  }
+
+  it('emits uploaded with { filename, markdown } after a successful upload', async () => {
+    const rendered = await render(AttachmentUploader, {
+      inputs: { pageGuid: 'p1' },
+      providers: [provideAnimationsAsync(), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const events: AttachmentUploadedEvent[] = [];
+    rendered.fixture.componentInstance.uploaded.subscribe((e) => events.push(e));
+
+    await driveUpload(rendered.fixture.componentInstance, file('a.txt', 'text/plain', 100), {
       attachmentGuid: 'g',
       filename: 'a.txt',
       contentType: 'text/plain',
       size: 100,
       url: 'cdn',
     });
+
+    expect(events).toEqual([
+      { filename: 'a.txt', markdown: buildAttachmentMarkdown('a.txt', 'text/plain') },
+    ]);
+  });
+
+  it('builds an image embed for the uploaded markdown via the shared builder', async () => {
+    const rendered = await render(AttachmentUploader, {
+      inputs: { pageGuid: 'p1' },
+      providers: [provideAnimationsAsync(), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const events: AttachmentUploadedEvent[] = [];
+    rendered.fixture.componentInstance.uploaded.subscribe((e) => events.push(e));
+
+    await driveUpload(rendered.fixture.componentInstance, file('Diagram.png', 'image/png', 10), {
+      attachmentGuid: 'g',
+      filename: 'Diagram.png',
+      contentType: 'image/png',
+      size: 10,
+      url: 'cdn',
+    });
+
+    expect(events[0].markdown).toBe('![Diagram](Diagram.png)');
+    expect(events[0].markdown).toBe(buildAttachmentMarkdown('Diagram.png', 'image/png'));
+  });
+
+  it('invalidates the page attachments tag on a successful upload', async () => {
+    const rendered = await render(AttachmentUploader, {
+      inputs: { pageGuid: 'p1' },
+      providers: [provideAnimationsAsync(), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const bus = TestBed.inject(InvalidationBus);
+    const before = bus.version(attachmentsTag('p1'));
+
+    await driveUpload(rendered.fixture.componentInstance, file('a.txt', 'text/plain', 100), {
+      attachmentGuid: 'g',
+      filename: 'a.txt',
+      contentType: 'text/plain',
+      size: 100,
+      url: 'cdn',
+    });
+
+    expect(bus.version(attachmentsTag('p1'))).toBe(before + 1);
+  });
+
+  it('shows a failed upload inline and does not emit uploaded (no auto-insert)', async () => {
+    const rendered = await render(AttachmentUploader, {
+      inputs: { pageGuid: 'p1' },
+      providers: [provideAnimationsAsync(), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const events: AttachmentUploadedEvent[] = [];
+    rendered.fixture.componentInstance.uploaded.subscribe((e) => events.push(e));
+
+    const uploadPromise = rendered.fixture.componentInstance.handleFiles([
+      file('a.txt', 'text/plain', 100),
+    ]);
+    const http = TestBed.inject(HttpTestingController);
+    http
+      .expectOne('/api/pages/p1/attachments/presign')
+      .flush('boom', { status: 500, statusText: 'Server Error' });
     await uploadPromise;
     await settle();
+    rendered.fixture.detectChanges();
 
-    expect(responses.length).toBe(1);
-    expect(responses[0].filename).toBe('a.txt');
+    expect(rendered.container.querySelector('.errors')?.textContent).toMatch(/a\.txt/);
+    expect(events).toEqual([]);
   });
 });

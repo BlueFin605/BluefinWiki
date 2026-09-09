@@ -25,7 +25,7 @@ import { InspectorPanel } from '../editor/inspector-panel';
 import type { PageTypeChange } from '../editor/page-properties-panel';
 import { rewriteFirstH1, firstH1Range } from '../editor/title-h1';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
-import { buildAttachmentMarkdown, type AttachmentUploadResponse } from '../attachments/attachment.types';
+import type { AttachmentUploadedEvent } from '../attachments/attachment.types';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
 import { WikiTableOfContents } from '../../shared/markdown/table-of-contents';
 import { Breadcrumbs } from '../../shared/components/breadcrumbs';
@@ -880,12 +880,13 @@ export class PageDetail {
   /**
    * A file finished uploading from the toolbar's inline uploader: drop its
    * markdown in at the cursor (React parity — the returned markdown is
-   * auto-inserted; this is also step 4.9). The uploader panel stays open so
-   * several files can be added in a row.
+   * auto-inserted; step 4.9). The uploader already built the markdown via the
+   * shared {@link buildAttachmentMarkdown}, so this only appends a trailing
+   * newline. The uploader panel stays open so several files can be added in a
+   * row. (The inspector's uploader takes the `insertMarkdown` route instead.)
    */
-  onAttachmentUploaded(response: AttachmentUploadResponse): void {
-    const markdown = buildAttachmentMarkdown(response.filename, response.contentType);
-    this.insertMarkdownAtCursor(`${markdown}\n`);
+  onAttachmentUploaded(event: AttachmentUploadedEvent): void {
+    this.insertMarkdownAtCursor(`${event.markdown}\n`);
   }
 
   onPickPage(page: PageSearchResult, ctx: CursorContext): void {

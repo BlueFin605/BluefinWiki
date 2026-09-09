@@ -13,7 +13,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { Attachments } from './attachments';
 import {
   type AttachmentUploadProgress,
-  type AttachmentUploadResponse,
+  type AttachmentUploadedEvent,
+  buildAttachmentMarkdown,
   validateFile,
 } from './attachment.types';
 
@@ -83,7 +84,14 @@ export class AttachmentUploader {
   private readonly attachments = inject(Attachments);
 
   readonly pageGuid = input.required<string>();
-  readonly uploaded = output<AttachmentUploadResponse>();
+  /**
+   * Fires once per successful upload with the stored filename and the
+   * ready-to-insert markdown (step 4.9). The markdown is built here via the
+   * shared {@link buildAttachmentMarkdown} — the same builder the attachment
+   * manager's Copy Markdown / Insert use — so consumers route it straight to
+   * `insertMarkdownAtCursor` without re-deriving a markdown string.
+   */
+  readonly uploaded = output<AttachmentUploadedEvent>();
 
   protected readonly dragOver = signal(false);
   private readonly _progress = signal<Map<string, AttachmentUploadProgress>>(new Map());
@@ -142,7 +150,10 @@ export class AttachmentUploader {
           filename: response.filename,
           url: response.url,
         });
-        this.uploaded.emit(response);
+        this.uploaded.emit({
+          filename: response.filename,
+          markdown: buildAttachmentMarkdown(response.filename, response.contentType),
+        });
       } catch (err) {
         const message = (err as { message?: string })?.message ?? 'Upload failed';
         this.setProgress(key, { file, progress: 0, status: 'failed', error: message });

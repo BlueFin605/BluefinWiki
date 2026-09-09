@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -7,6 +8,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { InspectorPanel } from './inspector-panel';
+import type { AttachmentUploader } from '../attachments/attachment-uploader';
 import { Auth } from '../../core/auth/auth';
 import type { PageMetadata } from '../pages/drafts';
 import type { AuthUser } from '../../core/auth/auth.types';
@@ -44,11 +46,12 @@ function meta(): PageMetadata {
 async function renderInspector(
   extraInputs: Record<string, unknown> = {},
   backlinkCount = 0,
+  opts: { noopAnimations?: boolean } = {},
 ) {
   const result = await render(InspectorPanel, {
     inputs: { pageGuid: 'g1', metadata: meta(), pageAuthorId: 'u', ...extraInputs },
     providers: [
-      provideAnimationsAsync(),
+      opts.noopAnimations ? provideNoopAnimations() : provideAnimationsAsync(),
       provideRouter([]),
       provideHttpClient(),
       provideHttpClientTesting(),
@@ -83,6 +86,28 @@ describe('InspectorPanel', () => {
     await settle();
     fixture.detectChanges();
     http.expectOne('/api/pages/g1/attachments').flush({ attachments: [] });
+  });
+
+  it('routes the uploader uploaded event to the insertMarkdown output (step 4.9 auto-insert)', async () => {
+    const { http, fixture } = await renderInspector({}, 0, { noopAnimations: true });
+    fixture.componentInstance['selectedTab'].set(1);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    http.expectOne('/api/pages/g1/attachments').flush({ attachments: [] });
+    await settle();
+    fixture.detectChanges();
+
+    const seen: string[] = [];
+    fixture.componentInstance.insertMarkdown.subscribe((m) => seen.push(m));
+
+    const uploader = fixture.debugElement.query(By.css('wiki-attachment-uploader'))
+      .componentInstance as AttachmentUploader;
+    uploader.uploaded.emit({ filename: 'x.png', markdown: '![x](x.png)' });
+
+    // The exact markdown string is forwarded verbatim — no filename-only stash,
+    // no re-derived markdown.
+    expect(seen).toEqual(['![x](x.png)']);
   });
 
   it('shows the backlink count as a badge on the Linked tab when non-zero', async () => {

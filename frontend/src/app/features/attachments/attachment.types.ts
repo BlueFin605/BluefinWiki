@@ -25,6 +25,18 @@ export interface AttachmentUploadResponse {
   url: string;
 }
 
+/**
+ * Payload emitted by the attachment uploader's `uploaded` output on a
+ * successful upload (step 4.9). Carries the stored filename plus the
+ * ready-to-insert markdown, built once here via {@link buildAttachmentMarkdown}
+ * so upload auto-insert shares the app's single attachment -> markdown builder
+ * (no hand-rolled string in `inspector-panel` / `page-detail`).
+ */
+export interface AttachmentUploadedEvent {
+  filename: string;
+  markdown: string;
+}
+
 export interface AttachmentUploadProgress {
   file: File;
   progress: number; // 0-100

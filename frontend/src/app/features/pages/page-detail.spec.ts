@@ -2,6 +2,7 @@ import type { WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -68,11 +69,13 @@ function drain(): void {
   }
 }
 
-async function renderDetail(opts: { guid?: string; editMode?: boolean } = {}) {
+async function renderDetail(
+  opts: { guid?: string; editMode?: boolean; noopAnimations?: boolean } = {},
+) {
   const guid = opts.guid ?? 'g1';
   const result = await render(PageDetail, {
     providers: [
-      provideAnimationsAsync(),
+      opts.noopAnimations ? provideNoopAnimations() : provideAnimationsAsync(),
       provideHttpClient(),
       provideHttpClientTesting(),
       provideRouter([]),
@@ -1074,16 +1077,48 @@ describe('PageDetail', () => {
     const uploader = fixture.debugElement.query(By.directive(AttachmentUploader))
       .componentInstance as AttachmentUploader;
     uploader.uploaded.emit({
-      attachmentGuid: 'a1',
       filename: 'Diagram.png',
-      contentType: 'image/png',
-      size: 10,
-      url: 'cdn/Diagram.png',
+      markdown: buildAttachmentMarkdown('Diagram.png', 'image/png'),
     });
     await settle();
 
     expect(insertSpy).toHaveBeenCalledTimes(1);
     expect(insertSpy.mock.calls[0][0]).toContain(buildAttachmentMarkdown('Diagram.png', 'image/png'));
+  });
+
+  it('auto-inserts markdown from the inspector attachment uploader via insertMarkdownAtCursor (step 4.9)', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true, noopAnimations: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const inspector = fixture.debugElement.query(By.css('wiki-inspector-panel'))
+      .componentInstance as { selectedTab: { set: (n: number) => void } };
+    inspector.selectedTab.set(1);
+    fixture.detectChanges();
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const comp = fixture.componentInstance as unknown as {
+      insertMarkdownAtCursor: (md: string) => void;
+    };
+    const insertSpy = jest.spyOn(comp, 'insertMarkdownAtCursor');
+
+    const uploader = fixture.debugElement.query(By.css('wiki-attachment-uploader'))
+      .componentInstance as AttachmentUploader;
+    uploader.uploaded.emit({ filename: 'x.png', markdown: '![x](x.png)' });
+    await settle();
+
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    expect(insertSpy).toHaveBeenCalledWith('![x](x.png)');
   });
 
   it('insertMarkdownAtCursor writes the markdown into the editor buffer', async () => {
