@@ -63,3 +63,9 @@ wherever the preview renders; a pure `extractHeadings(markdown)` helper.
 ## Out of scope
 
 - Final mobile bar styling/behaviour (→ 1.5).
+
+**Mobile bar DONE in Phase 1b step 1b.8** (`4bbcb35..44d3de8`): `[compact]`
+driven from `Breakpoint.isDesktop()`; `<1024` renders a collapsed "On this
+page" bar above the preview (expand → smooth-scroll → re-collapse);
+IntersectionObserver torn down while compact, re-wired on the flip back;
+`<3` headings still hides at any width.

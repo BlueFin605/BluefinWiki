@@ -66,3 +66,9 @@ cursor insert).
 
 - Deciding when compact/mobile applies and bottom-pinning (→ 1.5).
 - The attachment *manager* actions (→ 4.8).
+
+**Mobile parts DONE in Phase 1b step 1b.6** (`762dc3f..e2c1892`): `[compact]`
+driven from `Breakpoint.isDesktop()`; toolbar `position:fixed` bottom-pinned,
+`overflow-x:auto`, `env(safe-area-inset-bottom)`, heading menu `yPosition="above"`;
+**headings restricted to H1–H3 when compact** (Phase 1b whole-branch review I1,
+`a886bdb`). Real-browser verification is in the Phase 1b manual matrix.

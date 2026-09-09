@@ -54,3 +54,12 @@ mobile sheet. React: desktop right resizable panel bound to
 
 - Tab contents (4.2–4.9).
 - Final mobile sheet behaviour (→ 1.5).
+
+**Mobile sheet + the hoist DONE in Phase 1b steps 1b.3 + 1b.5**
+(`8bfc24a..aef2403`, `87b412a..30c9c4f`): the inspector moved out of
+`page-detail` into `pages-view` via a new `PageContext` service and became a
+reactive `end` `mat-sidenav` — desktop `mode="side"` bound to
+`Layout.inspectorVisible`/`inspectorWidth` + divider (this step's binding
+satisfied there); mobile `mode="over"` `.mobile-sheet` (100vw, ≤75vh,
+bottom-anchored). The `presentation` seam this step added was superseded and
+removed in 1b.5.

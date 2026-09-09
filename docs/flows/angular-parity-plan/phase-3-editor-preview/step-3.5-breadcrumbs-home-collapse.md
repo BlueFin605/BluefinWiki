@@ -58,3 +58,8 @@ the `pages-view` level).
 ## Out of scope
 
 - The exact mobile breakpoint value (owned by 1.5).
+
+**Mobile collapse DONE in Phase 1b step 1b.7** (`7eed2cc`): the interim
+non-reactive `window.matchMedia` gate (finding 3.5-M3) was replaced with
+`Breakpoint.isDesktop()` — the `>3`-segment collapse now re-evaluates on
+resize/rotate. All `TODO(1b.7)` markers removed.

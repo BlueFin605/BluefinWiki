@@ -18,8 +18,12 @@ sidebar header and in the mobile bar. Angular's `pages-view` moved New page / AI
 
 - A visible Search button (magnifier icon, `aria-label="Search"`) that opens
   the same dialog `Ctrl/Cmd+K` opens.
-- Placement: the `pages-view` top toolbar (near "New page" / AI), and — once
-  Phase 1b (step 1b.4) lands — the mobile top bar.
+- Placement: the `pages-view` **top toolbar** (near "New page" / AI). Phase 1b
+  (1b.4) has landed — that toolbar IS the mobile top bar, so the button belongs
+  there and **must NOT** go in the tree-drawer header: at 360×640 there is no
+  keyboard and the drawer is closed by default, so a drawer-header button would
+  leave search unreachable on mobile. (React has it in both the sidebar header
+  and the mobile bar; Angular's single hoisted toolbar covers both.)
 - Tooltip shows the `Ctrl/Cmd+K` hint.
 
 ## Implementation notes

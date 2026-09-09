@@ -36,23 +36,47 @@ parallel-safe after 1b.1.
 
 ## Phase exit criteria
 
-- [ ] Every step's acceptance criteria met; `npm test` + `npm run lint` green.
-- [ ] Manual at 360×640, 800×1000, 1440×900:
-  - [ ] `<1024`: a hamburger opens a left drawer holding the tree; selecting a
-        page closes it; backdrop/Esc close it.
-  - [ ] `<1024`: the inspector opens as a bottom sheet (≤75vh, full width) from
-        an info icon in the editor bar.
-  - [ ] `<1024`: the editor offers Edit/Preview only (no Split); the markdown
-        toolbar is pinned to the bottom, scrolls horizontally, headings menu
-        opens upward, OL/Task/code-block hidden.
-  - [ ] `<1024`: breadcrumbs with >3 segments show `Home ▸ … ▸ Current`.
-  - [ ] `<1024`: the TOC is a collapsible bar above the preview.
-  - [ ] `<1024`: the AI sidebar is a full-width overlay; the search dialog is
-        full-screen.
-  - [ ] `≥1024`: desktop layout unchanged from post-Phase-4 — tree/inspector
-        dividers still resize and persist.
-  - [ ] No horizontal body scroll at any width.
-- [ ] The global `app.html` toolbar is gone; admin/settings/profile still have a
-      back affordance (step 8.1); `/callback` is chrome-less.
-- [ ] Parent `README.md` status board + `phase-1-foundations/step-1.5` updated
-      to point here.
+Code complete at `a886bdb` (9 steps + whole-branch review + fix wave). 92 suites
+/ 814 tests green, `npm run lint` + `tsc --noEmit -p tsconfig.app.json` clean.
+Ticked items below are jsdom / Testing-Library verified. The **manual matrix is
+still owed** — jsdom has no layout engine, so every physical-rendering item
+(`[m]` below) needs a real-browser pass; the 32-item checklist is in
+`.superpowers/sdd/phase-1b-review.md`.
+
+- [x] Every step's acceptance criteria met; `npm test` + `npm run lint` green
+      (whole-branch review passed *with fixes* — 1 Critical (mobile AI overlay
+      was painted under the app toolbar) + 3 Important fixed in `a886bdb`).
+- [ ] **Manual matrix at 360×640, 800×1000, 1440×900 — OWED:**
+  - [x] `<1024`: a hamburger opens a left drawer holding the tree; selecting a
+        page closes it; `(closed)` clears the state. *[m] backdrop/Esc gesture.*
+  - [x] `<1024`: the inspector `mat-sidenav` is `mode="over"` + `.mobile-sheet`
+        (100vw, ≤75vh, bottom-anchored) from an info-labelled editor-bar control.
+        *[m] the slide-up animation + backdrop/Esc + ≤75vh scroll.*
+  - [x] `<1024`: the editor mode toggle omits Split (live split→edit fallback);
+        the compact markdown toolbar has the bottom-pinned class, heading menu
+        `yPosition="above"`, headings **H1–H3 only**, OL/Task/code-block hidden.
+        *[m] `position:fixed` on a scrolled editor, horizontal scroll,
+        `env(safe-area-inset-bottom)`, no obscured content, menu opens upward.*
+  - [x] `<1024`: breadcrumbs with >3 segments collapse to `Home ▸ … ▸ Current`,
+        driven by `Breakpoint.isDesktop()` (reactive — fixes 3.5-M3). *[m] the
+        collapse re-evaluating on resize alone.*
+  - [x] `<1024`: the TOC renders as a collapsed "On this page" bar; expand +
+        select smooth-scrolls and re-collapses. *[m] the bar sitting above the
+        preview via the `@media` stacking; sticky rail unchanged ≥1024.*
+  - [x] `<1024`: `<wiki-ai-sidebar>` renders as a `.pages-shell`-level
+        `position:fixed` 100vw overlay (`z-index:3`, above `.topbar` — C1 fix);
+        the search dialog opens 100vw/100vh with `fullscreen-dialog` panelClass.
+        *[m] the overlay actually covering the toolbar; the dialog full-bleed
+        with the results list reaching the bottom.*
+  - [ ] `≥1024`: desktop layout unchanged from post-Phase-4. *[m] side-by-side
+        vs `c8c13b5`: drawer borders/corners, both dividers drag + persist,
+        400px AI pane.*
+  - [ ] No horizontal body scroll at any width. *[m] esp. 800×1000 where a
+        classic scrollbar makes 100vw > container.*
+  - [x] Below 1024 the tree drawer, inspector sheet and AI overlay are mutually
+        exclusive (DESIGN D9 — I3 fix).
+- [x] The global `app.html` toolbar is gone; admin/settings/profile have an
+      interim `<h1>` + "Back to pages" + `TODO(8.1)`; `/callback` chrome-less;
+      `/403` `/404` standalone.
+- [x] Parent `README.md` status board + `phase-1-foundations/step-1.5` point
+      here (1.5 already did; status board updated at Phase 1b completion).

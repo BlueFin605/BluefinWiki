@@ -131,7 +131,7 @@ class PageContext {
 | Inspector | bottom sheet (`over`, 100vw, ≤75vh); toggle is an info icon in the editor bar | 1b.3 / 1b.5 (satisfies [step 4.1](../phase-4-inspector/step-4.1-inspector-layout-binding.md)) |
 | Search dialog | full-screen `MatDialog` (panel class); centered 640px on desktop | 1b.9 |
 | AI sidebar | full-width fixed overlay above the content | 1b.9 |
-| Visible Search button | already added in [step 6.7](../phase-6-search/step-6.7-search-visible-button.md); 1b.4 confirms it sits in the mobile top bar | 1b.4 |
+| Visible Search button | **pending — Phase 6 has not run.** Step [6.7](../phase-6-search/step-6.7-search-visible-button.md) MUST place the button in the `pages-view` top toolbar (not the tree drawer header) so it stays reachable below 1024 — there is no keyboard at 360×640 and `Ctrl/Cmd+K` is the only entry point today. 1b did not add it. | 6.7 |
 
 ---
 
