@@ -805,4 +805,116 @@ describe('PagesView', () => {
       (fixture.nativeElement as HTMLElement).querySelector('.mat-drawer-backdrop.mat-drawer-shown'),
     ).toBeNull();
   });
+
+  // ---- Step 1b.9: AI full-width overlay + full-screen search dialog ------
+
+  interface AiHandle {
+    aiOpen: { (): boolean; set(v: boolean): void };
+  }
+
+  function spyDialogOpen(): jest.SpyInstance {
+    const dialog = TestBed.inject(MatDialog);
+    return jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => ({ subscribe: () => undefined }) } as never);
+  }
+
+  type OpenCall = [dialogArg: unknown, config?: Record<string, unknown>];
+
+  function firstOpenCall(openSpy: jest.SpyInstance): { dialogArg: unknown; config: Record<string, unknown> } {
+    const call = (openSpy.mock.calls as OpenCall[]).at(0);
+    if (!call) throw new Error('MatDialog.open was not called');
+    return { dialogArg: call[0], config: call[1] ?? {} };
+  }
+
+  function pressSearchKey(combo: 'ctrl' | 'cmd'): void {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'k',
+        ctrlKey: combo === 'ctrl',
+        metaKey: combo === 'cmd',
+        cancelable: true,
+      }),
+    );
+  }
+
+  it('mobile + aiOpen: the AI sidebar mounts in the full-width .ai-overlay, not the .ai-pane', async () => {
+    const { fixture } = await renderShellAt(false);
+    (fixture.componentInstance as AiHandle).aiOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.ai-overlay')).toBeTruthy();
+    expect(host.querySelector('.ai-pane')).toBeNull();
+    expect(host.querySelector('.ai-overlay wiki-ai-sidebar')).toBeTruthy();
+  });
+
+  it('desktop + aiOpen: the AI sidebar mounts in the .ai-pane column, no overlay class', async () => {
+    const { fixture } = await renderShellAt(true);
+    (fixture.componentInstance as AiHandle).aiOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.ai-pane')).toBeTruthy();
+    expect(host.querySelector('.ai-overlay')).toBeNull();
+  });
+
+  it('mobile: the AI overlay has an in-panel close control that clears aiOpen', async () => {
+    const { fixture } = await renderShellAt(false);
+    const cmp = fixture.componentInstance as AiHandle;
+    cmp.aiOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /close ai assistant/i }));
+    await settle();
+    fixture.detectChanges();
+
+    expect(cmp.aiOpen()).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.ai-overlay')).toBeNull();
+  });
+
+  for (const combo of ['ctrl', 'cmd'] as const) {
+    it(`mobile: ${combo}+K opens SearchDialog full-screen (100vw x 100vh + fullscreen-dialog panel class)`, async () => {
+      await renderShellAt(false);
+      const openSpy = spyDialogOpen();
+
+      pressSearchKey(combo);
+      await settle();
+
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      const { dialogArg, config } = firstOpenCall(openSpy);
+      expect(dialogArg).toBe(SearchDialog);
+      expect(config.width).toBe('100vw');
+      expect(config.height).toBe('100vh');
+      expect(config.maxWidth).toBe('100vw');
+      expect(config.panelClass).toEqual(
+        expect.arrayContaining(['wiki-search-dialog-panel', 'fullscreen-dialog']),
+      );
+    });
+
+    it(`desktop: ${combo}+K opens SearchDialog at the 640px centered config (no fullscreen-dialog)`, async () => {
+      await renderShellAt(true);
+      const openSpy = spyDialogOpen();
+
+      pressSearchKey(combo);
+      await settle();
+
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      const { config } = firstOpenCall(openSpy);
+      expect(config.width).toBe('640px');
+      expect(config.height).toBeUndefined();
+      const panelClass = Array.isArray(config.panelClass)
+        ? (config.panelClass as string[])
+        : [config.panelClass as string];
+      expect(panelClass).toContain('wiki-search-dialog-panel');
+      expect(panelClass).not.toContain('fullscreen-dialog');
+    });
+  }
 });

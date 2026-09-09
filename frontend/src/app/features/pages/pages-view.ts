@@ -4,7 +4,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatIconModule } from '@angular/material/icon';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, type MatDialogConfig } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { firstValueFrom } from 'rxjs';
@@ -132,10 +132,11 @@ import { AiSidebar } from '../ai/ai-sidebar';
             </div>
           }
           <!--
-            Below 1024 the AI sidebar is a full-width fixed overlay, never a
-            side-by-side pane (DESIGN.md D7). Final overlay styling is step 1b.9;
-            here it only has to stop the desktop ai-pane from squashing the
-            mobile content.
+            Below 1024 the AI sidebar is a full-width fixed overlay above the
+            content (DESIGN.md D7), never a side-by-side pane. Fixed positioning
+            keeps it out of the flex flow so .content / .main stay full width
+            (no squeeze). Its close control is wiki-ai-sidebar's own header
+            button, wired to aiOpen here.
           -->
           @if (!bp.isDesktop() && aiOpen()) {
             <div class="ai-overlay">
@@ -306,13 +307,18 @@ import { AiSidebar } from '../ai/ai-sidebar';
     }
 
     /*
-      Below 1024 the AI sidebar is a full-width fixed overlay (DESIGN.md D7).
-      Final styling is step 1b.9 — this is just enough to float it above the
-      content instead of letting a pane squash it.
+      Below 1024 the AI sidebar is a full-width fixed overlay above the content
+      (DESIGN.md D7). Fixed positioning + explicit 100vw takes it out of the
+      content flow so mat-sidenav-content / .main keep full width (no squeeze).
+      The z-index clears the sidenav content; the search CDK overlay still
+      layers above it. wiki-ai-sidebar brings its own header close button.
     */
     .ai-overlay {
       position: fixed;
-      inset: 0;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100%;
       z-index: 20;
       background: white;
       display: flex;
@@ -530,10 +536,19 @@ export class PagesView {
   }
 
   private openSearch(): void {
-    this.dialog.open<SearchDialog, void, string | null>(SearchDialog, {
-      width: '640px',
-      panelClass: 'wiki-search-dialog-panel',
-    });
+    // Full-screen below 1024, 640px centered on desktop (step 1b.9, DESIGN.md
+    // D7 sibling). The branch is decided at open time from the live breakpoint.
+    // The `fullscreen-dialog` panel-class style is global (src/styles.scss) —
+    // a component's scoped styles never reach the CDK overlay container.
+    const config: MatDialogConfig<void> = this.bp.isDesktop()
+      ? { width: '640px', panelClass: 'wiki-search-dialog-panel' }
+      : {
+          width: '100vw',
+          maxWidth: '100vw',
+          height: '100vh',
+          panelClass: ['wiki-search-dialog-panel', 'fullscreen-dialog'],
+        };
+    this.dialog.open<SearchDialog, void, string | null>(SearchDialog, config);
   }
 
   onSettings(): void {

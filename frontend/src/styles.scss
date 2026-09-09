@@ -39,3 +39,18 @@ body {
   height: 100%;
 }
 /* You can add global styles to this file, and also import other style files */
+
+/*
+  Full-screen search dialog on mobile (step 1b.9, DESIGN.md D7 sibling). A CDK
+  overlay panelClass style has to be global — a component's scoped `styles`
+  never reach the overlay container. The width / height / maxWidth on the
+  MatDialogConfig do the sizing; this squares the surface off so it is truly
+  full-bleed.
+*/
+.fullscreen-dialog {
+  max-width: 100vw !important;
+
+  .mat-mdc-dialog-surface {
+    border-radius: 0;
+  }
+}
