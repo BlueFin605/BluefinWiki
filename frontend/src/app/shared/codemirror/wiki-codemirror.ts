@@ -152,6 +152,17 @@ export class WikiCodemirror implements AfterViewInit, OnDestroy {
     view.focus();
   }
 
+  /**
+   * Replace `[from, to)` with `text` **without** moving the cursor or taking
+   * focus. Used by the inspector Title -> H1 sync (step 4.3): editing the Title
+   * field rewrites a leading `# H1` line in the same undo history as typing,
+   * while keyboard focus stays in the Title input. The `updateListener` still
+   * fires, so the `value` model (and the host's buffer signal) updates.
+   */
+  replaceRange(from: number, to: number, text: string): void {
+    this.view?.dispatch({ changes: { from, to, insert: text } });
+  }
+
   private makeState(doc: string): EditorState {
     const onSave = this.save;
     const valueModel = this.value;

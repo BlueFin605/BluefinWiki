@@ -134,7 +134,8 @@ describe('PageDetail', () => {
     drain();
     await settle();
     fixture.detectChanges();
-    expect(screen.getByLabelText('Title')).not.toBeDisabled();
+    // Title is a click-to-edit trigger; enabled (editable) in view mode.
+    expect(screen.getByRole('button', { name: 'Title' })).not.toBeDisabled();
     // Clean working copy => no Save button until something changes.
     expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
   });
@@ -1006,6 +1007,80 @@ describe('PageDetail', () => {
     // Action succeeded rather than being silently swallowed.
     expect(editorMode(fixture)).toBe('split');
     expect(fixture.componentInstance.content()).toContain('![x](x.png)');
+  });
+
+  // ---- Step 4.3: Title -> H1 sync ----------------------------------------
+
+  const setFirstH1 = (fixture: { componentInstance: unknown }, t: string): void =>
+    (fixture.componentInstance as { setFirstH1: (t: string) => void }).setFirstH1(t);
+
+  it('setFirstH1 rewrites a leading # H1 in the editor buffer via a CM transaction', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Original\n\nbody' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    setFirstH1(fixture, 'Renamed');
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toBe('# Renamed\n\nbody');
+  });
+
+  it('setFirstH1 leaves a non-H1 first line untouched', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'Just text\n# Later' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    setFirstH1(fixture, 'Renamed');
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toBe('Just text\n# Later');
+  });
+
+  it('setFirstH1 does not loop — a repeat with the same title dispatches nothing', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Original\n\nbody' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    const ed = (fixture.componentInstance as { editor: () => { replaceRange: (...a: unknown[]) => void } }).editor();
+    const spy = jest.spyOn(ed, 'replaceRange');
+
+    setFirstH1(fixture, 'Renamed'); // one real rewrite
+    await settle();
+    setFirstH1(fixture, 'Renamed'); // H1 already correct -> no-op
+    await settle();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.content()).toBe('# Renamed\n\nbody');
+  });
+
+  it('setFirstH1 rewrites the buffer directly (no mode flip) when CodeMirror is unmounted in Preview', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Original\n\nbody' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Preview' }));
+    fixture.detectChanges();
+    await settle();
+    expect(editorMode(fixture)).toBe('preview');
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror')).toBeNull();
+
+    setFirstH1(fixture, 'Renamed');
+    fixture.detectChanges();
+    await settle();
+
+    expect(fixture.componentInstance.content()).toBe('# Renamed\n\nbody');
+    // A passive Title edit must not yank the surface out of Preview.
+    expect(editorMode(fixture)).toBe('preview');
   });
 
   it('onImageResize rewrites the image at the reported document-order index', async () => {

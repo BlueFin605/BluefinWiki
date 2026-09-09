@@ -40,6 +40,7 @@ import type { PageProperty } from '../pages/page.types';
           <wiki-page-properties-panel
             [metadata]="metadata()"
             (metadataChange)="metadataChange.emit($event)"
+            (titleH1Sync)="titleH1Sync.emit($event)"
           />
           @if (currentPageType(); as pt) {
             <wiki-custom-properties-editor
@@ -110,6 +111,11 @@ export class InspectorPanel {
 
   readonly metadataChange = output<PageMetadata>();
   readonly insertMarkdown = output<string>();
+  /**
+   * Forwarded from {@link PagePropertiesPanel.titleH1Sync}: the host rewrites a
+   * leading `# H1` line in the editor buffer when the user edits the Title.
+   */
+  readonly titleH1Sync = output<string>();
 
   protected readonly selectedTab = signal(0);
 

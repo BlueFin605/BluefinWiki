@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { InspectorPanel } from './inspector-panel';
 import { Auth } from '../../core/auth/auth';
 import type { PageMetadata } from '../pages/drafts';
@@ -113,6 +114,19 @@ describe('InspectorPanel', () => {
     fixture.detectChanges();
     // The LinkedPagesPanel inside the tab has its own resource.
     http.expectOne('/api/pages/g1/backlinks').flush({ guid: 'g1', backlinks: [], count: 0 });
+  });
+
+  it('forwards the properties panel titleH1Sync output to the host', async () => {
+    const { fixture } = await renderInspector();
+    const seen: string[] = [];
+    fixture.componentInstance.titleH1Sync.subscribe((t) => seen.push(t));
+
+    const panel = fixture.debugElement
+      .query(By.css('wiki-page-properties-panel'))
+      .componentInstance as { titleH1Sync: { emit: (v: string) => void } };
+    panel.titleH1Sync.emit('New Heading');
+
+    expect(seen).toEqual(['New Heading']);
   });
 
   // ---- Step 4.1: mobile-sheet presentation seam --------------------------

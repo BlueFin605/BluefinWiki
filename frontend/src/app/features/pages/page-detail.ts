@@ -22,6 +22,7 @@ import { WikiCodemirror, type CursorContext, type ToolbarAction } from '../../sh
 import { MarkdownToolbar } from '../editor/markdown-toolbar';
 import { LinkAutocomplete } from '../editor/link-autocomplete';
 import { InspectorPanel } from '../editor/inspector-panel';
+import { rewriteFirstH1, firstH1Range } from '../editor/title-h1';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { buildAttachmentMarkdown, type AttachmentUploadResponse } from '../attachments/attachment.types';
 import { MarkdownRenderer } from '../../shared/markdown/markdown-renderer';
@@ -355,6 +356,7 @@ export function resolveSaveStatus(state: {
               [canInsert]="mode() === 'edit'"
               (metadataChange)="metadata.set($event)"
               (insertMarkdown)="onInsertMarkdown($event)"
+              (titleH1Sync)="setFirstH1($event)"
             />
           }
         </mat-sidenav>
@@ -926,6 +928,47 @@ export class PageDetail {
   /** Inspector `insertMarkdown` output → shared cursor insert. */
   onInsertMarkdown(text: string): void {
     this.insertMarkdownAtCursor(text);
+  }
+
+  /**
+   * Inspector Title -> H1 sync (step 4.3). When the user edits the Title and the
+   * buffer's first non-empty line is a Markdown `# H1`, rewrite that line to
+   * `# <title>` so the heading and the Title stay coherent. A non-H1 first line
+   * is left untouched.
+   *
+   * Feedback-loop guard (two parts): the panel only emits `titleH1Sync` for a
+   * genuine, non-empty *user* Title edit — never for programmatic metadata
+   * hydration; and here the rewrite is skipped whenever it would be a no-op
+   * ({@link rewriteFirstH1} returns the buffer by reference). So a keystroke
+   * that leaves the H1 already-correct dispatches nothing, and even if a
+   * future change derived the Title back from the buffer's H1 it could not
+   * ping-pong.
+   *
+   * With CodeMirror mounted the edit goes through a `view.dispatch` transaction
+   * ({@link WikiCodemirror.replaceRange}) so it shares the undo history with
+   * typing and does not steal focus from the Title input. In the Preview
+   * sub-mode CodeMirror is unmounted — there is no view and no undo stack to
+   * join — so the buffer signal is rewritten directly, mirroring
+   * {@link onImageResize}; the next CodeMirror mount hydrates from that signal.
+   * Unlike {@link insertMarkdownAtCursor}, a passive Title edit does **not**
+   * flip the surface out of Preview.
+   */
+  setFirstH1(title: string): void {
+    const current = this.content();
+    const next = rewriteFirstH1(current, title);
+    if (next === current) return;
+    try {
+      const ed = this.editor();
+      const view = ed?.getView();
+      const range = firstH1Range(current);
+      if (ed && view && range) {
+        ed.replaceRange(range.from, range.to, `# ${title.trim()}`);
+      } else {
+        this.content.set(next);
+      }
+    } catch (err) {
+      this.errorState.setError(this.editorErrMessage(err));
+    }
   }
 
   /**
