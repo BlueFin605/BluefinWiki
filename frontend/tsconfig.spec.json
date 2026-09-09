@@ -9,5 +9,5 @@
     "target": "es2022"
   },
   "files": ["setup-jest.ts"],
-  "include": ["src/**/*.spec.ts", "src/**/*.d.ts"]
+  "include": ["src/**/*.spec.ts", "src/**/*.d.ts", "src/app/testing/**/*.ts"]
 }
