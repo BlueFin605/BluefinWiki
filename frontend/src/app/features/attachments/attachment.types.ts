@@ -135,6 +135,62 @@ export function isImageFile(file: File): boolean {
 }
 
 /**
+ * Whether a stored attachment's content type is an image. Mirrors the
+ * `image/` prefix test used by {@link buildAttachmentMarkdown}; the attachment
+ * manager (step 4.8) uses it to decide whether to render a `WikiImage`
+ * thumbnail + lightbox for a row.
+ */
+export function isImageContentType(contentType: string): boolean {
+  return contentType.toLowerCase().startsWith('image/');
+}
+
+/**
+ * A single emoji describing an attachment's kind, chosen from its content type
+ * first and its filename extension as a fallback. Purely cosmetic — used for the
+ * per-row type glyph in the attachment manager (step 4.8).
+ */
+export function attachmentEmoji(filename: string, contentType: string): string {
+  const type = contentType.toLowerCase();
+  const ext = (filename.split('.').pop() ?? '').toLowerCase();
+
+  if (type.startsWith('image/')) return '🖼️';
+  if (type.startsWith('video/')) return '🎬';
+  if (type.startsWith('audio/')) return '🎵';
+  if (type === 'application/pdf' || ext === 'pdf') return '📄';
+  if (type.includes('word') || ext === 'doc' || ext === 'docx') return '📝';
+  if (
+    type.includes('spreadsheet') ||
+    type.includes('excel') ||
+    ext === 'xls' ||
+    ext === 'xlsx' ||
+    ext === 'csv'
+  ) {
+    return '📊';
+  }
+  if (
+    type.includes('presentation') ||
+    type.includes('powerpoint') ||
+    ext === 'ppt' ||
+    ext === 'pptx'
+  ) {
+    return '📽️';
+  }
+  if (type.startsWith('text/') || ext === 'txt' || ext === 'md') return '📃';
+  if (
+    type.includes('zip') ||
+    type.includes('compressed') ||
+    ext === 'zip' ||
+    ext === 'gz' ||
+    ext === 'tar' ||
+    ext === 'rar' ||
+    ext === '7z'
+  ) {
+    return '🗜️';
+  }
+  return '📎';
+}
+
+/**
  * Build the markdown for an uploaded/stored attachment. The single source of
  * truth for attachment → markdown across the app: the toolbar Attachment button
  * (step 3.4), the attachment manager's "Copy Markdown" / "Insert" actions

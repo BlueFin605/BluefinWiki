@@ -1,7 +1,7 @@
 import { HttpClient, HttpEventType, type HttpEvent } from '@angular/common/http';
 import { Injectable, type Signal, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { filter, firstValueFrom, map, tap } from 'rxjs';
+import { type Observable, filter, firstValueFrom, map, tap } from 'rxjs';
 import { InvalidationBus, attachmentsTag } from '../../core/api/invalidation';
 import type {
   AttachmentMetadata,
@@ -80,6 +80,18 @@ export class Attachments {
     return confirmed;
   }
 
+  /**
+   * `GET /api/pages/:guid/attachments` → the page's attachment list, as a cold
+   * observable that issues one request per subscription. Used directly by the
+   * attachment manager (step 4.8), which wraps it in an exponential-backoff
+   * retry, and by {@link listResource} for the reactive/cached path.
+   */
+  listAttachments(pageGuid: string): Observable<AttachmentMetadata[]> {
+    return this.http
+      .get<{ attachments: AttachmentMetadata[] }>(`/api/pages/${pageGuid}/attachments`)
+      .pipe(map((r) => r.attachments ?? []));
+  }
+
   /** Keys on `attachments:<pageGuid>`. */
   listResource(pageGuid: Signal<string | null>) {
     return rxResource({
@@ -91,9 +103,7 @@ export class Attachments {
         if (!params.guid) {
           throw new Error('listResource: pageGuid is null');
         }
-        return this.http
-          .get<{ attachments: AttachmentMetadata[] }>(`/api/pages/${params.guid}/attachments`)
-          .pipe(map((r) => r.attachments ?? []));
+        return this.listAttachments(params.guid);
       },
     });
   }

@@ -1,7 +1,9 @@
 import {
+  attachmentEmoji,
   buildAttachmentMarkdown,
   FILE_LIMITS,
   formatFileSize,
+  isImageContentType,
   isImageFile,
   validateFile,
 } from './attachment.types';
@@ -56,6 +58,38 @@ describe('attachment.types', () => {
 
     it('returns false for non-image MIME types', () => {
       expect(isImageFile(fileWith('a.pdf', 'application/pdf', 1))).toBe(false);
+    });
+  });
+
+  describe('isImageContentType', () => {
+    it('is true for image content types, case-insensitively', () => {
+      expect(isImageContentType('image/png')).toBe(true);
+      expect(isImageContentType('IMAGE/JPEG')).toBe(true);
+    });
+
+    it('is false for non-image content types', () => {
+      expect(isImageContentType('application/pdf')).toBe(false);
+      expect(isImageContentType('')).toBe(false);
+    });
+  });
+
+  describe('attachmentEmoji', () => {
+    it('picks by content type first', () => {
+      expect(attachmentEmoji('a.png', 'image/png')).toBe('🖼️');
+      expect(attachmentEmoji('clip.mp4', 'video/mp4')).toBe('🎬');
+      expect(attachmentEmoji('song.mp3', 'audio/mpeg')).toBe('🎵');
+      expect(attachmentEmoji('report.pdf', 'application/pdf')).toBe('📄');
+    });
+
+    it('falls back to the filename extension when the content type is generic', () => {
+      expect(attachmentEmoji('sheet.xlsx', 'application/octet-stream')).toBe('📊');
+      expect(attachmentEmoji('slides.pptx', 'application/octet-stream')).toBe('📽️');
+      expect(attachmentEmoji('notes.md', 'application/octet-stream')).toBe('📃');
+      expect(attachmentEmoji('bundle.zip', 'application/octet-stream')).toBe('🗜️');
+    });
+
+    it('defaults to a paperclip for anything unrecognised', () => {
+      expect(attachmentEmoji('mystery', 'application/x-thing')).toBe('📎');
     });
   });
 
