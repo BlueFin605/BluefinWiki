@@ -111,4 +111,15 @@ describe('InvitationManagement', () => {
     http.expectOne('/api/admin/invitations').flush({ invitations: [] });
     await settle();
   });
+
+  it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
+    await render(InvitationManagement, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/admin/invitations').flush({ invitations: [] });
+    await settle();
+    expect(screen.getByRole('heading', { level: 1, name: /invitations/i })).toBeInTheDocument();
+    const back = screen.getByRole('link', { name: /back to pages/i });
+    expect(back.getAttribute('href')).toBe('/pages');
+  });
 });

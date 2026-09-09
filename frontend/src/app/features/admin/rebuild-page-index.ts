@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -11,6 +12,7 @@ import { AdminTasks, type RebuildResult } from './admin-tasks';
   standalone: true,
   imports: [
     CommonModule,
+    RouterLink,
     MatButtonModule,
     MatCardModule,
     MatProgressSpinnerModule,
@@ -18,6 +20,8 @@ import { AdminTasks, type RebuildResult } from './admin-tasks';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
+      <!-- TODO(8.1): replace with the shared admin back-header -->
+      <a routerLink="/pages" class="back-link">Back to pages</a>
       <h1>Rebuild Page Index</h1>
       <mat-card class="card">
         <p>
@@ -74,6 +78,8 @@ import { AdminTasks, type RebuildResult } from './admin-tasks';
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 800px; margin: 0 auto; }
+      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
+      .back-link:hover { text-decoration: underline; }
       .card { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
       .state { display: flex; align-items: center; gap: 0.75rem; color: #6b7280; }
       .result h2 { color: #2e7d32; margin: 0 0 0.5rem; }

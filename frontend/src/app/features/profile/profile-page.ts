@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,10 +9,12 @@ import { Auth } from '../../core/auth/auth';
 @Component({
   selector: 'wiki-profile-page',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
+      <!-- TODO(8.1): replace with the shared admin back-header -->
+      <a routerLink="/pages" class="back-link">Back to pages</a>
       <h1>Profile</h1>
       @if (user(); as u) {
         <mat-card class="card">
@@ -40,6 +42,8 @@ import { Auth } from '../../core/auth/auth';
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 640px; margin: 0 auto; }
+      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
+      .back-link:hover { text-decoration: underline; }
       .card { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
       .head { display: flex; align-items: center; gap: 1rem; }
       .avatar { width: 3.5rem; height: 3.5rem; border-radius: 50%; background: #e3f2fd; color: #1976d2; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 600; }

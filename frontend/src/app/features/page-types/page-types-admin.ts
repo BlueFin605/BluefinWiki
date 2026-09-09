@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -75,6 +76,7 @@ function formatDefault(prop: PageTypeProperty): string {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
@@ -89,6 +91,8 @@ function formatDefault(prop: PageTypeProperty): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="admin">
+      <!-- TODO(8.1): replace with the shared admin back-header -->
+      <a routerLink="/pages" class="back-link">Back to pages</a>
       <header class="admin-header">
         <h1>Page Types</h1>
         <button mat-flat-button color="primary" type="button" (click)="onNew()">
@@ -315,6 +319,8 @@ function formatDefault(prop: PageTypeProperty): string {
     `
       :host { display: block; }
       .admin { padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
+      .back-link:hover { text-decoration: underline; }
       .admin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
       .layout { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(360px, 2fr); gap: 1.5rem; }
       .list { display: flex; flex-direction: column; gap: 0.5rem; }

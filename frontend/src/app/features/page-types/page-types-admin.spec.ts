@@ -197,4 +197,15 @@ describe('PageTypesAdmin', () => {
     http.expectOne('/api/page-types').flush({ pageTypes: [] });
     await settle();
   });
+
+  it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
+    await render(PageTypesAdmin, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+    expect(screen.getByRole('heading', { level: 1, name: /page types/i })).toBeInTheDocument();
+    const back = screen.getByRole('link', { name: /back to pages/i });
+    expect(back.getAttribute('href')).toBe('/pages');
+  });
 });

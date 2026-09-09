@@ -72,4 +72,11 @@ describe('ProfilePage', () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(navSpy).toHaveBeenCalledWith(['/']);
   });
+
+  it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
+    await render(ProfilePage, { providers: providers(authStub({})) });
+    expect(screen.getByRole('heading', { level: 1, name: /profile/i })).toBeInTheDocument();
+    const back = screen.getByRole('link', { name: /back to pages/i });
+    expect(back.getAttribute('href')).toBe('/pages');
+  });
 });

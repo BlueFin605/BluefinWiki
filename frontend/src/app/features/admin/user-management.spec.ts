@@ -140,4 +140,15 @@ describe('UserManagement', () => {
     http.expectOne('/api/admin/users').flush({ users: [] });
     await settle();
   });
+
+  it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
+    await render(UserManagement, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/admin/users').flush({ users: [] });
+    await settle();
+    expect(screen.getByRole('heading', { level: 1, name: /members/i })).toBeInTheDocument();
+    const back = screen.getByRole('link', { name: /back to pages/i });
+    expect(back.getAttribute('href')).toBe('/pages');
+  });
 });

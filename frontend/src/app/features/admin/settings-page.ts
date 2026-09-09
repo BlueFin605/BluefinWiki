@@ -58,6 +58,8 @@ const TILES: SettingsTile[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
+      <!-- TODO(8.1): replace with the shared admin back-header -->
+      <a routerLink="/pages" class="back-link">Back to pages</a>
       <h1>Settings</h1>
       <div class="grid">
         @for (tile of visibleTiles(); track tile.link) {
@@ -80,6 +82,8 @@ const TILES: SettingsTile[] = [
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
+      .back-link:hover { text-decoration: underline; }
       .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
       .tile { text-decoration: none; color: inherit; display: block; }
       .tile mat-card { padding: 1rem; transition: background 0.15s; }

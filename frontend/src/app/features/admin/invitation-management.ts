@@ -5,6 +5,7 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -25,6 +26,7 @@ import {
   standalone: true,
   imports: [
     CommonModule,
+    RouterLink,
     MatButtonModule,
     MatDialogModule,
     MatIconModule,
@@ -33,6 +35,8 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
+      <!-- TODO(8.1): replace with the shared admin back-header -->
+      <a routerLink="/pages" class="back-link">Back to pages</a>
       <header class="page-header">
         <h1>Invitations</h1>
         <button mat-flat-button color="primary" type="button" (click)="onCreate()">
@@ -100,6 +104,8 @@ import {
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 1100px; margin: 0 auto; }
+      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
+      .back-link:hover { text-decoration: underline; }
       .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
       .invite-table { width: 100%; background: #fff; }
       .mono { font-family: monospace; }

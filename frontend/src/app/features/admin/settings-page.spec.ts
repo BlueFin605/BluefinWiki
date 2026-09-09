@@ -52,4 +52,11 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('link', { name: /rebuild page index/i }).getAttribute('href')).toBe('/admin/rebuild-page-index');
     expect(screen.getByRole('link', { name: /profile/i }).getAttribute('href')).toBe('/profile');
   });
+
+  it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
+    await render(SettingsPage, { providers: providers('Admin') });
+    expect(screen.getByRole('heading', { level: 1, name: /settings/i })).toBeInTheDocument();
+    const back = screen.getByRole('link', { name: /back to pages/i });
+    expect(back.getAttribute('href')).toBe('/pages');
+  });
 });
