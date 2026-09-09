@@ -94,6 +94,19 @@ describe('PageContext', () => {
     expect(layout.inspectorVisible()).toBe(false);
   });
 
+  it('closes the mobile sheet when the breakpoint crosses to desktop (flip cleanup)', () => {
+    const { ctx, bp } = setup(false);
+    bp.isDesktop.set(false);
+    ctx.inspectorSheetOpen.set(true);
+    TestBed.tick();
+    expect(ctx.inspectorSheetOpen()).toBe(true);
+
+    bp.isDesktop.set(true);
+    TestBed.tick();
+
+    expect(ctx.inspectorSheetOpen()).toBe(false);
+  });
+
   it('reset clears guid, metadata and the mobile sheet flag', () => {
     const { ctx } = setup();
     ctx.guid.set('g1');

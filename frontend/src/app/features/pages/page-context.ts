@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal, type WritableSignal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, type WritableSignal } from '@angular/core';
 import { Subject, type Observable } from 'rxjs';
 
 import { Layout } from '../../core/layout/layout';
@@ -45,6 +45,16 @@ export class PageContext {
    * lands without touching this service.
    */
   readonly inspectorSheetOpen: WritableSignal<boolean> = signal(false);
+
+  constructor() {
+    // Breakpoint-flip cleanup (step 1b.5): crossing to desktop drops any open
+    // mobile bottom sheet so it can never leave an orphaned `over` backdrop.
+    // Desktop visibility falls back to the persisted `Layout.inspectorVisible`;
+    // the mobile flag stays ephemeral (D6).
+    effect(() => {
+      if (this.bp.isDesktop()) this.inspectorSheetOpen.set(false);
+    });
+  }
 
   private readonly _insert = new Subject<string>();
   /** Markdown to drop in at the CodeMirror cursor (inspector `insertMarkdown`). */

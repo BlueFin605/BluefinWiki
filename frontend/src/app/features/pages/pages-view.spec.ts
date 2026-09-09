@@ -583,4 +583,197 @@ describe('PagesView', () => {
 
     http.match(() => true).forEach((r) => r.flush(null));
   });
+
+  // ---- Step 1b.5: responsive inspector (side <-> bottom sheet) -----------
+
+  function inspectorSidenav(fixture: { debugElement: DebugElement }): MatSidenav {
+    const insp = fixture.debugElement
+      .queryAll(By.directive(MatSidenav))
+      .map((d) => d.componentInstance as MatSidenav)
+      .find((s) => s.position === 'end');
+    if (!insp) throw new Error('end (inspector) sidenav not found');
+    return insp;
+  }
+
+  function inspectorSidenavDe(fixture: { debugElement: DebugElement }): DebugElement {
+    const de = fixture.debugElement
+      .queryAll(By.directive(MatSidenav))
+      .find((d) => (d.componentInstance as MatSidenav).position === 'end');
+    if (!de) throw new Error('end (inspector) sidenav not found');
+    return de;
+  }
+
+  async function renderShellWithPage(isDesktop: boolean) {
+    localStorage.clear();
+    const r = await renderShellAt(isDesktop);
+    const ctx = TestBed.inject(PageContext);
+    ctx.guid.set('g1');
+    ctx.metadata.set(makeMeta());
+    r.fixture.detectChanges();
+    await settle();
+    r.fixture.detectChanges();
+    return { ...r, ctx };
+  }
+
+  it('desktop: the inspector is mode="side" and stays closed while Layout.inspectorVisible() is false', async () => {
+    const { fixture } = await renderShellWithPage(true);
+    const insp = inspectorSidenav(fixture);
+    expect(insp.mode).toBe('side');
+    expect(insp.opened).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.inspector')!.classList)
+      .not.toContain('mobile-sheet');
+  });
+
+  it('desktop: toggling opens the side inspector; (closed) writes inspectorVisible back to false', async () => {
+    const { fixture, ctx } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+
+    ctx.toggleInspector(); // desktop -> layout.update({ inspectorVisible: true })
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect(layout.inspectorVisible()).toBe(true);
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    inspectorSidenavDe(fixture).triggerEventHandler('closed', undefined);
+    fixture.detectChanges();
+    await settle();
+
+    expect(layout.inspectorVisible()).toBe(false);
+  });
+
+  it('desktop: the inspector stays closed while inspectorVisible is true but no page is loaded (gated)', async () => {
+    localStorage.clear();
+    const { fixture } = await renderShellAt(true); // no page pushed into PageContext
+    const layout = TestBed.inject(Layout);
+    layout.update({ inspectorVisible: true });
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect(inspectorSidenav(fixture).opened).toBe(false);
+  });
+
+  it('desktop: opens on mount when the Layout store already has the inspector visible (re-homed 1b.5-I2)', async () => {
+    localStorage.setItem('bluefinwiki-layout', JSON.stringify({ inspectorVisible: true }));
+    const r = await renderShellAt(true);
+    const ctx = TestBed.inject(PageContext);
+    ctx.guid.set('g1');
+    ctx.metadata.set(makeMeta());
+    r.fixture.detectChanges();
+    await settle();
+    r.fixture.detectChanges();
+
+    expect(inspectorSidenav(r.fixture).opened).toBe(true);
+    localStorage.clear();
+  });
+
+  it('desktop: the inspector width binds to Layout.inspectorWidth() and reflects a later change (re-homed 1b.5-I2)', async () => {
+    const { fixture } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+    const inspector = (fixture.nativeElement as HTMLElement).querySelector('.inspector') as HTMLElement;
+
+    expect(inspector.style.width).toBe(`${layout.inspectorWidth()}px`);
+
+    layout.update({ inspectorWidth: 480 });
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect(inspector.style.width).toBe('480px');
+  });
+
+  it('desktop: the inspector divider maps pointer X to a right-anchored width via Layout.update (re-homed 1b.5-I2)', async () => {
+    const { fixture } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+    const updateSpy = jest.spyOn(layout, 'update');
+
+    const dividers = fixture.debugElement.queryAll(By.directive(ResizeDivider));
+    expect(dividers).toHaveLength(2); // tree divider + inspector divider
+    const inspectorDivider = dividers[dividers.length - 1].componentInstance as ResizeDivider;
+
+    // jsdom getBoundingClientRect() is all-zero -> right(0) - pointerX = -pointerX;
+    // the store clamps up to the 250 floor.
+    inspectorDivider.resized.emit(80);
+    await settle();
+
+    expect(updateSpy).toHaveBeenCalledWith({ inspectorWidth: -80 });
+    expect(layout.inspectorWidth()).toBe(250);
+  });
+
+  it('desktop: maps the inspector divider pointer X relative to the shell right edge', async () => {
+    const { fixture } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+    const body = (fixture.nativeElement as HTMLElement).querySelector('.body') as HTMLElement;
+    jest.spyOn(body, 'getBoundingClientRect').mockReturnValue({
+      left: 0, right: 1000, top: 0, bottom: 0, width: 1000, height: 0, x: 0, y: 0, toJSON: () => ({}),
+    });
+
+    const dividers = fixture.debugElement.queryAll(By.directive(ResizeDivider));
+    const inspectorDivider = dividers[dividers.length - 1].componentInstance as ResizeDivider;
+    inspectorDivider.resized.emit(600); // 1000 - 600 = 400, within 250-600
+    await settle();
+
+    expect(layout.inspectorWidth()).toBe(400);
+  });
+
+  it('mobile: the inspector is mode="over", has the mobile-sheet class and no divider', async () => {
+    const { fixture } = await renderShellWithPage(false);
+    const insp = inspectorSidenav(fixture);
+    expect(insp.mode).toBe('over');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.inspector')!.classList)
+      .toContain('mobile-sheet');
+    expect(fixture.debugElement.queryAll(By.directive(ResizeDivider))).toHaveLength(0);
+  });
+
+  it('mobile: the inspector opened state tracks ctx.inspectorSheetOpen()', async () => {
+    const { fixture, ctx } = await renderShellWithPage(false);
+    expect(inspectorSidenav(fixture).opened).toBe(false);
+
+    ctx.toggleInspector(); // mobile -> inspectorSheetOpen flips true
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect(ctx.inspectorSheetOpen()).toBe(true);
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+  });
+
+  it('mobile: the sidenav (closed) output clears inspectorSheetOpen', async () => {
+    const { fixture, ctx } = await renderShellWithPage(false);
+    ctx.inspectorSheetOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    inspectorSidenavDe(fixture).triggerEventHandler('closed', undefined);
+    fixture.detectChanges();
+    await settle();
+
+    expect(ctx.inspectorSheetOpen()).toBe(false);
+  });
+
+  it('flipping to desktop while the mobile sheet is open closes it cleanly (no stuck backdrop)', async () => {
+    const { fixture, ctx } = await renderShellWithPage(false);
+    ctx.inspectorSheetOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    bpStub.isDesktop.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const insp = inspectorSidenav(fixture);
+    expect(insp.mode).toBe('side');
+    expect(ctx.inspectorSheetOpen()).toBe(false);
+    expect(insp.opened).toBe(false); // desktop follows Layout.inspectorVisible(), never set
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.mat-drawer-backdrop.mat-drawer-shown'),
+    ).toBeNull();
+  });
 });

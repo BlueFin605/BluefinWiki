@@ -148,33 +148,34 @@ import { AiSidebar } from '../ai/ai-sidebar';
         </mat-sidenav-content>
 
         <!--
-          Hoisted inspector (step 1b.3). Fed entirely by PageContext — the routed
-          page-detail publishes guid/metadata/mode and consumes the outputs
-          routed back through the service.
+          Hoisted inspector (step 1b.3), made responsive in step 1b.5
+          (DESIGN.md D4 — one mount path, no MatBottomSheet):
 
-          TODO(1b.5): step 1b.5 owns this sidenav's "opened" binding (wire to
-          PageContext.toggleInspector() / Layout.inspectorVisible), its
-          responsive side/bottom-sheet "mode", and the desktop open/close
-          toggle. Step 1b.4 is PLACEMENT ONLY: it moves the panel out of the old
-          static .inspector-pane div into this "end" sidenav and keeps the
-          1b.3 behaviour of "visible whenever a page is loaded" via a plain
-          "opened" expression.
-        -->
-        <!--
+          - desktop: mode="side", opened = Layout.inspectorVisible() (still
+            gated on a page being loaded), width from Layout.inspectorWidth(),
+            plus a desktop-only ResizeDivider on the panel's left edge;
+          - below 1024: mode="over" + the .mobile-sheet class (full-width,
+            <=75vh, pinned to the bottom edge - the CSS overrides Material's
+            slide-from-the-right), opened = ctx.inspectorSheetOpen().
+
+          (closed) clears whichever open-state applies; the breakpoint-flip
+          cleanup that closes a stuck sheet lives in PageContext.
+
           Stale-metadata window: on a param-only /pages/g1 -> /pages/g2 nav,
           PageDetail is reused (no reset()), so ctx.guid() flips before
-          ctx.metadata() rehydrates — this always-visible interim pane can
-          briefly show g2 + g1's metadata until PageDetail's hydrate effect
-          fires. Pre-existing (the same guard lived in page-detail); 1b.5's
-          responsive gating will mask it.
+          ctx.metadata() rehydrates — the panel can briefly show g2 + g1's
+          metadata until PageDetail's hydrate effect fires. Pre-existing (the
+          same guard lived in page-detail).
         -->
         <mat-sidenav
           position="end"
           class="inspector"
-          mode="side"
+          [class.mobile-sheet]="!bp.isDesktop()"
+          [mode]="bp.isDesktop() ? 'side' : 'over'"
           role="complementary"
           aria-label="Inspector"
-          [opened]="!!ctx.guid() && !!ctx.metadata()"
+          [opened]="inspectorOpened()"
+          (closed)="onInspectorClosed()"
           [style.width.px]="bp.isDesktop() ? inspectorWidth() : null"
         >
           @if (ctx.guid() && ctx.metadata(); as m) {
@@ -188,6 +189,13 @@ import { AiSidebar } from '../ai/ai-sidebar';
               (titleH1Sync)="ctx.emitTitleH1Sync($event)"
               (pageTypeChange)="ctx.emitPageTypeChange($event)"
             />
+          }
+          <!-- Desktop-only grab handle on the inspector's LEFT edge (the panel
+               is right-anchored). Mirrors .tree-divider (DESIGN.md D6). -->
+          @if (bp.isDesktop()) {
+            <div class="inspector-divider">
+              <wiki-resize-divider (resized)="onInspectorResize($event)" />
+            </div>
           }
         </mat-sidenav>
       </mat-sidenav-container>
@@ -230,7 +238,11 @@ import { AiSidebar } from '../ai/ai-sidebar';
       /* Deterministic positioning context for .tree-divider (right: 0). */
       position: relative;
     }
-    .body .inspector { background: #fff; }
+    .body .inspector {
+      background: #fff;
+      /* Positioning context for .inspector-divider (left: 0). */
+      position: relative;
+    }
 
     /* Desktop-only grab handle pinned to the tree drawer's right edge. */
     .tree-divider {
@@ -240,6 +252,43 @@ import { AiSidebar } from '../ai/ai-sidebar';
       bottom: 0;
       width: 4px;
       z-index: 3;
+    }
+
+    /* Desktop-only grab handle pinned to the inspector's left edge. */
+    .inspector-divider {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 4px;
+      z-index: 3;
+    }
+
+    /*
+      Below 1024 the inspector is a bottom sheet, not a right-hand side panel
+      (DESIGN.md D4 - one mount path, no MatBottomSheet). Material's
+      position="end" drawer is full-height and slides in from the right; this
+      overrides it to a full-width panel pinned to the bottom edge, capped at
+      75vh, that rises from below. Pure CSS - no dedicated cdkOverlay.
+
+      Specificity: '.body .inspector.mobile-sheet' (0,3,0) beats Material's
+      '.mat-drawer.mat-drawer-end' (0,2,0) for the box; the closed-state
+      transform is guarded with :not(.mat-drawer-opened) so Material's own
+      '.mat-drawer-opened.mat-drawer-opened { transform: none }' still wins when
+      the sheet is open. The backdrop is Material's container-level
+      '.mat-drawer-backdrop' and still covers the whole sidenav container.
+    */
+    .body .inspector.mobile-sheet {
+      width: 100vw;
+      max-width: 100vw;
+      height: auto;
+      max-height: 75vh;
+      top: auto;
+      bottom: 0;
+      border-radius: 0;
+    }
+    .body .inspector.mobile-sheet.mat-drawer-end:not(.mat-drawer-opened) {
+      transform: translateY(100%);
     }
 
     /* main + optional desktop .ai-pane sit side by side inside the content. */
@@ -291,6 +340,19 @@ export class PagesView {
   protected readonly inspectorWidth = computed(() => this.layout.inspectorWidth());
 
   /**
+   * Combined open-state for the `end` inspector sidenav (step 1b.5). Always
+   * gated on a page being loaded; on desktop it follows the persisted
+   * `Layout.inspectorVisible` (step 4.1 binding), below 1024 the ephemeral
+   * mobile bottom-sheet flag on `PageContext`.
+   */
+  protected readonly inspectorOpened = computed(() => {
+    if (!this.ctx.guid() || !this.ctx.metadata()) return false;
+    return this.bp.isDesktop()
+      ? this.layout.inspectorVisible()
+      : this.ctx.inspectorSheetOpen();
+  });
+
+  /**
    * Tree drawer open state below 1024px. Ephemeral, never persisted (DESIGN.md
    * D6) — on desktop the tree is always pinned so this is ignored there.
    */
@@ -305,6 +367,33 @@ export class PagesView {
     if (!host) return;
     const width = pointerX - host.getBoundingClientRect().left;
     this.layout.update({ treeWidth: width });
+  }
+
+  /**
+   * The inspector divider emits an absolute pointer X. The inspector is
+   * right-anchored, so its width is measured from the shell's RIGHT edge;
+   * `Layout.update()` clamps to 250-600. Desktop only (no divider on mobile).
+   */
+  onInspectorResize(pointerX: number): void {
+    const host = this.bodyEl()?.nativeElement;
+    if (!host) return;
+    const width = host.getBoundingClientRect().right - pointerX;
+    this.layout.update({ inspectorWidth: width });
+  }
+
+  /**
+   * The `end` sidenav closed — from a mobile backdrop/Esc dismiss, or reactively
+   * when `inspectorOpened()` drops. Clear whichever open-state applies. The
+   * close that fires when the page itself unloads (guid/metadata cleared) is
+   * ignored so it can't wipe the persisted desktop `inspectorVisible`.
+   */
+  onInspectorClosed(): void {
+    if (!this.ctx.guid() || !this.ctx.metadata()) return;
+    if (this.bp.isDesktop()) {
+      this.layout.update({ inspectorVisible: false });
+    } else {
+      this.ctx.inspectorSheetOpen.set(false);
+    }
   }
 
   protected readonly isAdmin = computed(() => this.auth.user()?.role === 'Admin');

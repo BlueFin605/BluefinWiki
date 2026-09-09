@@ -72,9 +72,13 @@ function drain(): void {
 }
 
 async function renderDetail(
-  opts: { guid?: string; editMode?: boolean; noopAnimations?: boolean } = {},
+  opts: { guid?: string; editMode?: boolean; noopAnimations?: boolean; isDesktop?: boolean } = {},
 ) {
   const guid = opts.guid ?? 'g1';
+  // PageContext.toggleInspector() and the editor-bar control both branch on
+  // Breakpoint; default to desktop so the toggle drives Layout.inspectorVisible
+  // (step 4.1 path) and the bar renders the "Toggle inspector" button.
+  const bpStub = provideBreakpointStub(opts.isDesktop ?? true);
   const result = await render(PageDetail, {
     providers: [
       opts.noopAnimations ? provideNoopAnimations() : provideAnimationsAsync(),
@@ -82,13 +86,11 @@ async function renderDetail(
       provideHttpClientTesting(),
       provideRouter([]),
       routeStub(guid, opts.editMode),
-      // PageContext.toggleInspector() branches on Breakpoint; default to desktop
-      // so the editor-bar toggle drives Layout.inspectorVisible (step 4.1 path).
-      ...provideBreakpointStub(true).providers,
+      ...bpStub.providers,
     ],
   });
   const http = TestBed.inject(HttpTestingController);
-  return { ...result, http, guid };
+  return { ...result, http, guid, bpStub };
 }
 
 describe('PageDetail', () => {
@@ -1416,6 +1418,34 @@ describe('PageDetail', () => {
   // The inspector's on-mount rendering, width style and presentation seam moved
   // to `pages-view` with the hoist (step 1b.3); their assertions now live in
   // pages-view.spec.ts. The responsive sidenav open/width wiring is step 1b.5.
+
+  // ---- Step 1b.5: the editor-bar inspector control adapts to the breakpoint ----
+
+  it('desktop: the editor-bar inspector control is the "Toggle inspector" button and calls toggleInspector()', async () => {
+    const { http } = await renderDetail(); // provideBreakpointStub(true) by default
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    const toggleSpy = jest.spyOn(TestBed.inject(PageContext), 'toggleInspector');
+    const btn = screen.getByRole('button', { name: /toggle inspector/i });
+    expect(screen.queryByRole('button', { name: /page info/i })).toBeNull();
+
+    await userEvent.click(btn);
+    expect(toggleSpy).toHaveBeenCalled();
+  });
+
+  it('mobile: the editor-bar inspector control is an info button and calls toggleInspector()', async () => {
+    const { http } = await renderDetail({ isDesktop: false });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    const toggleSpy = jest.spyOn(TestBed.inject(PageContext), 'toggleInspector');
+    const btn = screen.getByRole('button', { name: /page info/i });
+    expect(screen.queryByRole('button', { name: /toggle inspector/i })).toBeNull();
+
+    await userEvent.click(btn);
+    expect(toggleSpy).toHaveBeenCalled();
+  });
 });
 
 describe('resolveSaveStatus', () => {

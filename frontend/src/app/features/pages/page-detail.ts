@@ -29,6 +29,7 @@ import { WikiTableOfContents } from '../../shared/markdown/table-of-contents';
 import { Breadcrumbs } from '../../shared/components/breadcrumbs';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { Layout } from '../../core/layout/layout';
+import { Breakpoint } from '../../core/layout/breakpoint';
 import type { WikiBrokenLinkEvent } from '../../shared/markdown/wiki-link';
 import type { WikiTargetResolver } from '../../shared/markdown/plugins/remark-wiki-links';
 import { parseWikiLinks } from '../../shared/markdown/wiki-link-parser';
@@ -184,10 +185,16 @@ export function resolveSaveStatus(state: {
           </button>
         }
 
+        <!--
+          Editor-bar inspector control (step 1b.5). Same info icon and the same
+          toggleInspector() action in both breakpoints; only the label adapts —
+          desktop is the persisted side-panel "Toggle inspector"; below 1024 it
+          opens the bottom sheet, so it reads as a plain "Page info" button.
+        -->
         <button
           mat-icon-button
           type="button"
-          aria-label="Toggle inspector"
+          [attr.aria-label]="bp.isDesktop() ? 'Toggle inspector' : 'Page info'"
           (click)="pageContext.toggleInspector()"
         >
           <mat-icon>info</mat-icon>
@@ -396,6 +403,8 @@ export class PageDetail {
   private readonly destroyRef = inject(DestroyRef);
   private readonly errorState = inject(EditorErrorState);
   private readonly layout = inject(Layout);
+  /** Single responsive switch (DESIGN.md D1); flips the editor-bar inspector control. */
+  protected readonly bp = inject(Breakpoint);
   /**
    * Cross-component channel to the hoisted inspector (rendered by `pages-view`).
    * `page-detail` publishes `guid` / `mode` here, shares its `metadata` working
