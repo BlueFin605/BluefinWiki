@@ -144,6 +144,9 @@ const COMPACT_HIDDEN: ReadonlySet<ToolbarAction> = new Set<ToolbarAction>(['ol',
       left: 0;
       right: 0;
       bottom: 0;
+      /* Deliberately below Material's mat-drawer / backdrop stacking: the 1b.5
+         inspector bottom-sheet is also mobile bottom:0 / mode="over", so its
+         panel + backdrop paint over this toolbar rather than fighting it. */
       z-index: 10;
       background: #f9fafb;
       box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.12);

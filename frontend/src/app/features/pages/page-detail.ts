@@ -379,9 +379,13 @@ export function resolveSaveStatus(state: {
     .content-pane { display: flex; flex-direction: column; height: 100%; }
     .body { flex: 1; min-height: 0; padding: 0; position: relative; overflow: auto; }
     /* Mobile (step 1b.6): the markdown toolbar is position:fixed to the bottom
-       of the screen, so reserve space here or it covers the last editor lines.
-       ~56px = one Material icon-button row + a little breathing room. */
-    .body.toolbar-pinned { padding-bottom: 56px; }
+       of the screen, so reserve space here or it covers the last editor lines
+       (padding is the scroll limit — un-reserved content can't be scrolled
+       clear). Must stay >= markdown-toolbar.ts's :host.bottom-pinned rendered
+       height: ~56px (one Material icon-button row + slack) PLUS the same
+       env(safe-area-inset-bottom) that rule adds to the bar. If a future
+       toolbar-density change alters that height, bump this to match. */
+    .body.toolbar-pinned { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
     .editor-surface { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     .editor-surface .editor-pane { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
     .editor-surface .preview-pane { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; display: flex; align-items: flex-start; }
