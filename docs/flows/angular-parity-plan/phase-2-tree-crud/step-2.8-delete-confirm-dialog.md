@@ -21,8 +21,9 @@ gating in the UI is already correct (`page-context-menu.canDelete`).
 - Use `shared/components/confirm-dialog.ts`.
 - Copy varies:
   - leaf page → "Delete this page?"
-  - has children → "Delete this page and all N child pages? This cannot be
-    undone." (match React's has-children wording).
+  - has children → "Delete this page and all its child pages? This action
+    cannot be undone." (verbatim from `react-frontend-page-reference.md:306` —
+    count-free; do **not** fetch a child count just to render the copy).
 - `deletePage(guid, { recursive: hasChildren })` — only recursive when it
   actually has children.
 - On failure surface the **server** error message (from the `HttpErrorResponse`
