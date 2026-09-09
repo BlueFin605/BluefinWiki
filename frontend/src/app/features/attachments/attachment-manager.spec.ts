@@ -47,6 +47,10 @@ function meta(over: Partial<AttachmentMetadata> = {}): AttachmentMetadata {
 
 // --- HTTP-backed rendering (real Attachments service) -----------------------
 
+// Stashed by renderHttp so the describe's afterEach can assert no stray HTTP
+// traffic survived the test (see the afterEach below).
+let httpForTeardown: HttpTestingController | null = null;
+
 async function renderHttp(
   inputs: Record<string, unknown>,
   auth = authStub('Admin'),
@@ -61,7 +65,26 @@ async function renderHttp(
     ],
   });
   const http = TestBed.inject(HttpTestingController);
+  httpForTeardown = http;
   return { ...rendered, http };
+}
+
+/**
+ * Flush the row thumbnails' transient presign GETs (each rendered `<wiki-image>`
+ * resolves `GET /api/pages/:guid/attachments/:file` on mount), then `verify()`
+ * that nothing else is still outstanding. Without this, a typo'd URL or an
+ * accidental double-fetch from WikiImage passed silently.
+ */
+function verifyNoStrayHttp(): void {
+  const http = httpForTeardown;
+  httpForTeardown = null;
+  if (!http) return;
+  for (const req of http.match(
+    (r) => r.method === 'GET' && /\/api\/pages\/[^/]+\/attachments\/[^/]+$/.test(r.url),
+  )) {
+    req.flush({ url: 'https://s3.test/presigned' });
+  }
+  http.verify();
 }
 
 // --- Stub-backed rendering (deterministic list-load, fake timers) ----------
@@ -115,6 +138,8 @@ async function renderStub(stub: AttachmentsStub, auth = authStub('Admin')) {
 }
 
 describe('AttachmentManager — list + row actions', () => {
+  afterEach(() => verifyNoStrayHttp());
+
   it('renders the attachments list', async () => {
     const { fixture, http } = await renderHttp({ pageGuid: 'p1', pageAuthorId: 'u-current' });
     http.expectOne('/api/pages/p1/attachments').flush({

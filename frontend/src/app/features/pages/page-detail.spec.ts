@@ -883,14 +883,43 @@ describe('PageDetail', () => {
 
     const banner = screen.getByRole('alert');
     expect(banner).toHaveTextContent(/save failed:/i);
-    expect(banner).toHaveTextContent(/500 server error/i);
+    // Shows the server-supplied body message, not the framework error string.
+    expect(banner).toHaveTextContent(/server on fire/i);
     expect(banner).toHaveTextContent(REASSURANCE);
+    // The raw HttpErrorResponse.message (internal path + status) must not leak.
+    expect(banner).not.toHaveTextContent(/http failure/i);
+    expect(banner).not.toHaveTextContent('/api/pages/g1');
     // The old non-dismissible generic span is gone.
     expect(screen.queryByText('Save failed: Save failed. Try again.')).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: /dismiss save error/i }));
     fixture.detectChanges();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('falls back to a sensible sentence when the server message is empty', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    fixture.componentInstance.content.set('# Edited');
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    http.expectOne('/api/pages/g1').flush(
+      { message: '' },
+      { status: 500, statusText: 'Server Error' },
+    );
+    await settle();
+    fixture.detectChanges();
+
+    const banner = screen.getByRole('alert');
+    expect(banner).toHaveTextContent('Save failed: Save failed. Try again.');
+    expect(banner).toHaveTextContent(REASSURANCE);
+    expect(banner).not.toHaveTextContent(/http failure/i);
+    // Never the empty "Save failed: ." sentence.
+    expect(banner.textContent).not.toMatch(/save failed:\s*\./i);
   });
 
   it('returns the pill to "● Unsaved changes" after a failed save', async () => {
@@ -1095,7 +1124,9 @@ describe('PageDetail', () => {
     fixture.detectChanges();
     await settle();
 
-    const ed = (fixture.componentInstance as { editor: () => { replaceRange: (...a: unknown[]) => void } }).editor();
+    const ed = (
+      fixture.componentInstance as unknown as { editor: () => { replaceRange: (...a: unknown[]) => void } }
+    ).editor();
     const spy = jest.spyOn(ed, 'replaceRange');
 
     setFirstH1(fixture, 'Renamed'); // one real rewrite
@@ -1399,7 +1430,7 @@ describe('PageDetail', () => {
     expect(layout.inspectorVisible()).toBe(false);
   });
 
-  it('persists the inspector open state across a remount via the Layout store', async () => {
+  it('writes the inspector open state to the persisted Layout store (localStorage)', async () => {
     const first = await renderDetail();
     first.http.expectOne('/api/pages/g1').flush(serverPage);
     await settle();
@@ -1408,8 +1439,9 @@ describe('PageDetail', () => {
     await settle();
     expect(TestBed.inject(Layout).inspectorVisible()).toBe(true);
 
-    // The Layout service is providedIn:'root' and hydrates from localStorage on
-    // construction, so a fresh mount reads back the persisted flag.
+    // Layout persists to localStorage on every update; a later fresh mount of the
+    // providedIn:'root' service would hydrate this flag back (covered by the
+    // open-on-mount test above).
     const stored = JSON.parse(
       localStorage.getItem('bluefinwiki-layout') ?? '{}',
     ) as { inspectorVisible?: boolean };

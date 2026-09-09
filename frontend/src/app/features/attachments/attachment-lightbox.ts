@@ -10,7 +10,7 @@ export interface AttachmentLightboxData {
 }
 
 /**
- * Full-screen preview of an image attachment, opened from the attachment
+ * Large modal preview (96vw × 92vh) of an image attachment, opened from the attachment
  * manager's row thumbnail (step 4.8). Hosts a full-size {@link WikiImage} that
  * presigns the attachment through the authed `Attachments` service. `MatDialog`
  * closes it on Escape and on a backdrop click; a close button is provided too.

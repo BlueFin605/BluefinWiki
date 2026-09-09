@@ -134,6 +134,7 @@ describe('TagInput', () => {
   it('shows no suggestions before the user types', async () => {
     const result = await renderInput({ tags: [], vocab: ['alpha', 'beta'] });
     expect(result.fixture.componentInstance['suggestions']()).toEqual([]);
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
   });
 
   it('picking a suggestion adds it (lower-cased)', async () => {

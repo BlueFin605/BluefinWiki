@@ -359,7 +359,6 @@ export class AttachmentManager {
   protected openLightbox(item: AttachmentMetadata): void {
     this.dialog.open(AttachmentLightbox, {
       data: { pageGuid: this.pageGuid(), filename: item.filename },
-      panelClass: 'wiki-attachment-lightbox-panel',
       maxWidth: '100vw',
       maxHeight: '100vh',
       autoFocus: 'dialog',

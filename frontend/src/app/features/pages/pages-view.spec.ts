@@ -937,9 +937,18 @@ describe('PagesView', () => {
       .mockReturnValue({ afterClosed: () => ({ subscribe: () => undefined }) } as never);
   }
 
-  type OpenCall = [dialogArg: unknown, config?: Record<string, unknown>];
+  // Narrow structural shape for the fields these tests probe on the captured
+  // MatDialogConfig — a plain Record<string, unknown> trips
+  // noPropertyAccessFromIndexSignature (TS4111) under tsconfig.spec.json.
+  interface DialogConfigProbe {
+    width?: unknown;
+    height?: unknown;
+    maxWidth?: unknown;
+    panelClass?: unknown;
+  }
+  type OpenCall = [dialogArg: unknown, config?: DialogConfigProbe];
 
-  function firstOpenCall(openSpy: jest.SpyInstance): { dialogArg: unknown; config: Record<string, unknown> } {
+  function firstOpenCall(openSpy: jest.SpyInstance): { dialogArg: unknown; config: DialogConfigProbe } {
     const call = (openSpy.mock.calls as OpenCall[]).at(0);
     if (!call) throw new Error('MatDialog.open was not called');
     return { dialogArg: call[0], config: call[1] ?? {} };
@@ -958,7 +967,7 @@ describe('PagesView', () => {
 
   it('mobile + aiOpen: the AI sidebar mounts in the full-width .ai-overlay, not the .ai-pane', async () => {
     const { fixture } = await renderShellAt(false);
-    (fixture.componentInstance as AiHandle).aiOpen.set(true);
+    (fixture.componentInstance as unknown as AiHandle).aiOpen.set(true);
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
@@ -971,7 +980,7 @@ describe('PagesView', () => {
 
   it('mobile + aiOpen: the .ai-overlay is a direct child of .pages-shell, hoisted OUT of mat-sidenav-content (review C1)', async () => {
     const { fixture } = await renderShellAt(false);
-    (fixture.componentInstance as AiHandle).aiOpen.set(true);
+    (fixture.componentInstance as unknown as AiHandle).aiOpen.set(true);
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
@@ -986,7 +995,7 @@ describe('PagesView', () => {
 
   it('desktop + aiOpen: the AI sidebar mounts in the .ai-pane column, no overlay class', async () => {
     const { fixture } = await renderShellAt(true);
-    (fixture.componentInstance as AiHandle).aiOpen.set(true);
+    (fixture.componentInstance as unknown as AiHandle).aiOpen.set(true);
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
@@ -998,7 +1007,7 @@ describe('PagesView', () => {
 
   it('mobile: the AI overlay has an in-panel close control that clears aiOpen', async () => {
     const { fixture } = await renderShellAt(false);
-    const cmp = fixture.componentInstance as AiHandle;
+    const cmp = fixture.componentInstance as unknown as AiHandle;
     cmp.aiOpen.set(true);
     fixture.detectChanges();
     await settle();
@@ -1035,7 +1044,7 @@ describe('PagesView', () => {
 
   it('mobile: opening the AI overlay closes the inspector sheet; the hamburger then closes the AI overlay (I3 / D9)', async () => {
     const { fixture, ctx } = await renderShellWithPage(false);
-    const cmp = fixture.componentInstance as AiHandle & { onToggleAi(): void };
+    const cmp = fixture.componentInstance as unknown as AiHandle & { onToggleAi(): void };
 
     ctx.inspectorSheetOpen.set(true);
     fixture.detectChanges();
@@ -1062,7 +1071,7 @@ describe('PagesView', () => {
   it('desktop: opening the AI pane leaves the inspector untouched (mutual exclusion is mobile-only)', async () => {
     const { fixture, ctx } = await renderShellWithPage(true);
     const layout = TestBed.inject(Layout);
-    const cmp = fixture.componentInstance as AiHandle & { onToggleAi(): void };
+    const cmp = fixture.componentInstance as unknown as AiHandle & { onToggleAi(): void };
 
     ctx.toggleInspector(); // desktop -> Layout.inspectorVisible true
     fixture.detectChanges();

@@ -913,6 +913,7 @@ export class PageDetail {
 
   closeAttachmentUploader(): void {
     this.attachmentUploaderOpen.set(false);
+    this.attachmentGuardMessage.set(null);
   }
 
   /**
@@ -1204,9 +1205,14 @@ export class PageDetail {
       // updatePage bumps the pages version, so the view reload picks up the save.
       await this.router.navigate(['/pages', g]);
     } catch (err) {
+      // Prefer the server-supplied body message; fall back to a real
+      // Error.message, then a generic sentence. Never surface the raw
+      // HttpErrorResponse.message ("Http failure response for /api/… 500 …"),
+      // which leaks the internal request path into user-facing copy.
+      const serverMessage = (err as { error?: { message?: string } })?.error?.message;
       const message =
-        (err as { message?: string })?.message ?? 'Save failed. Try again.';
-      // Store the raw server message — the banner template composes the
+        serverMessage || (err instanceof Error ? err.message : '') || 'Save failed. Try again.';
+      // Store the resolved message — the banner template composes the
       // "Save failed: … Your changes are still here" reassurance copy.
       this.saveError.set(message);
     } finally {
