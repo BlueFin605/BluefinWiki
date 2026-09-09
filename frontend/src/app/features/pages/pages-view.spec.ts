@@ -19,8 +19,10 @@ import { PageContext } from './page-context';
 import { PageTree } from './page-tree';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { SearchDialog } from '../search/search-dialog';
+import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 import type { PageTypeDefinition } from './page.types';
 import type { PageMetadata } from './drafts';
+import type { PageTypeChange } from '../editor/page-properties-panel';
 
 function makeMeta(over: Partial<PageMetadata> = {}): PageMetadata {
   return {
@@ -46,6 +48,9 @@ function baseProviders() {
     provideHttpClient(),
     provideHttpClientTesting(),
     provideRouter([]),
+    // DESIGN.md 1b: Breakpoint is mocked per spec. PagesView pulls it in via
+    // PageContext; default the stub to desktop.
+    ...provideBreakpointStub().providers,
   ];
 }
 
@@ -398,20 +403,26 @@ describe('PagesView', () => {
       metadataChange: { emit: (m: PageMetadata) => void };
       insertMarkdown: { emit: (s: string) => void };
       titleH1Sync: { emit: (s: string) => void };
+      pageTypeChange: { emit: (c: PageTypeChange) => void };
     };
 
     const insertSeen: string[] = [];
     const titleSeen: string[] = [];
+    const typeSeen: PageTypeChange[] = [];
     ctx.insert$.subscribe((s) => insertSeen.push(s));
     ctx.titleH1Sync$.subscribe((s) => titleSeen.push(s));
+    ctx.pageTypeChange$.subscribe((c) => typeSeen.push(c));
 
+    const typeChange: PageTypeChange = { pageType: 'pt-task', properties: {} };
     inspector.metadataChange.emit(makeMeta({ title: 'Renamed' }));
     inspector.insertMarkdown.emit('![x](x.png)');
     inspector.titleH1Sync.emit('Renamed');
+    inspector.pageTypeChange.emit(typeChange);
 
     expect(ctx.metadata()?.title).toBe('Renamed');
     expect(insertSeen).toEqual(['![x](x.png)']);
     expect(titleSeen).toEqual(['Renamed']);
+    expect(typeSeen).toEqual([typeChange]);
 
     http.match(() => true).forEach((r) => r.flush(null));
   });

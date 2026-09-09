@@ -911,11 +911,6 @@ export class PageDetail {
     }
   }
 
-  /** Inspector `insertMarkdown` output → shared cursor insert. */
-  onInsertMarkdown(text: string): void {
-    this.insertMarkdownAtCursor(text);
-  }
-
   /**
    * Inspector Page Type change (step 4.4). Unlike every other metadata edit —
    * which only flows into the working copy and reaches the server on an

@@ -106,6 +106,14 @@ import { AiSidebar } from '../ai/ai-sidebar';
           now; step 1b.5 moves it into the responsive mat-sidenav (step 1b.4's
           hoisted container).
         -->
+        <!--
+          Stale-metadata window: on a param-only /pages/g1 -> /pages/g2 nav,
+          PageDetail is reused (no reset()), so ctx.guid() flips before
+          ctx.metadata() rehydrates — this always-visible interim pane can
+          briefly show g2 + g1's metadata until PageDetail's hydrate effect
+          fires. Pre-existing (the same guard lived in page-detail); 1b.4/1b.5
+          sidenav gating will mask it.
+        -->
         @if (ctx.guid() && ctx.metadata(); as m) {
           <div class="inspector-pane">
             <wiki-inspector-panel

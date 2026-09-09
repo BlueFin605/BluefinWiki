@@ -1040,8 +1040,8 @@ describe('PageDetail', () => {
     expect(editorMode(fixture)).toBe('preview');
     expect((fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror')).toBeNull();
 
-    (fixture.componentInstance as unknown as { onInsertMarkdown: (m: string) => void })
-      .onInsertMarkdown('![x](x.png)');
+    (fixture.componentInstance as unknown as { insertMarkdownAtCursor: (m: string) => void })
+      .insertMarkdownAtCursor('![x](x.png)');
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
