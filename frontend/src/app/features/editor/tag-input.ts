@@ -47,8 +47,8 @@ const MAX_SUGGESTIONS = 5;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-form-field appearance="fill" class="full">
-      <mat-label>Tags</mat-label>
-      <mat-chip-grid #chipGrid [disabled]="readOnly()" aria-label="Tags">
+      <mat-label>{{ label() }}</mat-label>
+      <mat-chip-grid #chipGrid [disabled]="readOnly()" [attr.aria-label]="label()">
         @for (tag of tags(); track tag) {
           <mat-chip-row (removed)="removeTag(tag)">
             {{ tag }}
@@ -88,6 +88,12 @@ export class TagInput {
   readonly tags = input.required<readonly string[]>();
   /** Full tag vocabulary to suggest from. */
   readonly vocab = input<readonly string[]>([]);
+  /**
+   * Field label — the visible `mat-label` and the chip-grid's accessible name.
+   * Defaults to "Tags" (the page-level tags field); step 4.7 passes the custom
+   * property's name so `release-tags` etc. announce correctly to screen readers.
+   */
+  readonly label = input<string>('Tags');
   readonly readOnly = input<boolean>(false);
   /** Emitted with the next full tag set on every add or remove. */
   readonly tagsChange = output<readonly string[]>();

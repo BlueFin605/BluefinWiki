@@ -43,13 +43,11 @@ import type { PageProperty } from '../pages/page.types';
             (titleH1Sync)="titleH1Sync.emit($event)"
             (pageTypeChange)="pageTypeChange.emit($event)"
           />
-          @if (currentPageType(); as pt) {
-            <wiki-custom-properties-editor
-              [pageType]="pt"
-              [properties]="metadata().properties ?? {}"
-              (propertiesChange)="onPropertiesChange($event)"
-            />
-          }
+          <wiki-custom-properties-editor
+            [pageType]="currentPageType()"
+            [properties]="metadata().properties ?? {}"
+            (propertiesChange)="onPropertiesChange($event)"
+          />
         }
       </mat-tab>
 

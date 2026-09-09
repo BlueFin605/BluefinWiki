@@ -76,10 +76,10 @@ import type {
             <div class="prop-row">
               @if (row.prop.type === 'tags') {
                 <div class="tags-field">
-                  <span class="prop-name">{{ row.name }}</span>
                   <wiki-tag-input
                     [tags]="tagsOf(row.prop)"
                     [vocab]="vocabFor(row.name)"
+                    [label]="row.name"
                     [readOnly]="!editable()"
                     (tagsChange)="onTagsChange(row.name, $event)"
                   />
@@ -175,7 +175,6 @@ import type {
     .prop-row { display: flex; align-items: flex-start; gap: 0.25rem; }
     .prop-row .full, .prop-row .tags-field { flex: 1 1 auto; min-width: 0; }
     .tags-field { display: flex; flex-direction: column; }
-    .prop-name { font-size: 0.75rem; color: #6b7280; }
     .remove-btn {
       flex: none; display: inline-flex; align-items: center; justify-content: center;
       margin-top: 0.5rem; padding: 0.25rem;
@@ -195,8 +194,15 @@ import type {
 export class CustomPropertiesEditor {
   private readonly pageTags = inject(PageTags);
 
-  readonly pageType = input.required<PageTypeDefinition>();
+  /**
+   * The page's type definition, or `null` for an untyped page. Untyped means an
+   * empty schema, **not** an absent section — the editor still renders so ad-hoc
+   * properties can be added/removed (React parity; the inspector no longer gates
+   * this section on a resolved page type).
+   */
+  readonly pageType = input<PageTypeDefinition | null>(null);
   readonly properties = input<Record<string, PageProperty>>({});
+  // bound by nobody today; kept for a future explicit read-only inspector
   readonly editable = input<boolean>(true);
   readonly propertiesChange = output<Record<string, PageProperty>>();
 
@@ -207,7 +213,7 @@ export class CustomPropertiesEditor {
   protected readonly newType = signal<PropertyType>('string');
   protected readonly addError = signal<string | null>(null);
 
-  private readonly schema = computed(() => this.pageType().properties ?? []);
+  private readonly schema = computed(() => this.pageType()?.properties ?? []);
   private readonly schemaKeys = computed(
     () => new Set(this.schema().map((f) => f.name)),
   );

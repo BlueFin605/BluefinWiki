@@ -166,12 +166,19 @@ describe('AttachmentManager — list + row actions', () => {
     expect(imageRow.querySelector('wiki-image')).not.toBeNull();
     expect(docRow.querySelector('wiki-image')).toBeNull();
 
-    // Each row shows filename + size + uploaded date (React ref line 415).
+    // Each row shows filename + size + uploaded date (React ref line 415). The
+    // date goes through Angular's DatePipe (`medium`), so it renders in the
+    // viewer's locale — never the raw ISO string. Locale-independent checks:
+    // the ISO is gone and the cell still carries the year.
     expect(imageRow.querySelector('.name')?.textContent?.trim()).toBe('pic.png');
     expect(imageRow.querySelector('.size')?.textContent?.trim()).toBe('2 KB');
-    expect(imageRow.querySelector('.date')?.textContent?.trim()).toBe('2026-05-02T00:00:00Z');
+    const imageDate = imageRow.querySelector('.date')?.textContent?.trim() ?? '';
+    expect(imageDate).not.toBe('2026-05-02T00:00:00Z');
+    expect(imageDate).toContain('2026');
     expect(docRow.querySelector('.size')?.textContent?.trim()).toBe('4 KB');
-    expect(docRow.querySelector('.date')?.textContent?.trim()).toBe('2026-05-01T00:00:00Z');
+    const docDate = docRow.querySelector('.date')?.textContent?.trim() ?? '';
+    expect(docDate).not.toBe('2026-05-01T00:00:00Z');
+    expect(docDate).toContain('2026');
   });
 
   it('emits insertMarkdown via the shared builder (image embed form)', async () => {

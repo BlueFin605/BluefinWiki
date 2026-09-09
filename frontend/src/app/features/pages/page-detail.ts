@@ -93,10 +93,13 @@ export function resolveSaveStatus(state: {
 /**
  * Unified page screen. A single component backs both `/pages/:guid` (view) and
  * `/pages/:guid/edit` (edit) — the `:guid/edit` route carries `data.editMode`.
- * The Properties / Attachments / Linked inspector is mounted in both modes;
- * in view mode it renders read-only. Toggling View/Edit navigates between the
- * two routes (the component is recreated), so unsaved work survives via the
- * localStorage-backed `Drafts` store, exactly as the standalone editor did.
+ * The Properties / Attachments / Linked inspector is mounted in both modes and
+ * its properties stay editable in both (see the `saveStatus` note below and
+ * `resetWorkingCopyToServer`'s autosave effect) — the "Read-only" save pill
+ * reflects only the CodeMirror editor surface, not the inspector. Toggling
+ * View/Edit navigates between the two routes (the component is recreated), so
+ * unsaved work survives via the localStorage-backed `Drafts` store, exactly as
+ * the standalone editor did.
  */
 @Component({
   selector: 'wiki-page-detail',
@@ -567,9 +570,15 @@ export class PageDetail {
 
   /**
    * Single save-status pill. A pure projection of `mode` / `saving` / `dirty`
-   * (see {@link resolveSaveStatus}) — read-only in view mode, otherwise
+   * (see {@link resolveSaveStatus}) — "Read-only" in view mode, otherwise
    * Saving… / Unsaved / All saved. Replaces the old "Saving..." label and the
    * generic `saveError` span.
+   *
+   * NOTE: "Read-only" here means the CodeMirror editor buffer only. The
+   * inspector's Properties panel persists edits in BOTH view and edit mode —
+   * including {@link onPageTypeChange}, which fires an immediate `updatePage` —
+   * and this is deliberate (React parity). Do not read the pill as gating the
+   * inspector.
    */
   protected readonly saveStatus = computed<SaveStatus>(() =>
     resolveSaveStatus({
@@ -881,12 +890,13 @@ export class PageDetail {
    * A file finished uploading from the toolbar's inline uploader: drop its
    * markdown in at the cursor (React parity — the returned markdown is
    * auto-inserted; step 4.9). The uploader already built the markdown via the
-   * shared {@link buildAttachmentMarkdown}, so this only appends a trailing
-   * newline. The uploader panel stays open so several files can be added in a
-   * row. (The inspector's uploader takes the `insertMarkdown` route instead.)
+   * shared {@link buildAttachmentMarkdown}, so this forwards it verbatim through
+   * the same {@link insertMarkdownAtCursor} route the inspector's uploader and
+   * the attachment manager Insert action use — one insert path, identical text.
+   * The uploader panel stays open so several files can be added in a row.
    */
   onAttachmentUploaded(event: AttachmentUploadedEvent): void {
-    this.insertMarkdownAtCursor(`${event.markdown}\n`);
+    this.insertMarkdownAtCursor(event.markdown);
   }
 
   onPickPage(page: PageSearchResult, ctx: CursorContext): void {

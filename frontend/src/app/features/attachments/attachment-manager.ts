@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { DatePipe } from '@angular/common';
 import {
   catchError,
   map,
@@ -64,7 +65,7 @@ function sortNewestFirst(
 @Component({
   selector: 'wiki-attachment-manager',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, WikiImage],
+  imports: [MatButtonModule, MatIconModule, WikiImage, DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="panel">
@@ -126,7 +127,7 @@ function sortNewestFirst(
                 <span class="name">{{ item.filename }}</span>
                 <span class="sub">
                   <span class="size">{{ format(item.size) }}</span>
-                  <span class="date">{{ item.uploadedAt }}</span>
+                  <span class="date">{{ item.uploadedAt | date: 'medium' }}</span>
                 </span>
               </div>
 

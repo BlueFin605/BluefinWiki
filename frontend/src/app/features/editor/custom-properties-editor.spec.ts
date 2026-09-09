@@ -33,6 +33,8 @@ interface RenderOpts {
   schema?: PageTypeDefinition['properties'];
   properties?: Record<string, PageProperty>;
   editable?: boolean;
+  /** Render an untyped page: `pageType` bound to `null` (empty schema). */
+  untyped?: boolean;
   /** Tag-vocabulary scopes expected to be fetched, each flushed with `[]`. */
   tagScopes?: string[];
 }
@@ -40,7 +42,7 @@ interface RenderOpts {
 async function renderEditor(opts: RenderOpts = {}) {
   const result = await render(CustomPropertiesEditor, {
     inputs: {
-      pageType: pageType(opts.schema ?? []),
+      pageType: opts.untyped ? null : pageType(opts.schema ?? []),
       properties: opts.properties ?? {},
       editable: opts.editable ?? true,
     },
@@ -297,6 +299,42 @@ describe('CustomPropertiesEditor', () => {
 
     // No further GET /api/tags?scope=... beyond the one drained on mount.
     expect(http.match((r) => r.url === '/api/tags').length).toBe(0);
+  });
+
+  // ---- C1: untyped pages reach the Custom Properties editor ------------
+
+  it('renders the Custom Properties section for an untyped page (pageType=null)', async () => {
+    await renderEditor({ untyped: true });
+    expect(
+      screen.getByRole('button', { name: /custom properties/i }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    // The add-ad-hoc form is available with no schema at all.
+    expect(screen.getByPlaceholderText(/new property name/i)).toBeInTheDocument();
+  });
+
+  it('adds then removes an ad-hoc property on an untyped page', async () => {
+    const { fixture, last, emissions } = await renderEditor({ untyped: true });
+
+    await userEvent.type(screen.getByPlaceholderText(/new property name/i), 'release-year');
+    await userEvent.click(screen.getByRole('button', { name: /^add property$/i }));
+    await settle();
+    fixture.detectChanges();
+
+    expect(emissions.length).toBe(1);
+    expect(last()['release-year']).toEqual({ type: 'string', value: '' });
+
+    // Host echoes the new prop back into the input.
+    fixture.componentRef.setInput('properties', last());
+    fixture.detectChanges();
+    await settle();
+
+    // The ad-hoc row renders and carries a remove button (nothing is schema-fixed).
+    const removeBtn = screen.getByRole('button', { name: /remove release-year/i });
+    await userEvent.click(removeBtn);
+    await settle();
+
+    expect(last()).toEqual({});
+    expect('release-year' in last()).toBe(false);
   });
 
   it('keeps the label of a schema tags property distinct from an ad-hoc one', async () => {

@@ -149,10 +149,13 @@ const DEBOUNCE_MS = 200;
         Author / timestamps (step 4.6, React parity):
         - Dates go through Angular's \`DatePipe\` (\`medium\`) so they render in
           the viewer's locale, never as a raw ISO string.
-        - \`createdBy\` / \`modifiedBy\` prefer a display name when the metadata
-          already carries one (\`createdByName\` / \`modifiedByName\`, populated
-          best-effort by the host from an in-memory users lookup) and fall back
-          to the raw id otherwise — no dedicated users fetch is made here.
+        - \`createdBy\` / \`modifiedBy\` render a display name when the metadata
+          already carries one (\`createdByName\` / \`modifiedByName\`) and fall
+          back to the raw id otherwise. Those name fields are a forward-compat
+          seam that nothing populates yet — no code path fills them today, so
+          the raw-id fallback is the current production behaviour. Resolving
+          them would need a users lookup, which is out of 4.6's "no new fetch"
+          scope.
       -->
       <dl class="meta">
         <dt>Author</dt>
@@ -193,6 +196,9 @@ export class PagePropertiesPanel {
   private readonly injector = inject(Injector);
 
   readonly metadata = input.required<PageMetadata>();
+  // bound by nobody today; kept for a future explicit read-only inspector.
+  // The inspector is intentionally editable in both view and edit mode
+  // (React parity) — see PageDetail's `saveStatus` note.
   readonly readOnly = input<boolean>(false);
   readonly metadataChange = output<PageMetadata>();
   /**
@@ -263,7 +269,7 @@ export class PagePropertiesPanel {
     effect(() => {
       const meta = this.metadata();
       // Avoid re-syncing on every signal write originating from this panel.
-      const key = `${meta.guid}|${meta.title}|${meta.status}|${meta.tags.join(',')}|${meta.pageType ?? ''}`;
+      const key = this.metaKey(meta);
       if (this.syncedMetaKey === key) return;
       this.syncedMetaKey = key;
       this.title.set(meta.title);
@@ -343,6 +349,19 @@ export class PagePropertiesPanel {
   }
 
   /**
+   * The echo-loop guard key: a stable digest of every metadata field this panel
+   * edits. Built here once and used by BOTH the hydration effect (skip a
+   * self-originated echo) and {@link flushMetadata} (mark the value we are about
+   * to emit as already-synced). If a new editable field is added to the panel it
+   * must be added here — a single site, so the two consumers can never drift.
+   * `properties` is deliberately omitted: this panel edits none (the Custom
+   * Properties editor below it owns those).
+   */
+  private metaKey(m: PageMetadata): string {
+    return `${m.guid}|${m.title}|${m.status}|${m.tags.join(',')}|${m.pageType ?? ''}`;
+  }
+
+  /**
    * Build the merged metadata and emit it (plus, for a genuine non-empty user
    * Title edit, {@link titleH1Sync}). Called from the debounce timer and
    * directly on a blank-title revert. Never emits an empty title.
@@ -372,7 +391,7 @@ export class PagePropertiesPanel {
       delete (next as { pageType?: string }).pageType;
     }
     // Update sync key so the next metadata-input echo doesn't reset us.
-    this.syncedMetaKey = `${next.guid}|${next.title}|${next.status}|${next.tags.join(',')}|${next.pageType ?? ''}`;
+    this.syncedMetaKey = this.metaKey(next);
     this.metadataChange.emit(next);
     if (this.userTitleDirty) this.titleH1Sync.emit(t);
   }
