@@ -25,6 +25,8 @@ import { Drafts } from './drafts';
 import { Layout } from '../../core/layout/layout';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { EditorErrorState } from '../../core/error/editor-error-state';
+import { InvalidationBus, pageTag } from '../../core/api/invalidation';
+import type { PageTypeDefinition } from './page.types';
 
 const serverPage = {
   guid: 'g1',
@@ -148,6 +150,71 @@ describe('PageDetail', () => {
     fixture.detectChanges();
     await settle();
     expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
+  });
+
+  it('persists page type + merged properties immediately on a type change and invalidates page:<guid>', async () => {
+    const taskType: PageTypeDefinition = {
+      guid: 'pt-task',
+      name: 'Task',
+      icon: '',
+      properties: [
+        { name: 'status', type: 'string', required: false, defaultValue: 'backlog' },
+        { name: 'points', type: 'number', required: false },
+      ],
+      allowedChildTypes: [],
+      allowWikiPageChildren: true,
+      allowedParentTypes: [],
+      allowAnyParent: true,
+      createdBy: '',
+      createdAt: '',
+      updatedAt: '',
+    };
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      properties: {
+        status: { type: 'string', value: 'doing' },
+        legacy: { type: 'string', value: 'x' },
+      },
+    });
+    await settle();
+    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
+    await settle();
+    fixture.detectChanges();
+    http.expectOne('/api/page-types').flush({ pageTypes: [taskType] });
+    http.expectOne('/api/pages/g1/backlinks').flush({ guid: 'g1', backlinks: [], count: 0 });
+    await settle();
+    fixture.detectChanges();
+
+    const bus = TestBed.inject(InvalidationBus);
+    const before = bus.version(pageTag('g1'));
+
+    // Drive the change from the properties panel — no field was edited first.
+    const panel = fixture.debugElement
+      .query(By.css('wiki-page-properties-panel'))
+      .componentInstance as { onPageTypeChange: (guid: string | null) => void };
+    panel.onPageTypeChange('pt-task');
+    await settle();
+
+    const put = http.expectOne(
+      (r) => r.url === '/api/pages/g1' && r.method === 'PUT',
+    );
+    const body = put.request.body as {
+      pageType: string | null;
+      properties: Record<string, unknown>;
+    };
+    expect(body).toEqual({
+      pageType: 'pt-task',
+      properties: {
+        status: { type: 'string', value: 'doing' }, // retained (name + type match)
+        points: { type: 'number', value: '' }, // seeded from the new schema
+        // `legacy` dropped — not in the new schema
+      },
+    });
+    put.flush({ ...serverPage, pageType: 'pt-task', properties: body.properties });
+    await settle();
+
+    expect(bus.version(pageTag('g1'))).toBe(before + 1);
   });
 
   it('navigates to the edit route when the Edit toggle is clicked', async () => {

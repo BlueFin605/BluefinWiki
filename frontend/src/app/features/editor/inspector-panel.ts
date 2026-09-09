@@ -11,7 +11,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatBadgeModule } from '@angular/material/badge';
 import { Pages } from '../pages/pages';
 import { PageTypes, SKIP_PAGE_TYPE_FETCH } from '../page-types/page-types';
-import { PagePropertiesPanel } from './page-properties-panel';
+import { PagePropertiesPanel, type PageTypeChange } from './page-properties-panel';
 import { CustomPropertiesEditor } from './custom-properties-editor';
 import { LinkedPagesPanel } from '../pages/linked-pages-panel';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
@@ -41,6 +41,7 @@ import type { PageProperty } from '../pages/page.types';
             [metadata]="metadata()"
             (metadataChange)="metadataChange.emit($event)"
             (titleH1Sync)="titleH1Sync.emit($event)"
+            (pageTypeChange)="pageTypeChange.emit($event)"
           />
           @if (currentPageType(); as pt) {
             <wiki-custom-properties-editor
@@ -116,6 +117,11 @@ export class InspectorPanel {
    * leading `# H1` line in the editor buffer when the user edits the Title.
    */
   readonly titleH1Sync = output<string>();
+  /**
+   * Forwarded from {@link PagePropertiesPanel.pageTypeChange}: the host persists
+   * the new page type + its merged property set immediately (step 4.4).
+   */
+  readonly pageTypeChange = output<PageTypeChange>();
 
   protected readonly selectedTab = signal(0);
 

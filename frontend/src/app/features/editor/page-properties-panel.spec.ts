@@ -6,6 +6,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { PagePropertiesPanel } from './page-properties-panel';
 import type { PageMetadata } from '../pages/drafts';
+import type { PageProperty, PageTypeDefinition } from '../pages/page.types';
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -47,6 +48,38 @@ async function renderPanel(initial: PageMetadata) {
 /** The click-to-edit Title trigger (shown when not editing). */
 function titleTrigger(): HTMLElement {
   return screen.getByRole('button', { name: 'Title' });
+}
+
+function pageType(over: Partial<PageTypeDefinition> & Pick<PageTypeDefinition, 'guid' | 'name'>): PageTypeDefinition {
+  return {
+    icon: 'note',
+    properties: [],
+    allowedChildTypes: [],
+    allowWikiPageChildren: true,
+    allowedParentTypes: [],
+    allowAnyParent: true,
+    createdBy: '',
+    createdAt: '',
+    updatedAt: '',
+    ...over,
+  };
+}
+
+async function renderPanelWithTypes(initial: PageMetadata, types: PageTypeDefinition[]) {
+  const result = await render(PagePropertiesPanel, {
+    inputs: { metadata: initial },
+    providers: [provideAnimationsAsync(), provideHttpClient(), provideHttpClientTesting()],
+  });
+  const http = TestBed.inject(HttpTestingController);
+  http.expectOne('/api/page-types').flush({ pageTypes: types });
+  await settle();
+  result.fixture.detectChanges();
+  return result;
+}
+
+/** The Page Type <mat-select>, or null when the control is hidden. */
+function pageTypeControl(): HTMLElement | null {
+  return screen.queryByRole('combobox', { name: /page type/i });
 }
 
 describe('PagePropertiesPanel', () => {
@@ -234,5 +267,59 @@ describe('PagePropertiesPanel', () => {
     await renderPanel(meta({ createdBy: 'alice', modifiedBy: 'bob' }));
     expect(screen.getByText(/alice/)).toBeInTheDocument();
     expect(screen.getByText(/bob/)).toBeInTheDocument();
+  });
+
+  // ---- Step 4.4: Page Type select + schema merge ------------------------
+
+  it('hides the Page Type control entirely when no page types exist', async () => {
+    await renderPanel(meta());
+    expect(pageTypeControl()).toBeNull();
+    // The other selects (Status) are unaffected.
+    expect(screen.getByRole('combobox', { name: /status/i })).toBeInTheDocument();
+  });
+
+  it('shows the Page Type control when page types exist', async () => {
+    await renderPanelWithTypes(meta(), [pageType({ guid: 'pt-task', name: 'Task' })]);
+    expect(pageTypeControl()).toBeInTheDocument();
+  });
+
+  it('persists a merged property set the moment a page type is selected — no field edit needed', async () => {
+    const result = await renderPanelWithTypes(
+      meta({
+        properties: {
+          status: { type: 'string', value: 'doing' },
+          legacy: { type: 'string', value: 'stale' },
+        },
+      }),
+      [
+        pageType({
+          guid: 'pt-task',
+          name: 'Task',
+          properties: [
+            { name: 'status', type: 'string', required: false, defaultValue: 'backlog' },
+            { name: 'points', type: 'number', required: false },
+          ],
+        }),
+      ],
+    );
+
+    const changes: { pageType: string | null; properties: Record<string, PageProperty> }[] = [];
+    result.fixture.componentInstance.pageTypeChange.subscribe((c) => changes.push(c));
+
+    const user = userEvent.setup();
+    await user.click(pageTypeControl()!);
+    await settle();
+    result.fixture.detectChanges();
+    await user.click(screen.getByRole('option', { name: 'Task' }));
+    await settle();
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0].pageType).toBe('pt-task');
+    // status retained (name + type still apply), points seeded from schema,
+    // legacy dropped (not in the new schema).
+    expect(changes[0].properties).toEqual({
+      status: { type: 'string', value: 'doing' },
+      points: { type: 'number', value: '' },
+    });
   });
 });

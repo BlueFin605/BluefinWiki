@@ -129,6 +129,20 @@ describe('InspectorPanel', () => {
     expect(seen).toEqual(['New Heading']);
   });
 
+  it('forwards the properties panel pageTypeChange output to the host', async () => {
+    const { fixture } = await renderInspector();
+    const seen: unknown[] = [];
+    fixture.componentInstance.pageTypeChange.subscribe((c) => seen.push(c));
+
+    const panel = fixture.debugElement
+      .query(By.css('wiki-page-properties-panel'))
+      .componentInstance as { pageTypeChange: { emit: (v: unknown) => void } };
+    const payload = { pageType: 'pt-task', properties: { status: { type: 'string', value: 'x' } } };
+    panel.pageTypeChange.emit(payload);
+
+    expect(seen).toEqual([payload]);
+  });
+
   // ---- Step 4.1: mobile-sheet presentation seam --------------------------
 
   it('defaults to the "side" presentation and reflects it on the host', async () => {

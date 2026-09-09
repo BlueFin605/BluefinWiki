@@ -22,6 +22,7 @@ import { WikiCodemirror, type CursorContext, type ToolbarAction } from '../../sh
 import { MarkdownToolbar } from '../editor/markdown-toolbar';
 import { LinkAutocomplete } from '../editor/link-autocomplete';
 import { InspectorPanel } from '../editor/inspector-panel';
+import type { PageTypeChange } from '../editor/page-properties-panel';
 import { rewriteFirstH1, firstH1Range } from '../editor/title-h1';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { buildAttachmentMarkdown, type AttachmentUploadResponse } from '../attachments/attachment.types';
@@ -357,6 +358,7 @@ export function resolveSaveStatus(state: {
               (metadataChange)="metadata.set($event)"
               (insertMarkdown)="onInsertMarkdown($event)"
               (titleH1Sync)="setFirstH1($event)"
+              (pageTypeChange)="onPageTypeChange($event)"
             />
           }
         </mat-sidenav>
@@ -928,6 +930,46 @@ export class PageDetail {
   /** Inspector `insertMarkdown` output → shared cursor insert. */
   onInsertMarkdown(text: string): void {
     this.insertMarkdownAtCursor(text);
+  }
+
+  /**
+   * Inspector Page Type change (step 4.4). Unlike every other metadata edit —
+   * which only flows into the working copy and reaches the server on an
+   * explicit Save — a page-type change is persisted **immediately**: the merged
+   * property set (new schema defaults + retained compatible values, built by
+   * `mergeSchema` in the properties panel) is written together with the type in
+   * one `updatePage` call, so the schema's fields are seeded and stick without
+   * the user touching a field. `updatePage` always bumps `page:<guid>` (and,
+   * because `pageType`/`properties` are tree/board-visible, the children tags),
+   * so the page reloads with the merge applied.
+   *
+   * The working copy is updated first so the inspector re-renders the new
+   * schema at once; a pending title/tag/body edit is left untouched (it stays
+   * dirty and persists on the next Save, exactly as before).
+   */
+  async onPageTypeChange(change: PageTypeChange): Promise<void> {
+    const g = this.guid();
+    const m = this.metadata();
+    if (!g || !m) return;
+
+    const nextMeta: PageMetadata = { ...m, properties: change.properties };
+    if (change.pageType) nextMeta.pageType = change.pageType;
+    else delete nextMeta.pageType;
+    this.metadata.set(nextMeta);
+
+    try {
+      await this.pages.updatePage(g, {
+        pageType: change.pageType,
+        properties: change.properties,
+      });
+      // Keep a live draft in step with what was just persisted so a reload
+      // can't resurrect the previous type from localStorage.
+      if (this.drafts.hasDraft(g)) {
+        this.drafts.set(g, { content: this.content(), metadata: nextMeta });
+      }
+    } catch {
+      this.snack.open('Failed to change page type.', 'Dismiss', { duration: 4000 });
+    }
   }
 
   /**

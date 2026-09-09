@@ -22,6 +22,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { PageTypes } from '../page-types/page-types';
 import type { PageMetadata } from '../pages/drafts';
+import type { PageProperty } from '../pages/page.types';
+import { mergeSchema } from '../pages/merge-schema';
+
+/** Payload for {@link PagePropertiesPanel.pageTypeChange}. */
+export interface PageTypeChange {
+  pageType: string | null;
+  properties: Record<string, PageProperty>;
+}
 
 const DEBOUNCE_MS = 200;
 
@@ -113,19 +121,29 @@ const DEBOUNCE_MS = 200;
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field appearance="fill" class="full">
-        <mat-label>Page type</mat-label>
-        <mat-select
-          [disabled]="readOnly()"
-          [ngModel]="pageType()"
-          (ngModelChange)="pageType.set($event)"
-        >
-          <mat-option [value]="null">(none)</mat-option>
-          @for (t of allTypes(); track t.guid) {
-            <mat-option [value]="t.guid">{{ t.name }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
+      <!--
+        Page Type (step 4.4, React parity): hidden entirely when no page types
+        are defined. Changing the type builds the merged property set (new
+        schema defaults + retained compatible values, minus properties the new
+        schema drops) and persists it immediately alongside the type — the host
+        writes both in one \`updatePage\`, so schema fields appear and stick
+        without the user touching a field.
+      -->
+      @if (allTypes().length) {
+        <mat-form-field appearance="fill" class="full">
+          <mat-label>Page type</mat-label>
+          <mat-select
+            [disabled]="readOnly()"
+            [ngModel]="pageType()"
+            (ngModelChange)="onPageTypeChange($event)"
+          >
+            <mat-option [value]="null">(none)</mat-option>
+            @for (t of allTypes(); track t.guid) {
+              <mat-option [value]="t.guid">{{ t.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
 
       <dl class="meta">
         <dt>Author</dt>
@@ -176,6 +194,16 @@ export class PagePropertiesPanel {
    * check on `rewriteFirstH1`.
    */
   readonly titleH1Sync = output<string>();
+  /**
+   * Emitted **synchronously** when the user picks a different Page Type — not
+   * debounced like {@link metadataChange}. Carries the new type guid (or `null`
+   * for "(none)") and the property set merged against that type's schema
+   * ({@link mergeSchema}). The host persists both in one `updatePage` right
+   * away, so the schema's fields are seeded and saved without the user editing
+   * anything (React parity — the old flow only persisted the merge if a field
+   * was subsequently touched).
+   */
+  readonly pageTypeChange = output<PageTypeChange>();
 
   protected readonly separatorKeyCodes = [ENTER, COMMA] as const;
 
@@ -331,6 +359,24 @@ export class PagePropertiesPanel {
     this.syncedMetaKey = `${next.guid}|${next.title}|${next.status}|${next.tags.join(',')}|${next.pageType ?? ''}`;
     this.metadataChange.emit(next);
     if (this.userTitleDirty) this.titleH1Sync.emit(t);
+  }
+
+  /**
+   * Page Type `<mat-select>` change. Updates the local signal (so the debounced
+   * {@link metadataChange} carries the new type too) and, unless read-only,
+   * emits {@link pageTypeChange} at once with the property set merged against
+   * the chosen type's schema. `next` is `null` for "(none)".
+   */
+  onPageTypeChange(next: string | null): void {
+    this.pageType.set(next);
+    if (this.readOnly()) return;
+    const schema = next
+      ? this.allTypes().find((t) => t.guid === next)?.properties ?? []
+      : [];
+    this.pageTypeChange.emit({
+      pageType: next,
+      properties: mergeSchema(this.metadata().properties, schema),
+    });
   }
 
   addTag(event: MatChipInputEvent): void {
