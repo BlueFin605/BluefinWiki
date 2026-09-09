@@ -54,9 +54,9 @@ function sortNewestFirst(
  * Lists a page's attachments (newest first) with per-row Insert / Download /
  * Copy-Markdown / Drag-Link / Delete actions, an image thumbnail + lightbox for
  * image types, and an exponential-backoff auto-retry (1s → 30s, ≤10 attempts)
- * on list-load failure — with a visible "Retrying… (attempt N of 10)" status
- * line so the wait is not a silent unchanging "Loading…" — plus a manual
- * Refresh that also resets the backoff.
+ * on list-load failure — with a visible, screen-reader-announced "Retrying…
+ * (attempt N of 9)" status line so the wait is not a silent unchanging
+ * "Loading…" — plus a manual Refresh that also resets the backoff.
  *
  * Insert and Copy Markdown share one markdown builder,
  * {@link buildAttachmentMarkdown} — the single source of truth for
@@ -89,17 +89,26 @@ function sortNewestFirst(
         </button>
       </div>
 
-      @if (isLoading()) {
-        @if (retryAttempt() > 0) {
-          <p class="state">Retrying… (attempt {{ retryAttempt() }} of {{ maxAttempts }})</p>
-        } @else {
+      <!--
+        Stable polite live region: it stays in the DOM across every state so the
+        "Loading attachments…" to "Retrying… (attempt N of 9)" swap and the
+        incrementing count re-announce to a screen reader. Polite (not
+        assertive) because the updates are 1-30s apart (react ref line 414:
+        auto-retry with status text).
+      -->
+      <div class="state-region" role="status" aria-live="polite">
+        @if (isLoading() && retryAttempt() > 0) {
+          <p class="state">Retrying… (attempt {{ retryAttempt() }} of {{ maxRetries }})</p>
+        } @else if (isLoading()) {
           <p class="state">Loading attachments…</p>
+        } @else if (hasError()) {
+          <p class="state error">Failed to load attachments.</p>
+        } @else if (items().length === 0) {
+          <p class="state empty">No attachments yet.</p>
         }
-      } @else if (hasError()) {
-        <p class="state error">Failed to load attachments.</p>
-      } @else if (items().length === 0) {
-        <p class="state empty">No attachments yet.</p>
-      } @else {
+      </div>
+
+      @if (!isLoading() && !hasError() && items().length > 0) {
         <ul class="list">
           @for (item of items(); track item.filename) {
             <li
@@ -242,8 +251,12 @@ export class AttachmentManager {
    */
   private readonly _retryAttempt = signal(0);
   protected readonly retryAttempt = this._retryAttempt.asReadonly();
-  /** Total list-load attempts before giving up: the initial GET + every retry. */
-  protected readonly maxAttempts = MAX_RETRIES + 1;
+  /**
+   * Denominator for the "attempt N of N" line. The retry counter runs 1..9
+   * (`nextDelay(10)` returns `null`, so attempt 10 is never displayed — it is
+   * the give-up), so the last line before failure reads "attempt 9 of 9".
+   */
+  protected readonly maxRetries = MAX_RETRIES;
 
   protected readonly format = formatFileSize;
   protected readonly emoji = attachmentEmoji;
