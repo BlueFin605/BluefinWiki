@@ -249,6 +249,27 @@ describe('WikiTableOfContents', () => {
       expect(container.querySelector('ul')).toBeNull();
     });
 
+    it('snaps back to collapsed after a compact -> desktop -> compact bounce', async () => {
+      mountHeadings('alpha', 'beta', 'gamma');
+      const { container, fixture, rerender } = await render(WikiTableOfContents, {
+        inputs: { markdown: THREE, compact: true },
+      });
+
+      screen.getByRole('button', { name: /on this page/i }).click();
+      fixture.detectChanges();
+      expect(container.querySelector('ul')).not.toBeNull();
+
+      await rerender({ inputs: { markdown: THREE, compact: false } });
+      await rerender({ inputs: { markdown: THREE, compact: true } });
+
+      // Same instance, but the bar is collapsed again — not left expanded.
+      expect(screen.getByRole('button', { name: /on this page/i })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+      expect(container.querySelector('ul')).toBeNull();
+    });
+
     it('renders nothing with fewer than 3 headings, even when compact', async () => {
       const { container } = await render(WikiTableOfContents, {
         inputs: { markdown: '## Only One\n\n## Only Two', compact: true },

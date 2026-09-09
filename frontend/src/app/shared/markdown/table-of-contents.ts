@@ -7,6 +7,7 @@ import {
   computed,
   inject,
   input,
+  linkedSignal,
   signal,
 } from '@angular/core';
 import { extractHeadings } from './extract-headings';
@@ -200,8 +201,16 @@ export class WikiTableOfContents {
   private readonly _activeSlug = signal<string | null>(null);
   protected readonly activeSlug = this._activeSlug.asReadonly();
 
-  /** Compact-bar open state. Collapsed by default; irrelevant to the rail. */
-  private readonly _expanded = signal(false);
+  /**
+   * Compact-bar open state. Collapsed by default; irrelevant to the rail.
+   * Sourced on `compact()` so any breakpoint change — including
+   * mobile → desktop → mobile on the same instance — snaps it back to collapsed
+   * rather than reappearing expanded.
+   */
+  private readonly _expanded = linkedSignal(() => {
+    this.compact();
+    return false;
+  });
   protected readonly expanded = this._expanded.asReadonly();
 
   private observer: IntersectionObserver | null = null;
