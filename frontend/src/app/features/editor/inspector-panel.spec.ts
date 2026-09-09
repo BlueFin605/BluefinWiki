@@ -60,6 +60,7 @@ async function renderInspector(
   // page types eagerly on mount. The backlinks resource is also eager (the
   // panel needs its count for the tab badge).
   http.expectOne('/api/page-types').flush({ pageTypes: [] });
+  http.expectOne('/api/tags?scope=_page').flush({ tags: [], scope: '_page' });
   http
     .expectOne('/api/pages/g1/backlinks')
     .flush({ guid: 'g1', backlinks: [], count: backlinkCount });

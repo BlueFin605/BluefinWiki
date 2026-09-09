@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { firstValueFrom, of } from 'rxjs';
 import { Pages } from './pages';
+import { InvalidationBus, pageTagsListTag } from '../../core/api/invalidation';
 import type { PageContent, PageSummary } from './page.types';
 
 function summary(over: Partial<PageSummary> = {}): PageSummary {
@@ -165,6 +166,28 @@ describe('Pages service', () => {
       req.flush(pageContent({ guid: 'g1', title: 'New' }));
       const result = await promise;
       expect(result.title).toBe('New');
+    });
+
+    it('updatePage with tags in the body bumps the page-tags vocabulary', async () => {
+      const bus = TestBed.inject(InvalidationBus);
+      const before = bus.version(pageTagsListTag());
+
+      const promise = pages.updatePage('g1', { tags: ['foo', 'bar'] });
+      http.expectOne('/api/pages/g1').flush(pageContent({ guid: 'g1' }));
+      await promise;
+
+      expect(bus.version(pageTagsListTag())).toBe(before + 1);
+    });
+
+    it('updatePage without tags leaves the page-tags vocabulary untouched', async () => {
+      const bus = TestBed.inject(InvalidationBus);
+      const before = bus.version(pageTagsListTag());
+
+      const promise = pages.updatePage('g1', { title: 'New' });
+      http.expectOne('/api/pages/g1').flush(pageContent({ guid: 'g1' }));
+      await promise;
+
+      expect(bus.version(pageTagsListTag())).toBe(before);
     });
 
     it('movePage PUTs /api/pages/{guid}/move', async () => {

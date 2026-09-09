@@ -75,6 +75,14 @@
  *                                            allowed children derive from the
  *                                            type set)
  *
+ * Tags (`features/tags/page-tags.ts`):
+ *   - `page-tags:list`           — the shared page-level tag vocabulary
+ *                                  (`pageTagsResource`, `GET /tags?scope=_page`).
+ *                                  Bumped by `Pages.createPage` and
+ *                                  `Pages.updatePage` when the body carries
+ *                                  `tags` — the backend auto-registers page
+ *                                  tags on write, so the vocabulary grows.
+ *
  * Attachments (`features/attachments/attachments.ts`):
  *   - `attachments:<pageGuid>`   — a page's attachment list (`listResource`)
  *
@@ -177,6 +185,9 @@ export const pageTypeTag = (guid: string): string => `page-type:${guid}`;
 
 export const allowedChildrenTag = (guid: string): string =>
   `page-type:allowed-children:${guid}`;
+
+/** The shared page-level tag vocabulary (`features/tags/page-tags.ts`). */
+export const pageTagsListTag = (): string => 'page-tags:list';
 
 export const attachmentsTag = (pageGuid: string): string => `attachments:${pageGuid}`;
 

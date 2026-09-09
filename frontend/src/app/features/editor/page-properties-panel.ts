@@ -17,10 +17,10 @@ import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatChipsModule, type MatChipInputEvent } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
-import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { PageTypes } from '../page-types/page-types';
+import { PageTags } from '../tags/page-tags';
+import { TagInput } from './tag-input';
 import type { PageMetadata } from '../pages/drafts';
 import type { PageProperty } from '../pages/page.types';
 import { mergeSchema } from '../pages/merge-schema';
@@ -46,8 +46,8 @@ const DEBOUNCE_MS = 200;
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatChipsModule,
     MatIconModule,
+    TagInput,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -90,28 +90,19 @@ const DEBOUNCE_MS = 200;
         }
       </div>
 
-      <mat-form-field appearance="fill" class="full">
-        <mat-label>Tags</mat-label>
-        <mat-chip-grid #chipGrid [disabled]="readOnly()" aria-label="Tags">
-          @for (tag of tags(); track tag) {
-            <mat-chip-row (removed)="removeTag(tag)">
-              {{ tag }}
-              @if (!readOnly()) {
-                <button matChipRemove type="button" [attr.aria-label]="'Remove ' + tag">
-                  <mat-icon>cancel</mat-icon>
-                </button>
-              }
-            </mat-chip-row>
-          }
-          <input
-            placeholder="Add tag"
-            [matChipInputFor]="chipGrid"
-            [matChipInputSeparatorKeyCodes]="separatorKeyCodes"
-            (matChipInputTokenEnd)="addTag($event)"
-            [disabled]="readOnly()"
-          />
-        </mat-chip-grid>
-      </mat-form-field>
+      <!--
+        Tags (step 4.5, React parity): chip grid with vocabulary autocomplete.
+        New tags are lower-cased + trimmed, deduped case-insensitively;
+        Backspace on an empty input removes the last chip. The chip grid +
+        autocomplete live in the reusable {@link TagInput} (step 4.7 reuses it
+        for ad-hoc custom properties).
+      -->
+      <wiki-tag-input
+        [tags]="tags()"
+        [vocab]="tagVocab()"
+        [readOnly]="readOnly()"
+        (tagsChange)="tags.set($event)"
+      />
 
       <mat-form-field appearance="fill" class="full">
         <mat-label>Status</mat-label>
@@ -186,6 +177,7 @@ const DEBOUNCE_MS = 200;
 })
 export class PagePropertiesPanel {
   private readonly pageTypes = inject(PageTypes);
+  private readonly pageTags = inject(PageTags);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
 
@@ -211,8 +203,6 @@ export class PagePropertiesPanel {
    * was subsequently touched).
    */
   readonly pageTypeChange = output<PageTypeChange>();
-
-  protected readonly separatorKeyCodes = [ENTER, COMMA] as const;
 
   private readonly titleInputEl = viewChild<ElementRef<HTMLInputElement>>('titleInput');
 
@@ -243,6 +233,14 @@ export class PagePropertiesPanel {
   protected readonly allTypes = computed(() =>
     this.pageTypesResource.status() === 'resolved'
       ? this.pageTypesResource.value() ?? []
+      : [],
+  );
+
+  private readonly pageTagsResource = this.pageTags.pageTagsResource();
+  /** Page-level tag vocabulary for the {@link TagInput} autocomplete. */
+  protected readonly tagVocab = computed(() =>
+    this.pageTagsResource.status() === 'resolved'
+      ? this.pageTagsResource.value() ?? []
       : [],
   );
 
@@ -396,19 +394,4 @@ export class PagePropertiesPanel {
     });
   }
 
-  addTag(event: MatChipInputEvent): void {
-    const value = (event.value ?? '').trim();
-    if (!value) {
-      event.chipInput?.clear();
-      return;
-    }
-    if (!this.tags().includes(value)) {
-      this.tags.update((arr) => [...arr, value]);
-    }
-    event.chipInput?.clear();
-  }
-
-  removeTag(tag: string): void {
-    this.tags.update((arr) => arr.filter((t) => t !== tag));
-  }
 }

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ENTER } from '@angular/cdk/keycodes';
 import { PagePropertiesPanel, type PageTypeChange as PageTypeChangePayload } from './page-properties-panel';
 import type { PageMetadata } from '../pages/drafts';
 import type { PageProperty, PageTypeDefinition } from '../pages/page.types';
@@ -28,7 +29,21 @@ function meta(over: Partial<PageMetadata> = {}): PageMetadata {
   };
 }
 
-async function renderPanel(initial: PageMetadata) {
+/** Shape the tag-vocabulary endpoint (`GET /tags?scope=_page`) returns. */
+function tagVocabResponse(tags: string[] = []) {
+  return {
+    scope: '_page',
+    tags: tags.map((tag) => ({
+      scope: '_page',
+      tag,
+      createdAt: '',
+      createdBy: '',
+      usageCount: 1,
+    })),
+  };
+}
+
+async function renderPanel(initial: PageMetadata, vocab: string[] = []) {
   const result = await render(PagePropertiesPanel, {
     inputs: { metadata: initial },
     providers: [
@@ -38,8 +53,9 @@ async function renderPanel(initial: PageMetadata) {
     ],
   });
   const http = TestBed.inject(HttpTestingController);
-  // Drain the pageTypes fetch
+  // Drain the eager inspector fetches (page types + tag vocabulary).
   http.expectOne('/api/page-types').flush({ pageTypes: [] });
+  http.expectOne('/api/tags?scope=_page').flush(tagVocabResponse(vocab));
   await settle();
   result.fixture.detectChanges();
   return result;
@@ -72,6 +88,7 @@ async function renderPanelWithTypes(initial: PageMetadata, types: PageTypeDefini
   });
   const http = TestBed.inject(HttpTestingController);
   http.expectOne('/api/page-types').flush({ pageTypes: types });
+  http.expectOne('/api/tags?scope=_page').flush(tagVocabResponse());
   await settle();
   result.fixture.detectChanges();
   return result;
@@ -258,6 +275,7 @@ describe('PagePropertiesPanel', () => {
     });
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    http.expectOne('/api/tags?scope=_page').flush(tagVocabResponse());
     await settle();
     result.fixture.detectChanges();
     expect(titleTrigger()).toBeDisabled();
@@ -361,5 +379,113 @@ describe('PagePropertiesPanel', () => {
     await settle();
 
     expect(changes).toEqual([]);
+  });
+
+  // ---- Step 4.5: Tags — lower-case, dedupe, backspace, vocab autocomplete ---
+
+  function tagField(): HTMLElement {
+    return screen.getByPlaceholderText('Add tag');
+  }
+
+  /** Material's chip input keys on `keyCode`; dispatch a real keydown for it. */
+  function pressEnter(el: HTMLElement): void {
+    el.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        keyCode: ENTER,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }
+
+  it('adds a typed tag lower-cased + trimmed into the debounced metadataChange', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] });
+    try {
+      const result = await renderPanel(meta({ tags: [] }));
+      const emissions: PageMetadata[] = [];
+      result.fixture.componentInstance.metadataChange.subscribe((m) => emissions.push(m));
+
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      const el = tagField();
+      el.focus();
+      await user.type(el, '  Foo  ');
+      pressEnter(el);
+      jest.advanceTimersByTime(250);
+      await settle();
+
+      expect(emissions.length).toBeGreaterThan(0);
+      expect(emissions[emissions.length - 1].tags).toEqual(['foo']);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('re-adding an applied tag in a different case does not change the tag set', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] });
+    try {
+      const result = await renderPanel(meta({ tags: ['foo'] }));
+      const emissions: PageMetadata[] = [];
+      result.fixture.componentInstance.metadataChange.subscribe((m) => emissions.push(m));
+
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      const el = tagField();
+      el.focus();
+      await user.type(el, 'FOO');
+      pressEnter(el);
+      jest.advanceTimersByTime(250);
+      await settle();
+
+      expect(emissions.every((m) => m.tags.join(',') === 'foo')).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('Backspace on the empty tag input drops the last chip', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] });
+    try {
+      const result = await renderPanel(meta({ tags: ['foo', 'bar'] }));
+      const emissions: PageMetadata[] = [];
+      result.fixture.componentInstance.metadataChange.subscribe((m) => emissions.push(m));
+
+      const el = tagField();
+      el.focus();
+      el.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Backspace',
+          keyCode: 8,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      jest.advanceTimersByTime(250);
+      await settle();
+
+      expect(emissions[emissions.length - 1].tags).toEqual(['foo']);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('draws tag suggestions from GET /tags?scope=_page, excluding applied tags (≤5)', async () => {
+    const result = await renderPanel(meta({ tags: ['area'] }), [
+      'area',
+      'banana',
+      'canal',
+      'data',
+      'ocean',
+      'salsa',
+      'cabaret',
+    ]);
+
+    await userEvent.type(tagField(), 'a');
+    await settle();
+    result.fixture.detectChanges();
+
+    const options = screen.queryAllByRole('option').map((o) => o.textContent?.trim());
+    expect(options.length).toBe(5);
+    expect(options).not.toContain('area');
+    expect(options).toContain('banana');
   });
 });

@@ -11,6 +11,7 @@ import {
   childrenAnyTag,
   childrenTag,
   pageTag,
+  pageTagsListTag,
 } from '../../core/api/invalidation';
 import type {
   PageContent,
@@ -312,6 +313,8 @@ export class Pages {
    * - `backlinks:any` additionally when `content` is in the body — a body edit
    *   changes the link-graph edges into the pages it links to (precise
    *   per-target invalidation would need a link resolver we lack here).
+   * - `page-tags:list` additionally when `tags` is in the body — the backend
+   *   auto-registers page tags on write, growing the shared vocabulary.
    */
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
@@ -321,6 +324,9 @@ export class Pages {
     if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId), childrenAnyTag());
     if ('title' in body) tags.push(ancestorsAnyTag());
     if ('content' in body) tags.push(backlinksAnyTag());
+    // The backend auto-registers page-level tags on write, so the shared
+    // vocabulary that feeds the Tags inspector autocomplete may have grown.
+    if ('tags' in body) tags.push(pageTagsListTag());
     this.bus.bumpMany(tags);
     return result;
   }
