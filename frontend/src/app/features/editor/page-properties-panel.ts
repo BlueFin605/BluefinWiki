@@ -25,10 +25,15 @@ import type { PageMetadata } from '../pages/drafts';
 import type { PageProperty } from '../pages/page.types';
 import { mergeSchema } from '../pages/merge-schema';
 
-/** Payload for {@link PagePropertiesPanel.pageTypeChange}. */
+/**
+ * Payload for {@link PagePropertiesPanel.pageTypeChange}. `properties` carries
+ * the schema-merged set when a real type is chosen; it is **omitted** for the
+ * "(none)" selection, which clears the type only and leaves the stored
+ * properties untouched.
+ */
 export interface PageTypeChange {
   pageType: string | null;
-  properties: Record<string, PageProperty>;
+  properties?: Record<string, PageProperty>;
 }
 
 const DEBOUNCE_MS = 200;
@@ -364,15 +369,25 @@ export class PagePropertiesPanel {
   /**
    * Page Type `<mat-select>` change. Updates the local signal (so the debounced
    * {@link metadataChange} carries the new type too) and, unless read-only,
-   * emits {@link pageTypeChange} at once with the property set merged against
-   * the chosen type's schema. `next` is `null` for "(none)".
+   * emits {@link pageTypeChange} at once. `next` is `null` for "(none)".
+   *
+   * - A real type → payload carries `properties` merged against that type's
+   *   schema ({@link mergeSchema}).
+   * - "(none)" → payload carries `pageType: null` only; the stored properties
+   *   are left untouched (no wipe).
+   *
+   * Re-selecting the current type is a no-op (trailing-edge guard) so it does
+   * not trigger a redundant persist + invalidation.
    */
   onPageTypeChange(next: string | null): void {
+    if (next === (this.metadata().pageType ?? null)) return;
     this.pageType.set(next);
     if (this.readOnly()) return;
-    const schema = next
-      ? this.allTypes().find((t) => t.guid === next)?.properties ?? []
-      : [];
+    if (next === null) {
+      this.pageTypeChange.emit({ pageType: null });
+      return;
+    }
+    const schema = this.allTypes().find((t) => t.guid === next)?.properties ?? [];
     this.pageTypeChange.emit({
       pageType: next,
       properties: mergeSchema(this.metadata().properties, schema),

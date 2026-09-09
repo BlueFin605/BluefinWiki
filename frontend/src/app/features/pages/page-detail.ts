@@ -952,16 +952,24 @@ export class PageDetail {
     const m = this.metadata();
     if (!g || !m) return;
 
-    const nextMeta: PageMetadata = { ...m, properties: change.properties };
-    if (change.pageType) nextMeta.pageType = change.pageType;
-    else delete nextMeta.pageType;
+    const nextMeta: PageMetadata = { ...m };
+    if (change.pageType) {
+      nextMeta.pageType = change.pageType;
+      if (change.properties) nextMeta.properties = change.properties;
+    } else {
+      // "(none)": clear the type only; leave the stored properties as they are.
+      delete nextMeta.pageType;
+    }
     this.metadata.set(nextMeta);
 
+    // Send `properties` only when a real type supplied a merged set — the
+    // "(none)" branch persists just `{ pageType: null }`.
+    const body = change.pageType
+      ? { pageType: change.pageType, ...(change.properties ? { properties: change.properties } : {}) }
+      : { pageType: null };
+
     try {
-      await this.pages.updatePage(g, {
-        pageType: change.pageType,
-        properties: change.properties,
-      });
+      await this.pages.updatePage(g, body);
       // Keep a live draft in step with what was just persisted so a reload
       // can't resurrect the previous type from localStorage.
       if (this.drafts.hasDraft(g)) {

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { PagePropertiesPanel } from './page-properties-panel';
+import { PagePropertiesPanel, type PageTypeChange as PageTypeChangePayload } from './page-properties-panel';
 import type { PageMetadata } from '../pages/drafts';
 import type { PageProperty, PageTypeDefinition } from '../pages/page.types';
 
@@ -271,8 +271,9 @@ describe('PagePropertiesPanel', () => {
 
   // ---- Step 4.4: Page Type select + schema merge ------------------------
 
-  it('hides the Page Type control entirely when no page types exist', async () => {
-    await renderPanel(meta());
+  it('hides the Page Type control entirely when the resolved page-types set is empty', async () => {
+    // Explicitly flush an empty (resolved) list — not a still-loading resource.
+    await renderPanelWithTypes(meta(), []);
     expect(pageTypeControl()).toBeNull();
     // The other selects (Status) are unaffected.
     expect(screen.getByRole('combobox', { name: /status/i })).toBeInTheDocument();
@@ -303,7 +304,7 @@ describe('PagePropertiesPanel', () => {
       ],
     );
 
-    const changes: { pageType: string | null; properties: Record<string, PageProperty> }[] = [];
+    const changes: { pageType: string | null; properties?: Record<string, PageProperty> }[] = [];
     result.fixture.componentInstance.pageTypeChange.subscribe((c) => changes.push(c));
 
     const user = userEvent.setup();
@@ -315,11 +316,50 @@ describe('PagePropertiesPanel', () => {
 
     expect(changes).toHaveLength(1);
     expect(changes[0].pageType).toBe('pt-task');
-    // status retained (name + type still apply), points seeded from schema,
-    // legacy dropped (not in the new schema).
+    // Union merge: status retained (name + type still apply), points seeded
+    // from the new schema, legacy kept (not in the new schema, not dropped).
     expect(changes[0].properties).toEqual({
       status: { type: 'string', value: 'doing' },
       points: { type: 'number', value: '' },
+      legacy: { type: 'string', value: 'stale' },
     });
+  });
+
+  it('selecting "(none)" emits pageType: null with no properties key (type cleared, values kept)', async () => {
+    const result = await renderPanelWithTypes(
+      meta({
+        pageType: 'pt-task',
+        properties: { status: { type: 'string', value: 'doing' } },
+      }),
+      [pageType({ guid: 'pt-task', name: 'Task' })],
+    );
+
+    const changes: PageTypeChangePayload[] = [];
+    result.fixture.componentInstance.pageTypeChange.subscribe((c) => changes.push(c));
+
+    const user = userEvent.setup();
+    await user.click(pageTypeControl()!);
+    await settle();
+    result.fixture.detectChanges();
+    await user.click(screen.getByRole('option', { name: '(none)' }));
+    await settle();
+
+    expect(changes).toEqual([{ pageType: null }]);
+    expect('properties' in changes[0]).toBe(false);
+  });
+
+  it('re-selecting the current page type is a no-op (no redundant emit)', async () => {
+    const result = await renderPanelWithTypes(
+      meta({ pageType: 'pt-task', properties: {} }),
+      [pageType({ guid: 'pt-task', name: 'Task' })],
+    );
+    const changes: PageTypeChangePayload[] = [];
+    result.fixture.componentInstance.pageTypeChange.subscribe((c) => changes.push(c));
+
+    // Trailing-edge guard: same value in => nothing out.
+    result.fixture.componentInstance.onPageTypeChange('pt-task');
+    await settle();
+
+    expect(changes).toEqual([]);
   });
 });

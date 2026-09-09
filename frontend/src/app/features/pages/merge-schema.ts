@@ -1,35 +1,46 @@
 import type { PageProperty, PageTypeProperty } from './page.types';
 
 /**
- * Build the property set for a page under a page-type schema.
+ * Merge a page-type schema into a page's existing properties — a **union
+ * merge**: no stored value is ever dropped by a type change.
  *
- * For every field in `newSchema`, in schema order:
- *  - keep the existing property's value when a property of the same **name**
- *    exists AND its stored `type` still matches the schema field's type;
- *  - otherwise seed the schema default — the field's `defaultValue`, or a
- *    type-appropriate empty (`[]` for `tags`, `''` for everything else) when it
- *    has none.
+ * Output, in this order:
+ *  1. every field in `newSchema`, in schema order — keeping the existing
+ *     property's value when a property of the same **name** exists AND its
+ *     stored `type` still matches the field type, otherwise seeding the schema
+ *     default (`field.defaultValue`, or `[]` for `tags` / `''` for everything
+ *     else when it has none). An existing value of an incompatible type is
+ *     replaced by the schema default.
+ *  2. then every existing property whose name is **not** in `newSchema`,
+ *     untouched, in its original insertion order.
  *
- * Properties whose name is not in `newSchema` are **dropped**. React parity: a
- * page-type change merges the new schema in and keeps only the values whose
- * name+type still apply (`react-frontend-page-reference.md` §5.1 Properties;
- * `angular-frontend-gap-analysis.md` row "Properties — Page Type"). Ad-hoc
- * (non-schema) property support is step 4.7's concern, not this helper's.
+ * So a page-type switch A→B→A round-trips every value, and ad-hoc (non-schema)
+ * properties survive. React parity: the inspector "merges the type's property
+ * schema in" while the custom-properties editor shows "schema fields merged
+ * with saved values" and keeps user-added ad-hoc props
+ * (`react-frontend-page-reference.md` Inspector §1 "Properties" +
+ * "Card Summary dialog"; `angular-frontend-gap-analysis.md` rows
+ * "Properties — Page Type" / "Custom Properties"). Step 4.7 owns the UI that
+ * displays and removes the non-schema props this helper preserves.
  *
- * Output key order is the schema order, so the result is deterministic
- * regardless of `existingProps` iteration order. Pure — inputs are never
- * mutated and array values are cloned.
+ * Deterministic: output order is fixed (schema order, then existing-insertion
+ * order) regardless of `existingProps` key order. Pure — inputs are never
+ * mutated and array values are cloned. `mergeSchema(props, [])` returns a
+ * cloned copy of `props`.
  *
  * Shared helper: step 2.6's `buildInheritedProperties` (parent-property
- * inheritance) and step 4.7's custom-properties editor ("schema fields merged
- * with saved values") build on the same contract — keep them consistent.
+ * inheritance — keep the child value on a name+type match, else the
+ * parent/schema default) builds on the same contract.
  */
 export function mergeSchema(
   existingProps: Readonly<Record<string, PageProperty>> | null | undefined,
   newSchema: readonly PageTypeProperty[],
 ): Record<string, PageProperty> {
   const existing = existingProps ?? {};
+  const schemaNames = new Set(newSchema.map((f) => f.name));
   const merged: Record<string, PageProperty> = {};
+
+  // 1. Schema fields, in schema order.
   for (const fieldDef of newSchema) {
     const current = existing[fieldDef.name];
     const value =
@@ -38,11 +49,18 @@ export function mergeSchema(
         : schemaDefault(fieldDef);
     merged[fieldDef.name] = { type: fieldDef.type, value };
   }
+
+  // 2. Remaining (non-schema) existing props, in their original order.
+  for (const [name, prop] of Object.entries(existing)) {
+    if (schemaNames.has(name)) continue;
+    merged[name] = { type: prop.type, value: cloneValue(prop.value) };
+  }
+
   return merged;
 }
 
 function schemaDefault(fieldDef: PageTypeProperty): PageProperty['value'] {
-  if (fieldDef.defaultValue !== undefined && fieldDef.defaultValue !== null) {
+  if (fieldDef.defaultValue !== undefined) {
     return cloneValue(fieldDef.defaultValue);
   }
   return fieldDef.type === 'tags' ? [] : '';

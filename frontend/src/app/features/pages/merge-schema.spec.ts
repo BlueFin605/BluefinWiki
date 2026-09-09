@@ -48,31 +48,66 @@ describe('mergeSchema', () => {
     });
   });
 
-  it('drops existing properties that are not in the new schema', () => {
+  it('keeps existing properties that are not in the new schema (union merge)', () => {
     const schema = [field({ name: 'status', type: 'string', defaultValue: 'backlog' })];
     const existing: Record<string, PageProperty> = {
       status: { type: 'string', value: 'done' },
-      legacyField: { type: 'string', value: 'keep me?' },
+      legacyField: { type: 'string', value: 'keep me' },
       oldCount: { type: 'number', value: 9 },
     };
     expect(mergeSchema(existing, schema)).toEqual({
       status: { type: 'string', value: 'done' },
+      legacyField: { type: 'string', value: 'keep me' },
+      oldCount: { type: 'number', value: 9 },
     });
   });
 
-  it('produces keys in schema order, regardless of existingProps key order', () => {
-    const schema = [
-      field({ name: 'alpha', type: 'string', defaultValue: 'a' }),
-      field({ name: 'beta', type: 'string', defaultValue: 'b' }),
-      field({ name: 'gamma', type: 'string', defaultValue: 'c' }),
+  it('lets a non-schema property survive a type switch', () => {
+    const typeB = [field({ name: 'assignee', type: 'string', defaultValue: '' })];
+    const onTypeA: Record<string, PageProperty> = {
+      priority: { type: 'string', value: 'high' }, // A-only field
+    };
+    const merged = mergeSchema(onTypeA, typeB);
+    expect(merged['priority']).toEqual({ type: 'string', value: 'high' });
+    expect(merged['assignee']).toEqual({ type: 'string', value: '' });
+  });
+
+  it('round-trips every value through A -> B -> A', () => {
+    const typeA = [
+      field({ name: 'status', type: 'string', defaultValue: 'backlog' }),
+      field({ name: 'points', type: 'number', defaultValue: 1 }),
     ];
-    const shuffled: Record<string, PageProperty> = {
-      gamma: { type: 'string', value: 'G' },
+    const typeB = [field({ name: 'assignee', type: 'string', defaultValue: '' })];
+
+    const onA: Record<string, PageProperty> = {
+      status: { type: 'string', value: 'in-progress' },
+      points: { type: 'number', value: 8 },
+      notes: { type: 'string', value: 'ad-hoc note' }, // never in any schema
+    };
+
+    const onB = mergeSchema(onA, typeB);
+    const backOnA = mergeSchema(onB, typeA);
+
+    expect(backOnA).toEqual({
+      status: { type: 'string', value: 'in-progress' },
+      points: { type: 'number', value: 8 },
+      assignee: { type: 'string', value: '' }, // picked up while on B, retained
+      notes: { type: 'string', value: 'ad-hoc note' },
+    });
+  });
+
+  it('orders schema fields (in schema order) before the remaining existing props (in insertion order)', () => {
+    const schema = [
+      field({ name: 'gamma', type: 'string', defaultValue: 'g' }),
+      field({ name: 'alpha', type: 'string', defaultValue: 'a' }),
+    ];
+    const existing: Record<string, PageProperty> = {
+      zeta: { type: 'string', value: 'Z' },
       alpha: { type: 'string', value: 'A' },
       beta: { type: 'string', value: 'B' },
     };
-    const result = mergeSchema(shuffled, schema);
-    expect(Object.keys(result)).toEqual(['alpha', 'beta', 'gamma']);
+    const result = mergeSchema(existing, schema);
+    expect(Object.keys(result)).toEqual(['gamma', 'alpha', 'zeta', 'beta']);
   });
 
   it('is deterministic — identical inputs yield a deep-equal result', () => {
@@ -80,26 +115,37 @@ describe('mergeSchema', () => {
       field({ name: 'status', type: 'string', defaultValue: 'backlog' }),
       field({ name: 'labels', type: 'tags', defaultValue: ['x', 'y'] }),
     ];
-    const existing: Record<string, PageProperty> = { status: { type: 'string', value: 'done' } };
+    const existing: Record<string, PageProperty> = {
+      status: { type: 'string', value: 'done' },
+      adhoc: { type: 'number', value: 2 },
+    };
     const a = mergeSchema(existing, schema);
     const b = mergeSchema(existing, schema);
     expect(a).toEqual(b);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
-  it('returns an empty object for an empty schema', () => {
-    expect(mergeSchema({ foo: { type: 'string', value: 'bar' } }, [])).toEqual({});
+  it('returns a cloned copy of the existing props for an empty schema', () => {
+    const existing: Record<string, PageProperty> = {
+      foo: { type: 'string', value: 'bar' },
+      tags: { type: 'tags', value: ['a', 'b'] },
+    };
+    const result = mergeSchema(existing, []);
+    expect(result).toEqual(existing);
+    expect(result).not.toBe(existing);
+    (result['tags'].value as string[]).push('c');
+    expect(existing['tags'].value).toEqual(['a', 'b']);
   });
 
   it('does not mutate its inputs and clones array values', () => {
     const defaultLabels = ['x', 'y'];
     const schema = [field({ name: 'labels', type: 'tags', defaultValue: defaultLabels })];
-    const existing: Record<string, PageProperty> = {};
-    const result = mergeSchema(existing, schema);
 
+    const empty: Record<string, PageProperty> = {};
+    const result = mergeSchema(empty, schema);
     (result['labels'].value as string[]).push('z');
     expect(defaultLabels).toEqual(['x', 'y']);
-    expect(existing).toEqual({});
+    expect(empty).toEqual({});
 
     const existingLabels = ['a', 'b'];
     const existing2: Record<string, PageProperty> = { labels: { type: 'tags', value: existingLabels } };
