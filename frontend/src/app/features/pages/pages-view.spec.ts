@@ -3,14 +3,16 @@ jest.mock('mermaid', () => ({
   default: { initialize: jest.fn(), render: jest.fn() },
 }));
 
+import type { DebugElement } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSidenav } from '@angular/material/sidenav';
 import { By } from '@angular/platform-browser';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
@@ -42,15 +44,21 @@ function makeType(over: Partial<PageTypeDefinition>): PageTypeDefinition {
   };
 }
 
+// Captured per `baseProviders()` call so a test can flip `bpStub.isDesktop`
+// after the component is rendered (DI hands PagesView these exact signals).
+let bpStub: ReturnType<typeof provideBreakpointStub>;
+
 function baseProviders() {
+  bpStub = provideBreakpointStub();
   return [
     provideNoopAnimations(),
     provideHttpClient(),
     provideHttpClientTesting(),
     provideRouter([]),
     // DESIGN.md 1b: Breakpoint is mocked per spec. PagesView pulls it in via
-    // PageContext; default the stub to desktop.
-    ...provideBreakpointStub().providers,
+    // PageContext and reads it directly for the responsive shell; default the
+    // stub to desktop.
+    ...bpStub.providers,
   ];
 }
 
@@ -423,6 +431,143 @@ describe('PagesView', () => {
     expect(insertSeen).toEqual(['![x](x.png)']);
     expect(titleSeen).toEqual(['Renamed']);
     expect(typeSeen).toEqual([typeChange]);
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  // ---- Step 1b.4: shell mat-sidenav-container + tree drawer + hamburger ----
+
+  interface ShellHandle {
+    treeDrawerOpen: { (): boolean; set(v: boolean): void };
+    onPageSelect(guid: string): void;
+  }
+
+  function shellHandle(fixture: { componentInstance: unknown }): ShellHandle {
+    return fixture.componentInstance as ShellHandle;
+  }
+
+  function treeSidenav(fixture: { debugElement: DebugElement }): MatSidenav {
+    const all = fixture.debugElement
+      .queryAll(By.directive(MatSidenav))
+      .map((d) => d.componentInstance as MatSidenav);
+    const tree = all.find((s) => s.position === 'start');
+    if (!tree) throw new Error('start (tree) sidenav not found');
+    return tree;
+  }
+
+  async function renderShellAt(isDesktop: boolean) {
+    const providers = [...baseProviders(), ...authProviders('Admin')];
+    bpStub.isDesktop.set(isDesktop);
+    const result = await render(PagesView, { providers });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+    return { ...result, http };
+  }
+
+  it('desktop: tree sidenav is mode="side", always opened, and shows no hamburger', async () => {
+    const { fixture } = await renderShellAt(true);
+    fixture.detectChanges();
+
+    const tree = treeSidenav(fixture);
+    expect(tree.mode).toBe('side');
+    expect(tree.opened).toBe(true);
+    expect(screen.queryByRole('button', { name: /open navigation/i })).toBeNull();
+
+    // Single hoisted container.
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('mat-sidenav-container'),
+    ).toHaveLength(1);
+  });
+
+  it('mobile: tree sidenav is mode="over", closed until the drawer opens, hamburger visible', async () => {
+    const { fixture } = await renderShellAt(false);
+    fixture.detectChanges();
+
+    const tree = treeSidenav(fixture);
+    expect(tree.mode).toBe('over');
+    expect(tree.opened).toBe(false);
+    expect(screen.getByRole('button', { name: /open navigation/i })).toBeInTheDocument();
+  });
+
+  it('mobile: clicking the hamburger opens the tree drawer', async () => {
+    const { fixture } = await renderShellAt(false);
+    fixture.detectChanges();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /open navigation/i }));
+    await settle();
+    fixture.detectChanges();
+
+    expect(treeSidenav(fixture).opened).toBe(true);
+    expect(shellHandle(fixture).treeDrawerOpen()).toBe(true);
+  });
+
+  it('onPageSelect closes the drawer on mobile but leaves it untouched on desktop', async () => {
+    const { fixture } = await renderShellAt(false);
+    fixture.detectChanges();
+    const cmp = shellHandle(fixture);
+    // provideRouter([]) has no routes; stub navigation so onPageSelect only
+    // exercises the drawer-close branch under test.
+    jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    cmp.treeDrawerOpen.set(true);
+    fixture.detectChanges();
+    cmp.onPageSelect('g-mobile');
+    expect(cmp.treeDrawerOpen()).toBe(false);
+
+    bpStub.isDesktop.set(true);
+    fixture.detectChanges();
+    await settle();
+
+    cmp.treeDrawerOpen.set(true);
+    cmp.onPageSelect('g-desktop');
+    expect(cmp.treeDrawerOpen()).toBe(true);
+  });
+
+  it('flipping isDesktop false -> true re-pins the tree open in side mode', async () => {
+    const { fixture } = await renderShellAt(false);
+    fixture.detectChanges();
+    expect(treeSidenav(fixture).opened).toBe(false);
+
+    bpStub.isDesktop.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const tree = treeSidenav(fixture);
+    expect(tree.mode).toBe('side');
+    expect(tree.opened).toBe(true);
+  });
+
+  it('regression: the inspector renders inside the shell sidenav container and its outputs still route through PageContext', async () => {
+    const { fixture, http } = await renderShellAt(true);
+    const ctx = TestBed.inject(PageContext);
+
+    ctx.guid.set('g1');
+    ctx.metadata.set(makeMeta());
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const container = (fixture.nativeElement as HTMLElement).querySelector('mat-sidenav-container');
+    expect(container).toBeTruthy();
+    const panel = container!.querySelector('wiki-inspector-panel');
+    expect(panel).toBeTruthy();
+
+    const inspector = fixture.debugElement.query(By.css('wiki-inspector-panel')).componentInstance as {
+      metadataChange: { emit: (m: PageMetadata) => void };
+      insertMarkdown: { emit: (s: string) => void };
+    };
+    const insertSeen: string[] = [];
+    ctx.insert$.subscribe((s) => insertSeen.push(s));
+
+    inspector.insertMarkdown.emit('![x](x.png)');
+    inspector.metadataChange.emit(makeMeta({ title: 'Renamed' }));
+
+    expect(insertSeen).toEqual(['![x](x.png)']);
+    expect(ctx.metadata()?.title).toBe('Renamed');
 
     http.match(() => true).forEach((r) => r.flush(null));
   });

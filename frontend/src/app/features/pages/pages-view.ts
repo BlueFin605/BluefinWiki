@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, type ElementRef, HostListener, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,9 +6,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { firstValueFrom } from 'rxjs';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
+import { Breakpoint } from '../../core/layout/breakpoint';
 import { Pages } from './pages';
 import { PageTypes } from '../page-types/page-types';
 import { PageTree } from './page-tree';
@@ -32,6 +34,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
     MatTooltipModule,
     MatIconModule,
     MatMenuModule,
+    MatSidenavModule,
     PageTree,
     ResizeDivider,
     PageRenameInline,
@@ -43,6 +46,16 @@ import { AiSidebar } from '../ai/ai-sidebar';
   template: `
     <div class="pages-shell">
       <mat-toolbar color="primary" class="topbar">
+        @if (!bp.isDesktop()) {
+          <button
+            mat-icon-button
+            class="hamburger"
+            aria-label="Open navigation"
+            (click)="treeDrawerOpen.set(true)"
+          >
+            <mat-icon>menu</mat-icon>
+          </button>
+        }
         <span class="title">BluefinWiki</span>
         <span class="spacer"></span>
         <button mat-button (click)="onNewPage()">
@@ -73,8 +86,21 @@ import { AiSidebar } from '../ai/ai-sidebar';
           </button>
         </mat-menu>
       </mat-toolbar>
-      <div class="body" #body>
-        <aside class="sidebar" [style.width.px]="treeWidth()">
+      <!--
+        Step 1b.4 (DESIGN.md D3): a single hoisted mat-sidenav-container owns the
+        tree drawer, the inspector and the backdrop/scroll-lock. It needs an
+        explicit box in the column flex (flex: 1; min-height: 0) — it does not
+        inherit a height inside .pages-shell.
+      -->
+      <mat-sidenav-container class="body" #body>
+        <mat-sidenav
+          position="start"
+          class="sidebar"
+          [mode]="bp.isDesktop() ? 'side' : 'over'"
+          [opened]="bp.isDesktop() || treeDrawerOpen()"
+          (closed)="treeDrawerOpen.set(false)"
+          [style.width.px]="bp.isDesktop() ? treeWidth() : null"
+        >
           <wiki-page-tree
             [activeGuid]="activeGuid()"
             [pageTypesMap]="pageTypesMap()"
@@ -85,37 +111,71 @@ import { AiSidebar } from '../ai/ai-sidebar';
             (sortRequested)="onSortRequested($event)"
             (moveRequested)="onMoveRequested($event)"
           />
-        </aside>
-        <wiki-resize-divider (resized)="onTreeResize($event)" />
-        <main class="main">
-          <router-outlet />
-        </main>
-        @if (aiOpen()) {
-          <div class="ai-pane">
-            <wiki-ai-sidebar
-              [currentPageGuid]="activeGuid()"
-              (closed)="aiOpen.set(false)"
-            />
-          </div>
-        }
+          <!-- Resize handle stays desktop-only (DESIGN.md D6). -->
+          @if (bp.isDesktop()) {
+            <div class="tree-divider">
+              <wiki-resize-divider (resized)="onTreeResize($event)" />
+            </div>
+          }
+        </mat-sidenav>
+
+        <mat-sidenav-content class="content">
+          <main class="main">
+            <router-outlet />
+          </main>
+          @if (bp.isDesktop() && aiOpen()) {
+            <div class="ai-pane">
+              <wiki-ai-sidebar
+                [currentPageGuid]="activeGuid()"
+                (closed)="aiOpen.set(false)"
+              />
+            </div>
+          }
+          <!--
+            Below 1024 the AI sidebar is a full-width fixed overlay, never a
+            side-by-side pane (DESIGN.md D7). Final overlay styling is step 1b.9;
+            here it only has to stop the desktop ai-pane from squashing the
+            mobile content.
+          -->
+          @if (!bp.isDesktop() && aiOpen()) {
+            <div class="ai-overlay">
+              <wiki-ai-sidebar
+                [currentPageGuid]="activeGuid()"
+                (closed)="aiOpen.set(false)"
+              />
+            </div>
+          }
+        </mat-sidenav-content>
 
         <!--
           Hoisted inspector (step 1b.3). Fed entirely by PageContext — the routed
           page-detail publishes guid/metadata/mode and consumes the outputs
-          routed back through the service. Parked in this static layout slot for
-          now; step 1b.5 moves it into the responsive mat-sidenav (step 1b.4's
-          hoisted container).
+          routed back through the service.
+
+          TODO(1b.5): step 1b.5 owns this sidenav's "opened" binding (wire to
+          PageContext.toggleInspector() / Layout.inspectorVisible), its
+          responsive side/bottom-sheet "mode", and the desktop open/close
+          toggle. Step 1b.4 is PLACEMENT ONLY: it moves the panel out of the old
+          static .inspector-pane div into this "end" sidenav and keeps the
+          1b.3 behaviour of "visible whenever a page is loaded" via a plain
+          "opened" expression.
         -->
         <!--
           Stale-metadata window: on a param-only /pages/g1 -> /pages/g2 nav,
           PageDetail is reused (no reset()), so ctx.guid() flips before
           ctx.metadata() rehydrates — this always-visible interim pane can
           briefly show g2 + g1's metadata until PageDetail's hydrate effect
-          fires. Pre-existing (the same guard lived in page-detail); 1b.4/1b.5
-          sidenav gating will mask it.
+          fires. Pre-existing (the same guard lived in page-detail); 1b.5's
+          responsive gating will mask it.
         -->
-        @if (ctx.guid() && ctx.metadata(); as m) {
-          <div class="inspector-pane">
+        <mat-sidenav
+          position="end"
+          class="inspector"
+          mode="side"
+          [opened]="!!ctx.guid() && !!ctx.metadata()"
+          [style.width.px]="bp.isDesktop() ? inspectorWidth() : null"
+        >
+          @if (ctx.guid() && ctx.metadata(); as m) {
             <wiki-inspector-panel
               [pageGuid]="ctx.guid()!"
               [metadata]="m"
@@ -126,9 +186,9 @@ import { AiSidebar } from '../ai/ai-sidebar';
               (titleH1Sync)="ctx.emitTitleH1Sync($event)"
               (pageTypeChange)="ctx.emitPageTypeChange($event)"
             />
-          </div>
-        }
-      </div>
+          }
+        </mat-sidenav>
+      </mat-sidenav-container>
 
       @if (renameTarget(); as target) {
         <wiki-page-rename-inline
@@ -145,9 +205,43 @@ import { AiSidebar } from '../ai/ai-sidebar';
     .topbar { z-index: 2; }
     .title { font-weight: 600; }
     .spacer { flex: 1; }
-    .body { display: flex; flex: 1; min-height: 0; }
-    .sidebar { border-right: 1px solid #e5e7eb; overflow-y: auto; background: #f9fafb; }
-    .main { flex: 1; overflow: auto; }
+
+    /*
+      The hoisted sidenav container. It gets no height inside the column flex
+      unless we give it one. The theme tokens keep the desktop look identical to
+      the old static layout: square corners (no Material corner-large radius) and
+      the same 1px #e5e7eb rule the old .sidebar / .inspector-pane borders used.
+    */
+    .body {
+      flex: 1;
+      min-height: 0;
+      --mat-sidenav-container-shape: 0;
+      --mat-sidenav-container-divider-color: #e5e7eb;
+    }
+
+    /* Ancestor-qualified so these beat Angular Material's own .mat-drawer rules
+       regardless of stylesheet order (equal specificity otherwise). */
+    .body .sidebar {
+      background: #f9fafb;
+      /* Desktop width comes from [style.width.px]; this is the mobile drawer. */
+      width: min(85vw, 320px);
+    }
+    .body .inspector { background: #fff; }
+
+    /* Desktop-only grab handle pinned to the tree drawer's right edge. */
+    .tree-divider {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 4px;
+      z-index: 3;
+    }
+
+    /* main + optional desktop .ai-pane sit side by side inside the content. */
+    .body .content { display: flex; }
+    .main { flex: 1; min-width: 0; overflow: auto; }
+
     .ai-pane {
       width: 400px;
       max-width: 100vw;
@@ -157,12 +251,19 @@ import { AiSidebar } from '../ai/ai-sidebar';
       display: flex;
       flex-direction: column;
     }
-    .inspector-pane {
-      width: 320px;
-      max-width: 100vw;
-      border-left: 1px solid #e5e7eb;
+
+    /*
+      Below 1024 the AI sidebar is a full-width fixed overlay (DESIGN.md D7).
+      Final styling is step 1b.9 — this is just enough to float it above the
+      content instead of letting a pane squash it.
+    */
+    .ai-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
       background: white;
-      overflow: auto;
+      display: flex;
+      flex-direction: column;
     }
   `],
 })
@@ -175,17 +276,28 @@ export class PagesView {
   private readonly pageTypes = inject(PageTypes);
   /** Shared channel to the routed page-detail; feeds the hoisted inspector. */
   protected readonly ctx = inject(PageContext);
+  /** Single responsive switch (DESIGN.md D1); drives sidenav mode + the hamburger. */
+  protected readonly bp = inject(Breakpoint);
 
-  private readonly bodyEl = viewChild<ElementRef<HTMLElement>>('body');
+  // `#body` now sits on <mat-sidenav-container>; read its host element so
+  // onTreeResize keeps measuring from the shell's left edge.
+  private readonly bodyEl = viewChild('body', { read: ElementRef });
 
   protected readonly treeWidth = computed(() => this.layout.treeWidth());
+  protected readonly inspectorWidth = computed(() => this.layout.inspectorWidth());
+
+  /**
+   * Tree drawer open state below 1024px. Ephemeral, never persisted (DESIGN.md
+   * D6) — on desktop the tree is always pinned so this is ignored there.
+   */
+  protected readonly treeDrawerOpen = signal(false);
 
   /**
    * The tree divider emits an absolute pointer X. Convert it to a width
    * relative to the shell's left edge; `Layout.update()` clamps to 200-600.
    */
   onTreeResize(pointerX: number): void {
-    const host = this.bodyEl()?.nativeElement;
+    const host = this.bodyEl()?.nativeElement as HTMLElement | undefined;
     if (!host) return;
     const width = pointerX - host.getBoundingClientRect().left;
     this.layout.update({ treeWidth: width });
@@ -232,6 +344,8 @@ export class PagesView {
 
   onPageSelect(guid: string): void {
     void this.router.navigate(['/pages', guid]);
+    // On mobile the tree is an `over` drawer — dismiss it once a page is picked.
+    if (!this.bp.isDesktop()) this.treeDrawerOpen.set(false);
   }
 
   onRenameRequested(guid: string): void {
