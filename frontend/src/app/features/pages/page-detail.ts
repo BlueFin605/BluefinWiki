@@ -324,7 +324,7 @@ export function resolveSaveStatus(state: {
                           (brokenClick)="onBrokenLink($event)"
                           (imageResize)="onImageResize($event)"
                         />
-                        <wiki-toc [markdown]="content()" />
+                        <wiki-toc [markdown]="content()" [compact]="!bp.isDesktop()" />
                       </div>
                     }
                   </div>
@@ -339,7 +339,7 @@ export function resolveSaveStatus(state: {
                     [resolveWikiTarget]="resolveWikiTarget()"
                     (brokenClick)="onBrokenLink($event)"
                   />
-                  <wiki-toc [markdown]="content()" />
+                  <wiki-toc [markdown]="content()" [compact]="!bp.isDesktop()" />
                 </div>
               }
             }
@@ -398,6 +398,22 @@ export function resolveSaveStatus(state: {
     .editor-surface.split { flex-direction: row; }
     .editor-surface.split .editor-pane { flex-grow: 0; flex-shrink: 0; }
     .editor-surface.split .preview-pane { border-left: 1px solid #e5e7eb; }
+    /* Mobile (step 1b.8): the TOC is a full-width collapsible bar, not a rail —
+       stack it above the content / preview instead of beside it. Matches the
+       Breakpoint service's 1024px desktop threshold (\`!bp.isDesktop()\`). */
+    @media (max-width: 1023.98px) {
+      .view-with-toc,
+      .editor-surface .preview-pane {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .view-with-toc wiki-toc,
+      .editor-surface .preview-pane wiki-toc {
+        order: -1;
+        flex: 0 0 auto;
+        padding: 0.75rem 1rem 0;
+      }
+    }
     .state { padding: 2rem; color: #6b7280; }
     .state.error { color: #b91c1c; }
   `],

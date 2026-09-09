@@ -27,6 +27,7 @@ import { Drafts } from './drafts';
 import { Layout } from '../../core/layout/layout';
 import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 import { ResizeDivider } from '../../shared/components/resize-divider';
+import { WikiTableOfContents } from '../../shared/markdown/table-of-contents';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import { InvalidationBus, pageTag } from '../../core/api/invalidation';
 import type { PageProperty } from './page.types';
@@ -1504,6 +1505,32 @@ describe('PageDetail', () => {
     expect((host.querySelector('wiki-markdown-toolbar') as HTMLElement).classList)
       .not.toContain('bottom-pinned');
     expect(host.querySelector('.body.toolbar-pinned')).toBeNull();
+  });
+
+  // ---- Step 1b.8: the TOC compact input tracks !bp.isDesktop() ----
+
+  it('drives the wiki-toc compact input from !bp.isDesktop() and reflects a flip', async () => {
+    const { http, fixture, bpStub } = await renderDetail({ isDesktop: false });
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      content: '## Alpha\n\n## Beta\n\n## Gamma',
+    });
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    const toc = fixture.debugElement.query(By.directive(WikiTableOfContents));
+    expect(toc).toBeTruthy();
+    const tocCmp = toc.componentInstance as WikiTableOfContents;
+    // Mobile: compact.
+    expect(tocCmp.compact()).toBe(true);
+
+    // Flip to desktop -> rail.
+    bpStub.isDesktop.set(true);
+    fixture.detectChanges();
+    await settle();
+    expect(tocCmp.compact()).toBe(false);
   });
 });
 

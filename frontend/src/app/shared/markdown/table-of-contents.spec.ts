@@ -175,19 +175,100 @@ describe('WikiTableOfContents', () => {
     expect(io.disconnected).toBe(true);
   });
 
-  it('exposes a compact input (not yet wired to a responsive driver)', async () => {
-    mountHeadings('alpha', 'beta', 'gamma');
-    const { fixture } = await render(WikiTableOfContents, {
-      inputs: { markdown: THREE, compact: true },
-    });
-    expect(fixture.componentInstance.compact()).toBe(true);
-  });
-
   it('does not throw when IntersectionObserver is unavailable', async () => {
     (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = undefined;
     mountHeadings('alpha', 'beta', 'gamma');
     await expect(
       render(WikiTableOfContents, { inputs: { markdown: THREE } }),
     ).resolves.toBeDefined();
+  });
+
+  // ---- Step 1b.8: compact / mobile "On this page" bar ----
+
+  describe('compact / mobile bar', () => {
+    it('renders a collapsed "On this page" bar with the entry list hidden (>= 3 headings)', async () => {
+      mountHeadings('alpha', 'beta', 'gamma');
+      const { container } = await render(WikiTableOfContents, {
+        inputs: { markdown: THREE, compact: true },
+      });
+
+      const bar = screen.getByRole('button', { name: /on this page/i });
+      expect(bar).toHaveAttribute('aria-expanded', 'false');
+      // No entry list while collapsed.
+      expect(container.querySelector('ul')).toBeNull();
+      expect(screen.queryAllByRole('link')).toHaveLength(0);
+      // It is the compact bar, not the sticky rail.
+      expect(container.querySelector('nav.wiki-toc.compact')).not.toBeNull();
+    });
+
+    it('expands to reveal the entry list when the bar header is tapped', async () => {
+      mountHeadings('alpha', 'beta', 'gamma');
+      const { container, fixture } = await render(WikiTableOfContents, {
+        inputs: { markdown: THREE, compact: true },
+      });
+
+      screen.getByRole('button', { name: /on this page/i }).click();
+      fixture.detectChanges();
+
+      expect(screen.getByRole('button', { name: /on this page/i })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+      expect(container.querySelector('ul')).not.toBeNull();
+      expect(screen.getAllByRole('link').map((a) => a.textContent?.trim())).toEqual([
+        'Alpha',
+        'Beta',
+        'Gamma',
+      ]);
+    });
+
+    it('smooth-scrolls to the picked entry and re-collapses the bar', async () => {
+      const [, beta] = mountHeadings('alpha', 'beta', 'gamma');
+      const scrollSpy = jest.fn();
+      beta.scrollIntoView = scrollSpy;
+      const { container, fixture } = await render(WikiTableOfContents, {
+        inputs: { markdown: THREE, compact: true },
+      });
+
+      screen.getByRole('button', { name: /on this page/i }).click();
+      fixture.detectChanges();
+
+      screen.getByRole('link', { name: 'Beta' }).click();
+      fixture.detectChanges();
+
+      // Step 3.10 smooth-scroll path still runs...
+      expect(scrollSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: 'smooth' }),
+      );
+      expect(window.location.hash).toBe('#beta');
+      // ...and the bar re-collapses after the pick.
+      expect(screen.getByRole('button', { name: /on this page/i })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+      expect(container.querySelector('ul')).toBeNull();
+    });
+
+    it('renders nothing with fewer than 3 headings, even when compact', async () => {
+      const { container } = await render(WikiTableOfContents, {
+        inputs: { markdown: '## Only One\n\n## Only Two', compact: true },
+      });
+      expect(container.querySelector('nav')).toBeNull();
+      expect(screen.queryByRole('button', { name: /on this page/i })).toBeNull();
+      expect(screen.queryByText('On this page')).toBeNull();
+    });
+
+    it('compact = false keeps the sticky rail with the list always visible (regression)', async () => {
+      mountHeadings('alpha', 'beta', 'gamma');
+      const { container } = await render(WikiTableOfContents, {
+        inputs: { markdown: THREE, compact: false },
+      });
+      // No toggle button in rail mode; the heading label is a <p>, list shows now.
+      expect(screen.queryByRole('button', { name: /on this page/i })).toBeNull();
+      expect(screen.getByText('On this page').tagName).toBe('P');
+      expect(container.querySelector('nav.wiki-toc')).not.toBeNull();
+      expect(container.querySelector('nav.wiki-toc.compact')).toBeNull();
+      expect(screen.getAllByRole('link')).toHaveLength(3);
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -33,37 +34,66 @@ const ACTIVE_ROOT_MARGIN = '0px 0px -70% 0px';
  * live element with `document.getElementById(slug)` — the markdown renderer
  * already stamps the matching slug ids onto its headings.
  *
- * The rail renders nothing when there are fewer than {@link MIN_HEADINGS}
- * headings.
+ * Renders nothing when there are fewer than {@link MIN_HEADINGS} headings, at any
+ * width / any `compact` value.
  *
- * Mobile (a collapsible bar) is out of scope here — Phase 1b step 1b.8 owns it.
- * The `compact` input is the seam it will drive.
+ * Mobile (`compact()`, driven by `page-detail` from `!bp.isDesktop()` — step
+ * 1b.8): a full-width bar above the preview, **collapsed by default** and
+ * labelled "On this page". Tapping the bar header toggles {@link expanded};
+ * while collapsed the entry list is not in the DOM. Picking an entry does the
+ * same smooth-scroll as the rail and then re-collapses the bar. The
+ * active-highlight `IntersectionObserver` does not run in compact mode — the
+ * collapsed bar has no visible list to highlight, and the bar re-collapses on
+ * every pick — so it is torn down whenever `compact()` is true and re-wired if
+ * the viewport grows back to desktop.
  */
 @Component({
   selector: 'wiki-toc',
   standalone: true,
+  imports: [NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.compact]': 'compact()' },
   template: `
     @if (visible()) {
-      <nav class="wiki-toc" [class.compact]="compact()" aria-label="Table of contents">
-        <p class="wiki-toc-title">On this page</p>
-        <ul>
-          @for (h of headings(); track $index) {
-            <li
-              [attr.data-level]="h.level"
-              [class.active]="h.slug === activeSlug()"
-              [style.padding-left.rem]="(h.level - 2) * 0.75"
-            >
-              <a
-                [attr.href]="'#' + h.slug"
-                [attr.aria-current]="h.slug === activeSlug() ? 'location' : null"
-                (click)="onEntryClick($event, h.slug)"
-              >{{ h.text }}</a>
-            </li>
+      @if (compact()) {
+        <nav class="wiki-toc compact" aria-label="Table of contents">
+          <button
+            type="button"
+            class="wiki-toc-bar"
+            [attr.aria-expanded]="expanded()"
+            (click)="toggleExpanded()"
+          >
+            On this page
+          </button>
+          @if (expanded()) {
+            <ng-container [ngTemplateOutlet]="entryList" />
           }
-        </ul>
-      </nav>
+        </nav>
+      } @else {
+        <nav class="wiki-toc" aria-label="Table of contents">
+          <p class="wiki-toc-title">On this page</p>
+          <ng-container [ngTemplateOutlet]="entryList" />
+        </nav>
+      }
     }
+
+    <ng-template #entryList>
+      <ul>
+        @for (h of headings(); track $index) {
+          <li
+            [attr.data-level]="h.level"
+            [class.active]="h.slug === activeSlug()"
+            [style.padding-left.rem]="(h.level - 2) * 0.75"
+          >
+            <a
+              [attr.href]="'#' + h.slug"
+              [attr.aria-current]="h.slug === activeSlug() ? 'location' : null"
+              (click)="onEntryClick($event, h.slug)"
+            >{{ h.text }}</a>
+          </li>
+        }
+      </ul>
+    </ng-template>
   `,
   styles: [`
     /*
@@ -109,6 +139,39 @@ const ACTIVE_ROOT_MARGIN = '0px 0px -70% 0px';
     }
     .wiki-toc a:hover { color: #111827; }
     .wiki-toc li.active > a { color: #2563eb; font-weight: 500; }
+
+    /*
+     * Compact / mobile (step 1b.8): a full-width collapsible bar, not a sticky
+     * rail. The host stops being a sticky, width-constrained column; the layout
+     * that stacks it above the preview lives in \`page-detail\`'s responsive CSS.
+     */
+    :host(.compact) {
+      position: static;
+      top: auto;
+      align-self: stretch;
+      max-height: none;
+      overflow: visible;
+    }
+    .wiki-toc.compact { width: 100%; }
+    .wiki-toc-bar {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      background: #f9fafb;
+      font: inherit;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      cursor: pointer;
+    }
+    .wiki-toc-bar:hover { color: #111827; }
+    .wiki-toc.compact ul { margin-top: 0.5rem; }
   `],
 })
 export class WikiTableOfContents {
@@ -118,8 +181,8 @@ export class WikiTableOfContents {
   readonly markdown = input.required<string>();
 
   /**
-   * Compact / mobile presentation. Not yet wired to any responsive driver.
-   * TODO(1b.8): drive from the Breakpoint service (step 1b.8 owns the mobile bar).
+   * Compact / mobile presentation — a collapsible "On this page" bar instead of
+   * the sticky rail. Driven by `page-detail` from `!bp.isDesktop()` (step 1b.8).
    */
   readonly compact = input<boolean>(false);
 
@@ -137,6 +200,10 @@ export class WikiTableOfContents {
   private readonly _activeSlug = signal<string | null>(null);
   protected readonly activeSlug = this._activeSlug.asReadonly();
 
+  /** Compact-bar open state. Collapsed by default; irrelevant to the rail. */
+  private readonly _expanded = signal(false);
+  protected readonly expanded = this._expanded.asReadonly();
+
   private observer: IntersectionObserver | null = null;
 
   constructor() {
@@ -147,6 +214,11 @@ export class WikiTableOfContents {
     this.destroyRef.onDestroy(() => this.teardownObserver());
   }
 
+  /** Compact-bar header tap — toggle the entry list. */
+  toggleExpanded(): void {
+    this._expanded.update((v) => !v);
+  }
+
   onEntryClick(event: Event, slug: string): void {
     event.preventDefault();
     this._activeSlug.set(slug);
@@ -154,6 +226,8 @@ export class WikiTableOfContents {
     // `location.hash =` here would instant-jump over the smooth scroll and add a
     // history entry per click.
     scrollToSlug(slug);
+    // Compact bar: re-collapse after the pick (the rail stays put).
+    if (this.compact()) this._expanded.set(false);
   }
 
   private syncObserver(): void {
@@ -161,6 +235,9 @@ export class WikiTableOfContents {
 
     const headings = this.headings();
     if (
+      // Compact mode has no persistent visible list to highlight — skip the
+      // observer entirely (re-wired via `afterRenderEffect` if `compact` flips).
+      this.compact() ||
       headings.length < MIN_HEADINGS ||
       typeof document === 'undefined' ||
       typeof IntersectionObserver === 'undefined'
