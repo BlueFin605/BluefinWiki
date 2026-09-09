@@ -29,10 +29,13 @@ export interface BreakpointStub {
  *
  * ```ts
  * const bp = provideBreakpointStub(false); // start below 1024px
- * TestBed.configureTestingModule({ providers: [bp.providers, OtherProviders] });
+ * TestBed.configureTestingModule({ providers: [...bp.providers, OtherProviders] });
  * // ...render the component...
  * bp.isDesktop.set(true);  // component reacts on the next change detection
  * ```
+ *
+ * The three signals are intentionally unconstrained — a test may set any
+ * combination (D1 means only `isDesktop` is consumed in Phase 1b).
  *
  * @param isDesktop initial value for `isDesktop()` (default `true`, i.e. desktop)
  */
@@ -41,11 +44,15 @@ export function provideBreakpointStub(isDesktop = true): BreakpointStub {
   const isTabletSig = signal(false);
   const isMobileSig = signal(false);
 
-  const instance = {
+  // `satisfies` keeps the fake's signal types in sync with the real service's
+  // consumed surface; the `unknown` hop is only needed because `Breakpoint`'s
+  // private `observer` field blocks structural assignment.
+  const shape = {
     isDesktop: isDesktopSig,
     isTablet: isTabletSig,
     isMobile: isMobileSig,
-  } as unknown as Breakpoint;
+  } satisfies Pick<Breakpoint, 'isDesktop' | 'isTablet' | 'isMobile'>;
+  const instance = shape as unknown as Breakpoint;
 
   return {
     providers: [{ provide: Breakpoint, useValue: instance }],
