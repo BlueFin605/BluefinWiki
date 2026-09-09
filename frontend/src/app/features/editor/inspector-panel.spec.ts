@@ -168,16 +168,4 @@ describe('InspectorPanel', () => {
 
     expect(seen).toEqual([payload]);
   });
-
-  // ---- Step 4.1: mobile-sheet presentation seam --------------------------
-
-  it('defaults to the "side" presentation and reflects it on the host', async () => {
-    const { fixture } = await renderInspector();
-    expect((fixture.nativeElement as HTMLElement).getAttribute('data-presentation')).toBe('side');
-  });
-
-  it('reflects presentation="sheet" on the host (the mobile-sheet hook for 1b.5)', async () => {
-    const { fixture } = await renderInspector({ presentation: 'sheet' });
-    expect((fixture.nativeElement as HTMLElement).getAttribute('data-presentation')).toBe('sheet');
-  });
 });

@@ -693,12 +693,17 @@ describe('PagesView', () => {
     expect(dividers).toHaveLength(2); // tree divider + inspector divider
     const inspectorDivider = dividers[dividers.length - 1].componentInstance as ResizeDivider;
 
-    // jsdom getBoundingClientRect() is all-zero -> right(0) - pointerX = -pointerX;
-    // the store clamps up to the 250 floor.
+    // The exact pointer-X -> width math (right-anchored, relative to the shell
+    // right edge) is pinned in the sibling test that mocks the rect. Here we
+    // only assert the divider routes through Layout.update with an inspectorWidth
+    // patch, and that the store clamps the result to the 250 floor (jsdom's
+    // all-zero rect makes the raw width negative).
     inspectorDivider.resized.emit(80);
     await settle();
 
-    expect(updateSpy).toHaveBeenCalledWith({ inspectorWidth: -80 });
+    const patch = updateSpy.mock.calls.at(-1)?.[0];
+    expect(patch).toHaveProperty('inspectorWidth');
+    expect(typeof patch?.inspectorWidth).toBe('number');
     expect(layout.inspectorWidth()).toBe(250);
   });
 
@@ -772,6 +777,30 @@ describe('PagesView', () => {
     expect(insp.mode).toBe('side');
     expect(ctx.inspectorSheetOpen()).toBe(false);
     expect(insp.opened).toBe(false); // desktop follows Layout.inspectorVisible(), never set
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.mat-drawer-backdrop.mat-drawer-shown'),
+    ).toBeNull();
+  });
+
+  it('flipping to mobile while the desktop inspector is open does NOT surface it as a bottom sheet', async () => {
+    const { fixture } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+    layout.update({ inspectorVisible: true });
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    bpStub.isDesktop.set(false);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const insp = inspectorSidenav(fixture);
+    expect(insp.mode).toBe('over');
+    // A desktop-open inspector must not become a mobile sheet — the sheet flag
+    // was never set, so opened falls back to ctx.inspectorSheetOpen() === false.
+    expect(insp.opened).toBe(false);
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('.mat-drawer-backdrop.mat-drawer-shown'),
     ).toBeNull();
