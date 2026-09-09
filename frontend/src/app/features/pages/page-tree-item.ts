@@ -121,7 +121,7 @@ export class PageTreeItem {
   readonly parentPageType = input<string | null>(null);
 
   readonly pageSelect = output<string>();
-  readonly renameRequested = output<string>();
+  readonly renameRequested = output<{ guid: string; title: string }>();
   readonly deleteRequested = output<string>();
   readonly newChildRequested = output<string>();
   readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();
@@ -171,7 +171,7 @@ export class PageTreeItem {
   }
 
   onDoubleClick(): void {
-    this.renameRequested.emit(this.page().guid);
+    this.renameRequested.emit({ guid: this.page().guid, title: this.page().title });
   }
 
   onNewChild(event: MouseEvent): void {
@@ -186,7 +186,7 @@ export class PageTreeItem {
 
   onMenuEvent(event: ContextMenuEvent): void {
     switch (event.kind) {
-      case 'rename': this.renameRequested.emit(event.guid); break;
+      case 'rename': this.renameRequested.emit({ guid: event.guid, title: this.page().title }); break;
       case 'newChild': this.newChildRequested.emit(event.guid); break;
       case 'sort': this.sortRequested.emit({ guid: event.guid, direction: event.direction }); break;
       case 'move': this.moveRequested.emit(event.guid); break;

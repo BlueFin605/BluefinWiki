@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/angular';
+import { render, screen, fireEvent } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { PageTreeItem } from './page-tree-item';
+import type { ContextMenuEvent } from './page-context-menu';
 import type { PageSummary } from './page.types';
 
 function summary(over: Partial<PageSummary> = {}): PageSummary {
@@ -56,15 +57,38 @@ describe('PageTreeItem', () => {
     expect(calls).toEqual(['g1']);
   });
 
-  it('emits renameRequested on double-click', async () => {
+  it('emits renameRequested with the row guid + real title on double-click', async () => {
     const user = userEvent.setup();
-    const events: string[] = [];
+    const events: unknown[] = [];
     const { fixture } = await render(PageTreeItem, {
       inputs: { page: summary({ guid: 'g1', title: 'Dbl' }), level: 0, activeGuid: null, pageTypesMap: {} },
     });
-    fixture.componentInstance.renameRequested.subscribe((g: string) => events.push(g));
+    fixture.componentInstance.renameRequested.subscribe((e: unknown) => events.push(e));
     await user.dblClick(screen.getByText('Dbl'));
-    expect(events).toEqual(['g1']);
+    expect(events).toEqual([{ guid: 'g1', title: 'Dbl' }]);
+  });
+
+  it('emits renameRequested with the row guid + real title on F2', async () => {
+    const events: unknown[] = [];
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ guid: 'g1', title: 'Eff Two' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    fixture.componentInstance.renameRequested.subscribe((e: unknown) => events.push(e));
+    const row = screen.getByRole('treeitem');
+    row.focus();
+    fireEvent.keyDown(row, { key: 'F2' });
+    expect(events).toEqual([{ guid: 'g1', title: 'Eff Two' }]);
+  });
+
+  it('emits renameRequested with the row guid + real title from the context menu', async () => {
+    const events: unknown[] = [];
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ guid: 'g1', title: 'Ctx' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    fixture.componentInstance.renameRequested.subscribe((e: unknown) => events.push(e));
+    const renameEvent: ContextMenuEvent = { kind: 'rename', guid: 'g1' };
+    fixture.componentInstance.onMenuEvent(renameEvent);
+    expect(events).toEqual([{ guid: 'g1', title: 'Ctx' }]);
   });
 
   it('lazy-loads children when expanded', async () => {

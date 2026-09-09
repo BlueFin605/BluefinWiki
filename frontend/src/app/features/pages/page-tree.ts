@@ -71,7 +71,7 @@ export class PageTree {
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
 
   readonly pageSelect = output<string>();
-  readonly renameRequested = output<string>();
+  readonly renameRequested = output<{ guid: string; title: string }>();
   readonly deleteRequested = output<string>();
   readonly newChildRequested = output<string>();
   readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();

@@ -1126,4 +1126,38 @@ describe('PagesView', () => {
       expect(panelClass).not.toContain('fullscreen-dialog');
     });
   }
+
+  // ---- Step 2.5: rename modal is pre-filled with the real page title --------
+
+  interface RenameHandle {
+    onRenameRequested(req: { guid: string; title: string }): void;
+    renameTarget: () => { guid: string; title: string } | null;
+  }
+
+  it('onRenameRequested stores the guid + real title from the tree payload', async () => {
+    const { fixture, http } = await renderShell();
+    const cmp = fixture.componentInstance as unknown as RenameHandle;
+
+    cmp.onRenameRequested({ guid: 'g', title: 'Real Title' });
+
+    expect(cmp.renameTarget()).toEqual({ guid: 'g', title: 'Real Title' });
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('passes the real title through to wiki-page-rename-inline as initialTitle', async () => {
+    const { fixture, http } = await renderShell();
+    const cmp = fixture.componentInstance as unknown as RenameHandle;
+
+    cmp.onRenameRequested({ guid: 'g', title: 'Real Title' });
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const inline = fixture.debugElement.query(By.css('wiki-page-rename-inline'))
+      .componentInstance as { guid: () => string; initialTitle: () => string };
+    expect(inline.guid()).toBe('g');
+    expect(inline.initialTitle()).toBe('Real Title');
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
 });

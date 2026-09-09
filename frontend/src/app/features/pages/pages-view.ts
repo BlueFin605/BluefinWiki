@@ -520,11 +520,10 @@ export class PagesView {
     if (!this.bp.isDesktop()) this.treeDrawerOpen.set(false);
   }
 
-  onRenameRequested(guid: string): void {
-    // Pull the current title off the children resource cached by the tree —
-    // for Phase 3 we fall back to "Page" if not in cache. Phase 4's context
-    // menu will pass the full PageSummary through so this is unnecessary.
-    this.renameTarget.set({ guid, title: 'Page' });
+  onRenameRequested(target: { guid: string; title: string }): void {
+    // The tree row already holds the PageSummary it renders, so the real title
+    // rides along in the (renameRequested) payload — no extra fetch needed.
+    this.renameTarget.set(target);
   }
 
   async onDeleteRequested(guid: string): Promise<void> {
