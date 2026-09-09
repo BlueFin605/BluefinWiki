@@ -526,6 +526,18 @@ describe('PagesView', () => {
     expect(cmp.treeDrawerOpen()).toBe(true);
   });
 
+  it('keeps the ResizeDivider desktop-only (DESIGN.md D6)', async () => {
+    const { fixture } = await renderShellAt(false);
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(ResizeDivider))).toBeNull();
+
+    bpStub.isDesktop.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.directive(ResizeDivider))).not.toBeNull();
+  });
+
   it('flipping isDesktop false -> true re-pins the tree open in side mode', async () => {
     const { fixture } = await renderShellAt(false);
     fixture.detectChanges();

@@ -172,6 +172,8 @@ import { AiSidebar } from '../ai/ai-sidebar';
           position="end"
           class="inspector"
           mode="side"
+          role="complementary"
+          aria-label="Inspector"
           [opened]="!!ctx.guid() && !!ctx.metadata()"
           [style.width.px]="bp.isDesktop() ? inspectorWidth() : null"
         >
@@ -225,6 +227,8 @@ import { AiSidebar } from '../ai/ai-sidebar';
       background: #f9fafb;
       /* Desktop width comes from [style.width.px]; this is the mobile drawer. */
       width: min(85vw, 320px);
+      /* Deterministic positioning context for .tree-divider (right: 0). */
+      position: relative;
     }
     .body .inspector { background: #fff; }
 
@@ -281,7 +285,7 @@ export class PagesView {
 
   // `#body` now sits on <mat-sidenav-container>; read its host element so
   // onTreeResize keeps measuring from the shell's left edge.
-  private readonly bodyEl = viewChild('body', { read: ElementRef });
+  private readonly bodyEl = viewChild<unknown, ElementRef<HTMLElement>>('body', { read: ElementRef });
 
   protected readonly treeWidth = computed(() => this.layout.treeWidth());
   protected readonly inspectorWidth = computed(() => this.layout.inspectorWidth());
@@ -297,7 +301,7 @@ export class PagesView {
    * relative to the shell's left edge; `Layout.update()` clamps to 200-600.
    */
   onTreeResize(pointerX: number): void {
-    const host = this.bodyEl()?.nativeElement as HTMLElement | undefined;
+    const host = this.bodyEl()?.nativeElement;
     if (!host) return;
     const width = pointerX - host.getBoundingClientRect().left;
     this.layout.update({ treeWidth: width });
