@@ -32,10 +32,24 @@ import type { PageProperty } from '../pages/page.types';
     AttachmentManager,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Tab bodies use `*matTabContent` + `preserveContent` (lazy-once), NOT a
+  // destroying `@if` on `selectedTab()` (Phase 4 review I8). The `@if` tore
+  // down + rebuilt `PagePropertiesPanel` / `CustomPropertiesEditor` on every
+  // Properties<->Attachments toggle, and each rebuild re-constructed its own
+  // `rxResource` (page-types, page-tags, per-property tag vocabularies) — 5+
+  // GETs per tab bounce, nothing shared. `matTabContent` defers construction
+  // until a tab is first viewed; `preserveContent` then keeps it in the DOM
+  // instead of detaching it on every switch-away, so a tab bounce refetches
+  // nothing. (The eager mobile instantiation is handled one level up:
+  // `pages-view` gates `<wiki-inspector-panel>` on `inspectorOpened()`.)
   template: `
-    <mat-tab-group [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
+    <mat-tab-group
+      preserveContent
+      [selectedIndex]="selectedTab()"
+      (selectedIndexChange)="selectedTab.set($event)"
+    >
       <mat-tab label="Properties">
-        @if (selectedTab() === 0) {
+        <ng-template matTabContent>
           <wiki-page-properties-panel
             [metadata]="metadata()"
             (metadataChange)="metadataChange.emit($event)"
@@ -47,11 +61,11 @@ import type { PageProperty } from '../pages/page.types';
             [properties]="metadata().properties ?? {}"
             (propertiesChange)="onPropertiesChange($event)"
           />
-        }
+        </ng-template>
       </mat-tab>
 
       <mat-tab label="Attachments">
-        @if (selectedTab() === 1) {
+        <ng-template matTabContent>
           <wiki-attachment-uploader
             [pageGuid]="pageGuid()"
             (uploaded)="insertMarkdown.emit($event.markdown)"
@@ -62,7 +76,7 @@ import type { PageProperty } from '../pages/page.types';
             [canInsert]="canInsert()"
             (insertMarkdown)="insertMarkdown.emit($event)"
           />
-        }
+        </ng-template>
       </mat-tab>
 
       <mat-tab>
@@ -79,9 +93,9 @@ import type { PageProperty } from '../pages/page.types';
             matBadgeSize="small"
           >Linked</span>
         </ng-template>
-        @if (selectedTab() === 2) {
+        <ng-template matTabContent>
           <wiki-linked-pages-panel [pageGuid]="pageGuid()" />
-        }
+        </ng-template>
       </mat-tab>
     </mat-tab-group>
   `,

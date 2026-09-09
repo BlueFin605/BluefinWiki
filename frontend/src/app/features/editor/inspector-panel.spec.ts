@@ -80,12 +80,36 @@ describe('InspectorPanel', () => {
   });
 
   it('switching to attachments tab loads the attachments resource', async () => {
-    const { http, fixture } = await renderInspector();
+    const { http, fixture } = await renderInspector({}, 0, { noopAnimations: true });
     fixture.componentInstance['selectedTab'].set(1);
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
     http.expectOne('/api/pages/g1/attachments').flush({ attachments: [] });
+  });
+
+  it('keeps the Properties tab alive across a Properties→Attachments→Properties bounce — no page-types/page-tags refetch (Phase 4 review I8)', async () => {
+    const { http, fixture } = await renderInspector({}, 0, { noopAnimations: true });
+
+    // Properties → Attachments (first view of the Attachments tab).
+    fixture.componentInstance['selectedTab'].set(1);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    http.expectOne('/api/pages/g1/attachments').flush({ attachments: [] });
+    await settle();
+    fixture.detectChanges();
+
+    // Attachments → Properties. The Properties panels were kept alive by
+    // *matTabContent, so no fresh rxResource is constructed and no GET repeats.
+    fixture.componentInstance['selectedTab'].set(0);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    http.expectNone('/api/page-types');
+    http.expectNone('/api/tags?scope=_page');
+    http.verify();
   });
 
   it('routes the uploader uploaded event to the insertMarkdown output (step 4.9 auto-insert)', async () => {
@@ -133,7 +157,7 @@ describe('InspectorPanel', () => {
   });
 
   it('switching to linked tab causes its own backlinks panel to mount + refetch', async () => {
-    const { http, fixture } = await renderInspector();
+    const { http, fixture } = await renderInspector({}, 0, { noopAnimations: true });
     fixture.componentInstance['selectedTab'].set(2);
     fixture.detectChanges();
     await settle();

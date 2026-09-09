@@ -163,7 +163,17 @@ import { AiSidebar } from '../ai/ai-sidebar';
           (closed)="onInspectorClosed()"
           [style.width.px]="bp.isDesktop() ? inspectorWidth() : null"
         >
-          @if (ctx.guid() && ctx.metadata(); as m) {
+          <!--
+            Gate on inspectorOpened(), not just guid + metadata (Phase 4 review
+            I8). Material keeps a closed drawer's projected content in the DOM,
+            so below 1024 the panel — and PagePropertiesPanel /
+            CustomPropertiesEditor with their page-types / page-tags / tag-vocab
+            rxResources — would construct and fetch on every page load while the
+            bottom sheet is shut. inspectorOpened() already implies guid +
+            metadata; on desktop it also carries the "open on mount when
+            Layout.inspectorVisible() is already true" case.
+          -->
+          @if (inspectorOpened() && ctx.metadata(); as m) {
             <wiki-inspector-panel
               [pageGuid]="ctx.guid()!"
               [metadata]="m"

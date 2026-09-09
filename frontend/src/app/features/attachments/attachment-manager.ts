@@ -33,7 +33,7 @@ import {
   isImageContentType,
 } from './attachment.types';
 import type { AttachmentMetadata } from './attachment.types';
-import { nextDelay } from './backoff';
+import { MAX_RETRIES, nextDelay } from './backoff';
 import { AttachmentLightbox } from './attachment-lightbox';
 
 interface ListState {
@@ -54,7 +54,9 @@ function sortNewestFirst(
  * Lists a page's attachments (newest first) with per-row Insert / Download /
  * Copy-Markdown / Drag-Link / Delete actions, an image thumbnail + lightbox for
  * image types, and an exponential-backoff auto-retry (1s → 30s, ≤10 attempts)
- * on list-load failure plus a manual Refresh that also resets the backoff.
+ * on list-load failure — with a visible "Retrying… (attempt N of 10)" status
+ * line so the wait is not a silent unchanging "Loading…" — plus a manual
+ * Refresh that also resets the backoff.
  *
  * Insert and Copy Markdown share one markdown builder,
  * {@link buildAttachmentMarkdown} — the single source of truth for
@@ -88,7 +90,11 @@ function sortNewestFirst(
       </div>
 
       @if (isLoading()) {
-        <p class="state">Loading attachments…</p>
+        @if (retryAttempt() > 0) {
+          <p class="state">Retrying… (attempt {{ retryAttempt() }} of {{ maxAttempts }})</p>
+        } @else {
+          <p class="state">Loading attachments…</p>
+        }
       } @else if (hasError()) {
         <p class="state error">Failed to load attachments.</p>
       } @else if (items().length === 0) {
@@ -224,6 +230,21 @@ export class AttachmentManager {
   protected readonly hasError = computed(() => this._state().status === 'error');
   protected readonly items = computed(() => this._state().items);
 
+  /**
+   * Which backoff retry is currently in flight, 1-based; `0` means the initial
+   * load with no failure yet. `startWith(LOADING)` only fires once per
+   * `switchMap` emission and the `retry()` re-subscribes *inside* that emission,
+   * so without this the component would sit on an unchanging "Loading
+   * attachments…" for the whole ~151s backoff schedule (Phase 4 review I2 —
+   * react ref line 414 "auto-retry … with status text"). Set from the retry
+   * `delay` callback; reset to `0` on every new `params` emission (page change,
+   * scoped invalidation, Refresh).
+   */
+  private readonly _retryAttempt = signal(0);
+  protected readonly retryAttempt = this._retryAttempt.asReadonly();
+  /** Total list-load attempts before giving up: the initial GET + every retry. */
+  protected readonly maxAttempts = MAX_RETRIES + 1;
+
   protected readonly format = formatFileSize;
   protected readonly emoji = attachmentEmoji;
   protected readonly isImage = isImageContentType;
@@ -231,8 +252,11 @@ export class AttachmentManager {
   constructor() {
     toObservable(this.params)
       .pipe(
-        switchMap(({ guid }) =>
-          this.attachments.listAttachments(guid).pipe(
+        switchMap(({ guid }) => {
+          // A fresh `params` emission restarts the backoff — clear the visible
+          // attempt counter so the reload reads plain "Loading attachments…".
+          this._retryAttempt.set(0);
+          return this.attachments.listAttachments(guid).pipe(
             // Exponential backoff: 1s, 2s, 4s … capped at 30s. The list is
             // loaded at most 10 times total (initial GET + up to 9 retries);
             // `nextDelay` returning `null` is the single stop condition —
@@ -243,7 +267,10 @@ export class AttachmentManager {
             retry({
               delay: (error: unknown, retryCount: number) => {
                 const ms = nextDelay(retryCount);
-                return ms === null ? throwError(() => error) : timer(ms);
+                if (ms === null) return throwError(() => error);
+                // Surface the in-flight retry to the template (Phase 4 I2).
+                this._retryAttempt.set(retryCount);
+                return timer(ms);
               },
             }),
             map(
@@ -254,14 +281,15 @@ export class AttachmentManager {
             ),
             catchError(() => of<ListState>({ status: 'error', items: [] })),
             startWith(LOADING),
-          ),
-        ),
+          );
+        }),
         takeUntilDestroyed(),
       )
       .subscribe((state) => this._state.set(state));
   }
 
   protected refresh(): void {
+    this._retryAttempt.set(0);
     this.refreshTick.update((n) => n + 1);
   }
 

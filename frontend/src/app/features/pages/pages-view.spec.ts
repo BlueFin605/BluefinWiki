@@ -372,12 +372,13 @@ describe('PagesView', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel')).toBeNull();
   });
 
-  it('renders the hoisted wiki-inspector-panel once PageContext has a guid + metadata', async () => {
+  it('renders the hoisted wiki-inspector-panel once PageContext has a guid + metadata (and the inspector is open)', async () => {
     const { fixture, http } = await renderShell();
     const ctx = TestBed.inject(PageContext);
 
     ctx.guid.set('g1');
     ctx.metadata.set(makeMeta());
+    TestBed.inject(Layout).update({ inspectorVisible: true }); // I8 gate: panel mounts only while inspectorOpened()
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
@@ -403,6 +404,7 @@ describe('PagesView', () => {
     const ctx = TestBed.inject(PageContext);
     ctx.guid.set('g1');
     ctx.metadata.set(makeMeta());
+    TestBed.inject(Layout).update({ inspectorVisible: true }); // I8 gate: panel mounts only while inspectorOpened()
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
@@ -582,6 +584,7 @@ describe('PagesView', () => {
 
     ctx.guid.set('g1');
     ctx.metadata.set(makeMeta());
+    TestBed.inject(Layout).update({ inspectorVisible: true }); // I8 gate: panel mounts only while inspectorOpened()
     fixture.detectChanges();
     await settle();
     fixture.detectChanges();
@@ -881,6 +884,44 @@ describe('PagesView', () => {
     expect(
       (fixture.nativeElement as HTMLElement).querySelector('.mat-drawer-backdrop.mat-drawer-shown'),
     ).toBeNull();
+  });
+
+  // ---- Step 4.10 / Phase 4 review I8: gate the inspector panel on inspectorOpened() ----
+
+  it('desktop: does NOT mount wiki-inspector-panel while the inspector is closed (page loaded)', async () => {
+    const { fixture } = await renderShellWithPage(true); // localStorage cleared → inspectorVisible false
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel')).toBeNull();
+    // The sidenav shell itself still renders — only its content is deferred.
+    expect(inspectorSidenav(fixture)).toBeTruthy();
+  });
+
+  it('mobile: does NOT mount wiki-inspector-panel while the inspector sheet is closed (page loaded)', async () => {
+    const { fixture } = await renderShellWithPage(false);
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel')).toBeNull();
+  });
+
+  it('desktop: mounts wiki-inspector-panel once the inspector is opened', async () => {
+    const { fixture, ctx, http } = await renderShellWithPage(true);
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel')).toBeNull();
+
+    ctx.toggleInspector();
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel')).toBeTruthy();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('mobile: mounts wiki-inspector-panel once the inspector sheet is opened', async () => {
+    const { fixture, ctx, http } = await renderShellWithPage(false);
+    ctx.inspectorSheetOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel')).toBeTruthy();
+    http.match(() => true).forEach((r) => r.flush(null));
   });
 
   // ---- Step 1b.9: AI full-width overlay + full-screen search dialog ------

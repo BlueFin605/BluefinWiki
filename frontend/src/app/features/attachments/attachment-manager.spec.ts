@@ -6,7 +6,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { defer, of, throwError, type Observable } from 'rxjs';
+import { defer, of, throwError, NEVER, type Observable } from 'rxjs';
 import { AttachmentManager } from './attachment-manager';
 import { AttachmentLightbox } from './attachment-lightbox';
 import { Attachments } from './attachments';
@@ -396,6 +396,62 @@ describe('AttachmentManager — list-load backoff', () => {
     await settle();
     fixture.detectChanges();
     expect(screen.getByText('recovered.pdf')).toBeInTheDocument();
+  });
+
+  it('surfaces the retry attempt count while the backoff loop runs (Phase 4 review I2)', async () => {
+    const { list, subs } = coldList(boom);
+    const { fixture } = await renderStub(attachmentsStub({ listAttachments: list }));
+    await settle();
+    fixture.detectChanges();
+
+    // The initial GET has already failed once (synchronous boom), so the first
+    // retry is scheduled and the status line names it instead of an unchanging
+    // "Loading attachments…".
+    expect(subs()).toBe(1);
+    expect(screen.getByText('Retrying… (attempt 1 of 10)')).toBeInTheDocument();
+    expect(screen.queryByText('Loading attachments…')).toBeNull();
+
+    // Fire retry 1 (fails) → now waiting on retry 2.
+    jest.advanceTimersByTime(1000);
+    await settle();
+    fixture.detectChanges();
+    expect(subs()).toBe(2);
+    expect(screen.getByText('Retrying… (attempt 2 of 10)')).toBeInTheDocument();
+
+    // Run the rest of the schedule out; after the 10th attempt it gives up and
+    // the retry text is replaced by the terminal error.
+    for (const d of [2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000]) {
+      jest.advanceTimersByTime(d);
+      await settle();
+    }
+    fixture.detectChanges();
+    expect(subs()).toBe(10);
+    expect(screen.getByText(/failed to load attachments/i)).toBeInTheDocument();
+    expect(screen.queryByText(/retrying/i)).toBeNull();
+  });
+
+  it('the initial load (before any failure) shows plain "Loading attachments…", not the retry text (I2)', async () => {
+    const { list } = coldList(() => NEVER);
+    const { fixture } = await renderStub(attachmentsStub({ listAttachments: list }));
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByText('Loading attachments…')).toBeInTheDocument();
+    expect(screen.queryByText(/retrying/i)).toBeNull();
+  });
+
+  it('Refresh clears the retry status text (I2)', async () => {
+    const { list } = coldList((attempt) => (attempt === 1 ? boom() : NEVER));
+    const { fixture } = await renderStub(attachmentsStub({ listAttachments: list }));
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByText('Retrying… (attempt 1 of 10)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh attachments/i }));
+    await settle();
+    fixture.detectChanges();
+
+    expect(screen.queryByText(/retrying/i)).toBeNull();
+    expect(screen.getByText('Loading attachments…')).toBeInTheDocument();
   });
 
   it('renders a successful list without any retry', async () => {
