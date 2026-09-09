@@ -207,6 +207,20 @@ describe('CustomPropertiesEditor', () => {
     expect(emissions.length).toBe(0);
   });
 
+  it('clears the validation error as soon as the user corrects the name', async () => {
+    const { emissions } = await renderEditor({
+      schema: [{ name: 'author', type: 'string', required: false }],
+    });
+    await userEvent.click(screen.getByRole('button', { name: /^add property$/i }));
+    await settle();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText(/new property name/i), 'r');
+    await settle();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(emissions.length).toBe(0);
+  });
+
   it('rejects a name that duplicates an existing property key', async () => {
     const { emissions } = await renderEditor({
       schema: [{ name: 'author', type: 'string', required: false }],
@@ -260,6 +274,29 @@ describe('CustomPropertiesEditor', () => {
     });
     // Both scoped vocab endpoints were requested and already drained by the helper.
     http.verify();
+  });
+
+  it('does not refetch tag vocabularies when an unrelated field is edited', async () => {
+    const { fixture, http } = await renderEditor({
+      schema: [
+        { name: 'author', type: 'string', required: false },
+        { name: 'genre', type: 'tags', required: false },
+      ],
+      tagScopes: ['genre'],
+    });
+    // Mirror the inspector: every emission is echoed straight back into the
+    // `properties` input with no debounce, so `rows()` recomputes per keystroke.
+    fixture.componentInstance.propertiesChange.subscribe((p) =>
+      fixture.componentRef.setInput('properties', p),
+    );
+
+    await userEvent.type(screen.getByLabelText(/author/i), 'abc');
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    // No further GET /api/tags?scope=... beyond the one drained on mount.
+    expect(http.match((r) => r.url === '/api/tags').length).toBe(0);
   });
 
   it('keeps the label of a schema tags property distinct from an ad-hoc one', async () => {

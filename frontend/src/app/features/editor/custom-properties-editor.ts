@@ -137,7 +137,7 @@ import type {
                   type="text"
                   placeholder="New property name"
                   [ngModel]="newName()"
-                  (ngModelChange)="newName.set($event)"
+                  (ngModelChange)="onNewNameInput($event)"
                   (keydown.enter)="addProperty()"
                 />
               </mat-form-field>
@@ -226,9 +226,16 @@ export class CustomPropertiesEditor {
 
   private readonly rowNames = computed(() => this.rows().map((r) => r.name));
 
-  /** Property names needing a `tags` vocabulary, one autocomplete list each. */
-  private readonly tagScopes = computed(() =>
-    this.rows().filter((r) => r.prop.type === 'tags').map((r) => r.name),
+  /**
+   * Property names needing a `tags` vocabulary, one autocomplete list each.
+   * Content-equal comparator: `rows()` gets a fresh array identity on every
+   * keystroke (the inspector round-trips `properties` with no debounce), but an
+   * unchanged tags-scope set must not re-issue the vocab fetches or the
+   * autocomplete visibly blanks.
+   */
+  private readonly tagScopes = computed(
+    () => this.rows().filter((r) => r.prop.type === 'tags').map((r) => r.name),
+    { equal: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) },
   );
 
   private readonly vocabRes = this.pageTags.multiVocabResource(() =>
@@ -256,6 +263,12 @@ export class CustomPropertiesEditor {
 
   protected toggle(): void {
     this.collapsed.update((c) => !c);
+  }
+
+  /** Typing a correction clears a lingering "rejected" message immediately. */
+  protected onNewNameInput(value: string): void {
+    this.newName.set(value);
+    if (this.addError() !== null) this.addError.set(null);
   }
 
   protected onValueInput(name: string, type: 'string' | 'date', event: Event): void {

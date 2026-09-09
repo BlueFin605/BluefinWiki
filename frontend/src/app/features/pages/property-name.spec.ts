@@ -14,6 +14,14 @@ describe('kebabCasePropertyName', () => {
   it('is a no-op for an already-kebab name', () => {
     expect(kebabCasePropertyName('release-year')).toBe('release-year');
   });
+
+  it('keeps digits, hyphenating the whitespace around them', () => {
+    expect(kebabCasePropertyName('version 2')).toBe('version-2');
+  });
+
+  it('strips non-ASCII letters', () => {
+    expect(kebabCasePropertyName('café')).toBe('caf');
+  });
 });
 
 describe('validatePropertyName', () => {
@@ -45,5 +53,13 @@ describe('validatePropertyName', () => {
   it('accepts a Set of existing keys, not just an array', () => {
     const r = validatePropertyName('genre', new Set(['author']));
     expect(r.ok).toBe(true);
+  });
+
+  it('accepts an already-kebab name containing digits', () => {
+    expect(validatePropertyName('version-2', [])).toEqual({
+      ok: true,
+      name: 'version-2',
+      error: null,
+    });
   });
 });

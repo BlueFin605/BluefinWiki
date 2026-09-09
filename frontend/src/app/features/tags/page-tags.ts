@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { forkJoin, map, of, type Observable } from 'rxjs';
+import { catchError, forkJoin, map, of, type Observable } from 'rxjs';
 import { InvalidationBus, pageTagsListTag } from '../../core/api/invalidation';
 
 /** Scope the backend uses for page-level tags (the frontmatter `tags` field). */
@@ -76,7 +76,11 @@ export class PageTags {
         for (const scope of params.scopes) {
           sources[scope] = this.http
             .get<TagsListResponse>('/api/tags', { params: { scope } })
-            .pipe(map((r) => (r?.tags ?? []).map((t) => t.tag)));
+            .pipe(
+              map((r) => (r?.tags ?? []).map((t) => t.tag)),
+              // One failing scope must not blank the other tags inputs.
+              catchError(() => of<string[]>([])),
+            );
         }
         return forkJoin(sources);
       },
