@@ -97,5 +97,8 @@ export class PageContext {
     this.guid.set(null);
     this.metadata.set(null);
     this.inspectorSheetOpen.set(false);
+    // `mode` is part of the "cleared on destroy" contract too — otherwise
+    // `canInsert()` stays true after leaving an `/edit` route (review M1).
+    this.mode.set('view');
   }
 }

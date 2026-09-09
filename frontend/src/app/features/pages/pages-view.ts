@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -49,9 +49,8 @@ import { AiSidebar } from '../ai/ai-sidebar';
         @if (!bp.isDesktop()) {
           <button
             mat-icon-button
-            class="hamburger"
             aria-label="Open navigation"
-            (click)="treeDrawerOpen.set(true)"
+            (click)="onOpenTreeDrawer()"
           >
             <mat-icon>menu</mat-icon>
           </button>
@@ -131,21 +130,6 @@ import { AiSidebar } from '../ai/ai-sidebar';
               />
             </div>
           }
-          <!--
-            Below 1024 the AI sidebar is a full-width fixed overlay above the
-            content (DESIGN.md D7), never a side-by-side pane. Fixed positioning
-            keeps it out of the flex flow so .content / .main stay full width
-            (no squeeze). Its close control is wiki-ai-sidebar's own header
-            button, wired to aiOpen here.
-          -->
-          @if (!bp.isDesktop() && aiOpen()) {
-            <div class="ai-overlay">
-              <wiki-ai-sidebar
-                [currentPageGuid]="activeGuid()"
-                (closed)="aiOpen.set(false)"
-              />
-            </div>
-          }
         </mat-sidenav-content>
 
         <!--
@@ -200,6 +184,27 @@ import { AiSidebar } from '../ai/ai-sidebar';
           }
         </mat-sidenav>
       </mat-sidenav-container>
+
+      <!--
+        Below 1024 the AI sidebar is a full-width fixed overlay (DESIGN.md D7),
+        never a side-by-side pane. It is hoisted OUT of mat-sidenav-content to a
+        direct child of .pages-shell (step 1b whole-branch review C1): nested in
+        the content it could never out-rank the app toolbar, so wiki-ai-sidebar's
+        own header ("New chat" / "Close AI assistant") sat behind the opaque bar.
+        As a sibling of .topbar it genuinely covers it. Three-way stacking, low
+        to high: .topbar (z-index: 2) < .ai-overlay (z-index: 3) < the search
+        CDK overlay (rendered outside .pages-shell entirely). Fixed positioning
+        keeps .content / .main full width (no squeeze). Close is
+        wiki-ai-sidebar's own header button, wired to aiOpen here.
+      -->
+      @if (!bp.isDesktop() && aiOpen()) {
+        <div class="ai-overlay">
+          <wiki-ai-sidebar
+            [currentPageGuid]="activeGuid()"
+            (closed)="aiOpen.set(false)"
+          />
+        </div>
+      }
 
       @if (renameTarget(); as target) {
         <wiki-page-rename-inline
@@ -310,8 +315,12 @@ import { AiSidebar } from '../ai/ai-sidebar';
       Below 1024 the AI sidebar is a full-width fixed overlay above the content
       (DESIGN.md D7). Fixed positioning + explicit 100vw takes it out of the
       content flow so mat-sidenav-content / .main keep full width (no squeeze).
-      The z-index clears the sidenav content; the search CDK overlay still
-      layers above it. wiki-ai-sidebar brings its own header close button.
+
+      Stacking (review C1): the element is a direct child of .pages-shell, a
+      sibling of .topbar, so z-index: 3 puts it just above the toolbar
+      (z-index: 2) and its own header controls stay clickable. The search CDK
+      overlay lives outside .pages-shell and still layers over everything.
+      wiki-ai-sidebar brings its own header close button.
     */
     .ai-overlay {
       position: fixed;
@@ -319,7 +328,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
       left: 0;
       width: 100vw;
       height: 100%;
-      z-index: 20;
+      z-index: 3;
       background: white;
       display: flex;
       flex-direction: column;
@@ -389,16 +398,47 @@ export class PagesView {
 
   /**
    * The `end` sidenav closed — from a mobile backdrop/Esc dismiss, or reactively
-   * when `inspectorOpened()` drops. Clear whichever open-state applies. The
-   * close that fires when the page itself unloads (guid/metadata cleared) is
-   * ignored so it can't wipe the persisted desktop `inspectorVisible`.
+   * when `inspectorOpened()` drops.
+   *
+   * Desktop (review I2): `(closed)` is doubly deferred (async emitter, fired
+   * from `transitionend`), so it can land *after* the desired state has flipped
+   * back to "open" — e.g. a View<->Edit toggle nulls then re-publishes
+   * guid/metadata while the drawer is mid-close. Reconcile against the desired
+   * state, don't react to the event:
+   *   - if the inspector should be open again, do nothing (idempotent);
+   *   - if the page itself unloaded (guid/metadata cleared), do nothing so the
+   *     persisted `inspectorVisible` is never wiped;
+   *   - only write `inspectorVisible: false` when it is still true (drops the
+   *     redundant localStorage write, roll-up 1b.5-a).
+   *
+   * Mobile: the sheet flag is ephemeral (not persisted), and this handler is
+   * what syncs a backdrop/Esc dismiss back into `inspectorSheetOpen` so the
+   * one-way `[opened]` binding agrees — always clear it on close. (The stale
+   * early-return is desktop-only by design: applying it here would let a real
+   * dismiss be ignored while the flag is still true, and the drawer would
+   * spring back open.)
    */
   onInspectorClosed(): void {
     if (!this.ctx.guid() || !this.ctx.metadata()) return;
     if (this.bp.isDesktop()) {
-      this.layout.update({ inspectorVisible: false });
+      if (this.inspectorOpened()) return;
+      if (this.layout.inspectorVisible()) this.layout.update({ inspectorVisible: false });
     } else {
       this.ctx.inspectorSheetOpen.set(false);
+    }
+  }
+
+  /**
+   * Hamburger handler. Below 1024 the tree drawer, inspector sheet and AI
+   * overlay are mutually exclusive (DESIGN.md D9 / review I3), so opening the
+   * tree drawer closes the other two. Desktop is unaffected — the tree is
+   * always pinned and the AI pane is a legitimate side-by-side column there.
+   */
+  onOpenTreeDrawer(): void {
+    this.treeDrawerOpen.set(true);
+    if (!this.bp.isDesktop()) {
+      this.ctx.inspectorSheetOpen.set(false);
+      this.aiOpen.set(false);
     }
   }
 
@@ -429,8 +469,19 @@ export class PagesView {
 
   protected readonly aiOpen = signal(false);
 
+  /**
+   * AI toggle (toolbar button). Below 1024 the three mobile surfaces are
+   * mutually exclusive (DESIGN.md D9 / review I3): opening the AI overlay
+   * closes the tree drawer and the inspector sheet. Closing it, and desktop,
+   * touch nothing else.
+   */
   onToggleAi(): void {
-    this.aiOpen.update((open) => !open);
+    const willOpen = !this.aiOpen();
+    this.aiOpen.set(willOpen);
+    if (willOpen && !this.bp.isDesktop()) {
+      this.ctx.inspectorSheetOpen.set(false);
+      this.treeDrawerOpen.set(false);
+    }
   }
 
   constructor() {
@@ -438,6 +489,18 @@ export class PagesView {
     this.router.events.subscribe(() => {
       const match = /^\/pages\/([0-9a-f-]+)/i.exec(this.router.url);
       this.activeGuid.set(match ? match[1] : null);
+    });
+
+    // Mutual exclusion, inspector-sheet side (DESIGN.md D9 / review I3). The
+    // sheet is opened from PageContext (the editor-bar info button), which can't
+    // reach treeDrawerOpen / aiOpen — so mirror the cross-clear here: when the
+    // sheet goes up below 1024, drop the other two surfaces. Writes different
+    // signals than it reads, so it converges in one pass.
+    effect(() => {
+      if (!this.bp.isDesktop() && this.ctx.inspectorSheetOpen()) {
+        this.treeDrawerOpen.set(false);
+        this.aiOpen.set(false);
+      }
     });
   }
 

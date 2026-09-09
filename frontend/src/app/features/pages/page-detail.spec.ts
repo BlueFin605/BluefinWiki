@@ -1507,6 +1507,27 @@ describe('PageDetail', () => {
     expect(host.querySelector('.body.toolbar-pinned')).toBeNull();
   });
 
+  it('mobile: the bottom-toolbar reserve (.body.toolbar-pinned) is released in the Preview sub-mode (review M4)', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true, isDesktop: false });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    // Edit sub-mode: the toolbar is pinned, so .body reserves space for it.
+    expect(host.querySelector('.body.toolbar-pinned')).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Preview' }));
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    // Preview: the toolbar is not rendered, so the reserve class is dropped
+    // (toolbarPinned()'s `editorMode() !== 'preview'` conjunct).
+    expect(editorMode(fixture)).toBe('preview');
+    expect(host.querySelector('.body.toolbar-pinned')).toBeNull();
+  });
+
   // ---- Step 1b.8: the TOC compact input tracks !bp.isDesktop() ----
 
   it('drives the wiki-toc compact input from !bp.isDesktop() and reflects a flip', async () => {

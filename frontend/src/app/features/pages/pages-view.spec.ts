@@ -504,6 +504,29 @@ describe('PagesView', () => {
     expect(shellHandle(fixture).treeDrawerOpen()).toBe(true);
   });
 
+  it('mobile: the tree sidenav (closed) output clears treeDrawerOpen (roll-up 1b.4-c)', async () => {
+    const { fixture } = await renderShellAt(false);
+    fixture.detectChanges();
+
+    shellHandle(fixture).treeDrawerOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(treeSidenav(fixture).opened).toBe(true);
+
+    // Mirrors the inspector equivalent ("mobile: the sidenav (closed) output
+    // clears inspectorSheetOpen") — invoke the (closed) binding directly rather
+    // than fight the one-way [opened] binding with a real .close().
+    const treeDe = fixture.debugElement
+      .queryAll(By.directive(MatSidenav))
+      .find((d) => (d.componentInstance as MatSidenav).position === 'start')!;
+    treeDe.triggerEventHandler('closed', undefined);
+    fixture.detectChanges();
+    await settle();
+
+    expect(shellHandle(fixture).treeDrawerOpen()).toBe(false);
+  });
+
   it('onPageSelect closes the drawer on mobile but leaves it untouched on desktop', async () => {
     const { fixture } = await renderShellAt(false);
     fixture.detectChanges();
@@ -624,7 +647,7 @@ describe('PagesView', () => {
       .not.toContain('mobile-sheet');
   });
 
-  it('desktop: toggling opens the side inspector; (closed) writes inspectorVisible back to false', async () => {
+  it('desktop: toggling opens the side inspector; toggling again closes it and persists inspectorVisible=false', async () => {
     const { fixture, ctx } = await renderShellWithPage(true);
     const layout = TestBed.inject(Layout);
 
@@ -636,11 +659,65 @@ describe('PagesView', () => {
     expect(layout.inspectorVisible()).toBe(true);
     expect(inspectorSidenav(fixture).opened).toBe(true);
 
+    ctx.toggleInspector(); // desktop -> layout.update({ inspectorVisible: false })
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect(layout.inspectorVisible()).toBe(false);
+    expect(inspectorSidenav(fixture).opened).toBe(false);
+  });
+
+  it('desktop: a stray/duplicate (closed) with the inspector already closed does NOT re-write Layout (roll-up 1b.5-a)', async () => {
+    const { fixture, ctx } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+
+    ctx.toggleInspector();
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    ctx.toggleInspector();
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(layout.inspectorVisible()).toBe(false);
+
+    const updateSpy = jest.spyOn(layout, 'update');
     inspectorSidenavDe(fixture).triggerEventHandler('closed', undefined);
     fixture.detectChanges();
     await settle();
 
+    expect(updateSpy).not.toHaveBeenCalled();
     expect(layout.inspectorVisible()).toBe(false);
+  });
+
+  it('desktop: a stale late (closed) after the page reloads does NOT clobber persisted inspectorVisible (review I2)', async () => {
+    const { fixture, ctx } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+
+    ctx.toggleInspector(); // open the desktop inspector
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(layout.inspectorVisible()).toBe(true);
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    // A View<->Edit toggle: PageDetail destroy nulls guid/metadata, the
+    // replacement immediately re-publishes them, THEN the async (closed) from
+    // the aborted close lands. The guard on guid/metadata alone would pass and
+    // wipe inspectorVisible; reconciling against inspectorOpened() must not.
+    ctx.guid.set(null);
+    ctx.metadata.set(null);
+    ctx.guid.set('g1');
+    ctx.metadata.set(makeMeta());
+    fixture.detectChanges();
+
+    inspectorSidenavDe(fixture).triggerEventHandler('closed', undefined);
+    fixture.detectChanges();
+    await settle();
+
+    expect(layout.inspectorVisible()).toBe(true);
+    expect(inspectorSidenav(fixture).opened).toBe(true);
   });
 
   it('desktop: the inspector stays closed while inspectorVisible is true but no page is loaded (gated)', async () => {
@@ -851,6 +928,21 @@ describe('PagesView', () => {
     expect(host.querySelector('.ai-overlay wiki-ai-sidebar')).toBeTruthy();
   });
 
+  it('mobile + aiOpen: the .ai-overlay is a direct child of .pages-shell, hoisted OUT of mat-sidenav-content (review C1)', async () => {
+    const { fixture } = await renderShellAt(false);
+    (fixture.componentInstance as AiHandle).aiOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    // It must be a sibling of .topbar so its z-index can out-rank the toolbar.
+    expect(host.querySelector('.pages-shell > .ai-overlay')).not.toBeNull();
+    // It must NOT be nested in the sidenav content (z-index: 1 there — can
+    // never cover the z-index: 2 toolbar).
+    expect(host.querySelector('mat-sidenav-content .ai-overlay')).toBeNull();
+  });
+
   it('desktop + aiOpen: the AI sidebar mounts in the .ai-pane column, no overlay class', async () => {
     const { fixture } = await renderShellAt(true);
     (fixture.componentInstance as AiHandle).aiOpen.set(true);
@@ -878,6 +970,73 @@ describe('PagesView', () => {
 
     expect(cmp.aiOpen()).toBe(false);
     expect((fixture.nativeElement as HTMLElement).querySelector('.ai-overlay')).toBeNull();
+  });
+
+  // ---- Review I3 / DESIGN.md D9: the three mobile surfaces are mutually exclusive ----
+
+  it('mobile: opening the tree drawer closes an open inspector sheet (I3 / D9)', async () => {
+    const { fixture, ctx } = await renderShellWithPage(false);
+
+    ctx.inspectorSheetOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /open navigation/i }));
+    await settle();
+    fixture.detectChanges();
+
+    expect(shellHandle(fixture).treeDrawerOpen()).toBe(true);
+    expect(ctx.inspectorSheetOpen()).toBe(false);
+  });
+
+  it('mobile: opening the AI overlay closes the inspector sheet; the hamburger then closes the AI overlay (I3 / D9)', async () => {
+    const { fixture, ctx } = await renderShellWithPage(false);
+    const cmp = fixture.componentInstance as AiHandle & { onToggleAi(): void };
+
+    ctx.inspectorSheetOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    cmp.onToggleAi(); // open the AI overlay on mobile
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect(cmp.aiOpen()).toBe(true);
+    expect(ctx.inspectorSheetOpen()).toBe(false);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /open navigation/i }));
+    await settle();
+    fixture.detectChanges();
+
+    expect(shellHandle(fixture).treeDrawerOpen()).toBe(true);
+    expect(cmp.aiOpen()).toBe(false);
+  });
+
+  it('desktop: opening the AI pane leaves the inspector untouched (mutual exclusion is mobile-only)', async () => {
+    const { fixture, ctx } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+    const cmp = fixture.componentInstance as AiHandle & { onToggleAi(): void };
+
+    ctx.toggleInspector(); // desktop -> Layout.inspectorVisible true
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    cmp.onToggleAi();
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    expect(cmp.aiOpen()).toBe(true);
+    expect(layout.inspectorVisible()).toBe(true);
+    expect(inspectorSidenav(fixture).opened).toBe(true);
   });
 
   for (const combo of ['ctrl', 'cmd'] as const) {

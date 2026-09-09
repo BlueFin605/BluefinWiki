@@ -39,6 +39,19 @@ describe('MarkdownToolbar', () => {
     expect(actions).toEqual(['h3']);
   });
 
+  it('compact mode offers exactly Heading 1, 2 and 3 (H1-H3; review I1)', async () => {
+    await renderToolbar({ compact: true });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /heading/i }));
+
+    expect(screen.getByRole('menuitem', { name: /heading 1/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /heading 2/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /heading 3/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /heading 4/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /heading 5/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /heading 6/i })).toBeNull();
+  });
+
   it('emits "image" when the image button is clicked', async () => {
     const { actions } = await renderToolbar();
     const user = userEvent.setup();

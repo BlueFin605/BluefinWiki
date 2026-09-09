@@ -107,16 +107,19 @@ describe('PageContext', () => {
     expect(ctx.inspectorSheetOpen()).toBe(false);
   });
 
-  it('reset clears guid, metadata and the mobile sheet flag', () => {
+  it('reset clears guid, metadata, the mobile sheet flag and mode (review M1)', () => {
     const { ctx } = setup();
     ctx.guid.set('g1');
     ctx.metadata.set(makeMetadata());
     ctx.inspectorSheetOpen.set(true);
+    ctx.mode.set('edit');
 
     ctx.reset();
 
     expect(ctx.guid()).toBeNull();
     expect(ctx.metadata()).toBeNull();
     expect(ctx.inspectorSheetOpen()).toBe(false);
+    expect(ctx.mode()).toBe('view');
+    expect(ctx.canInsert()).toBe(false);
   });
 });

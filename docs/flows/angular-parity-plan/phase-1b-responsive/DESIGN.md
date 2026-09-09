@@ -22,6 +22,7 @@ Source of truth for target behaviour:
 | D6 | **Drawer open/close state is ephemeral** — component-local signals, never persisted. Resize dividers stay desktop-only. | Matches React (`MobileDrawer` state is component-local). |
 | D7 | **AI sidebar below 1024 = full-width fixed overlay**, not a third sidenav. | Two `end` sidenavs collide. |
 | D8 | **Phase 1b runs after Phases 3 and 4**, not right after Phase 1. | The inspector hoist (1b.3) and the editor-bar rework (1b.6) both refactor `page-detail`; doing them after Split view (3.1), the save pill (3.3) and the inspector work (Phase 4) avoids reworking the same file twice. The mobile-tagged acceptance criteria in Phases 3/4/6 are ticked here. |
+| D9 | **Below 1024 the tree drawer, inspector sheet and AI overlay are mutually exclusive** — opening one closes the others. | Matches React, whose affordances are mutually exclusive. Two `over` drawers sharing one backdrop plus the AI overlay under both is a state React can't reach; whole-branch review I3. |
 
 ---
 

@@ -36,6 +36,15 @@ const CODE_BUTTONS: readonly ToolbarButton[] = [
   { action: 'codeblock', icon: 'data_object', label: 'Code block' },
 ] as const;
 
+const HEADING_ITEMS: readonly { action: ToolbarAction; label: string }[] = [
+  { action: 'h1', label: 'Heading 1' },
+  { action: 'h2', label: 'Heading 2' },
+  { action: 'h3', label: 'Heading 3' },
+  { action: 'h4', label: 'Heading 4' },
+  { action: 'h5', label: 'Heading 5' },
+  { action: 'h6', label: 'Heading 6' },
+] as const;
+
 /**
  * Buttons dropped from the compact / mobile variant (React parity): ordered
  * list, task list and code block. Bold / italic / strikethrough, the heading
@@ -79,7 +88,7 @@ const COMPACT_HIDDEN: ReadonlySet<ToolbarAction> = new Set<ToolbarAction>(['ol',
         <mat-icon>title</mat-icon>
       </button>
       <mat-menu #headingMenu="matMenu" [yPosition]="headingMenuYPosition()">
-        @for (h of headings; track h.action) {
+        @for (h of headings(); track h.action) {
           <button mat-menu-item type="button" (click)="emit(h.action)">
             {{ h.label }}
           </button>
@@ -164,7 +173,8 @@ export class MarkdownToolbar {
   readonly disabled = input<boolean>(false);
   /**
    * Compact / mobile variant: hides the ordered-list, task-list and code-block
-   * buttons and flips the heading menu so it opens upward. The responsive layer
+   * buttons, restricts the heading menu to H1-H3 (React parity, DESIGN.md
+   * per-surface table) and flips it so it opens upward. The responsive layer
    * (Phase 1b, step 1b.6) decides *when* to pass this and pins the toolbar to
    * the bottom of the screen.
    */
@@ -181,14 +191,13 @@ export class MarkdownToolbar {
     this.compact() ? 'above' : 'below',
   );
 
-  protected readonly headings: readonly { action: ToolbarAction; label: string }[] = [
-    { action: 'h1', label: 'Heading 1' },
-    { action: 'h2', label: 'Heading 2' },
-    { action: 'h3', label: 'Heading 3' },
-    { action: 'h4', label: 'Heading 4' },
-    { action: 'h5', label: 'Heading 5' },
-    { action: 'h6', label: 'Heading 6' },
-  ];
+  /**
+   * Full H1-H6 inline; H1-H3 only in compact / mobile (React parity, DESIGN.md
+   * per-surface table). Mirrors the `visible()` pattern used for the buttons.
+   */
+  protected readonly headings = computed(() =>
+    this.compact() ? HEADING_ITEMS.slice(0, 3) : HEADING_ITEMS,
+  );
 
   emit(action: ToolbarAction): void {
     this.action.emit(action);
