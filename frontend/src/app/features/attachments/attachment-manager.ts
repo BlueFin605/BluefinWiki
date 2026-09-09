@@ -32,7 +32,7 @@ import {
   isImageContentType,
 } from './attachment.types';
 import type { AttachmentMetadata } from './attachment.types';
-import { MAX_RETRIES, nextDelay } from './backoff';
+import { nextDelay } from './backoff';
 import { AttachmentLightbox } from './attachment-lightbox';
 
 interface ListState {
@@ -101,6 +101,9 @@ function sortNewestFirst(
               (dragstart)="onDragStart($event, item)"
             >
               <div class="lead">
+                <span class="emoji" aria-hidden="true">{{
+                  emoji(item.filename, item.contentType)
+                }}</span>
                 @if (isImage(item.contentType)) {
                   <button
                     type="button"
@@ -116,10 +119,6 @@ function sortNewestFirst(
                       width="56"
                     />
                   </button>
-                } @else {
-                  <span class="emoji" aria-hidden="true">{{
-                    emoji(item.filename, item.contentType)
-                  }}</span>
                 }
               </div>
 
@@ -188,9 +187,9 @@ function sortNewestFirst(
     .state.error { color: #b91c1c; }
     .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
     .row { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 4px; }
-    .lead { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; }
-    .thumb { display: block; padding: 0; border: 0; background: none; cursor: zoom-in; line-height: 0; }
-    .emoji { font-size: 1.5rem; }
+    .lead { flex: 0 0 auto; display: flex; align-items: center; gap: 0.375rem; }
+    .thumb { display: block; padding: 0; border: 0; background: none; cursor: zoom-in; line-height: 0; width: 56px; }
+    .emoji { font-size: 1.25rem; line-height: 1; }
     .meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.125rem; }
     .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sub { display: flex; gap: 0.5rem; font-size: 0.75rem; color: #6b7280; }
@@ -233,12 +232,14 @@ export class AttachmentManager {
       .pipe(
         switchMap(({ guid }) =>
           this.attachments.listAttachments(guid).pipe(
-            // Exponential backoff: 1s, 2s, 4s … capped at 30s, ≤10 attempts.
+            // Exponential backoff: 1s, 2s, 4s … capped at 30s. The list is
+            // loaded at most 10 times total (initial GET + up to 9 retries);
+            // `nextDelay` returning `null` is the single stop condition —
+            // re-raising the error then completes the retry via `catchError`.
             // A new `params` emission (Refresh, page change, invalidation)
             // tears down this inner subscription via `switchMap`, which cancels
             // any pending retry timer and restarts the backoff from scratch.
             retry({
-              count: MAX_RETRIES,
               delay: (error: unknown, retryCount: number) => {
                 const ms = nextDelay(retryCount);
                 return ms === null ? throwError(() => error) : timer(ms);
@@ -319,7 +320,7 @@ export class AttachmentManager {
       panelClass: 'wiki-attachment-lightbox-panel',
       maxWidth: '100vw',
       maxHeight: '100vh',
-      autoFocus: false,
+      autoFocus: 'dialog',
     });
   }
 

@@ -15,19 +15,18 @@ describe('nextDelay (attachment list-load backoff)', () => {
     expect(nextDelay(7)).toBe(30000);
     expect(nextDelay(8)).toBe(30000);
     expect(nextDelay(9)).toBe(30000);
-    expect(nextDelay(10)).toBe(30000);
   });
 
-  it('produces exactly the documented sequence for attempts 1..10', () => {
+  it('produces exactly the documented sequence for the 9 retry attempts', () => {
     const seq = Array.from({ length: MAX_RETRIES }, (_, i) => nextDelay(i + 1));
     expect(seq).toEqual([
-      1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000,
+      1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000,
     ]);
   });
 
-  it('stops signalling (returns null) after 10 attempts', () => {
+  it('stops signalling (returns null) after 9 retries — 10 total load attempts', () => {
+    expect(nextDelay(10)).toBeNull();
     expect(nextDelay(11)).toBeNull();
-    expect(nextDelay(12)).toBeNull();
     expect(nextDelay(100)).toBeNull();
   });
 

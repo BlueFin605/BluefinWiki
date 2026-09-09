@@ -3,15 +3,17 @@
  * (step 4.8). Pure and framework-free so it can be unit-tested in isolation and
  * reused by the retry operator in `attachment-manager.ts`.
  *
- * `nextDelay(attempt)` returns how long to wait, in milliseconds, before retry
- * number `attempt` — 1-based, so `attempt === 1` is the first retry after the
- * initial load failure. Delays double each time (1s, 2s, 4s, 8s, 16s) and are
- * clamped at {@link MAX_DELAY_MS}. Once `attempt` exceeds {@link MAX_RETRIES}
- * (10) it returns `null`, the signal to stop retrying and surface the error.
+ * The list is loaded up to **10 times total** on failure — the initial GET plus
+ * up to {@link MAX_RETRIES} (9) retries. `nextDelay(attempt)` returns how long
+ * to wait, in milliseconds, before retry number `attempt` — 1-based, so
+ * `attempt === 1` is the first retry after the initial failure. Delays double
+ * each time (1s, 2s, 4s, 8s, 16s) and are clamped at {@link MAX_DELAY_MS}. Once
+ * `attempt` exceeds {@link MAX_RETRIES} it returns `null`, the signal to stop
+ * retrying and surface the error.
  */
 
-/** Maximum number of automatic retries before giving up. */
-export const MAX_RETRIES = 10;
+/** Maximum number of automatic retries (on top of the initial load) before giving up. */
+export const MAX_RETRIES = 9;
 
 /** First backoff delay; every subsequent delay doubles until the cap. */
 export const BASE_DELAY_MS = 1000;

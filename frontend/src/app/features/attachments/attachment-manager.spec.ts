@@ -141,22 +141,37 @@ describe('AttachmentManager — list + row actions', () => {
     expect(names).toEqual(['newest.pdf', 'middle.pdf', 'oldest.pdf']);
   });
 
-  it('renders a wiki-image thumbnail for image rows but not for other types', async () => {
+  it('shows the type emoji on every row, plus a wiki-image thumbnail on image rows', async () => {
     const { fixture, container, http } = await renderHttp({ pageGuid: 'p1', pageAuthorId: 'u-current' });
     http.expectOne('/api/pages/p1/attachments').flush({
       attachments: [
-        meta({ filename: 'pic.png', contentType: 'image/png' }),
-        meta({ filename: 'report.pdf', contentType: 'application/pdf' }),
+        meta({ filename: 'pic.png', contentType: 'image/png', size: 2048, uploadedAt: '2026-05-02T00:00:00Z' }),
+        meta({ filename: 'report.pdf', contentType: 'application/pdf', size: 4096, uploadedAt: '2026-05-01T00:00:00Z' }),
       ],
     });
     await settle();
     fixture.detectChanges();
-    const rows = container.querySelectorAll('li.row');
+    const rows = Array.from(container.querySelectorAll('li.row'));
     expect(rows).toHaveLength(2);
-    // Image row (pic.png sorts first — same date, stable) has the thumbnail.
+
+    const imageRow = rows.find((r) => r.textContent?.includes('pic.png'))!;
+    const docRow = rows.find((r) => r.textContent?.includes('report.pdf'))!;
+
+    // Emoji is present on BOTH rows (image + non-image).
+    expect(imageRow.querySelector('.emoji')?.textContent?.trim()).toBe('🖼️');
+    expect(docRow.querySelector('.emoji')?.textContent?.trim()).toBe('📄');
+
+    // Thumbnail is additional, image rows only.
     expect(container.querySelectorAll('wiki-image')).toHaveLength(1);
-    const imageRow = Array.from(rows).find((r) => r.textContent?.includes('pic.png'));
-    expect(imageRow?.querySelector('wiki-image')).not.toBeNull();
+    expect(imageRow.querySelector('wiki-image')).not.toBeNull();
+    expect(docRow.querySelector('wiki-image')).toBeNull();
+
+    // Each row shows filename + size + uploaded date (React ref line 415).
+    expect(imageRow.querySelector('.name')?.textContent?.trim()).toBe('pic.png');
+    expect(imageRow.querySelector('.size')?.textContent?.trim()).toBe('2 KB');
+    expect(imageRow.querySelector('.date')?.textContent?.trim()).toBe('2026-05-02T00:00:00Z');
+    expect(docRow.querySelector('.size')?.textContent?.trim()).toBe('4 KB');
+    expect(docRow.querySelector('.date')?.textContent?.trim()).toBe('2026-05-01T00:00:00Z');
   });
 
   it('emits insertMarkdown via the shared builder (image embed form)', async () => {
@@ -305,14 +320,14 @@ describe('AttachmentManager — list-load backoff', () => {
   beforeEach(() => jest.useFakeTimers({ doNotFake: ['queueMicrotask'] }));
   afterEach(() => jest.useRealTimers());
 
-  it('retries a failed list load with exponential backoff and gives up after 10 retries', async () => {
+  it('retries a failed list load with exponential backoff, 10 total attempts then gives up', async () => {
     const { list, subs } = coldList(boom);
     const { fixture } = await renderStub(attachmentsStub({ listAttachments: list }));
     await settle();
     expect(subs()).toBe(1); // initial load attempt
 
-    // Backoff delays before retries 1..10: 1s, 2s, 4s, 8s, 16s, then 30s x5.
-    const delays = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000];
+    // Backoff delays before retries 1..9: 1s, 2s, 4s, 8s, 16s, then 30s x4.
+    const delays = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000];
     for (let i = 0; i < delays.length; i++) {
       jest.advanceTimersByTime(delays[i] - 1);
       await settle();
@@ -321,7 +336,7 @@ describe('AttachmentManager — list-load backoff', () => {
       await settle();
       expect(subs()).toBe(i + 2); // retry i+1 fired exactly on the delay
     }
-    expect(subs()).toBe(11); // 1 initial + 10 retries
+    expect(subs()).toBe(10); // 1 initial + 9 retries
 
     fixture.detectChanges();
     expect(screen.getByText(/failed to load attachments/i)).toBeInTheDocument();
@@ -329,7 +344,7 @@ describe('AttachmentManager — list-load backoff', () => {
     // Given up: no further retries however long we wait.
     jest.advanceTimersByTime(120_000);
     await settle();
-    expect(subs()).toBe(11);
+    expect(subs()).toBe(10);
   });
 
   it('Refresh forces an immediate retry and resets the backoff to 1s', async () => {
