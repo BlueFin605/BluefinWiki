@@ -180,6 +180,40 @@ describe('PagePropertiesPanel', () => {
     }
   });
 
+  it('still syncs the H1 when the user retypes a title then blanks it within one debounce window', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] });
+    try {
+      const result = await renderPanel(meta({ title: 'Old' }));
+      const emissions: PageMetadata[] = [];
+      const syncs: string[] = [];
+      result.fixture.componentInstance.metadataChange.subscribe((m) => emissions.push(m));
+      result.fixture.componentInstance.titleH1Sync.subscribe((t) => syncs.push(t));
+
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await user.click(titleTrigger());
+      result.fixture.detectChanges();
+      const titleInput = screen.getByDisplayValue('Old');
+
+      // Retype a new value, then select-all + delete, then tab out — no debounce
+      // has fired for "New" yet, so this is one uninterrupted window.
+      await user.clear(titleInput);
+      await user.type(titleInput, 'New');
+      await user.clear(titleInput);
+      titleInput.blur();
+
+      jest.advanceTimersByTime(250);
+      await settle();
+
+      // The reverted value still reaches the buffer H1 sync...
+      expect(syncs).toContain('New');
+      // ...and an empty title was never persisted.
+      expect(emissions.every((m) => m.title.trim() !== '')).toBe(true);
+      expect(emissions[emissions.length - 1].title).toBe('New');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('disables the title trigger when readOnly is true', async () => {
     const result = await render(PagePropertiesPanel, {
       inputs: { metadata: meta(), readOnly: true },

@@ -24,6 +24,11 @@ describe('title-h1 helpers', () => {
       expect(firstLineIsH1('## Sub heading')).toBe(false);
       expect(firstLineIsH1('#NoSpace')).toBe(false);
     });
+
+    it('still detects an H1 on a CRLF buffer (trailing \\r on each line)', () => {
+      expect(firstLineIsH1('# Title\r\n\r\nbody')).toBe(true);
+      expect(firstLineIsH1('plain\r\n# Later\r\n')).toBe(false);
+    });
   });
 
   describe('rewriteFirstH1', () => {
@@ -53,6 +58,11 @@ describe('title-h1 helpers', () => {
     it('is idempotent', () => {
       const once = rewriteFirstH1('# Old\n\nx', 'New');
       expect(rewriteFirstH1(once, 'New')).toBe(once);
+    });
+
+    it('rewrites the H1 on a CRLF buffer (line-1 ending normalises to LF)', () => {
+      // Without the start-anchored regex fix this is a silent no-op.
+      expect(rewriteFirstH1('# Old\r\nbody', 'New')).toBe('# New\nbody');
     });
   });
 

@@ -964,6 +964,10 @@ export class PageDetail {
       if (ed && view && range) {
         ed.replaceRange(range.from, range.to, `# ${title.trim()}`);
       } else {
+        // No CodeMirror view (Preview sub-mode). Rewrite the buffer signal
+        // directly, mirroring onImageResize. Unlike the replaceRange path this
+        // does NOT enter CodeMirror's undo history — a title-driven H1 change
+        // made in Preview is not Ctrl-Z-revertable after returning to Edit.
         this.content.set(next);
       }
     } catch (err) {

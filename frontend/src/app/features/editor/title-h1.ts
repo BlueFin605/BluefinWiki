@@ -7,12 +7,18 @@
  * transaction bridge (`PageDetail.setFirstH1`) share one definition of "the
  * first non-empty line is an H1" and "rewrite that line".
  *
- * An H1 line is `^#\s+(.*)$` — a single `#`, then whitespace, then the text.
+ * An H1 line starts `# ` — a single `#`, then whitespace, then the text.
  * `## Sub` and `#NoSpace` are deliberately not H1s. Only the *first non-empty*
  * line is considered; leading blank lines are skipped.
+ *
+ * The pattern is anchored at the start only (no `$` / `m` flag): `markdown`
+ * is split on `\n`, so a CRLF buffer leaves a trailing `\r` on each line and a
+ * `$`-anchored `.*$` would fail to match it — silently no-op'ing every helper
+ * on a CRLF document. No capture group is used, so the trailing text is not
+ * part of the pattern.
  */
 
-const H1_RE = /^#\s+.*$/;
+const H1_RE = /^#\s+/;
 
 /** Index of the first line with non-whitespace content, or -1 when there is none. */
 function firstContentLineIndex(lines: readonly string[]): number {

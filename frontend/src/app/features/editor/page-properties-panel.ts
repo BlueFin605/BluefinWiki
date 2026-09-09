@@ -282,8 +282,13 @@ export class PagePropertiesPanel {
   onTitleBlur(): void {
     this.editing.set(false);
     if (this.title().trim() === '') {
+      // Revert a blank field to the last non-empty value and flush now.
+      // `userTitleDirty` is left exactly as the last real keystroke set it: if
+      // the user retyped a new title and then blanked it inside one debounce
+      // window, the reverted value still has to reach the buffer H1. A
+      // redundant `titleH1Sync` here is harmless — the host's `rewriteFirstH1`
+      // reference-equal no-op drops it when the H1 already matches.
       this.title.set(this.lastNonEmptyTitle);
-      this.userTitleDirty = false;
       this.flushMetadata();
     }
   }
