@@ -72,7 +72,7 @@ export class PageTree {
 
   readonly pageSelect = output<string>();
   readonly renameRequested = output<{ guid: string; title: string }>();
-  readonly deleteRequested = output<string>();
+  readonly deleteRequested = output<{ guid: string; hasChildren: boolean }>();
   readonly newChildRequested = output<string>();
   readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();
   readonly moveRequested = output<string>();

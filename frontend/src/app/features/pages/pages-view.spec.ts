@@ -9,14 +9,18 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Router } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSidenav } from '@angular/material/sidenav';
 import { By } from '@angular/platform-browser';
+import { of } from 'rxjs';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
 import { PagesView } from './pages-view';
+import { Pages } from './pages';
+import { ConfirmDialog } from '../../shared/components/confirm-dialog';
 import { PageContext } from './page-context';
 import { PageTree } from './page-tree';
 import { ResizeDivider } from '../../shared/components/resize-divider';
@@ -1157,6 +1161,112 @@ describe('PagesView', () => {
       .componentInstance as { guid: () => string; initialTitle: () => string };
     expect(inline.guid()).toBe('g');
     expect(inline.initialTitle()).toBe('Real Title');
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  // ---- Step 2.8: Delete via ConfirmDialog (leaf vs has-children copy) -------
+
+  interface DeleteHandle {
+    onDeleteRequested(req: { guid: string; hasChildren: boolean }): Promise<void>;
+  }
+
+  function stubConfirm(result: boolean): jest.SpyInstance {
+    const dialog = TestBed.inject(MatDialog);
+    return jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(result) } as never);
+  }
+
+  interface ConfirmDataProbe {
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    destructive?: boolean;
+  }
+
+  function lastConfirmData(openSpy: jest.SpyInstance): ConfirmDataProbe {
+    const call = (openSpy.mock.calls as [unknown, { data: ConfirmDataProbe }?][]).at(-1);
+    if (!call) throw new Error('MatDialog.open was not called');
+    expect(call[0]).toBe(ConfirmDialog);
+    if (!call[1]) throw new Error('MatDialog.open called without a config');
+    return call[1].data;
+  }
+
+  it('leaf page: opens ConfirmDialog with the leaf copy and deletes with recursive:false', async () => {
+    const { fixture, http } = await renderShell();
+    const cmp = fixture.componentInstance as unknown as DeleteHandle;
+    const pages = TestBed.inject(Pages);
+    const deleteSpy = jest.spyOn(pages, 'deletePage').mockResolvedValue(undefined);
+    const openSpy = stubConfirm(true);
+
+    await cmp.onDeleteRequested({ guid: 'leaf-1', hasChildren: false });
+    await settle();
+
+    expect(lastConfirmData(openSpy).message).toBe('Delete this page?');
+    expect(lastConfirmData(openSpy).destructive).toBe(true);
+    expect(deleteSpy).toHaveBeenCalledWith('leaf-1', { recursive: false });
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('has-children: opens ConfirmDialog with the count-free child-aware copy and deletes with recursive:true', async () => {
+    const { fixture, http } = await renderShell();
+    const cmp = fixture.componentInstance as unknown as DeleteHandle;
+    const pages = TestBed.inject(Pages);
+    const deleteSpy = jest.spyOn(pages, 'deletePage').mockResolvedValue(undefined);
+    const openSpy = stubConfirm(true);
+
+    await cmp.onDeleteRequested({ guid: 'parent-1', hasChildren: true });
+    await settle();
+
+    expect(lastConfirmData(openSpy).message).toBe(
+      'Delete this page and all its child pages? This action cannot be undone.',
+    );
+    expect(deleteSpy).toHaveBeenCalledWith('parent-1', { recursive: true });
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('dismissing the ConfirmDialog does NOT call deletePage', async () => {
+    const { fixture, http } = await renderShell();
+    const cmp = fixture.componentInstance as unknown as DeleteHandle;
+    const pages = TestBed.inject(Pages);
+    const deleteSpy = jest.spyOn(pages, 'deletePage').mockResolvedValue(undefined);
+    stubConfirm(false);
+
+    await cmp.onDeleteRequested({ guid: 'leaf-1', hasChildren: false });
+    await settle();
+
+    expect(deleteSpy).not.toHaveBeenCalled();
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('surfaces the server error message in a snackbar when the delete fails', async () => {
+    const { fixture, http } = await renderShell();
+    const cmp = fixture.componentInstance as unknown as DeleteHandle;
+    const pages = TestBed.inject(Pages);
+    jest.spyOn(pages, 'deletePage').mockRejectedValue(
+      new HttpErrorResponse({
+        status: 409,
+        error: { message: 'Page is referenced by other pages.' },
+      }),
+    );
+    const snack = TestBed.inject(MatSnackBar);
+    const snackSpy = jest.spyOn(snack, 'open').mockReturnValue({} as never);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    stubConfirm(true);
+
+    await cmp.onDeleteRequested({ guid: 'leaf-1', hasChildren: false });
+    await settle();
+
+    expect(snackSpy).toHaveBeenCalledWith(
+      'Page is referenced by other pages.',
+      'Dismiss',
+      { duration: 4000 },
+    );
+    errorSpy.mockRestore();
 
     http.match(() => true).forEach((r) => r.flush(null));
   });

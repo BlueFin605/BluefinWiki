@@ -7,7 +7,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDialog, type MatDialogConfig } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
+import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
 import { Breakpoint } from '../../core/layout/breakpoint';
@@ -350,6 +352,7 @@ export class PagesView {
   private readonly pages = inject(Pages);
   private readonly layout = inject(Layout);
   private readonly dialog = inject(MatDialog);
+  private readonly snack = inject(MatSnackBar);
   private readonly auth = inject(Auth);
   private readonly pageTypes = inject(PageTypes);
   /** Shared channel to the routed page-detail; feeds the hoisted inspector. */
@@ -526,18 +529,47 @@ export class PagesView {
     this.renameTarget.set(target);
   }
 
-  async onDeleteRequested(guid: string): Promise<void> {
-    if (!window.confirm('Delete this page and all its children?')) return;
+  /**
+   * Delete a page after confirming through the app's `ConfirmDialog` (step 2.8).
+   * `hasChildren` rides along on the tree-row payload: it drives both the confirm
+   * copy (a child-aware message) and the `recursive` flag on the request — a
+   * leaf never needs a recursive delete. On failure the *server* message is
+   * surfaced in a snackbar (matching the other mutations in this area), not a
+   * generic string. Per-resource cache invalidation is handled inside
+   * `Pages.deletePage` (step 1.2 — `children:any` + `page:<guid>`).
+   */
+  async onDeleteRequested(req: { guid: string; hasChildren: boolean }): Promise<void> {
+    const { guid, hasChildren } = req;
+
+    const data: ConfirmDialogData = {
+      title: 'Delete page',
+      message: hasChildren
+        ? 'Delete this page and all its child pages? This action cannot be undone.'
+        : 'Delete this page?',
+      confirmLabel: 'Delete',
+      destructive: true,
+    };
+    const ref = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data });
+    if (!(await firstValueFrom(ref.afterClosed()))) return;
+
     try {
-      await this.pages.deletePage(guid, { recursive: true });
+      await this.pages.deletePage(guid, { recursive: hasChildren });
       // If the deleted page was active, navigate back to /pages
       if (this.activeGuid() === guid) {
         await this.router.navigate(['/pages']);
       }
     } catch (err) {
       console.error('Failed to delete page', err);
-      window.alert('Failed to delete page.');
+      this.snack.open(this.deleteErrorMessage(err), 'Dismiss', { duration: 4000 });
     }
+  }
+
+  /** Server message from a failed request: `err.error?.message ?? err.message`. */
+  private deleteErrorMessage(err: unknown): string {
+    const e = err as { error?: { message?: unknown } | null; message?: unknown } | null;
+    if (typeof e?.error?.message === 'string') return e.error.message;
+    if (typeof e?.message === 'string') return e.message;
+    return 'Failed to delete page.';
   }
 
   onNewPage(): void {
