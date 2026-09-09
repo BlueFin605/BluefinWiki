@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
+import { forkJoin, map, of, type Observable } from 'rxjs';
 import { InvalidationBus, pageTagsListTag } from '../../core/api/invalidation';
 
 /** Scope the backend uses for page-level tags (the frontmatter `tags` field). */
@@ -53,6 +53,33 @@ export class PageTags {
         this.http
           .get<TagsListResponse>('/api/tags', { params: { scope: params.scope } })
           .pipe(map((r) => (r?.tags ?? []).map((t) => t.tag))),
+    });
+  }
+
+  /**
+   * Vocabularies for several scopes at once, as `{ [scope]: string[] }`. Step
+   * 4.7 needs one autocomplete list per `tags`-type custom property, each
+   * scoped by the property **name** — matching the backend's
+   * `autoRegisterTagsFromProperties`, which registers a property's tags under
+   * `scope = <property name>`. Re-fetches when the scope set changes or any tag
+   * vocabulary is written (shared `page-tags:list` tag).
+   */
+  multiVocabResource(scopes: () => readonly string[]) {
+    return rxResource({
+      params: () => ({
+        scopes: [...new Set(scopes())],
+        v: this.bus.version(pageTagsListTag()),
+      }),
+      stream: ({ params }): Observable<Record<string, string[]>> => {
+        if (params.scopes.length === 0) return of<Record<string, string[]>>({});
+        const sources: Record<string, Observable<string[]>> = {};
+        for (const scope of params.scopes) {
+          sources[scope] = this.http
+            .get<TagsListResponse>('/api/tags', { params: { scope } })
+            .pipe(map((r) => (r?.tags ?? []).map((t) => t.tag)));
+        }
+        return forkJoin(sources);
+      },
     });
   }
 }
