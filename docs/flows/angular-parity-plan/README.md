@@ -101,9 +101,9 @@ backend", that verification is part of the step.
 | 3 | 10 | 10/10 | ✅ complete (`c18a876..2cc674f`) — whole-branch review passed with fixes; Minor sweep deferred to branch finish |
 | 4 | 9 | 9/9 | ✅ complete (`bd38aeb..6b416db`) — whole-branch review passed with fixes; retry status text (I2) + tab-switch refetch storm (I8) carried to a follow-up step **4.10**; Minor sweep deferred to branch finish |
 | 1b | 9 | 9/9 | ✅ code-complete (`c8c13b5..a886bdb`) — whole-branch review passed with fixes (1 Critical + 3 Important in `a886bdb`); **manual responsive matrix at 360/800/1440 still owed**; DESIGN D9 added (mobile surface mutual-exclusion); Minor sweep + step 4.10 deferred |
-| 4.10 | 1 | 0/1 | not started — Phase 4 I2 (attachment-retry status text) + I8 (inspector tab-switch refetch storm; also gate the mobile panel on `inspectorOpened()`) |
+| 4.10 | 1 | 1/1 | ✅ complete (`e040c42..e2ada7b`) — I2 visible retry status (role=status, "attempt N of 9") + I8 (*matTabContent+preserveContent kills tab-bounce refetch; pages-view panel gated on inspectorOpened() kills eager mobile mount) |
 | 5 | 7 | 0/7 | not started |
 | 6 | 7 | 0/7 | not started |
 | 7 | 4 | 0/4 | not started |
 | 8 | 6 | 0/6 | not started |
-| **Total** | **73** | **49/73** | |
+| **Total** | **73** | **50/73** | |
