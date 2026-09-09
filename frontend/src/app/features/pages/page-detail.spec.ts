@@ -20,14 +20,16 @@ jest.mock('mermaid', () => ({
 }));
 
 import { PageDetail, resolveSaveStatus } from './page-detail';
+import { PageContext } from './page-context';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { buildAttachmentMarkdown } from '../attachments/attachment.types';
 import { Drafts } from './drafts';
 import { Layout } from '../../core/layout/layout';
+import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import { InvalidationBus, pageTag } from '../../core/api/invalidation';
-import type { PageTypeDefinition } from './page.types';
+import type { PageProperty } from './page.types';
 
 const serverPage = {
   guid: 'g1',
@@ -80,6 +82,9 @@ async function renderDetail(
       provideHttpClientTesting(),
       provideRouter([]),
       routeStub(guid, opts.editMode),
+      // PageContext.toggleInspector() branches on Breakpoint; default to desktop
+      // so the editor-bar toggle drives Layout.inspectorVisible (step 4.1 path).
+      ...provideBreakpointStub(true).providers,
     ],
   });
   const http = TestBed.inject(HttpTestingController);
@@ -117,61 +122,86 @@ describe('PageDetail', () => {
     expect(screen.getByRole('heading', { name: 'Hello world' })).toBeInTheDocument();
   });
 
-  it('mounts the Properties / Attachments / Linked inspector in view mode', async () => {
-    const { http, fixture } = await renderDetail();
+  // ---- Step 1b.3: PageContext channel (inspector hoisted to pages-view) ----
+
+  it('publishes guid / metadata / mode to PageContext on load', async () => {
+    const { http } = await renderDetail({ editMode: true });
+    const ctx = TestBed.inject(PageContext);
     http.expectOne('/api/pages/g1').flush(serverPage);
     await settle();
-    // Open the inspector sidenav.
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-    fixture.detectChanges();
-    expect(screen.getByRole('tab', { name: /properties/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /attachments/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /linked/i })).toBeInTheDocument();
+
+    expect(ctx.guid()).toBe('g1');
+    expect(ctx.mode()).toBe('edit');
+    expect(ctx.metadata()?.title).toBe('Page Title');
+    // page-detail's working copy IS the PageContext signal.
+    expect(TestBed.inject(PageContext).metadata).toBe(ctx.metadata);
   });
 
-  it('keeps inspector properties editable in view mode', async () => {
+  it('clears PageContext on destroy (reset())', async () => {
     const { http, fixture } = await renderDetail();
+    const ctx = TestBed.inject(PageContext);
     http.expectOne('/api/pages/g1').flush(serverPage);
     await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-    fixture.detectChanges();
-    // Title is a click-to-edit trigger; enabled (editable) in view mode.
-    expect(screen.getByRole('button', { name: 'Title' })).not.toBeDisabled();
-    // Clean working copy => no Save button until something changes.
-    expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
+    expect(ctx.guid()).toBe('g1');
+
+    fixture.destroy();
+
+    expect(ctx.guid()).toBeNull();
+    expect(ctx.metadata()).toBeNull();
   });
 
-  it('surfaces a Save button after a property edit in view mode', async () => {
+  it('a write to PageContext.metadata (the inspector metadataChange path) drives dirty-detection', async () => {
     const { http, fixture } = await renderDetail();
     http.expectOne('/api/pages/g1').flush(serverPage);
     await settle();
-    fixture.componentInstance.metadata.update((m) => (m ? { ...m, title: 'Renamed' } : m));
+
+    const ctx = TestBed.inject(PageContext);
+    ctx.metadata.update((m) => (m ? { ...m, title: 'Renamed' } : m));
     fixture.detectChanges();
     await settle();
+
+    expect((fixture.componentInstance as unknown as { dirty: () => boolean }).dirty()).toBe(true);
     expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
   });
 
-  it('persists page type + merged properties immediately on a type change and invalidates page:<guid>', async () => {
-    const taskType: PageTypeDefinition = {
-      guid: 'pt-task',
-      name: 'Task',
-      icon: '',
-      properties: [
-        { name: 'status', type: 'string', required: false, defaultValue: 'backlog' },
-        { name: 'points', type: 'number', required: false },
-      ],
-      allowedChildTypes: [],
-      allowWikiPageChildren: true,
-      allowedParentTypes: [],
-      allowAnyParent: true,
-      createdBy: '',
-      createdAt: '',
-      updatedAt: '',
+  it('routes PageContext.emitInsert into the editor via insertMarkdownAtCursor', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'AB' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    const comp = fixture.componentInstance as unknown as {
+      insertMarkdownAtCursor: (m: string) => void;
     };
+    const insertSpy = jest.spyOn(comp, 'insertMarkdownAtCursor');
+
+    TestBed.inject(PageContext).emitInsert('![x](x.png)');
+    await settle();
+    fixture.detectChanges();
+
+    expect(insertSpy).toHaveBeenCalledWith('![x](x.png)');
+    expect(fixture.componentInstance.content()).toContain('![x](x.png)');
+  });
+
+  it('routes PageContext.emitTitleH1Sync into setFirstH1', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Original\n\nbody' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    TestBed.inject(PageContext).emitTitleH1Sync('Renamed');
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toBe('# Renamed\n\nbody');
+  });
+
+  it('persists page type + merged properties immediately when PageContext.emitPageTypeChange fires, and invalidates page:<guid>', async () => {
+    // The schema merge itself is covered in page-properties-panel.spec; here the
+    // inspector is hoisted, so the merged PageTypeChange payload arrives over the
+    // PageContext channel and page-detail must persist it at once.
     const { http, fixture } = await renderDetail();
     http.expectOne('/api/pages/g1').flush({
       ...serverPage,
@@ -181,59 +211,31 @@ describe('PageDetail', () => {
       },
     });
     await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    await settle();
-    fixture.detectChanges();
-    http.expectOne('/api/page-types').flush({ pageTypes: [taskType] });
-    http.expectOne('/api/pages/g1/backlinks').flush({ guid: 'g1', backlinks: [], count: 0 });
-    await settle();
     fixture.detectChanges();
 
     const bus = TestBed.inject(InvalidationBus);
     const before = bus.version(pageTag('g1'));
 
-    // Drive the change from the properties panel — no field was edited first.
-    const panel = fixture.debugElement
-      .query(By.css('wiki-page-properties-panel'))
-      .componentInstance as { onPageTypeChange: (guid: string | null) => void };
-    panel.onPageTypeChange('pt-task');
+    const mergedProps: Record<string, PageProperty> = {
+      status: { type: 'string', value: 'doing' },
+      points: { type: 'number', value: '' },
+      legacy: { type: 'string', value: 'x' },
+    };
+    TestBed.inject(PageContext).emitPageTypeChange({
+      pageType: 'pt-task',
+      properties: mergedProps,
+    });
     await settle();
 
-    const put = http.expectOne(
-      (r) => r.url === '/api/pages/g1' && r.method === 'PUT',
-    );
-    const body = put.request.body as {
-      pageType: string | null;
-      properties: Record<string, unknown>;
-    };
-    expect(body).toEqual({
-      pageType: 'pt-task',
-      properties: {
-        status: { type: 'string', value: 'doing' }, // retained (name + type match)
-        points: { type: 'number', value: '' }, // seeded from the new schema
-        legacy: { type: 'string', value: 'x' }, // kept (union merge — no data loss)
-      },
-    });
-    put.flush({ ...serverPage, pageType: 'pt-task', properties: body.properties });
+    const put = http.expectOne((r) => r.url === '/api/pages/g1' && r.method === 'PUT');
+    expect(put.request.body).toEqual({ pageType: 'pt-task', properties: mergedProps });
+    put.flush({ ...serverPage, pageType: 'pt-task', properties: mergedProps });
     await settle();
 
     expect(bus.version(pageTag('g1'))).toBe(before + 1);
   });
 
-  it('clears the type only (no properties key) when "(none)" is chosen, and invalidates page:<guid>', async () => {
-    const taskType: PageTypeDefinition = {
-      guid: 'pt-task',
-      name: 'Task',
-      icon: '',
-      properties: [{ name: 'status', type: 'string', required: false }],
-      allowedChildTypes: [],
-      allowWikiPageChildren: true,
-      allowedParentTypes: [],
-      allowAnyParent: true,
-      createdBy: '',
-      createdAt: '',
-      updatedAt: '',
-    };
+  it('clears the type only (no properties key) when "(none)" arrives over PageContext, and invalidates page:<guid>', async () => {
     const { http, fixture } = await renderDetail();
     http.expectOne('/api/pages/g1').flush({
       ...serverPage,
@@ -241,23 +243,12 @@ describe('PageDetail', () => {
       properties: { status: { type: 'string', value: 'doing' } },
     });
     await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    await settle();
-    fixture.detectChanges();
-    http.expectOne('/api/page-types').flush({ pageTypes: [taskType] });
-    http.expectOne('/api/pages/g1/backlinks').flush({ guid: 'g1', backlinks: [], count: 0 });
-    // The typed page fetches its type definition for the custom-properties editor.
-    http.match((r) => r.url === '/api/page-types/pt-task').forEach((r) => r.flush(taskType));
-    await settle();
     fixture.detectChanges();
 
     const bus = TestBed.inject(InvalidationBus);
     const before = bus.version(pageTag('g1'));
 
-    const panel = fixture.debugElement
-      .query(By.css('wiki-page-properties-panel'))
-      .componentInstance as { onPageTypeChange: (guid: string | null) => void };
-    panel.onPageTypeChange(null);
+    TestBed.inject(PageContext).emitPageTypeChange({ pageType: null });
     await settle();
 
     const put = http.expectOne((r) => r.url === '/api/pages/g1' && r.method === 'PUT');
@@ -398,72 +389,6 @@ describe('PageDetail', () => {
       (fixture.componentInstance as unknown as { editorError: () => unknown }).editorError(),
     ).toBeNull();
     expect(screen.queryByText(/the editor crashed/i)).toBeNull();
-  });
-
-  it('binds the inspector width to the layout store, not a hardcoded 360px', async () => {
-    const { http, fixture } = await renderDetail();
-    http.expectOne('/api/pages/g1').flush(serverPage);
-    await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-    fixture.detectChanges();
-
-    const layout = TestBed.inject(Layout);
-    const host = fixture.nativeElement as HTMLElement;
-    const inspector = host.querySelector('.inspector') as HTMLElement;
-    expect(inspector.style.width).toBe(`${layout.inspectorWidth()}px`);
-    expect(inspector.style.width).not.toBe('360px');
-  });
-
-  it('resizes the inspector via the divider, clamped through the layout store', async () => {
-    const { http, fixture } = await renderDetail();
-    http.expectOne('/api/pages/g1').flush(serverPage);
-    await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-    fixture.detectChanges();
-
-    const layout = TestBed.inject(Layout);
-    const updateSpy = jest.spyOn(layout, 'update');
-
-    const divider = fixture.debugElement.query(By.directive(ResizeDivider))
-      .componentInstance as ResizeDivider;
-    // Inspector is right-anchored: width = containerRect.right - pointerX. jsdom
-    // rects are all-zero, so any positive pointer X drives width below the 250
-    // floor.
-    divider.resized.emit(80);
-    await settle();
-
-    // jsdom rects are all-zero, so the raw right-anchored width is negative;
-    // the store clamps it up to the 250 floor.
-    expect(updateSpy).toHaveBeenCalledWith({ inspectorWidth: -80 });
-    expect(layout.inspectorWidth()).toBe(250);
-  });
-
-  it('maps the inspector divider pointer X to a right-anchored width', async () => {
-    const { http, fixture } = await renderDetail();
-    http.expectOne('/api/pages/g1').flush(serverPage);
-    await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-    fixture.detectChanges();
-
-    const layout = TestBed.inject(Layout);
-    const host = fixture.nativeElement as HTMLElement;
-    const container = host.querySelector('.container') as HTMLElement;
-    jest
-      .spyOn(container, 'getBoundingClientRect')
-      .mockReturnValue({ left: 0, right: 1000, top: 0, bottom: 0, width: 1000, height: 0, x: 0, y: 0, toJSON: () => ({}) });
-
-    const divider = fixture.debugElement.query(By.directive(ResizeDivider))
-      .componentInstance as ResizeDivider;
-    divider.resized.emit(600); // 1000 - 600 = 400, within 250-600
-    await settle();
-
-    expect(layout.inspectorWidth()).toBe(400);
   });
 
   it('stashes the current draft before a hard page reload', async () => {
@@ -1086,41 +1011,6 @@ describe('PageDetail', () => {
     expect(insertSpy.mock.calls[0][0]).toContain(buildAttachmentMarkdown('Diagram.png', 'image/png'));
   });
 
-  it('auto-inserts markdown from the inspector attachment uploader via insertMarkdownAtCursor (step 4.9)', async () => {
-    const { http, fixture } = await renderDetail({ editMode: true, noopAnimations: true });
-    http.expectOne('/api/pages/g1').flush(serverPage);
-    await settle();
-    fixture.detectChanges();
-    await settle();
-
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-    fixture.detectChanges();
-
-    const inspector = fixture.debugElement.query(By.css('wiki-inspector-panel'))
-      .componentInstance as { selectedTab: { set: (n: number) => void } };
-    inspector.selectedTab.set(1);
-    fixture.detectChanges();
-    await settle();
-    drain();
-    await settle();
-    fixture.detectChanges();
-
-    const comp = fixture.componentInstance as unknown as {
-      insertMarkdownAtCursor: (md: string) => void;
-    };
-    const insertSpy = jest.spyOn(comp, 'insertMarkdownAtCursor');
-
-    const uploader = fixture.debugElement.query(By.css('wiki-attachment-uploader'))
-      .componentInstance as AttachmentUploader;
-    uploader.uploaded.emit({ filename: 'x.png', markdown: '![x](x.png)' });
-    await settle();
-
-    expect(insertSpy).toHaveBeenCalledTimes(1);
-    expect(insertSpy).toHaveBeenCalledWith('![x](x.png)');
-  });
-
   it('insertMarkdownAtCursor writes the markdown into the editor buffer', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'AB' });
@@ -1523,48 +1413,9 @@ describe('PageDetail', () => {
     expect(stored.inspectorVisible).toBe(true);
   });
 
-  it('opens the inspector on mount when the Layout store already has it visible', async () => {
-    localStorage.setItem('bluefinwiki-layout', JSON.stringify({ inspectorVisible: true }));
-    const { http, fixture } = await renderDetail();
-    http.expectOne('/api/pages/g1').flush(serverPage);
-    await settle();
-    drain();
-    await settle();
-    fixture.detectChanges();
-
-    // Sidenav is open with no user interaction — the inspector tabs are live.
-    expect(screen.getByRole('tab', { name: /properties/i })).toBeInTheDocument();
-    expect((fixture.componentInstance as unknown as { inspectorOpen: () => boolean }).inspectorOpen())
-      .toBe(true);
-  });
-
-  it('reflects a later Layout inspectorWidth change in the panel width style', async () => {
-    const { http, fixture } = await renderDetail();
-    http.expectOne('/api/pages/g1').flush(serverPage);
-    await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-
-    TestBed.inject(Layout).update({ inspectorWidth: 480 });
-    fixture.detectChanges();
-
-    const inspector = (fixture.nativeElement as HTMLElement).querySelector('.inspector') as HTMLElement;
-    expect(inspector.style.width).toBe('480px');
-  });
-
-  it('passes the inspector presentation seam through to the panel host', async () => {
-    const { http, fixture } = await renderDetail();
-    http.expectOne('/api/pages/g1').flush(serverPage);
-    await settle();
-    await userEvent.click(screen.getByRole('button', { name: /toggle inspector/i }));
-    drain();
-    await settle();
-    fixture.detectChanges();
-
-    const panel = (fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel');
-    expect(panel?.getAttribute('data-presentation')).toBe('side');
-  });
+  // The inspector's on-mount rendering, width style and presentation seam moved
+  // to `pages-view` with the hoist (step 1b.3); their assertions now live in
+  // pages-view.spec.ts. The responsive sidenav open/width wiring is step 1b.5.
 });
 
 describe('resolveSaveStatus', () => {

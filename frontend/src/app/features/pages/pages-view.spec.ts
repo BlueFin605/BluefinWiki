@@ -15,10 +15,20 @@ import { By } from '@angular/platform-browser';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
 import { PagesView } from './pages-view';
+import { PageContext } from './page-context';
 import { PageTree } from './page-tree';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { SearchDialog } from '../search/search-dialog';
 import type { PageTypeDefinition } from './page.types';
+import type { PageMetadata } from './drafts';
+
+function makeMeta(over: Partial<PageMetadata> = {}): PageMetadata {
+  return {
+    title: 'T', tags: [], status: 'published',
+    createdBy: 'author-1', modifiedBy: 'u', createdAt: '', modifiedAt: '', guid: 'g1',
+    ...over,
+  };
+}
 
 function makeType(over: Partial<PageTypeDefinition>): PageTypeDefinition {
   return {
@@ -328,5 +338,81 @@ describe('PagesView', () => {
 
     const icon = screen.getByTitle('Recipe');
     expect(icon).toHaveTextContent('🍲');
+  });
+
+  // ---- Step 1b.3: hoisted inspector fed by PageContext -------------------
+
+  async function renderShell() {
+    const result = await render(PagesView, {
+      providers: [...baseProviders(), ...authProviders('Admin')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+    return { ...result, http };
+  }
+
+  it('does NOT render the inspector while PageContext has no page', async () => {
+    const { fixture } = await renderShell();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel')).toBeNull();
+  });
+
+  it('renders the hoisted wiki-inspector-panel once PageContext has a guid + metadata', async () => {
+    const { fixture, http } = await renderShell();
+    const ctx = TestBed.inject(PageContext);
+
+    ctx.guid.set('g1');
+    ctx.metadata.set(makeMeta());
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('wiki-inspector-panel');
+    expect(panel).toBeTruthy();
+    // Bound straight from PageContext.
+    const inst = fixture.debugElement.query(By.css('wiki-inspector-panel')).componentInstance as {
+      pageGuid: () => string;
+      metadata: () => PageMetadata;
+      canInsert: () => boolean;
+    };
+    expect(inst.pageGuid()).toBe('g1');
+    expect(inst.metadata().title).toBe('T');
+    // mode defaults to 'view' -> canInsert false.
+    expect(inst.canInsert()).toBe(false);
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('routes the inspector outputs back into PageContext', async () => {
+    const { fixture, http } = await renderShell();
+    const ctx = TestBed.inject(PageContext);
+    ctx.guid.set('g1');
+    ctx.metadata.set(makeMeta());
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+
+    const inspector = fixture.debugElement.query(By.css('wiki-inspector-panel')).componentInstance as {
+      metadataChange: { emit: (m: PageMetadata) => void };
+      insertMarkdown: { emit: (s: string) => void };
+      titleH1Sync: { emit: (s: string) => void };
+    };
+
+    const insertSeen: string[] = [];
+    const titleSeen: string[] = [];
+    ctx.insert$.subscribe((s) => insertSeen.push(s));
+    ctx.titleH1Sync$.subscribe((s) => titleSeen.push(s));
+
+    inspector.metadataChange.emit(makeMeta({ title: 'Renamed' }));
+    inspector.insertMarkdown.emit('![x](x.png)');
+    inspector.titleH1Sync.emit('Renamed');
+
+    expect(ctx.metadata()?.title).toBe('Renamed');
+    expect(insertSeen).toEqual(['![x](x.png)']);
+    expect(titleSeen).toEqual(['Renamed']);
+
+    http.match(() => true).forEach((r) => r.flush(null));
   });
 });

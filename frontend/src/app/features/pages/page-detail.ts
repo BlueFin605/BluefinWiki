@@ -10,18 +10,16 @@ import {
   viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { filter, firstValueFrom, map, race, skipWhile, take, timer } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { WikiCodemirror, type CursorContext, type ToolbarAction } from '../../shared/codemirror/wiki-codemirror';
 import { MarkdownToolbar } from '../editor/markdown-toolbar';
 import { LinkAutocomplete } from '../editor/link-autocomplete';
-import { InspectorPanel } from '../editor/inspector-panel';
 import type { PageTypeChange } from '../editor/page-properties-panel';
 import { rewriteFirstH1, firstH1Range } from '../editor/title-h1';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
@@ -38,6 +36,7 @@ import type { WikiImageResize } from '../../shared/markdown/wiki-image';
 import { setImageWidth } from '../../shared/codemirror/set-image-width';
 import { Pages, type PageSearchResult, type WikiLinkResolution } from './pages';
 import { Drafts, type PageMetadata } from './drafts';
+import { PageContext } from './page-context';
 import { PageTypes } from '../page-types/page-types';
 import { BoardView } from '../board/board-view';
 import { BoardSettingsPanel, type BoardSettingsPanelData } from '../board/board-settings-panel';
@@ -108,11 +107,9 @@ export function resolveSaveStatus(state: {
     MatButtonModule,
     MatButtonToggleModule,
     MatIconModule,
-    MatSidenavModule,
     WikiCodemirror,
     MarkdownToolbar,
     LinkAutocomplete,
-    InspectorPanel,
     AttachmentUploader,
     MarkdownRenderer,
     WikiTableOfContents,
@@ -191,7 +188,7 @@ export function resolveSaveStatus(state: {
           mat-icon-button
           type="button"
           aria-label="Toggle inspector"
-          (click)="toggleInspector()"
+          (click)="pageContext.toggleInspector()"
         >
           <mat-icon>info</mat-icon>
         </button>
@@ -233,8 +230,8 @@ export function resolveSaveStatus(state: {
         }
       }
 
-      <mat-sidenav-container class="container" #sidenavContainer>
-        <mat-sidenav-content class="content-pane">
+      <div class="container">
+        <div class="content-pane">
           @if (mode() === 'edit' && editorMode() !== 'preview') {
             <wiki-markdown-toolbar (action)="onAction($event)" />
             @if (attachmentGuardMessage(); as msg) {
@@ -338,34 +335,8 @@ export function resolveSaveStatus(state: {
               }
             }
           </section>
-        </mat-sidenav-content>
-
-        <mat-sidenav
-          #inspector
-          position="end"
-          mode="side"
-          [opened]="inspectorOpen()"
-          class="inspector"
-          [style.width.px]="inspectorWidth()"
-        >
-          <div class="inspector-divider">
-            <wiki-resize-divider (resized)="onInspectorResize($event)" />
-          </div>
-          @if (guid() && metadata(); as m) {
-            <wiki-inspector-panel
-              [pageGuid]="guid()!"
-              [metadata]="m"
-              [pageAuthorId]="m.createdBy"
-              [presentation]="inspectorPresentation"
-              [canInsert]="mode() === 'edit'"
-              (metadataChange)="metadata.set($event)"
-              (insertMarkdown)="onInsertMarkdown($event)"
-              (titleH1Sync)="setFirstH1($event)"
-              (pageTypeChange)="onPageTypeChange($event)"
-            />
-          }
-        </mat-sidenav>
-      </mat-sidenav-container>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
@@ -412,8 +383,6 @@ export function resolveSaveStatus(state: {
     .editor-surface.split .preview-pane { border-left: 1px solid #e5e7eb; }
     .state { padding: 2rem; color: #6b7280; }
     .state.error { color: #b91c1c; }
-    .inspector { position: relative; }
-    .inspector-divider { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; z-index: 5; }
   `],
 })
 export class PageDetail {
@@ -427,13 +396,15 @@ export class PageDetail {
   private readonly destroyRef = inject(DestroyRef);
   private readonly errorState = inject(EditorErrorState);
   private readonly layout = inject(Layout);
+  /**
+   * Cross-component channel to the hoisted inspector (rendered by `pages-view`).
+   * `page-detail` publishes `guid` / `mode` here, shares its `metadata` working
+   * copy through `pageContext.metadata`, subscribes to the inspector's
+   * editor-affecting outputs, and drives the editor-bar toggle button.
+   */
+  protected readonly pageContext = inject(PageContext);
 
   protected readonly editor = viewChild<WikiCodemirror>('editor');
-  private readonly sidenavContainerEl = viewChild('sidenavContainer', { read: ElementRef });
-
-  /** Inspector width, driven by the persisted layout store (replaces a
-   * hardcoded 360px CSS constant). `Layout.update()` clamps to 250-600. */
-  protected readonly inspectorWidth = computed(() => this.layout.inspectorWidth());
 
   protected readonly guid = toSignal(
     this.route.paramMap.pipe(map((p) => p.get('guid'))),
@@ -450,7 +421,15 @@ export class PageDetail {
 
   /** Working copy — hydrated from draft-or-server once the resource resolves. */
   readonly content = signal('');
-  readonly metadata = signal<PageMetadata | null>(null);
+  /**
+   * The page-metadata working copy. Ownership moved to {@link PageContext} when
+   * the inspector was hoisted (step 1b.3): this is the very same
+   * `WritableSignal` the hoisted `wiki-inspector-panel` writes through its
+   * `metadataChange` output. `page-detail` still reads it for dirty-detection,
+   * the resolved title and the save payload, and still `.set()`s it during
+   * hydration / refresh / page-type change.
+   */
+  readonly metadata = this.pageContext.metadata;
 
   /**
    * Resolved `[[wiki link]]` targets for the current buffer, keyed by the raw
@@ -486,23 +465,6 @@ export class PageDetail {
   protected readonly saving = signal(false);
 
   protected readonly cursorContext = signal<CursorContext | null>(null);
-
-  /**
-   * Inspector open/close state — read straight from the persisted layout store
-   * (replaces a local `signal(false)`), so it survives reloads and the
-   * View/Edit route toggle that recreates this component. Written only through
-   * {@link toggleInspector} → `Layout.update({ inspectorVisible })`.
-   */
-  protected readonly inspectorOpen = computed(() => this.layout.inspectorVisible());
-
-  /**
-   * Inspector presentation mode. Fixed to `'side'` for step 4.1; this is the
-   * documented seam Phase 1b step 1b.5 will drive from a responsive breakpoint
-   * so the panel renders as a bottom sheet on mobile. Keeping the flip here (not
-   * in the layout-store binding above) lets 1b.5 land without touching 4.1's
-   * persistence wiring.
-   */
-  protected readonly inspectorPresentation: 'side' | 'sheet' = 'side';
 
   /**
    * Markdown queued for insertion once CodeMirror (re)mounts. Set when an insert
@@ -600,6 +562,29 @@ export class PageDetail {
   private readonly resourceStatus$ = toObservable(this.resource.status);
 
   constructor() {
+    // Publish route identity + mode to the shared PageContext so the hoisted
+    // inspector (rendered by `pages-view`) knows which page it is bound to and
+    // whether attachment inserts are allowed. `metadata` is not pushed here —
+    // it IS `pageContext.metadata`, kept current by the hydrate / refresh /
+    // page-type paths.
+    effect(() => {
+      this.pageContext.guid.set(this.guid());
+      this.pageContext.mode.set(this.mode());
+    });
+
+    // Route the hoisted inspector's editor-affecting outputs back into the
+    // handlers that still live here. The channel replaces the direct template
+    // bindings the inspector had while it was mounted inside this component.
+    this.pageContext.insert$
+      .pipe(takeUntilDestroyed())
+      .subscribe((md) => this.insertMarkdownAtCursor(md));
+    this.pageContext.titleH1Sync$
+      .pipe(takeUntilDestroyed())
+      .subscribe((title) => this.setFirstH1(title));
+    this.pageContext.pageTypeChange$
+      .pipe(takeUntilDestroyed())
+      .subscribe((change) => void this.onPageTypeChange(change));
+
     // Sync the board default view from boardConfig once the page resolves.
     effect(() => {
       const cfg = this.boardConfig();
@@ -707,6 +692,10 @@ export class PageDetail {
     this.destroyRef.onDestroy(() => {
       if (timer) clearTimeout(timer);
       this.stashDraft();
+      // Clear the shared channel last — after the draft is stashed, since
+      // stashDraft() reads pageContext.metadata — so the hoisted inspector
+      // unmounts when this screen goes away.
+      this.pageContext.reset();
     });
   }
 
@@ -821,22 +810,6 @@ export class PageDetail {
 
   onEditorModeToggle(next: EditorMode): void {
     this._editorMode.set(next);
-  }
-
-  toggleInspector(): void {
-    this.layout.update({ inspectorVisible: !this.layout.inspectorVisible() });
-  }
-
-  /**
-   * The inspector divider emits an absolute pointer X. The inspector is
-   * right-anchored, so its width is the distance from the pointer to the
-   * container's right edge; `Layout.update()` clamps to 250-600.
-   */
-  onInspectorResize(pointerX: number): void {
-    const host = this.sidenavContainerEl()?.nativeElement as HTMLElement | undefined;
-    if (!host) return;
-    const width = host.getBoundingClientRect().right - pointerX;
-    this.layout.update({ inspectorWidth: width });
   }
 
   /**

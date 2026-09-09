@@ -12,6 +12,8 @@ import { Layout } from '../../core/layout/layout';
 import { Pages } from './pages';
 import { PageTypes } from '../page-types/page-types';
 import { PageTree } from './page-tree';
+import { PageContext } from './page-context';
+import { InspectorPanel } from '../editor/inspector-panel';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
@@ -35,6 +37,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
     PageRenameInline,
     AiButton,
     AiSidebar,
+    InspectorPanel,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -95,6 +98,28 @@ import { AiSidebar } from '../ai/ai-sidebar';
             />
           </div>
         }
+
+        <!--
+          Hoisted inspector (step 1b.3). Fed entirely by PageContext — the routed
+          page-detail publishes guid/metadata/mode and consumes the outputs
+          routed back through the service. Parked in this static layout slot for
+          now; step 1b.5 moves it into the responsive mat-sidenav (step 1b.4's
+          hoisted container).
+        -->
+        @if (ctx.guid() && ctx.metadata(); as m) {
+          <div class="inspector-pane">
+            <wiki-inspector-panel
+              [pageGuid]="ctx.guid()!"
+              [metadata]="m"
+              [pageAuthorId]="m.createdBy"
+              [canInsert]="ctx.canInsert()"
+              (metadataChange)="ctx.metadata.set($event)"
+              (insertMarkdown)="ctx.emitInsert($event)"
+              (titleH1Sync)="ctx.emitTitleH1Sync($event)"
+              (pageTypeChange)="ctx.emitPageTypeChange($event)"
+            />
+          </div>
+        }
       </div>
 
       @if (renameTarget(); as target) {
@@ -124,6 +149,13 @@ import { AiSidebar } from '../ai/ai-sidebar';
       display: flex;
       flex-direction: column;
     }
+    .inspector-pane {
+      width: 320px;
+      max-width: 100vw;
+      border-left: 1px solid #e5e7eb;
+      background: white;
+      overflow: auto;
+    }
   `],
 })
 export class PagesView {
@@ -133,6 +165,8 @@ export class PagesView {
   private readonly dialog = inject(MatDialog);
   private readonly auth = inject(Auth);
   private readonly pageTypes = inject(PageTypes);
+  /** Shared channel to the routed page-detail; feeds the hoisted inspector. */
+  protected readonly ctx = inject(PageContext);
 
   private readonly bodyEl = viewChild<ElementRef<HTMLElement>>('body');
 
