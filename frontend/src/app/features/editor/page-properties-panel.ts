@@ -13,6 +13,7 @@ import {
   viewChild,
   DestroyRef,
 } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -42,6 +43,7 @@ const DEBOUNCE_MS = 200;
   selector: 'wiki-page-properties-panel',
   standalone: true,
   imports: [
+    DatePipe,
     FormsModule,
     MatFormFieldModule,
     MatInputModule,
@@ -143,15 +145,24 @@ const DEBOUNCE_MS = 200;
         </mat-form-field>
       }
 
+      <!--
+        Author / timestamps (step 4.6, React parity):
+        - Dates go through Angular's \`DatePipe\` (\`medium\`) so they render in
+          the viewer's locale, never as a raw ISO string.
+        - \`createdBy\` / \`modifiedBy\` prefer a display name when the metadata
+          already carries one (\`createdByName\` / \`modifiedByName\`, populated
+          best-effort by the host from an in-memory users lookup) and fall back
+          to the raw id otherwise — no dedicated users fetch is made here.
+      -->
       <dl class="meta">
         <dt>Author</dt>
-        <dd>{{ metadata().createdBy }}</dd>
+        <dd>{{ metadata().createdByName || metadata().createdBy }}</dd>
         <dt>Last modified by</dt>
-        <dd>{{ metadata().modifiedBy }}</dd>
+        <dd>{{ metadata().modifiedByName || metadata().modifiedBy }}</dd>
         <dt>Created</dt>
-        <dd>{{ metadata().createdAt }}</dd>
+        <dd>{{ metadata().createdAt | date: 'medium' }}</dd>
         <dt>Modified</dt>
-        <dd>{{ metadata().modifiedAt }}</dd>
+        <dd>{{ metadata().modifiedAt | date: 'medium' }}</dd>
       </dl>
     </div>
   `,

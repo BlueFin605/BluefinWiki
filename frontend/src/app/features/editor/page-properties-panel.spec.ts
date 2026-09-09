@@ -287,6 +287,54 @@ describe('PagePropertiesPanel', () => {
     expect(screen.getByText(/bob/)).toBeInTheDocument();
   });
 
+  // ---- Step 4.6: Timestamps localization + author-name resolution -------
+
+  /** The <dd> that follows the <dt> with the given label text. */
+  function metaValue(label: string): HTMLElement {
+    return screen.getByText(label).nextElementSibling as HTMLElement;
+  }
+
+  it('renders createdAt / modifiedAt localized via DatePipe, not the raw ISO string', async () => {
+    const iso = '2026-03-04T12:00:00Z';
+    await renderPanel(meta({ createdAt: iso, modifiedAt: iso }));
+
+    // The raw ISO string must not appear anywhere in the panel.
+    expect(screen.queryByText(iso)).toBeNull();
+
+    const created = metaValue('Created');
+    const modified = metaValue('Modified');
+    for (const el of [created, modified]) {
+      expect(el.textContent?.trim()).not.toBe(iso);
+      // DatePipe 'medium' (default en-US locale): "Mar 4, 2026, 12:00:00 PM".
+      expect(el.textContent).toMatch(/2026/);
+      expect(el.textContent).toMatch(/Mar/);
+    }
+  });
+
+  it('shows the display name when the metadata carries createdByName / modifiedByName', async () => {
+    await renderPanel(
+      meta({
+        createdBy: 'u-1',
+        createdByName: 'Alice Smith',
+        modifiedBy: 'u-2',
+        modifiedByName: 'Bob Jones',
+      }),
+    );
+
+    expect(metaValue('Author').textContent).toContain('Alice Smith');
+    expect(metaValue('Last modified by').textContent).toContain('Bob Jones');
+    // The raw ids are not shown once a name resolves.
+    expect(screen.queryByText('u-1')).toBeNull();
+    expect(screen.queryByText('u-2')).toBeNull();
+  });
+
+  it('falls back to the raw id when no display name is available', async () => {
+    await renderPanel(meta({ createdBy: 'user-42', modifiedBy: 'user-99' }));
+
+    expect(metaValue('Author').textContent).toContain('user-42');
+    expect(metaValue('Last modified by').textContent).toContain('user-99');
+  });
+
   // ---- Step 4.4: Page Type select + schema merge ------------------------
 
   it('hides the Page Type control entirely when the resolved page-types set is empty', async () => {

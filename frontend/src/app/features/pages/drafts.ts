@@ -15,6 +15,14 @@ export interface PageMetadata {
   properties?: Record<string, PageProperty>;
   createdBy: string;
   modifiedBy: string;
+  /**
+   * Optional human-readable author names. Populated by the host only when a
+   * users lookup is already in memory (step 4.6 — best-effort, no dedicated
+   * fetch); the Inspector prefers these over the raw `createdBy` / `modifiedBy`
+   * ids and falls back to the id when a name is absent.
+   */
+  createdByName?: string;
+  modifiedByName?: string;
   createdAt: string;
   modifiedAt: string;
   guid: string;
