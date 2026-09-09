@@ -48,6 +48,11 @@ const COMPACT_HIDDEN: ReadonlySet<ToolbarAction> = new Set<ToolbarAction>(['ol',
   standalone: true,
   imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Compact = mobile (step 1b.6): the host is pinned to the bottom of the
+  // viewport. The responsive layer drives `compact` from `Breakpoint`.
+  host: {
+    '[class.bottom-pinned]': 'compact()',
+  },
   template: `
     <div class="toolbar" role="toolbar" aria-label="Markdown formatting">
       @for (b of formatButtons; track b.action) {
@@ -124,6 +129,32 @@ const COMPACT_HIDDEN: ReadonlySet<ToolbarAction> = new Set<ToolbarAction>(['ol',
   styles: [`
     :host { display: block; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+
+    /*
+     * Compact / mobile (step 1b.6). page-detail's editor pane does NOT scroll
+     * as a unit -- only its inner .body has overflow:auto and the toolbar sits
+     * outside it -- so position:sticky has no scrolling ancestor to stick to
+     * here; position:fixed is what actually pins it to the bottom of the screen
+     * (React parity). The row scrolls horizontally instead of wrapping, and
+     * env(safe-area-inset-bottom) clears the home indicator. page-detail adds
+     * matching bottom padding to .body so content isn't hidden behind the bar.
+     */
+    :host.bottom-pinned {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 10;
+      background: #f9fafb;
+      box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.12);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    :host.bottom-pinned .toolbar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      border-bottom: none;
+      border-top: 1px solid #e5e7eb;
+    }
   `],
 })
 export class MarkdownToolbar {

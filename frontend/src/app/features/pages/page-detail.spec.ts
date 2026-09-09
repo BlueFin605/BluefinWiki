@@ -1446,6 +1446,65 @@ describe('PageDetail', () => {
     await userEvent.click(btn);
     expect(toggleSpy).toHaveBeenCalled();
   });
+
+  // ---- Step 1b.6: editor bar + markdown toolbar responsive ----
+
+  it('mobile: the editor mode toggle offers Edit and Preview but not Split', async () => {
+    const { http } = await renderDetail({ editMode: true, isDesktop: false });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    expect(screen.getByRole('radio', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Preview' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Split' })).toBeNull();
+  });
+
+  it('desktop: the editor mode toggle keeps all three of Edit / Split / Preview', async () => {
+    const { http } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    expect(screen.getByRole('radio', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Split' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Preview' })).toBeInTheDocument();
+  });
+
+  it('falls back from Split to Edit when the viewport drops below desktop', async () => {
+    const { http, fixture, bpStub } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Split' }));
+    expect(editorMode(fixture)).toBe('split');
+
+    bpStub.isDesktop.set(false);
+    fixture.detectChanges();
+    await settle();
+
+    expect(editorMode(fixture)).toBe('edit');
+    expect(screen.queryByRole('radio', { name: 'Split' })).toBeNull();
+  });
+
+  it('mobile: drives the markdown toolbar compact + bottom-pinned; desktop leaves it inline', async () => {
+    const { http, fixture, bpStub } = await renderDetail({ editMode: true, isDesktop: false });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const toolbar = host.querySelector('wiki-markdown-toolbar') as HTMLElement;
+    expect(toolbar).toBeTruthy();
+    expect(toolbar.classList).toContain('bottom-pinned');
+    expect(host.querySelector('.body.toolbar-pinned')).toBeTruthy();
+
+    bpStub.isDesktop.set(true);
+    fixture.detectChanges();
+    await settle();
+
+    expect((host.querySelector('wiki-markdown-toolbar') as HTMLElement).classList)
+      .not.toContain('bottom-pinned');
+    expect(host.querySelector('.body.toolbar-pinned')).toBeNull();
+  });
 });
 
 describe('resolveSaveStatus', () => {

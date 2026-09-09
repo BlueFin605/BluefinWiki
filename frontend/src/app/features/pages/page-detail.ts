@@ -157,7 +157,9 @@ export function resolveSaveStatus(state: {
             aria-label="Editor view mode"
           >
             <mat-button-toggle value="edit">Edit</mat-button-toggle>
-            <mat-button-toggle value="split">Split</mat-button-toggle>
+            @if (bp.isDesktop()) {
+              <mat-button-toggle value="split">Split</mat-button-toggle>
+            }
             <mat-button-toggle value="preview">Preview</mat-button-toggle>
           </mat-button-toggle-group>
         } @else {
@@ -240,7 +242,7 @@ export function resolveSaveStatus(state: {
       <div class="container">
         <div class="content-pane">
           @if (mode() === 'edit' && editorMode() !== 'preview') {
-            <wiki-markdown-toolbar (action)="onAction($event)" />
+            <wiki-markdown-toolbar [compact]="!bp.isDesktop()" (action)="onAction($event)" />
             @if (attachmentGuardMessage(); as msg) {
               <div class="attachment-guard" role="alert">{{ msg }}</div>
             }
@@ -257,7 +259,7 @@ export function resolveSaveStatus(state: {
             }
           }
 
-          <section class="body">
+          <section class="body" [class.toolbar-pinned]="toolbarPinned()">
             @if (resource.isLoading()) {
               <div class="state">Loading page...</div>
             } @else if (resource.error()) {
@@ -376,6 +378,10 @@ export function resolveSaveStatus(state: {
     .container { flex: 1; min-height: 0; }
     .content-pane { display: flex; flex-direction: column; height: 100%; }
     .body { flex: 1; min-height: 0; padding: 0; position: relative; overflow: auto; }
+    /* Mobile (step 1b.6): the markdown toolbar is position:fixed to the bottom
+       of the screen, so reserve space here or it covers the last editor lines.
+       ~56px = one Material icon-button row + a little breathing room. */
+    .body.toolbar-pinned { padding-bottom: 56px; }
     .editor-surface { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     .editor-surface .editor-pane { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
     .editor-surface .preview-pane { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; display: flex; align-items: flex-start; }
@@ -511,6 +517,16 @@ export class PageDetail {
   /** Split left-pane width (%), from the persisted layout store. Clamp 20-80. */
   protected readonly editorSplitPosition = computed(() => this.layout.editorSplitPosition());
 
+  /**
+   * True when the markdown toolbar is bottom-pinned (step 1b.6): mobile, on the
+   * edit route, and not in the Preview sub-mode (where the toolbar is not
+   * rendered). Drives `.body`'s reserved bottom padding so the `position: fixed`
+   * toolbar never covers the last lines of the editor / preview.
+   */
+  protected readonly toolbarPinned = computed(
+    () => !this.bp.isDesktop() && this.mode() === 'edit' && this.editorMode() !== 'preview',
+  );
+
   protected readonly editorError = computed(() => this.errorState.current());
 
   protected readonly resolvedTitle = computed<string | null>(() => {
@@ -636,6 +652,17 @@ export class PageDetail {
         if (draft.content !== (page.content ?? '')) {
           this._editorMode.set('split');
         }
+      }
+    });
+
+    // Responsive fallback (step 1b.6): Split is a desktop-only editor sub-mode.
+    // The Split toggle option is removed from the bar by `@if (bp.isDesktop())`;
+    // this catches a live `split` surface when the viewport drops below 1024
+    // (including right after the hydrate effect above opens a diverged draft in
+    // Split on a mobile load) and snaps it back to Edit.
+    effect(() => {
+      if (!this.bp.isDesktop() && this._editorMode() === 'split') {
+        this._editorMode.set('edit');
       }
     });
 

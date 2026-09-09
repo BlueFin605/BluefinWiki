@@ -84,6 +84,16 @@ describe('MarkdownToolbar', () => {
     expect(menu.yPosition).toBe('below');
   });
 
+  it('bottom-pins the toolbar (host class) in compact mode', async () => {
+    const { fixture } = await renderToolbar({ compact: true });
+    expect((fixture.nativeElement as HTMLElement).classList).toContain('bottom-pinned');
+  });
+
+  it('does not bottom-pin the toolbar when not compact', async () => {
+    const { fixture } = await renderToolbar();
+    expect((fixture.nativeElement as HTMLElement).classList).not.toContain('bottom-pinned');
+  });
+
   it('disables every button when disabled=true', async () => {
     await renderToolbar({ disabled: true });
     const buttons = screen.getAllByRole('button');
