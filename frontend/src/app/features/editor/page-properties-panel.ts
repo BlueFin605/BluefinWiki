@@ -129,10 +129,12 @@ const DEBOUNCE_MS = 200;
       <!--
         Page Type (step 4.4, React parity): hidden entirely when no page types
         are defined. Changing the type builds the merged property set (new
-        schema defaults + retained compatible values, minus properties the new
-        schema drops) and persists it immediately alongside the type — the host
-        writes both in one \`updatePage\`, so schema fields appear and stick
-        without the user touching a field.
+        schema defaults + retained compatible values, plus any existing
+        properties the new schema doesn't define — union merge, no data loss)
+        and persists it immediately alongside the type — the host writes both
+        in one \`updatePage\`, so schema fields appear and stick without the
+        user touching a field. Selecting (none) clears only the type and
+        leaves properties untouched.
       -->
       @if (allTypes().length) {
         <mat-form-field appearance="fill" class="full">

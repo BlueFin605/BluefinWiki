@@ -259,6 +259,9 @@ describe('PageDetail', () => {
 
     const put = http.expectOne((r) => r.url === '/api/pages/g1' && r.method === 'PUT');
     expect(put.request.body).toEqual({ pageType: null });
+    // (none) clears only the type — no properties key is sent, so existing
+    // server-side properties are left untouched.
+    expect('properties' in (put.request.body as object)).toBe(false);
     put.flush({ ...serverPage, pageType: undefined });
     await settle();
 
