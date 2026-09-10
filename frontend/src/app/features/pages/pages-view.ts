@@ -23,6 +23,7 @@ import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
 import type { PageTypeDefinition, TreeDropRequest, TreeExpandTarget } from './page.types';
 import { computeReorder } from './reorder-maths';
+import { checkTypeConstraints } from './check-type-constraints';
 import { SearchDialog } from '../search/search-dialog';
 import { AiButton } from '../ai/ai-button';
 import { AiSidebar } from '../ai/ai-sidebar';
@@ -668,6 +669,25 @@ export class PagesView {
   async onTreeDrop(req: TreeDropRequest): Promise<void> {
     if (req.movingGuid === req.targetGuid) return;
     const newParentGuid = req.targetParentGuid;
+
+    // Step 2.2: a cross-parent before/after drop re-runs the type-constraint
+    // check the tree's `enterPredicate` applied on hover, so the drop cannot
+    // slip an illegal child past the backstop. A same-parent reorder never
+    // changes the parent, so it is exempt. The check's "target" is the parent
+    // the moving page would join; only its `.pageType` is read, so
+    // `req.targetParentType` (spread onto the moving page for a valid shape) is
+    // all it needs — no extra fetch.
+    if (newParentGuid !== req.movingParentGuid) {
+      const warnings = checkTypeConstraints(
+        req.movingPage,
+        { ...req.movingPage, pageType: req.targetParentType ?? undefined },
+        this.pageTypesMap(),
+      );
+      if (warnings.length > 0) {
+        window.alert('Cannot move here:\n' + warnings.join('\n'));
+        return;
+      }
+    }
 
     try {
       const siblings = await this.pages.fetchChildren(newParentGuid);

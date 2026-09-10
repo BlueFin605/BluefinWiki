@@ -144,6 +144,20 @@ export interface TreeDropRequest {
   /** The target row's parent — the parent the moving page joins for before/after. */
   targetParentGuid: string | null;
   zone: 'before' | 'after';
+  /**
+   * Step 2.2: the moving page itself, so `pages-view.onTreeDrop` can re-run
+   * `checkTypeConstraints` before a cross-parent `movePage` (the on-drop
+   * backstop for the tree's hover-time enter predicate).
+   */
+  movingPage: PageSummary;
+  /**
+   * Step 2.2: the page-type GUID of the parent the moving page would join for a
+   * `before` / `after` drop (`targetParentGuid`'s type), or `null` when that
+   * parent is untyped or the drop lands at the tree root. Only `.pageType` is
+   * read off the constraint check's target, so this string is all `onTreeDrop`
+   * needs — no extra page fetch.
+   */
+  targetParentType: string | null;
 }
 
 export interface ReorderRequest {

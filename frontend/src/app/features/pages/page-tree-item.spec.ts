@@ -5,8 +5,9 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { PageTreeItem } from './page-tree-item';
 import { Pages } from './pages';
+import { TreeDragState } from './tree-drag-state';
 import type { ContextMenuEvent } from './page-context-menu';
-import type { PageSummary } from './page.types';
+import type { PageSummary, PageTypeDefinition } from './page.types';
 
 function summary(over: Partial<PageSummary> = {}): PageSummary {
   return {
@@ -398,7 +399,12 @@ describe('PageTreeItem', () => {
 
     expect(moveSpy).not.toHaveBeenCalled();
     expect(events).toEqual([
-      { movingGuid: 'moving', movingParentGuid: 'mp', targetGuid: 'target', targetParentGuid: 'tp', zone: 'before' },
+      {
+        movingGuid: 'moving', movingParentGuid: 'mp', targetGuid: 'target', targetParentGuid: 'tp',
+        zone: 'before',
+        movingPage: summary({ guid: 'moving', parentGuid: 'mp' }),
+        targetParentType: null,
+      },
     ]);
   });
 
@@ -433,5 +439,115 @@ describe('PageTreeItem', () => {
     await item.onDrop(dropEvent({ guid: 'target' }, { guid: 'target' }));
     expect(moveSpy).not.toHaveBeenCalled();
     expect(events).toEqual([]);
+  });
+
+  // ---- Step 2.2: type-constraint drag feedback + on-drop re-check ----------
+
+  function typeDef(over: Partial<PageTypeDefinition>): PageTypeDefinition {
+    return {
+      guid: 'guid', name: 'Name', icon: '📦', properties: [],
+      allowedChildTypes: [], allowWikiPageChildren: true,
+      allowedParentTypes: [], allowAnyParent: true,
+      createdBy: 'u', createdAt: '', updatedAt: '',
+      ...over,
+    };
+  }
+
+  /** A parent type "Folder" that only permits `allowed-type` children. */
+  const constraintMap = (): Record<string, PageTypeDefinition> => ({
+    folder: typeDef({ guid: 'folder', name: 'Folder', allowedChildTypes: ['allowed-type'] }),
+    'allowed-type': typeDef({ guid: 'allowed-type', name: 'Allowed' }),
+    'blocked-type': typeDef({ guid: 'blocked-type', name: 'Blocked' }),
+  });
+
+  async function renderTypedTarget() {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: {
+        page: summary({ guid: 'target', pageType: 'folder' }),
+        level: 0, activeGuid: null, pageTypesMap: constraintMap(),
+      },
+    });
+    return { fixture, item: fixture.componentInstance, dragState: TestBed.inject(TreeDragState) };
+  }
+
+  it('dragging over a disallowed target adds the drop-invalid class and renders the warning icon + reasons', async () => {
+    const { fixture, item, dragState } = await renderTypedTarget();
+
+    dragState.start(summary({ guid: 'moving', pageType: 'blocked-type' }));
+    item.onRowDragOver(dragOverEvent(50, 0, 100)); // middle 50% -> onto
+    fixture.detectChanges();
+
+    const row = (fixture.nativeElement as HTMLElement).querySelector('.page-tree-row')!;
+    expect(row.classList.contains('drop-invalid')).toBe(true);
+    expect(screen.getByRole('img', { name: /not allowed/i })).toBeInTheDocument();
+    expect(row.textContent).toContain('Folder does not allow Blocked as a child');
+  });
+
+  it('does NOT flag an allowed target during drag-over', async () => {
+    const { fixture, item, dragState } = await renderTypedTarget();
+
+    dragState.start(summary({ guid: 'moving', pageType: 'allowed-type' }));
+    item.onRowDragOver(dragOverEvent(50, 0, 100));
+    fixture.detectChanges();
+
+    const row = (fixture.nativeElement as HTMLElement).querySelector('.page-tree-row')!;
+    expect(row.classList.contains('drop-invalid')).toBe(false);
+    expect(screen.queryByRole('img', { name: /not allowed/i })).toBeNull();
+  });
+
+  it('clears the drop-invalid feedback when the pointer leaves the row mid-drag', async () => {
+    const { fixture, item, dragState } = await renderTypedTarget();
+    dragState.start(summary({ guid: 'moving', pageType: 'blocked-type' }));
+    item.onRowDragOver(dragOverEvent(50, 0, 100));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.drop-invalid')).not.toBeNull();
+
+    item.onRowDragLeave();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.drop-invalid')).toBeNull();
+  });
+
+  it('clears the drop-invalid feedback once the drag ends', async () => {
+    const { fixture, item, dragState } = await renderTypedTarget();
+    dragState.start(summary({ guid: 'moving', pageType: 'blocked-type' }));
+    item.onRowDragOver(dragOverEvent(50, 0, 100));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.drop-invalid')).not.toBeNull();
+
+    dragState.end();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.drop-invalid')).toBeNull();
+  });
+
+  it('an onto drop into a disallowed target alerts the reasons and does NOT call movePage', async () => {
+    const { item } = await renderTypedTarget();
+    const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(50, 0, 100)); // onto
+    await item.onDrop(dropEvent({ guid: 'moving', pageType: 'blocked-type' }, { guid: 'target', pageType: 'folder' }));
+
+    expect(moveSpy).not.toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledWith('Cannot move here:\nFolder does not allow Blocked as a child');
+    alertSpy.mockRestore();
+  });
+
+  it('an onto drop into an allowed target still reparents via movePage', async () => {
+    const { item } = await renderTypedTarget();
+    const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(50, 0, 100));
+    await item.onDrop(dropEvent({ guid: 'moving', pageType: 'allowed-type' }, { guid: 'target', pageType: 'folder' }));
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(moveSpy).toHaveBeenCalledWith('moving', { newParentGuid: 'target' });
+    alertSpy.mockRestore();
   });
 });

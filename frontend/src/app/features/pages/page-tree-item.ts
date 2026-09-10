@@ -2,6 +2,7 @@ import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkTypeConstraints } from './check-type-constraints';
+import { TreeDragState } from './tree-drag-state';
 import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
 import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget } from './page.types';
 
@@ -26,9 +27,12 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
           [class.drop-before]="dropZone() === 'before'"
           [class.drop-after]="dropZone() === 'after'"
           [class.drop-onto]="dropZone() === 'onto'"
+          [class.drop-invalid]="dropWarnings().length > 0"
           [style.padding-left.px]="indent()"
           cdkDrag
           [cdkDragData]="page()"
+          (cdkDragStarted)="dragState.start(page())"
+          (cdkDragEnded)="dragState.end()"
           role="treeitem"
           tabindex="0"
           [attr.aria-selected]="isActive()"
@@ -36,6 +40,7 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
           (click)="onClick()"
           (dblclick)="onDoubleClick()"
           (mousemove)="onRowDragOver($event)"
+          (mouseleave)="onRowDragLeave()"
           (keydown)="onRowKeydown($event)"
           (contextmenu)="onContextMenu($event)"
         >
@@ -58,6 +63,16 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
           }
 
           <span class="page-title">{{ page().title }}</span>
+
+          @if (dropWarnings().length > 0) {
+            <span
+              class="drop-warning-icon"
+              role="img"
+              aria-label="Move not allowed"
+              [attr.title]="dropWarnings().join('\n')"
+            >⚠️</span>
+            <span class="drop-warning-reasons">{{ dropWarnings().join('; ') }}</span>
+          }
 
           <button
             type="button"
@@ -112,6 +127,19 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
     /* Step 2.1 positional-drop indicators: a line above/below for before/after,
        a row highlight for onto (matches .cdk-drop-list-receiving). */
     .page-tree-row.drop-onto { background: #fef3c7; outline: 1px solid #f59e0b; outline-offset: -1px; }
+    /* Step 2.2: a type-disallowed drop target — amber row + "not allowed" cursor.
+       The warning triangle + reasons render inline (see .drop-warning-*). */
+    .page-tree-row.drop-invalid { background: #fef3c7; outline: 1px solid #f59e0b; outline-offset: -1px; cursor: not-allowed; }
+    .drop-warning-icon { flex: none; font-size: 0.8125rem; line-height: 1; }
+    .drop-warning-reasons {
+      flex: none;
+      max-width: 45%;
+      color: #92400e;
+      font-size: 0.6875rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .page-tree-row.drop-before::before,
     .page-tree-row.drop-after::after {
       content: '';
@@ -137,6 +165,13 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
 })
 export class PageTreeItem {
   private readonly pages = inject(Pages);
+  /**
+   * Step 2.2: shared "what is being dragged" state. A row the pointer merely
+   * hovers gets no CDK event when `enterPredicate` rejects it, so it reads the
+   * dragged page from here to render type-constraint feedback. `protected` so
+   * the template can call `dragState.start/end` from the row's cdkDrag hooks.
+   */
+  protected readonly dragState = inject(TreeDragState);
 
   readonly page = input.required<PageSummary>();
   readonly level = input.required<number>();
@@ -188,6 +223,31 @@ export class PageTreeItem {
    */
   private readonly _dragActive = signal(false);
 
+  /**
+   * Step 2.2: the type-constraint rejection reasons for dropping the currently
+   * dragged page into THIS row's current drop zone — `[]` when the drop is
+   * allowed or nothing is being dragged over the row. A non-empty array drives
+   * the amber `.drop-invalid` row + warning triangle + inline reasons, and
+   * blocks the mutation in `onDrop`. Verbatim strings from
+   * `checkTypeConstraints` (never reworded here). Reactive: clears itself when
+   * the drag ends (`dragState.dragged()` → `null`) or the pointer leaves
+   * (`_dropZone` → `null`).
+   *
+   * `onto` checks against this row; `before` / `after` check against the parent
+   * the moving page would join (this row's `parentPageType()`), mirroring where
+   * the page actually lands.
+   */
+  readonly dropWarnings = computed<string[]>(() => {
+    const dragged = this.dragState.dragged();
+    const zone = this._dropZone();
+    if (!dragged || !zone || dragged.guid === this.page().guid) return [];
+    const target: PageSummary =
+      zone === 'onto'
+        ? this.page()
+        : { ...dragged, pageType: this.parentPageType() ?? undefined };
+    return checkTypeConstraints(dragged, target, this.pageTypesMap());
+  });
+
   private readonly childrenGuid = computed<string | null | typeof SKIP_CHILDREN_FETCH>(() =>
     this._expanded() ? this.page().guid : SKIP_CHILDREN_FETCH,
   );
@@ -228,6 +288,15 @@ export class PageTreeItem {
       if (target && target.guid === this.page().guid) {
         this._expanded.set(true);
       }
+    });
+
+    // Step 2.2: when a tree drag ends (`dragState.dragged()` → `null`), drop
+    // this row's zone indicator. A row that only ever hovered a *rejected*
+    // target got no `cdkDropListExited` (CDK never let the drag enter), so
+    // `clearDropZone` on that event cannot fire — this reactive clear covers it
+    // and stops a stale `.drop-onto` / `.drop-invalid` sticking after the drag.
+    effect(() => {
+      if (!this.dragState.dragged()) this._dropZone.set(null);
     });
   }
 
@@ -333,14 +402,26 @@ export class PageTreeItem {
 
   /**
    * `mousemove` on the row. The CDK drag preview is `pointer-events: none`, so
-   * this still fires while dragging. No-ops unless a drag is over the row
-   * (`_dragActive`); otherwise it stores the pointer's zone for the indicator +
-   * `onDrop`.
+   * this still fires while dragging. No-ops unless a drag is in progress —
+   * either CDK let it enter this row (`_dragActive`, allowed target) or the
+   * shared `dragState` says a tree drag is live (step 2.2: covers a *rejected*
+   * target, which gets no `cdkDropListEntered`). Stores the pointer's zone,
+   * which also feeds `dropWarnings` for the type-constraint feedback.
    */
   onRowDragOver(event: MouseEvent): void {
-    if (!this._dragActive()) return;
+    if (!this._dragActive() && !this.dragState.dragged()) return;
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this._dropZone.set(this.zoneFromClientY(event.clientY, rect));
+  }
+
+  /**
+   * `mouseleave` on the row. For an allowed target CDK's `cdkDropListExited`
+   * already clears the zone; a *rejected* target never gets that event (step
+   * 2.2), so drop the zone (and with it the `.drop-invalid` feedback) here the
+   * moment the pointer leaves, rather than letting it linger until drag end.
+   */
+  onRowDragLeave(): void {
+    if (this.dragState.dragged()) this._dropZone.set(null);
   }
 
   async onDrop(event: CdkDragDrop<PageSummary>): Promise<void> {
@@ -348,11 +429,19 @@ export class PageTreeItem {
     const target = event.container.data as PageSummary | undefined;
     const zone = this._dropZone() ?? 'onto';
     this.clearDropZone();
+    this.dragState.end();
     if (!dragged || !target) return;
     if (dragged.guid === target.guid) return;
 
     if (zone === 'onto') {
       // Reparent: dragged becomes a child of target (unchanged pre-2.1 path).
+      // Step 2.2: re-run the type-constraint check `enterPredicate` applied on
+      // hover — the drop must not slip an illegal child past the backstop.
+      const warnings = checkTypeConstraints(dragged, target, this.pageTypesMap());
+      if (warnings.length > 0) {
+        window.alert('Cannot move here:\n' + warnings.join('\n'));
+        return;
+      }
       await this.pages.movePage(dragged.guid, { newParentGuid: target.guid });
       // Auto-expand the target so the new child is visible.
       this._expanded.set(true);
@@ -367,6 +456,8 @@ export class PageTreeItem {
       targetGuid: target.guid,
       targetParentGuid: target.parentGuid,
       zone,
+      movingPage: dragged,
+      targetParentType: this.parentPageType(),
     });
   }
 }

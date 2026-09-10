@@ -1341,8 +1341,20 @@ describe('PagesView', () => {
     return fixture.componentInstance as DropHandle;
   }
 
-  const sib = (guid: string, parentGuid: string | null) =>
-    ({ guid, parentGuid } as never);
+  const sib = (guid: string, parentGuid: string | null, pageType?: string) =>
+    ({ guid, parentGuid, pageType } as never);
+
+  /**
+   * A `TreeDropRequest` with the step 2.2 fields (`movingPage`,
+   * `targetParentType`) defaulted — overridable per test.
+   */
+  const treeDrop = (over: Partial<TreeDropRequest>): TreeDropRequest => ({
+    movingGuid: 'a', movingParentGuid: 'p', targetGuid: 'c', targetParentGuid: 'p',
+    zone: 'after',
+    movingPage: sib(over.movingGuid ?? 'a', over.movingParentGuid ?? 'p'),
+    targetParentType: null,
+    ...over,
+  });
 
   it('same-parent before/after drop calls reorderPages once and never movePage', async () => {
     const { fixture, http } = await renderShell();
@@ -1353,9 +1365,9 @@ describe('PagesView', () => {
     const reorderSpy = jest.spyOn(pages, 'reorderPages').mockResolvedValue({ updated: 3 });
     const moveSpy = jest.spyOn(pages, 'movePage').mockResolvedValue(undefined);
 
-    await drop(fixture).onTreeDrop({
+    await drop(fixture).onTreeDrop(treeDrop({
       movingGuid: 'a', movingParentGuid: 'p', targetGuid: 'c', targetParentGuid: 'p', zone: 'after',
-    });
+    }));
     await settle();
 
     expect(moveSpy).not.toHaveBeenCalled();
@@ -1381,9 +1393,9 @@ describe('PagesView', () => {
       return Promise.resolve({ updated: 3 });
     });
 
-    await drop(fixture).onTreeDrop({
+    await drop(fixture).onTreeDrop(treeDrop({
       movingGuid: 'm', movingParentGuid: 'op', targetGuid: 'y', targetParentGuid: 'np', zone: 'before',
-    });
+    }));
     await settle();
 
     expect(order).toEqual(['move', 'reorder']);
@@ -1406,9 +1418,9 @@ describe('PagesView', () => {
     const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
     const errSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    await drop(fixture).onTreeDrop({
+    await drop(fixture).onTreeDrop(treeDrop({
       movingGuid: 'm', movingParentGuid: 'op', targetGuid: 'y', targetParentGuid: 'np', zone: 'before',
-    });
+    }));
     await settle();
 
     expect(moveSpy).toHaveBeenNthCalledWith(1, 'm', { newParentGuid: 'np' });
@@ -1427,14 +1439,83 @@ describe('PagesView', () => {
     const fetchSpy = jest.spyOn(pages, 'fetchChildren').mockResolvedValue([]);
     const reorderSpy = jest.spyOn(pages, 'reorderPages').mockResolvedValue({ updated: 0 });
 
-    await drop(fixture).onTreeDrop({
+    await drop(fixture).onTreeDrop(treeDrop({
       movingGuid: 'a', movingParentGuid: 'p', targetGuid: 'a', targetParentGuid: 'p', zone: 'after',
-    });
+    }));
     await settle();
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(reorderSpy).not.toHaveBeenCalled();
 
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  // ---- Step 2.2: on-drop type-constraint re-check (cross-parent path) ------
+
+  async function renderShellWithTypes() {
+    const result = await render(PagesView, {
+      providers: [...baseProviders(), ...authProviders('Admin')],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({
+      pageTypes: [
+        makeType({ guid: 'folder', name: 'Folder', allowedChildTypes: ['recipe'] }),
+        makeType({ guid: 'tv', name: 'TV Show' }),
+      ],
+    });
+    await settle();
+    return { ...result, http };
+  }
+
+  it('cross-parent drop onto a type-disallowed parent alerts the reasons and does NOT move or reorder', async () => {
+    const { fixture, http } = await renderShellWithTypes();
+    const pages = TestBed.inject(Pages);
+    const fetchSpy = jest.spyOn(pages, 'fetchChildren').mockResolvedValue([]);
+    const moveSpy = jest.spyOn(pages, 'movePage').mockResolvedValue(undefined);
+    const reorderSpy = jest.spyOn(pages, 'reorderPages').mockResolvedValue({ updated: 0 });
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+
+    await drop(fixture).onTreeDrop({
+      movingGuid: 'm', movingParentGuid: 'op', targetGuid: 'y', targetParentGuid: 'np',
+      zone: 'before',
+      movingPage: sib('m', 'op', 'tv'),
+      targetParentType: 'folder',
+    });
+    await settle();
+
+    expect(alertSpy).toHaveBeenCalledWith('Cannot move here:\nFolder does not allow TV Show as a child');
+    expect(moveSpy).not.toHaveBeenCalled();
+    expect(reorderSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    alertSpy.mockRestore();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('cross-parent drop onto a type-allowed parent proceeds to move + reorder', async () => {
+    const { fixture, http } = await renderShellWithTypes();
+    const pages = TestBed.inject(Pages);
+    jest.spyOn(pages, 'fetchChildren')
+      .mockResolvedValueOnce([sib('x', 'np'), sib('y', 'np')])
+      .mockResolvedValueOnce([sib('m', 'op'), sib('n', 'op')]);
+    const moveSpy = jest.spyOn(pages, 'movePage').mockResolvedValue(undefined);
+    const reorderSpy = jest.spyOn(pages, 'reorderPages').mockResolvedValue({ updated: 3 });
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+
+    await drop(fixture).onTreeDrop({
+      movingGuid: 'm', movingParentGuid: 'op', targetGuid: 'y', targetParentGuid: 'np',
+      zone: 'before',
+      movingPage: sib('m', 'op', 'recipe'),
+      targetParentType: 'folder',
+    });
+    await settle();
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(moveSpy).toHaveBeenCalledWith('m', { newParentGuid: 'np' });
+    expect(reorderSpy).toHaveBeenCalledWith({ parentGuid: 'np', orderedGuids: ['x', 'm', 'y'] });
+
+    alertSpy.mockRestore();
     http.match(() => true).forEach((r) => r.flush(null));
   });
 

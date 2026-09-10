@@ -87,6 +87,11 @@ describe('PageTree', () => {
       .query(By.directive(PageTreeItem)).componentInstance as PageTreeItem;
     const payload = {
       movingGuid: 'm', movingParentGuid: null, targetGuid: 'a', targetParentGuid: null, zone: 'before' as const,
+      movingPage: {
+        guid: 'm', title: 'M', parentGuid: null, status: 'published' as const,
+        modifiedAt: '', modifiedBy: '', hasChildren: false,
+      },
+      targetParentType: null,
     };
     item.dropRequested.emit(payload);
 
