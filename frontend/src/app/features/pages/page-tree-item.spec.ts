@@ -131,6 +131,174 @@ describe('PageTreeItem', () => {
     expect(events).toEqual(['g1']);
   });
 
+  // ---- Step 2.3: arrow-key expand/collapse + aria-expanded ----------------
+
+  async function flush(): Promise<void> {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    TestBed.tick();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  }
+
+  async function renderExpandedParent() {
+    const result = await render(PageTreeItem, {
+      inputs: { page: summary({ guid: 'parent', hasChildren: true }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    fireEvent.keyDown(screen.getByRole('treeitem'), { key: 'ArrowRight' });
+    await flush();
+    result.fixture.detectChanges();
+    http.expectOne('/api/pages/parent/children').flush({
+      children: [summary({ guid: 'child1', title: 'Child' })],
+    });
+    await flush();
+    result.fixture.detectChanges();
+    return { ...result, http };
+  }
+
+  it('does not set aria-expanded on a leaf row', async () => {
+    await render(PageTreeItem, {
+      inputs: { page: summary({ hasChildren: false, guid: 'leaf' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    expect(screen.getByRole('treeitem')).not.toHaveAttribute('aria-expanded');
+  });
+
+  it('keydown ArrowRight on a collapsed parent expands it and sets aria-expanded="true"', async () => {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ hasChildren: true, guid: 'p' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    const row = screen.getByRole('treeitem');
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.keyDown(row, { key: 'ArrowRight' });
+    fixture.detectChanges();
+
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('keydown ArrowRight on an expanded parent moves focus to the first child row', async () => {
+    await renderExpandedParent();
+    const rows = screen.getAllByRole('treeitem');
+    rows[0].focus();
+
+    fireEvent.keyDown(rows[0], { key: 'ArrowRight' });
+
+    expect(document.activeElement).toBe(rows[1]);
+    expect(rows[1]).toHaveTextContent('Child');
+  });
+
+  it('keydown ArrowRight on a leaf row is a no-op', async () => {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ hasChildren: false, guid: 'leaf' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    const row = screen.getByRole('treeitem');
+    row.focus();
+    fireEvent.keyDown(row, { key: 'ArrowRight' });
+    fixture.detectChanges();
+    expect(row).not.toHaveAttribute('aria-expanded');
+    expect(document.activeElement).toBe(row);
+  });
+
+  it('keydown ArrowLeft on an expanded parent collapses it', async () => {
+    const { fixture, http } = await renderExpandedParent();
+    const row = screen.getAllByRole('treeitem')[0];
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.keyDown(row, { key: 'ArrowLeft' });
+    fixture.detectChanges();
+
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+    http.verify();
+  });
+
+  it('keydown ArrowLeft on a collapsed child moves focus to the parent row', async () => {
+    await renderExpandedParent();
+    const rows = screen.getAllByRole('treeitem');
+    rows[1].focus();
+
+    fireEvent.keyDown(rows[1], { key: 'ArrowLeft' });
+
+    expect(document.activeElement).toBe(rows[0]);
+  });
+
+  it('expands the matching node when expandGuid targets its guid, loading its children', async () => {
+    const { rerender, fixture } = await render(PageTreeItem, {
+      inputs: {
+        page: summary({ guid: 'target', hasChildren: true }),
+        level: 0, activeGuid: null, pageTypesMap: {}, expandGuid: null,
+      },
+    });
+    const row = screen.getByRole('treeitem');
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+
+    await rerender({
+      inputs: {
+        page: summary({ guid: 'target', hasChildren: true }),
+        level: 0, activeGuid: null, pageTypesMap: {}, expandGuid: { guid: 'target', nonce: 1 },
+      },
+    });
+    await flush();
+    fixture.detectChanges();
+
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/target/children').flush({ children: [] });
+    http.verify();
+  });
+
+  it('ignores an expandGuid that targets a different node', async () => {
+    const { rerender, fixture } = await render(PageTreeItem, {
+      inputs: {
+        page: summary({ guid: 'target', hasChildren: true }),
+        level: 0, activeGuid: null, pageTypesMap: {}, expandGuid: null,
+      },
+    });
+    await rerender({
+      inputs: {
+        page: summary({ guid: 'target', hasChildren: true }),
+        level: 0, activeGuid: null, pageTypesMap: {}, expandGuid: { guid: 'someone-else', nonce: 1 },
+      },
+    });
+    await flush();
+    fixture.detectChanges();
+    expect(screen.getByRole('treeitem')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('re-expands a since-collapsed node when a fresh expandGuid nonce targets the same guid', async () => {
+    const base = {
+      page: summary({ guid: 'target', hasChildren: true }),
+      level: 0, activeGuid: null, pageTypesMap: {},
+    };
+    const { rerender, fixture } = await render(PageTreeItem, {
+      inputs: { ...base, expandGuid: null },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const row = screen.getByRole('treeitem');
+
+    // First force-expand.
+    await rerender({ inputs: { ...base, expandGuid: { guid: 'target', nonce: 1 } } });
+    await flush();
+    fixture.detectChanges();
+    http.expectOne('/api/pages/target/children').flush({ children: [] });
+    await flush();
+    fixture.detectChanges();
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+
+    // User collapses it.
+    fireEvent.keyDown(row, { key: 'ArrowLeft' });
+    fixture.detectChanges();
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+
+    // Same guid, fresh nonce -> re-expands (a bare string would not change).
+    await rerender({ inputs: { ...base, expandGuid: { guid: 'target', nonce: 2 } } });
+    await flush();
+    fixture.detectChanges();
+    http.expectOne('/api/pages/target/children').flush({ children: [] });
+    await flush();
+    fixture.detectChanges();
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    http.verify();
+  });
+
   it('enterPredicate rejects drops onto self', async () => {
     const { fixture } = await render(PageTreeItem, {
       inputs: { page: summary({ guid: 'g1' }), level: 0, activeGuid: null, pageTypesMap: {} },

@@ -1243,6 +1243,94 @@ describe('PagesView', () => {
     http.match(() => true).forEach((r) => r.flush(null));
   });
 
+  // ---- Step 2.3: force-expand the parent in the tree after a create --------
+
+  interface NewPageHandle {
+    onNewPage(): void;
+    onNewChildRequested(guid: string): void;
+  }
+
+  function stubNewPageModal(createdGuid: string | null): void {
+    const dialog = TestBed.inject(MatDialog);
+    jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(createdGuid) } as never);
+  }
+
+  function pageTree(fixture: { debugElement: DebugElement }): PageTree {
+    return fixture.debugElement.query(By.directive(PageTree)).componentInstance as PageTree;
+  }
+
+  it('after onNewChildRequested resolves, the tree receives the parent guid as the expand target', async () => {
+    const { fixture, http } = await renderShell();
+    jest.spyOn(TestBed.inject(Pages), 'fetchChildren').mockResolvedValue([]);
+    jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    stubNewPageModal('created-guid');
+
+    (fixture.componentInstance as unknown as NewPageHandle).onNewChildRequested('parent-1');
+    await settle();
+    await settle();
+    fixture.detectChanges();
+
+    expect(pageTree(fixture).expandGuid()?.guid).toBe('parent-1');
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('re-fires a distinct expand target on a repeat create under the same parent', async () => {
+    const { fixture, http } = await renderShell();
+    jest.spyOn(TestBed.inject(Pages), 'fetchChildren').mockResolvedValue([]);
+    jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    stubNewPageModal('created-guid');
+    const cmp = fixture.componentInstance as unknown as NewPageHandle;
+
+    cmp.onNewChildRequested('parent-1');
+    await settle();
+    await settle();
+    const first = pageTree(fixture).expandGuid();
+
+    cmp.onNewChildRequested('parent-1');
+    await settle();
+    await settle();
+    const second = pageTree(fixture).expandGuid();
+
+    expect(first?.guid).toBe('parent-1');
+    expect(second?.guid).toBe('parent-1');
+    // A bare string signal would be unchanged here and never cross the input
+    // hops; the nonce makes each create a distinct object.
+    expect(Object.is(first, second)).toBe(false);
+    expect(second?.nonce).not.toBe(first?.nonce);
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('after onNewPage resolves, the tree expand target stays null (a root page needs no parent expand)', async () => {
+    const { fixture, http } = await renderShell();
+    jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    stubNewPageModal('created-guid');
+
+    (fixture.componentInstance as unknown as NewPageHandle).onNewPage();
+    await settle();
+    await settle();
+    fixture.detectChanges();
+
+    expect(pageTree(fixture).expandGuid()).toBeNull();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('does NOT set the expand target when the New Page modal is dismissed without creating', async () => {
+    const { fixture, http } = await renderShell();
+    jest.spyOn(TestBed.inject(Pages), 'fetchChildren').mockResolvedValue([]);
+    jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    stubNewPageModal(null);
+
+    (fixture.componentInstance as unknown as NewPageHandle).onNewChildRequested('parent-1');
+    await settle();
+    await settle();
+    fixture.detectChanges();
+
+    expect(pageTree(fixture).expandGuid()).toBeNull();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
   it('surfaces the server error message in a snackbar when the delete fails', async () => {
     const { fixture, http } = await renderShell();
     const cmp = fixture.componentInstance as unknown as DeleteHandle;

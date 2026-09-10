@@ -2,7 +2,7 @@ import { CdkDropList, CdkDropListGroup, type CdkDragDrop } from '@angular/cdk/dr
 import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
 import { Pages } from './pages';
 import { PageTreeItem } from './page-tree-item';
-import type { PageSummary, PageTypeDefinition } from './page.types';
+import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.types';
 
 @Component({
   selector: 'wiki-page-tree',
@@ -23,6 +23,7 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
             [page]="page"
             [level]="0"
             [activeGuid]="activeGuid()"
+            [expandGuid]="expandGuid()"
             [pageTypesMap]="pageTypesMap()"
             [parentPageType]="null"
             (pageSelect)="pageSelect.emit($event)"
@@ -68,6 +69,14 @@ export class PageTree {
   private readonly rootSignal = signal<string | null>(null);
 
   readonly activeGuid = input<string | null>(null);
+  /**
+   * Force-expand target (step 2.3). `pages-view` sets this after `createPage`
+   * succeeds from any entry point; the tree node with `expandGuid()?.guid`
+   * expands and loads its children so the new page shows in context. The
+   * `nonce` makes every create a distinct value (repeat creates under one
+   * parent still fire). `null` is inert. Reused by step 2.6 (New Page modal).
+   */
+  readonly expandGuid = input<TreeExpandTarget | null>(null);
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
 
   readonly pageSelect = output<string>();

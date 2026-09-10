@@ -21,7 +21,7 @@ import { InspectorPanel } from '../editor/inspector-panel';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
-import type { PageTypeDefinition } from './page.types';
+import type { PageTypeDefinition, TreeExpandTarget } from './page.types';
 import { SearchDialog } from '../search/search-dialog';
 import { AiButton } from '../ai/ai-button';
 import { AiSidebar } from '../ai/ai-sidebar';
@@ -104,6 +104,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
         >
           <wiki-page-tree
             [activeGuid]="activeGuid()"
+            [expandGuid]="expandTarget()"
             [pageTypesMap]="pageTypesMap()"
             (pageSelect)="onPageSelect($event)"
             (renameRequested)="onRenameRequested($event)"
@@ -480,6 +481,19 @@ export class PagesView {
 
   protected readonly renameTarget = signal<{ guid: string; title: string } | null>(null);
 
+  /**
+   * Force-expand target fed into `PageTree` (step 2.3). Set after a child page
+   * is created (any entry point) so the tree expands that parent — loading its
+   * children if needed — and the new page is visible in context. `null` while
+   * nothing needs expanding (and for a new root page). Each create bumps
+   * `expandNonce` so the payload is a fresh object every time: two creates
+   * under the same parent (with a manual collapse between) both re-expand it,
+   * which a bare `string` signal could not do — an unchanged value never
+   * crosses the `Object.is`-gated `input()` hops down the tree.
+   */
+  protected readonly expandTarget = signal<TreeExpandTarget | null>(null);
+  private expandNonce = 0;
+
   protected readonly aiOpen = signal(false);
 
   /**
@@ -600,6 +614,14 @@ export class PagesView {
     );
     const created = await firstValueFrom(ref.afterClosed());
     if (created && typeof created === 'string') {
+      // Force-expand the parent in the tree so the new page shows in context
+      // (step 2.3). A fresh `nonce` each time makes this a distinct value, so a
+      // repeat create under the same (possibly since-collapsed) parent still
+      // re-triggers the tree effect. A new root page (`parentGuid === null`)
+      // needs no expand.
+      if (parentGuid) {
+        this.expandTarget.set({ guid: parentGuid, nonce: ++this.expandNonce });
+      }
       await this.router.navigate(['/pages', created, 'edit']);
     }
   }

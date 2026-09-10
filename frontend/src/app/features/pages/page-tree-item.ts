@@ -1,9 +1,9 @@
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkTypeConstraints } from './check-type-constraints';
 import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
-import type { PageSummary, PageTypeDefinition } from './page.types';
+import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.types';
 
 @Component({
   selector: 'wiki-page-tree-item',
@@ -27,6 +27,7 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
           role="treeitem"
           tabindex="0"
           [attr.aria-selected]="isActive()"
+          [attr.aria-expanded]="page().hasChildren ? expanded() : null"
           (click)="onClick()"
           (dblclick)="onDoubleClick()"
           (keydown)="onRowKeydown($event)"
@@ -74,6 +75,7 @@ import type { PageSummary, PageTypeDefinition } from './page.types';
             [page]="child"
             [level]="level() + 1"
             [activeGuid]="activeGuid()"
+            [expandGuid]="expandGuid()"
             [pageTypesMap]="pageTypesMap()"
             [parentPageType]="page().pageType ?? null"
             (pageSelect)="pageSelect.emit($event)"
@@ -117,6 +119,15 @@ export class PageTreeItem {
   readonly page = input.required<PageSummary>();
   readonly level = input.required<number>();
   readonly activeGuid = input<string | null>(null);
+  /**
+   * Force-expand target (step 2.3). When `expandGuid()?.guid` matches this
+   * row's guid the node expands — loading its children if not already loaded —
+   * so a page created under it is visible in context. The payload's `nonce`
+   * means a repeat expand of the same guid is still a distinct object, so the
+   * effect below re-fires even if the user collapsed the node in between.
+   * Threaded down the recursive tree; step 2.6 (New Page modal) feeds it too.
+   */
+  readonly expandGuid = input<TreeExpandTarget | null>(null);
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
   readonly parentPageType = input<string | null>(null);
 
@@ -161,6 +172,20 @@ export class PageTreeItem {
     return warnings.length === 0;
   };
 
+  constructor() {
+    // Force-expand (step 2.3): when the tree points expandGuid at this row,
+    // expand it. Flipping `_expanded` re-keys `childrenGuid`, so the lazy
+    // `childrenResource` fetches the children if they were never loaded. Each
+    // create carries a fresh `nonce`, so this re-runs (and re-expands) even for
+    // a repeat create under the same, since-collapsed parent.
+    effect(() => {
+      const target = this.expandGuid();
+      if (target && target.guid === this.page().guid) {
+        this._expanded.set(true);
+      }
+    });
+  }
+
   toggleExpanded(event: MouseEvent): void {
     event.stopPropagation();
     this._expanded.update((v) => !v);
@@ -201,7 +226,40 @@ export class PageTreeItem {
     } else if (event.key === 'F2') {
       event.preventDefault();
       this.onDoubleClick();
+    } else if (event.key === 'ArrowRight') {
+      // Collapsed parent -> expand. Expanded parent -> step into first child.
+      // Leaf -> no-op (let the event through).
+      if (!this.page().hasChildren) return;
+      event.preventDefault();
+      if (this.expanded()) this.focusFirstChildRow(event.currentTarget);
+      else this._expanded.set(true);
+    } else if (event.key === 'ArrowLeft') {
+      // Expanded parent -> collapse. Collapsed row / leaf -> step out to parent.
+      event.preventDefault();
+      if (this.page().hasChildren && this.expanded()) this._expanded.set(false);
+      else this.focusParentRow(event.currentTarget);
     }
+  }
+
+  /** Move focus to the first rendered child row (ArrowRight on an open parent). */
+  private focusFirstChildRow(from: EventTarget | null): void {
+    (from as HTMLElement | null)
+      ?.closest('.page-tree-node')
+      ?.querySelector<HTMLElement>(':scope > wiki-page-tree-item .page-tree-row')
+      ?.focus();
+  }
+
+  /**
+   * Move focus to the parent row (ArrowLeft on a collapsed row / leaf). A root
+   * row's node has no ancestor `.page-tree-node`, so this is a no-op there.
+   */
+  private focusParentRow(from: EventTarget | null): void {
+    (from as HTMLElement | null)
+      ?.closest('.page-tree-node')
+      ?.parentElement
+      ?.closest('.page-tree-node')
+      ?.querySelector<HTMLElement>('.page-tree-row')
+      ?.focus();
   }
 
   async onDrop(event: CdkDragDrop<PageSummary>): Promise<void> {

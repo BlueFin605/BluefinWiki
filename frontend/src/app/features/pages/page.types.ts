@@ -67,6 +67,19 @@ export interface PageTreeNode extends PageSummary {
   isExpanded?: boolean;
 }
 
+/**
+ * Force-expand instruction fed into the page tree (step 2.3). `guid` is the
+ * node to expand; `nonce` makes every emission a distinct object so a repeat
+ * expand of the *same* guid still crosses the `Object.is`-gated `input()` hops
+ * (`pages-view` -> `PageTree` -> recursive `PageTreeItem`) and re-triggers the
+ * expand effect even when the user has since collapsed that node. Reused by
+ * step 2.6 (New Page modal).
+ */
+export interface TreeExpandTarget {
+  guid: string;
+  nonce: number;
+}
+
 /** Extended child summary with properties, returned by list-children?include=properties */
 export interface PageChildDetail extends PageSummary {
   pageType?: string;
