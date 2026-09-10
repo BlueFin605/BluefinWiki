@@ -36,6 +36,45 @@ describe('PageTreeItem', () => {
     expect(screen.getByText('Hello')).toBeInTheDocument();
   });
 
+  describe('row icon (step 2.4)', () => {
+    const typeMap: Record<string, PageTypeDefinition> = {
+      recipe: {
+        guid: 'pt', name: 'Recipe', icon: '🍳', properties: [],
+        allowedChildTypes: [], allowWikiPageChildren: true,
+        allowedParentTypes: [], allowAnyParent: true,
+        createdBy: 'u', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+      },
+    };
+
+    it('shows the page-type emoji for a typed, mapped page', async () => {
+      await render(PageTreeItem, {
+        inputs: { page: summary({ pageType: 'recipe' }), level: 0, activeGuid: null, pageTypesMap: typeMap },
+      });
+      expect(screen.getByText('🍳')).toBeInTheDocument();
+    });
+
+    it('shows a folder for an untyped page with children', async () => {
+      await render(PageTreeItem, {
+        inputs: { page: summary({ hasChildren: true, guid: 'p' }), level: 0, activeGuid: null, pageTypesMap: {} },
+      });
+      expect(screen.getByText('📁')).toBeInTheDocument();
+    });
+
+    it('shows a document for an untyped leaf', async () => {
+      await render(PageTreeItem, {
+        inputs: { page: summary({ hasChildren: false }), level: 0, activeGuid: null, pageTypesMap: {} },
+      });
+      expect(screen.getByText('📄')).toBeInTheDocument();
+    });
+
+    it('falls through to folder/doc when the pageType is not in the map', async () => {
+      await render(PageTreeItem, {
+        inputs: { page: summary({ pageType: 'ghost', hasChildren: true, guid: 'p' }), level: 0, activeGuid: null, pageTypesMap: {} },
+      });
+      expect(screen.getByText('📁')).toBeInTheDocument();
+    });
+  });
+
   it('shows a chevron only when hasChildren', async () => {
     const { rerender } = await render(PageTreeItem, {
       inputs: { page: summary({ hasChildren: true, guid: 'parent' }), level: 0, activeGuid: null, pageTypesMap: {} },

@@ -4,6 +4,7 @@ import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkTypeConstraints } from './check-type-constraints';
 import { TreeDragState } from './tree-drag-state';
 import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
+import { rowIcon } from './row-icon';
 import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget } from './page.types';
 
 @Component({
@@ -56,11 +57,7 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
             <span class="chevron-spacer"></span>
           }
 
-          @if (icon(); as iconText) {
-            <span class="page-icon" [attr.title]="iconTitle()">{{ iconText }}</span>
-          } @else {
-            <span class="page-icon">📄</span>
-          }
+          <span class="page-icon" [attr.title]="iconTitle()">{{ icon() }}</span>
 
           <span class="page-title">{{ page().title }}</span>
 
@@ -257,11 +254,12 @@ export class PageTreeItem {
   readonly indent = computed(() => this.level() * 16 + 8);
   readonly isActive = computed(() => this.activeGuid() === this.page().guid);
 
-  readonly icon = computed<string | null>(() => {
-    const type = this.page().pageType;
-    if (!type) return null;
-    return this.pageTypesMap()[type]?.icon ?? null;
-  });
+  /**
+   * Step 2.4: the row's icon — page-type emoji if typed and mapped, else a
+   * folder (`📁`) for a page with children, else a document (`📄`). Delegates to
+   * the pure `rowIcon` helper so the rule stays unit-testable.
+   */
+  readonly icon = computed<string>(() => rowIcon(this.page(), this.pageTypesMap()));
 
   readonly iconTitle = computed<string | null>(() => {
     const type = this.page().pageType;
