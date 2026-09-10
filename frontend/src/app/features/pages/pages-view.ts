@@ -21,7 +21,8 @@ import { InspectorPanel } from '../editor/inspector-panel';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
-import type { PageTypeDefinition, TreeExpandTarget } from './page.types';
+import type { PageTypeDefinition, TreeDropRequest, TreeExpandTarget } from './page.types';
+import { computeReorder } from './reorder-maths';
 import { SearchDialog } from '../search/search-dialog';
 import { AiButton } from '../ai/ai-button';
 import { AiSidebar } from '../ai/ai-sidebar';
@@ -112,6 +113,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
             (newChildRequested)="onNewChildRequested($event)"
             (sortRequested)="onSortRequested($event)"
             (moveRequested)="onMoveRequested($event)"
+            (dropRequested)="onTreeDrop($event)"
           />
           <!-- Resize handle stays desktop-only (DESIGN.md D6). -->
           @if (bp.isDesktop()) {
@@ -646,6 +648,58 @@ export class PagesView {
 
   onMoveRequested(_guid: string): void {
     window.alert('Move dialog coming in a later phase');
+  }
+
+  /**
+   * Step 2.1: a positional (`before` / `after`) tree drop. `page-tree-item`
+   * already handled `onto` locally (`movePage`); this only ever gets before/after.
+   *
+   * - **same parent:** one `reorderPages` call with the target sibling list
+   *   re-spliced (no `movePage`).
+   * - **different parent:** two-step — `movePage` into the new parent, then
+   *   `reorderPages` its list. If the reorder fails, roll back: `movePage` the
+   *   page home and restore the source parent's original order.
+   *
+   * `computeReorder` (pure, unit-tested in `reorder-maths.spec.ts`) owns the
+   * splice + the same-vs-cross-parent decision. Cache invalidation is handled
+   * inside `Pages.movePage` / `Pages.reorderPages` (step 1.2) — a cross-parent
+   * drop invalidates both parents' `children` tags for free by calling both.
+   */
+  async onTreeDrop(req: TreeDropRequest): Promise<void> {
+    if (req.movingGuid === req.targetGuid) return;
+    const newParentGuid = req.targetParentGuid;
+
+    try {
+      const siblings = await this.pages.fetchChildren(newParentGuid);
+      const plan = computeReorder(siblings, req.movingGuid, req.targetGuid, req.zone);
+
+      if (!('moveTo' in plan)) {
+        // Same parent — a single reorder, no move.
+        await this.pages.reorderPages({ parentGuid: newParentGuid, orderedGuids: plan.orderedGuids });
+        return;
+      }
+
+      // Cross parent. Capture the source order first so a failed reorder can be
+      // fully rolled back, then run move -> reorder sequentially.
+      const sourceOrder = (await this.pages.fetchChildren(req.movingParentGuid)).map((p) => p.guid);
+      await this.pages.movePage(req.movingGuid, { newParentGuid: plan.moveTo ?? null });
+      try {
+        await this.pages.reorderPages({ parentGuid: newParentGuid, orderedGuids: plan.orderedGuids });
+      } catch (reorderErr) {
+        // Roll the UI back: return the page to its original parent and order.
+        await this.pages.movePage(req.movingGuid, { newParentGuid: req.movingParentGuid });
+        await this.pages.reorderPages({ parentGuid: req.movingParentGuid, orderedGuids: sourceOrder });
+        throw reorderErr;
+      }
+
+      // Surface the moved page under its new parent (reuses the step 2.3 signal).
+      if (newParentGuid) {
+        this.expandTarget.set({ guid: newParentGuid, nonce: ++this.expandNonce });
+      }
+    } catch (err) {
+      console.error('Failed to reorder pages', err);
+      window.alert('Failed to reorder pages.');
+    }
   }
 
   @HostListener('window:keydown', ['$event'])

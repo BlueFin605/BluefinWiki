@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkTypeConstraints } from './check-type-constraints';
 import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
-import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.types';
+import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget } from './page.types';
 
 @Component({
   selector: 'wiki-page-tree-item',
@@ -16,11 +16,16 @@ import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.t
         cdkDropList
         [cdkDropListData]="page()"
         [cdkDropListEnterPredicate]="enterPredicate"
+        (cdkDropListEntered)="onListEntered()"
+        (cdkDropListExited)="clearDropZone()"
         (cdkDropListDropped)="onDrop($event)"
       >
         <div
           class="page-tree-row"
           [class.active]="isActive()"
+          [class.drop-before]="dropZone() === 'before'"
+          [class.drop-after]="dropZone() === 'after'"
+          [class.drop-onto]="dropZone() === 'onto'"
           [style.padding-left.px]="indent()"
           cdkDrag
           [cdkDragData]="page()"
@@ -30,6 +35,7 @@ import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.t
           [attr.aria-expanded]="page().hasChildren ? expanded() : null"
           (click)="onClick()"
           (dblclick)="onDoubleClick()"
+          (mousemove)="onRowDragOver($event)"
           (keydown)="onRowKeydown($event)"
           (contextmenu)="onContextMenu($event)"
         >
@@ -92,6 +98,7 @@ import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.t
   styles: [`
     :host { display: block; }
     .page-tree-row {
+      position: relative;
       display: flex;
       align-items: center;
       gap: 0.25rem;
@@ -102,6 +109,21 @@ import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.t
     }
     .page-tree-row:hover { background: #f1f5f9; }
     .page-tree-row.active { background: #dbeafe; font-weight: 600; }
+    /* Step 2.1 positional-drop indicators: a line above/below for before/after,
+       a row highlight for onto (matches .cdk-drop-list-receiving). */
+    .page-tree-row.drop-onto { background: #fef3c7; outline: 1px solid #f59e0b; outline-offset: -1px; }
+    .page-tree-row.drop-before::before,
+    .page-tree-row.drop-after::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #2563eb;
+      pointer-events: none;
+    }
+    .page-tree-row.drop-before::before { top: -1px; }
+    .page-tree-row.drop-after::after { bottom: -1px; }
     .chevron { background: none; border: 0; cursor: pointer; font-size: 0.625rem; width: 16px; transition: transform 0.1s; }
     .chevron.expanded { transform: rotate(90deg); }
     .chevron-spacer { display: inline-block; width: 16px; }
@@ -137,11 +159,34 @@ export class PageTreeItem {
   readonly newChildRequested = output<string>();
   readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();
   readonly moveRequested = output<string>();
+  /**
+   * Step 2.1: a positional (`before` / `after`) drop. `pages-view` owns the
+   * splice + the cross-parent two-step; an `onto` drop is handled locally in
+   * `onDrop` (unchanged `movePage`) and never emits this.
+   */
+  readonly dropRequested = output<TreeDropRequest>();
 
   private readonly contextMenu = viewChild.required(PageContextMenu);
 
   private readonly _expanded = signal(false);
   readonly expanded = this._expanded.asReadonly();
+
+  /**
+   * Step 2.1: the drop zone the pointer is currently in for THIS row, or `null`
+   * when no drag is hovering it. Drives the before/after line + onto highlight
+   * and is read back in `onDrop`. Set by `onRowDragOver`, cleared on
+   * `cdkDropListExited` / after a drop.
+   */
+  private readonly _dropZone = signal<TreeDropZone | null>(null);
+  readonly dropZone = this._dropZone.asReadonly();
+
+  /**
+   * True only while a CDK drag is hovering this row's drop list (between
+   * `cdkDropListEntered` and `cdkDropListExited`). `onRowDragOver` fires on every
+   * `mousemove`, so it no-ops unless this is set — the zone maths never runs
+   * outside a drag.
+   */
+  private readonly _dragActive = signal(false);
 
   private readonly childrenGuid = computed<string | null | typeof SKIP_CHILDREN_FETCH>(() =>
     this._expanded() ? this.page().guid : SKIP_CHILDREN_FETCH,
@@ -262,15 +307,66 @@ export class PageTreeItem {
       ?.focus();
   }
 
+  /**
+   * Step 2.1: classify a pointer Y within a row rect into before / after / onto.
+   * Top 25 % -> `before`, bottom 25 % -> `after`, middle 50 % -> `onto`. Pure —
+   * no component state, exposed for unit tests.
+   */
+  zoneFromClientY(clientY: number, rect: { top: number; height: number }): TreeDropZone {
+    if (rect.height <= 0) return 'onto';
+    const ratio = (clientY - rect.top) / rect.height;
+    if (ratio < 0.25) return 'before';
+    if (ratio >= 0.75) return 'after';
+    return 'onto';
+  }
+
+  /** A CDK drag entered this row's drop list — arm the zone maths. */
+  onListEntered(): void {
+    this._dragActive.set(true);
+  }
+
+  /** Clear the zone indicator (drag left the row, or the drop finished). */
+  clearDropZone(): void {
+    this._dragActive.set(false);
+    this._dropZone.set(null);
+  }
+
+  /**
+   * `mousemove` on the row. The CDK drag preview is `pointer-events: none`, so
+   * this still fires while dragging. No-ops unless a drag is over the row
+   * (`_dragActive`); otherwise it stores the pointer's zone for the indicator +
+   * `onDrop`.
+   */
+  onRowDragOver(event: MouseEvent): void {
+    if (!this._dragActive()) return;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this._dropZone.set(this.zoneFromClientY(event.clientY, rect));
+  }
+
   async onDrop(event: CdkDragDrop<PageSummary>): Promise<void> {
     const dragged = event.item.data as PageSummary | undefined;
     const target = event.container.data as PageSummary | undefined;
+    const zone = this._dropZone() ?? 'onto';
+    this.clearDropZone();
     if (!dragged || !target) return;
     if (dragged.guid === target.guid) return;
 
-    // Reparent: dragged becomes a child of target.
-    await this.pages.movePage(dragged.guid, { newParentGuid: target.guid });
-    // Auto-expand the target so the new child is visible.
-    this._expanded.set(true);
+    if (zone === 'onto') {
+      // Reparent: dragged becomes a child of target (unchanged pre-2.1 path).
+      await this.pages.movePage(dragged.guid, { newParentGuid: target.guid });
+      // Auto-expand the target so the new child is visible.
+      this._expanded.set(true);
+      return;
+    }
+
+    // before / after: positional reorder. pages-view owns the sibling splice and
+    // the cross-parent move-then-reorder (it needs the target parent's list).
+    this.dropRequested.emit({
+      movingGuid: dragged.guid,
+      movingParentGuid: dragged.parentGuid,
+      targetGuid: target.guid,
+      targetParentGuid: target.parentGuid,
+      zone,
+    });
   }
 }

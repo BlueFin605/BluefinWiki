@@ -3,7 +3,9 @@ import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { PageTree } from './page-tree';
+import { PageTreeItem } from './page-tree-item';
 
 const providers = [provideHttpClient(), provideHttpClientTesting()];
 
@@ -63,6 +65,32 @@ describe('PageTree', () => {
     fixture.detectChanges();
     await user.click(screen.getByText('Alpha'));
     expect(events).toEqual(['a']);
+    http.verify();
+  });
+
+  it('bubbles dropRequested (step 2.1 positional drop) from a child item', async () => {
+    const events: unknown[] = [];
+    const { fixture } = await render(PageTree, { providers, inputs: { activeGuid: null, pageTypesMap: {} } });
+    const http = TestBed.inject(HttpTestingController);
+    fixture.componentInstance.dropRequested.subscribe((e: unknown) => events.push(e));
+    http.expectOne('/api/pages/root/children').flush({
+      children: [
+        { guid: 'a', title: 'Alpha', parentGuid: null, status: 'published', modifiedAt: '', modifiedBy: '', hasChildren: false },
+      ],
+    });
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    TestBed.tick();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    fixture.detectChanges();
+
+    const item = fixture.debugElement
+      .query(By.directive(PageTreeItem)).componentInstance as PageTreeItem;
+    const payload = {
+      movingGuid: 'm', movingParentGuid: null, targetGuid: 'a', targetParentGuid: null, zone: 'before' as const,
+    };
+    item.dropRequested.emit(payload);
+
+    expect(events).toEqual([payload]);
     http.verify();
   });
 });

@@ -123,6 +123,29 @@ export interface MovePageRequest {
   newParentGuid: string | null;
 }
 
+/**
+ * Where the pointer sits within a tree row during a drag (step 2.1). `before` /
+ * `after` are the top / bottom 25 % of the row (positional sibling reorder);
+ * `onto` is the middle 50 % (reparent — the pre-2.1 behaviour).
+ */
+export type TreeDropZone = 'before' | 'after' | 'onto';
+
+/**
+ * Positional-drop payload threaded `page-tree-item` -> `page-tree` ->
+ * `pages-view` (step 2.1). Only emitted for `before` / `after` drops — an `onto`
+ * drop stays a local `movePage` inside `page-tree-item`. `pages-view` fetches the
+ * target parent's child list, runs `computeReorder`, and issues
+ * `reorderPages` (same parent) or `movePage` + `reorderPages` (cross parent).
+ */
+export interface TreeDropRequest {
+  movingGuid: string;
+  movingParentGuid: string | null;
+  targetGuid: string;
+  /** The target row's parent — the parent the moving page joins for before/after. */
+  targetParentGuid: string | null;
+  zone: 'before' | 'after';
+}
+
 export interface ReorderRequest {
   parentGuid: string | null;
   orderedGuids: string[];

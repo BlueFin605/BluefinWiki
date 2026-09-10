@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { PageTreeItem } from './page-tree-item';
+import { Pages } from './pages';
 import type { ContextMenuEvent } from './page-context-menu';
 import type { PageSummary } from './page.types';
 
@@ -323,5 +324,114 @@ describe('PageTreeItem', () => {
     const draggedBlocked = { data: summary({ guid: 'd', pageType: 'blocked-type' }) } as unknown as Parameters<typeof item.enterPredicate>[0];
     expect(item.enterPredicate(draggedAllowed)).toBe(true);
     expect(item.enterPredicate(draggedBlocked)).toBe(false);
+  });
+
+  // ---- Step 2.1: positional drop zones (before / after / onto) -------------
+
+  function domRect(top: number, height: number): DOMRect {
+    return {
+      top, height, bottom: top + height, left: 0, right: 0, width: 0,
+      x: 0, y: top, toJSON: () => ({}),
+    };
+  }
+
+  function dragOverEvent(clientY: number, top: number, height: number): MouseEvent {
+    return {
+      clientY,
+      currentTarget: { getBoundingClientRect: () => domRect(top, height) },
+    } as unknown as MouseEvent;
+  }
+
+  function dropEvent(moving: Partial<PageSummary>, target: Partial<PageSummary>) {
+    return {
+      item: { data: summary(moving) },
+      container: { data: summary(target) },
+    } as unknown as Parameters<PageTreeItem['onDrop']>[0];
+  }
+
+  async function renderItem(page: Partial<PageSummary> = {}) {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ guid: 'target', ...page }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    return fixture.componentInstance;
+  }
+
+  it('classifies a pointer in the top 25% of the row as "before"', async () => {
+    const item = await renderItem();
+    expect(item.zoneFromClientY(10, domRect(0, 100))).toBe('before');
+  });
+
+  it('classifies a pointer in the bottom 25% of the row as "after"', async () => {
+    const item = await renderItem();
+    expect(item.zoneFromClientY(90, domRect(0, 100))).toBe('after');
+  });
+
+  it('classifies a pointer in the middle 50% of the row as "onto"', async () => {
+    const item = await renderItem();
+    expect(item.zoneFromClientY(50, domRect(0, 100))).toBe('onto');
+  });
+
+  it('onRowDragOver publishes the computed zone on dropZone() while a drag is over the row', async () => {
+    const item = await renderItem();
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(10, 0, 100));
+    expect(item.dropZone()).toBe('before');
+    item.onRowDragOver(dragOverEvent(90, 0, 100));
+    expect(item.dropZone()).toBe('after');
+  });
+
+  it('onRowDragOver is inert when no drag is over the row', async () => {
+    const item = await renderItem();
+    item.onRowDragOver(dragOverEvent(10, 0, 100));
+    expect(item.dropZone()).toBeNull();
+  });
+
+  it('a before-zone drop emits dropRequested with the target parent + zone and does NOT call movePage', async () => {
+    const item = await renderItem({ guid: 'target', parentGuid: 'tp' });
+    const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
+    const events: unknown[] = [];
+    item.dropRequested.subscribe((e) => events.push(e));
+
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(10, 0, 100));
+    await item.onDrop(dropEvent({ guid: 'moving', parentGuid: 'mp' }, { guid: 'target', parentGuid: 'tp' }));
+
+    expect(moveSpy).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      { movingGuid: 'moving', movingParentGuid: 'mp', targetGuid: 'target', targetParentGuid: 'tp', zone: 'before' },
+    ]);
+  });
+
+  it('an onto-zone drop reparents via movePage and does NOT emit dropRequested (unchanged behaviour)', async () => {
+    const item = await renderItem({ guid: 'target' });
+    const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
+    const events: unknown[] = [];
+    item.dropRequested.subscribe((e) => events.push(e));
+
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(50, 0, 100));
+    await item.onDrop(dropEvent({ guid: 'moving' }, { guid: 'target' }));
+
+    expect(moveSpy).toHaveBeenCalledWith('moving', { newParentGuid: 'target' });
+    expect(events).toEqual([]);
+  });
+
+  it('a drop with no zone computed defaults to reparent (onto)', async () => {
+    const item = await renderItem({ guid: 'target' });
+    const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
+    await item.onDrop(dropEvent({ guid: 'moving' }, { guid: 'target' }));
+    expect(moveSpy).toHaveBeenCalledWith('moving', { newParentGuid: 'target' });
+  });
+
+  it('a drop onto self is a no-op', async () => {
+    const item = await renderItem({ guid: 'target' });
+    const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
+    const events: unknown[] = [];
+    item.dropRequested.subscribe((e) => events.push(e));
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(10, 0, 100));
+    await item.onDrop(dropEvent({ guid: 'target' }, { guid: 'target' }));
+    expect(moveSpy).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
   });
 });

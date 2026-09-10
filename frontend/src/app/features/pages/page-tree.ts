@@ -2,7 +2,7 @@ import { CdkDropList, CdkDropListGroup, type CdkDragDrop } from '@angular/cdk/dr
 import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
 import { Pages } from './pages';
 import { PageTreeItem } from './page-tree-item';
-import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.types';
+import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeExpandTarget } from './page.types';
 
 @Component({
   selector: 'wiki-page-tree',
@@ -32,6 +32,7 @@ import type { PageSummary, PageTypeDefinition, TreeExpandTarget } from './page.t
             (newChildRequested)="newChildRequested.emit($event)"
             (sortRequested)="sortRequested.emit($event)"
             (moveRequested)="moveRequested.emit($event)"
+            (dropRequested)="dropRequested.emit($event)"
           />
         }
       }
@@ -85,6 +86,8 @@ export class PageTree {
   readonly newChildRequested = output<string>();
   readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();
   readonly moveRequested = output<string>();
+  /** Step 2.1: positional (before/after) drop, forwarded to `pages-view`. */
+  readonly dropRequested = output<TreeDropRequest>();
 
   readonly rootChildren = this.pages.childrenResource(this.rootSignal);
 

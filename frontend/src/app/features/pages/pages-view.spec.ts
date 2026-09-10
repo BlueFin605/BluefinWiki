@@ -26,7 +26,7 @@ import { PageTree } from './page-tree';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { SearchDialog } from '../search/search-dialog';
 import { provideBreakpointStub } from '../../testing/breakpoint-stub';
-import type { PageTypeDefinition } from './page.types';
+import type { PageTypeDefinition, TreeDropRequest } from './page.types';
 import type { PageMetadata } from './drafts';
 import type { PageTypeChange } from '../editor/page-properties-panel';
 
@@ -1328,6 +1328,113 @@ describe('PagesView', () => {
     fixture.detectChanges();
 
     expect(pageTree(fixture).expandGuid()).toBeNull();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  // ---- Step 2.1: positional tree drop (before / after reorder) -------------
+
+  interface DropHandle {
+    onTreeDrop(req: TreeDropRequest): Promise<void>;
+  }
+
+  function drop(fixture: { componentInstance: unknown }): DropHandle {
+    return fixture.componentInstance as DropHandle;
+  }
+
+  const sib = (guid: string, parentGuid: string | null) =>
+    ({ guid, parentGuid } as never);
+
+  it('same-parent before/after drop calls reorderPages once and never movePage', async () => {
+    const { fixture, http } = await renderShell();
+    const pages = TestBed.inject(Pages);
+    jest.spyOn(pages, 'fetchChildren').mockResolvedValue([
+      sib('a', 'p'), sib('b', 'p'), sib('c', 'p'),
+    ]);
+    const reorderSpy = jest.spyOn(pages, 'reorderPages').mockResolvedValue({ updated: 3 });
+    const moveSpy = jest.spyOn(pages, 'movePage').mockResolvedValue(undefined);
+
+    await drop(fixture).onTreeDrop({
+      movingGuid: 'a', movingParentGuid: 'p', targetGuid: 'c', targetParentGuid: 'p', zone: 'after',
+    });
+    await settle();
+
+    expect(moveSpy).not.toHaveBeenCalled();
+    expect(reorderSpy).toHaveBeenCalledTimes(1);
+    expect(reorderSpy).toHaveBeenCalledWith({ parentGuid: 'p', orderedGuids: ['b', 'c', 'a'] });
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('cross-parent before/after drop runs movePage then reorderPages (two-step, in order)', async () => {
+    const { fixture, http } = await renderShell();
+    const pages = TestBed.inject(Pages);
+    jest.spyOn(pages, 'fetchChildren')
+      .mockResolvedValueOnce([sib('x', 'np'), sib('y', 'np')])   // target parent's list
+      .mockResolvedValueOnce([sib('m', 'op'), sib('n', 'op')]);  // source list (rollback capture)
+    const order: string[] = [];
+    const moveSpy = jest.spyOn(pages, 'movePage').mockImplementation(() => {
+      order.push('move');
+      return Promise.resolve();
+    });
+    const reorderSpy = jest.spyOn(pages, 'reorderPages').mockImplementation(() => {
+      order.push('reorder');
+      return Promise.resolve({ updated: 3 });
+    });
+
+    await drop(fixture).onTreeDrop({
+      movingGuid: 'm', movingParentGuid: 'op', targetGuid: 'y', targetParentGuid: 'np', zone: 'before',
+    });
+    await settle();
+
+    expect(order).toEqual(['move', 'reorder']);
+    expect(moveSpy).toHaveBeenCalledWith('m', { newParentGuid: 'np' });
+    expect(reorderSpy).toHaveBeenCalledWith({ parentGuid: 'np', orderedGuids: ['x', 'm', 'y'] });
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('rolls the page back to its original parent + order when the cross-parent reorder fails', async () => {
+    const { fixture, http } = await renderShell();
+    const pages = TestBed.inject(Pages);
+    jest.spyOn(pages, 'fetchChildren')
+      .mockResolvedValueOnce([sib('x', 'np'), sib('y', 'np')])
+      .mockResolvedValueOnce([sib('m', 'op'), sib('n', 'op')]);
+    const moveSpy = jest.spyOn(pages, 'movePage').mockResolvedValue(undefined);
+    const reorderSpy = jest.spyOn(pages, 'reorderPages')
+      .mockRejectedValueOnce(new Error('reorder failed'))
+      .mockResolvedValue({ updated: 2 });
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await drop(fixture).onTreeDrop({
+      movingGuid: 'm', movingParentGuid: 'op', targetGuid: 'y', targetParentGuid: 'np', zone: 'before',
+    });
+    await settle();
+
+    expect(moveSpy).toHaveBeenNthCalledWith(1, 'm', { newParentGuid: 'np' });
+    expect(moveSpy).toHaveBeenNthCalledWith(2, 'm', { newParentGuid: 'op' });
+    expect(reorderSpy).toHaveBeenNthCalledWith(2, { parentGuid: 'op', orderedGuids: ['m', 'n'] });
+    expect(alertSpy).toHaveBeenCalledWith('Failed to reorder pages.');
+
+    alertSpy.mockRestore();
+    errSpy.mockRestore();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('a drop whose moving and target guid match is a no-op', async () => {
+    const { fixture, http } = await renderShell();
+    const pages = TestBed.inject(Pages);
+    const fetchSpy = jest.spyOn(pages, 'fetchChildren').mockResolvedValue([]);
+    const reorderSpy = jest.spyOn(pages, 'reorderPages').mockResolvedValue({ updated: 0 });
+
+    await drop(fixture).onTreeDrop({
+      movingGuid: 'a', movingParentGuid: 'p', targetGuid: 'a', targetParentGuid: 'p', zone: 'after',
+    });
+    await settle();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(reorderSpy).not.toHaveBeenCalled();
+
     http.match(() => true).forEach((r) => r.flush(null));
   });
 
