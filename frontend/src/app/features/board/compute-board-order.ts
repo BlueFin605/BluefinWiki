@@ -30,6 +30,14 @@ export type ComputeBoardOrderResult =
  * A neighbour lacking an explicit `boardOrder` (e.g. it was never
  * positioned and is only present via the `modifiedAt` sort tiebreak) is
  * treated as `0` for gap/midpoint purposes.
+ *
+ * The renumber fallback assigns a fresh sequential value to every card in
+ * the column, but only *returns* entries for cards whose value actually
+ * differs from their current `boardOrder` — a card that happens to land
+ * back on its existing value is omitted, so the caller doesn't PUT (and
+ * spuriously re-stamp `modifiedBy`/`modifiedAt` on) a card that didn't
+ * really move. This mirrors the sibling `pages-reorder.ts` endpoint's
+ * `if (page.sortOrder === newSortOrder) continue;` precedent.
  */
 export function computeBoardOrder(
   columnCards: readonly BoardOrderCard[],
@@ -44,7 +52,10 @@ export function computeBoardOrder(
     const gap = afterOrder - beforeOrder;
     if (gap < 2) {
       return {
-        renumber: columnCards.map((c, i) => ({ guid: c.guid, value: (i + 1) * 1000 })),
+        renumber: columnCards
+          .map((c, i) => ({ guid: c.guid, value: (i + 1) * 1000, prior: c.boardOrder }))
+          .filter((r) => r.value !== r.prior)
+          .map(({ guid, value }) => ({ guid, value })),
       };
     }
     return { value: Math.round((beforeOrder + afterOrder) / 2) };

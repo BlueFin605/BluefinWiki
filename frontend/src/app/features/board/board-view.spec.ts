@@ -702,7 +702,7 @@ describe('BoardView', () => {
     await settle();
   });
 
-  it('renumbers the whole column and PUTs every affected card when the gap is exhausted', async () => {
+  it('renumbers the whole column and PUTs only the cards whose boardOrder actually changed', async () => {
     const { fixture } = await render(BoardView, {
       providers: baseProviders(),
       inputs: { parentGuid: 'parent-renumber' },
@@ -735,11 +735,15 @@ describe('BoardView', () => {
     const dropped = instance.onCardDropped({ card: mover, targetState: 'To Do', targetIndex: 1 });
     await settle();
 
-    const reqA = http.expectOne('/api/pages/card-a');
+    // card-a's renumbered value (1000) is exactly its existing boardOrder —
+    // it didn't actually move, so it must NOT be PUT (the fix for the
+    // review finding: the renumber fallback used to PUT every card
+    // unconditionally, including ones whose value didn't change).
+    http.expectNone('/api/pages/card-a');
+
     const reqMover = http.expectOne('/api/pages/card-mover');
     const reqB = http.expectOne('/api/pages/card-b');
 
-    expect(reqA.request.body).toEqual({ boardOrder: 1000 });
     const moverBody = reqMover.request.body as { boardOrder: number; properties: unknown };
     expect(moverBody.boardOrder).toBe(2000);
     expect((moverBody.properties as Record<string, { value: unknown }>)['state']).toEqual({
@@ -747,11 +751,6 @@ describe('BoardView', () => {
     });
     expect(reqB.request.body).toEqual({ boardOrder: 3000 });
 
-    reqA.flush({
-      guid: 'card-a', title: 'Card A', content: '', folderId: 'f', tags: [],
-      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
-    });
-    await settle();
     reqB.flush({
       guid: 'card-b', title: 'Card B', content: '', folderId: 'f', tags: [],
       status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
@@ -793,12 +792,16 @@ describe('BoardView', () => {
     await settle();
     flushPageTypes(http);
 
+    // 999/1000 (rather than 1000/1001) so that BOTH neighbours' renumbered
+    // values (1000/3000) genuinely differ from their current boardOrder —
+    // keeping all three cards in the PUT batch so this test still exercises
+    // partial-failure rollback across three requests, not two.
     const cardA = card({
-      guid: 'card-a2', title: 'Card A2', boardOrder: 1000,
+      guid: 'card-a2', title: 'Card A2', boardOrder: 999,
       properties: { state: { type: 'string', value: 'To Do' } },
     });
     const cardB = card({
-      guid: 'card-b2', title: 'Card B2', boardOrder: 1001,
+      guid: 'card-b2', title: 'Card B2', boardOrder: 1000,
       properties: { state: { type: 'string', value: 'To Do' } },
     });
     const mover = card({

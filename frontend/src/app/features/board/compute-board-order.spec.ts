@@ -39,9 +39,11 @@ describe('computeBoardOrder', () => {
       { guid: 'mover' },
       { guid: 'b', boardOrder: 1001 },
     ];
+    // 'a' renumbers to 1000, which is what it already was — since its value
+    // didn't actually change, it's omitted from the renumber array so the
+    // caller doesn't PUT an unchanged card. 'mover' and 'b' genuinely change.
     expect(computeBoardOrder(columnCards, 1)).toEqual({
       renumber: [
-        { guid: 'a', value: 1000 },
         { guid: 'mover', value: 2000 },
         { guid: 'b', value: 3000 },
       ],
@@ -63,11 +65,32 @@ describe('computeBoardOrder', () => {
       { guid: 'mover' },
       { guid: 'b', boardOrder: 1000 },
     ];
+    // 'a' again renumbers back to its own existing value (1000) and is
+    // omitted; 'b' starts at the same value but renumbers to a genuinely
+    // different one (3000), so it stays in.
     expect(computeBoardOrder(columnCards, 1)).toEqual({
       renumber: [
-        { guid: 'a', value: 1000 },
         { guid: 'mover', value: 2000 },
         { guid: 'b', value: 3000 },
+      ],
+    });
+  });
+
+  it('omits every card from the renumber array whose renumbered value equals its current one, even several at once', () => {
+    const columnCards = [
+      { guid: 'w', boardOrder: 1000 },
+      { guid: 'a', boardOrder: 2000 },
+      { guid: 'mover', boardOrder: 9000 },
+      { guid: 'b', boardOrder: 2001 },
+    ];
+    // Trigger is the close gap between 'a' (2000) and 'b' (2001) around the
+    // mover. Renumbering assigns w->1000, a->2000, mover->3000, b->4000:
+    // 'w' and 'a' land back on their own existing values and are omitted;
+    // 'mover' and 'b' genuinely change and stay in.
+    expect(computeBoardOrder(columnCards, 2)).toEqual({
+      renumber: [
+        { guid: 'mover', value: 3000 },
+        { guid: 'b', value: 4000 },
       ],
     });
   });
