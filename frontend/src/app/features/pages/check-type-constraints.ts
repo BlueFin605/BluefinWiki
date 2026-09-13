@@ -45,3 +45,30 @@ export function checkTypeConstraints(
 
   return warnings;
 }
+
+/**
+ * Type-constraint check for a **sibling** drop — a `before` / `after` tree drop,
+ * where the dragged page joins the target row's parent rather than becoming the
+ * target row's child.
+ *
+ * `parentPageType` is the page-type guid of that parent (`null` for the tree root
+ * or an untyped parent). `checkTypeConstraints` only ever reads `.pageType` off
+ * its target, so the parent is modelled by spreading that type onto the dragged
+ * page — no extra fetch, and no second copy of the rule.
+ *
+ * Shared by every place that asks this question: the row's
+ * `cdkDropListEnterPredicate` and its `.drop-invalid` hover warning
+ * (`page-tree-item`), the cross-parent on-drop re-check (`pages-view.onTreeDrop`)
+ * and the reparent-to-root drop (`page-tree.onRootDrop`).
+ */
+export function checkSiblingDropAllowed(
+  draggedPage: PageSummary,
+  parentPageType: string | null,
+  pageTypesMap: Record<string, PageTypeDefinition>,
+): string[] {
+  return checkTypeConstraints(
+    draggedPage,
+    { ...draggedPage, pageType: parentPageType ?? undefined },
+    pageTypesMap,
+  );
+}

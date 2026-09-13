@@ -1,7 +1,7 @@
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
-import { checkTypeConstraints } from './check-type-constraints';
+import { checkSiblingDropAllowed, checkTypeConstraints } from './check-type-constraints';
 import { TreeDragState } from './tree-drag-state';
 import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
 import { rowIcon } from './row-icon';
@@ -40,8 +40,8 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
           [attr.aria-expanded]="page().hasChildren ? expanded() : null"
           (click)="onClick()"
           (dblclick)="onDoubleClick()"
-          (mousemove)="onRowDragOver($event)"
-          (mouseleave)="onRowDragLeave()"
+          (pointermove)="onRowDragOver($event)"
+          (pointerleave)="onRowDragLeave()"
           (keydown)="onRowKeydown($event)"
           (contextmenu)="onContextMenu($event)"
         >
@@ -102,6 +102,7 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
             (newChildRequested)="newChildRequested.emit($event)"
             (sortRequested)="sortRequested.emit($event)"
             (moveRequested)="moveRequested.emit($event)"
+            (dropRequested)="dropRequested.emit($event)"
           />
         }
       }
@@ -238,12 +239,23 @@ export class PageTreeItem {
     const dragged = this.dragState.dragged();
     const zone = this._dropZone();
     if (!dragged || !zone || dragged.guid === this.page().guid) return [];
-    const target: PageSummary =
-      zone === 'onto'
-        ? this.page()
-        : { ...dragged, pageType: this.parentPageType() ?? undefined };
-    return checkTypeConstraints(dragged, target, this.pageTypesMap());
+    return this.warningsForZone(dragged, zone);
   });
+
+  /**
+   * The type-constraint reasons for dropping `dragged` into this row's `zone` —
+   * the one place that decides *which* question to ask. `onto` asks "may this
+   * become a CHILD of this row?"; `before` / `after` ask "may it become a SIBLING
+   * under this row's parent?", a different check against `parentPageType()`.
+   *
+   * Shared by the hover warning (`dropWarnings`) and the `enterPredicate`, so the
+   * two can never disagree about a zone.
+   */
+  private warningsForZone(dragged: PageSummary, zone: TreeDropZone): string[] {
+    return zone === 'onto'
+      ? checkTypeConstraints(dragged, this.page(), this.pageTypesMap())
+      : checkSiblingDropAllowed(dragged, this.parentPageType(), this.pageTypesMap());
+  }
 
   private readonly childrenGuid = computed<string | null | typeof SKIP_CHILDREN_FETCH>(() =>
     this._expanded() ? this.page().guid : SKIP_CHILDREN_FETCH,
@@ -267,12 +279,30 @@ export class PageTreeItem {
     return this.pageTypesMap()[type]?.name ?? null;
   });
 
+  /**
+   * CDK's "may this drag enter my drop list?" gate. The row's list spans all
+   * three zones, so the predicate must ask the question for the zone the pointer
+   * is actually in (`_dropZone`, already tracked for the indicator): `onto` is a
+   * reparent under THIS row, `before` / `after` is a sibling drop under this
+   * row's parent. Asking the `onto` question for the whole row used to block
+   * legal same-parent reorders in typed hierarchies (e.g. reordering two
+   * Episodes under one Season, where Episode may not parent an Episode).
+   *
+   * No zone yet (the pointer has not moved over this row) falls back to `onto`,
+   * matching `onDrop`'s default. CDK's move listener is a *capturing* document
+   * listener, so it evaluates this one pointer-move behind the row's own
+   * `pointermove` handler; a first refusal is re-evaluated on the next move
+   * (moves stream continuously during a drag) once `_dropZone` is set.
+   *
+   * The on-drop re-checks in `onDrop` / `pages-view.onTreeDrop` remain the real
+   * enforcement, so a zone-accurate predicate cannot let an illegal mutation
+   * through.
+   */
   readonly enterPredicate = (drag: CdkDrag<PageSummary>): boolean => {
     const dragged = drag.data;
     if (!dragged) return true;
     if (dragged.guid === this.page().guid) return false;
-    const warnings = checkTypeConstraints(dragged, this.page(), this.pageTypesMap());
-    return warnings.length === 0;
+    return this.warningsForZone(dragged, this._dropZone() ?? 'onto').length === 0;
   };
 
   constructor() {
@@ -399,21 +429,28 @@ export class PageTreeItem {
   }
 
   /**
-   * `mousemove` on the row. The CDK drag preview is `pointer-events: none`, so
-   * this still fires while dragging. No-ops unless a drag is in progress —
-   * either CDK let it enter this row (`_dragActive`, allowed target) or the
-   * shared `dragState` says a tree drag is live (step 2.2: covers a *rejected*
-   * target, which gets no `cdkDropListEntered`). Stores the pointer's zone,
-   * which also feeds `dropWarnings` for the type-constraint feedback.
+   * `pointermove` on the row — **pointer**, not mouse, events: CDK drag-drop
+   * works over touch and the tree is a touch drawer below the desktop
+   * breakpoint, but `mousemove` never fires during a touch drag, which left
+   * `_dropZone` null and made every touch drop fall back to `onto` (reparent)
+   * even when the user aimed at a before/after insertion line.
+   *
+   * The CDK drag preview is `pointer-events: none`, so this still fires while
+   * dragging. No-ops unless a drag is in progress — either CDK let it enter this
+   * row (`_dragActive`, allowed target) or the shared `dragState` says a tree
+   * drag is live (step 2.2: covers a *rejected* target, which gets no
+   * `cdkDropListEntered`). Stores the pointer's zone, which also feeds
+   * `dropWarnings` and `enterPredicate`.
    */
-  onRowDragOver(event: MouseEvent): void {
+  onRowDragOver(event: PointerEvent): void {
     if (!this._dragActive() && !this.dragState.dragged()) return;
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this._dropZone.set(this.zoneFromClientY(event.clientY, rect));
   }
 
   /**
-   * `mouseleave` on the row. For an allowed target CDK's `cdkDropListExited`
+   * `pointerleave` on the row (paired with the `pointermove` handler above, so
+   * touch drags clear the indicator too). For an allowed target CDK's `cdkDropListExited`
    * already clears the zone; a *rejected* target never gets that event (step
    * 2.2), so drop the zone (and with it the `.drop-invalid` feedback) here the
    * moment the pointer leaves, rather than letting it linger until drag end.

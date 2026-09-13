@@ -576,6 +576,75 @@ describe('PageTreeItem', () => {
     alertSpy.mockRestore();
   });
 
+  // ---- Final review #2: the enterPredicate is zone-aware ------------------
+  //
+  // `onto` asks "may the dragged page become a CHILD of this row?"; `before` /
+  // `after` ask "may it become a SIBLING under this row's parent?" — a different
+  // question. Applying the `onto` check to the whole row blocked legal
+  // same-parent reorders in typed hierarchies.
+
+  /** Season -> Episode: an Episode may only live under a Season. */
+  const hierarchyMap = (): Record<string, PageTypeDefinition> => ({
+    season: typeDef({ guid: 'season', name: 'Season', allowedChildTypes: ['episode'] }),
+    episode: typeDef({ guid: 'episode', name: 'Episode', allowedParentTypes: ['season'] }),
+  });
+
+  /** An Episode row sitting under a Season parent. */
+  async function renderEpisodeUnderSeason() {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: {
+        page: summary({ guid: 'ep1', pageType: 'episode', parentGuid: 'the-season' }),
+        level: 1, activeGuid: null, pageTypesMap: hierarchyMap(), parentPageType: 'season',
+      },
+    });
+    return fixture.componentInstance;
+  }
+
+  function fakeDrag(page: Partial<PageSummary>) {
+    return { data: summary(page) } as unknown as Parameters<PageTreeItem['enterPredicate']>[0];
+  }
+
+  it('enterPredicate allows a sibling reorder (before zone) that the onto check would reject', async () => {
+    const item = await renderEpisodeUnderSeason();
+    const dragged = fakeDrag({ guid: 'ep2', pageType: 'episode', parentGuid: 'the-season' });
+
+    // Sanity: as an `onto` (reparent) target this row rejects another Episode.
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(50, 0, 100));
+    expect(item.enterPredicate(dragged)).toBe(false);
+
+    // Same row, before zone -> the page becomes a SIBLING under the Season.
+    item.onRowDragOver(dragOverEvent(10, 0, 100));
+    expect(item.enterPredicate(dragged)).toBe(true);
+  });
+
+  it('enterPredicate allows a sibling reorder in the after zone too', async () => {
+    const item = await renderEpisodeUnderSeason();
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(90, 0, 100));
+    expect(item.enterPredicate(fakeDrag({ guid: 'ep2', pageType: 'episode' }))).toBe(true);
+  });
+
+  it('enterPredicate still rejects a before/after drop the PARENT type disallows', async () => {
+    const item = await renderEpisodeUnderSeason();
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(10, 0, 100));
+    // A Season cannot be a child of a Season (Season allows only episodes).
+    expect(item.enterPredicate(fakeDrag({ guid: 's2', pageType: 'season' }))).toBe(false);
+  });
+
+  it('enterPredicate with no zone computed yet falls back to the onto check', async () => {
+    const item = await renderEpisodeUnderSeason();
+    expect(item.enterPredicate(fakeDrag({ guid: 'ep2', pageType: 'episode' }))).toBe(false);
+  });
+
+  it('enterPredicate still rejects a drop onto self in a before zone', async () => {
+    const item = await renderEpisodeUnderSeason();
+    item.onListEntered();
+    item.onRowDragOver(dragOverEvent(10, 0, 100));
+    expect(item.enterPredicate(fakeDrag({ guid: 'ep1', pageType: 'episode' }))).toBe(false);
+  });
+
   it('an onto drop into an allowed target still reparents via movePage', async () => {
     const { item } = await renderTypedTarget();
     const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
@@ -588,5 +657,57 @@ describe('PageTreeItem', () => {
     expect(alertSpy).not.toHaveBeenCalled();
     expect(moveSpy).toHaveBeenCalledWith('moving', { newParentGuid: 'target' });
     alertSpy.mockRestore();
+  });
+
+  // ---- Final review #3: pointer events, so touch drags get before/after ----
+  //
+  // `mousemove` never fires during a touch drag, so the zone stayed null and
+  // every touch drop fell back to `onto` (reparent). The row binds pointer
+  // events, which CDK's touch drag does emit.
+
+  /**
+   * A bubbling DOM event with a `clientY` — built by hand rather than through
+   * `fireEvent.pointerMove` because jsdom has no `PointerEvent` constructor, so
+   * a pointer event built from an init dict loses its coordinates.
+   */
+  function pointerEventWithY(type: string, clientY: number): Event {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clientY', { value: clientY });
+    return event;
+  }
+
+  it('a pointermove over the row computes the drop zone (touch-capable path)', async () => {
+    const { fixture, item, dragState } = await renderTypedTarget();
+    dragState.start(summary({ guid: 'moving' }));
+    const row = (fixture.nativeElement as HTMLElement).querySelector('.page-tree-row')!;
+    expect(item.dropZone()).toBeNull();
+
+    row.dispatchEvent(pointerEventWithY('pointermove', 5));
+
+    // jsdom rects are all-zero, so the zone maths short-circuits to 'onto' —
+    // what matters here is that a *pointer* event reached the handler at all.
+    expect(item.dropZone()).toBe('onto');
+  });
+
+  it('a mousemove alone no longer computes the drop zone (binding moved to pointermove)', async () => {
+    const { fixture, item, dragState } = await renderTypedTarget();
+    dragState.start(summary({ guid: 'moving' }));
+    const row = (fixture.nativeElement as HTMLElement).querySelector('.page-tree-row')!;
+
+    row.dispatchEvent(pointerEventWithY('mousemove', 5));
+
+    expect(item.dropZone()).toBeNull();
+  });
+
+  it('a pointerleave clears the drop zone mid-drag', async () => {
+    const { fixture, item, dragState } = await renderTypedTarget();
+    dragState.start(summary({ guid: 'moving' }));
+    const row = (fixture.nativeElement as HTMLElement).querySelector('.page-tree-row')!;
+    row.dispatchEvent(pointerEventWithY('pointermove', 5));
+    expect(item.dropZone()).toBe('onto');
+
+    row.dispatchEvent(pointerEventWithY('pointerleave', 5));
+
+    expect(item.dropZone()).toBeNull();
   });
 });
