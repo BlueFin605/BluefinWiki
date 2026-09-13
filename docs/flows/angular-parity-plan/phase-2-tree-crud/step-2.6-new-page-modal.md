@@ -26,10 +26,14 @@
   and passes it as `parentPageType`. The modal scopes the type `<select>` to
   `GET /page-types/:parentType/allowed-children`. When exactly one type is
   allowed **and** untyped wiki pages are disallowed → auto-select it.
-- On submit, build `properties`:
+- On submit, build `properties` via a **union merge** (decision, 2026-09-13,
+  after task review — see `buildInheritedProperties`/`mergeSchema` reuse):
   - start from the chosen type's schema defaults,
   - overlay any parent property whose name **and** type match,
-  - include the result in the `CreatePageRequest`.
+  - **also carry through any other parent property not in the new type's
+    schema, unchanged** (matches `mergeSchema`'s existing union-merge
+    contract, reused as-is rather than re-scoped to schema fields only) —
+    include the result in the `CreatePageRequest`.
 - Send `content = "# ${title}\n\nStart writing…"` **unless** verification shows
   the backend already seeds page content — check `POST /api/pages` behaviour
   and note the finding in the PR. If the backend seeds it, skip and document.
