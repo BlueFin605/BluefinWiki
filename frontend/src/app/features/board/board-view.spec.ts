@@ -781,6 +781,103 @@ describe('BoardView', () => {
     await settle();
   });
 
+  it('cross-column drop still PUTs the mover\'s state when its own renumbered boardOrder coincidentally equals its pre-drop value', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-coincidence' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    // Destination column "Done" has a tight gap (1000/1001) that forces the
+    // renumber fallback. Inserted at index 1, the mover renumbers to 2000 —
+    // which happens to be exactly the boardOrder it already carried from its
+    // PREVIOUS column ("Backlog"), the fix wave 1 filter's blind spot: the
+    // renumber result omits the mover entirely even though its `state` is
+    // changing. cardX (1000 -> 1000) is likewise omitted since it doesn't
+    // move; cardY (1001 -> 3000) genuinely changes and stays in.
+    const cardX = card({
+      guid: 'card-x', title: 'Card X', boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'Done' } },
+    });
+    const cardY = card({
+      guid: 'card-y', title: 'Card Y', boardOrder: 1001,
+      properties: { state: { type: 'string', value: 'Done' } },
+    });
+    const mover = card({
+      guid: 'card-coincidence', title: 'Coincidence Card', boardOrder: 2000,
+      properties: { state: { type: 'string', value: 'Backlog' } },
+    });
+    http.expectOne('/api/pages/parent-coincidence/children?include=properties&limit=200').flush({
+      children: [cardX, cardY, mover],
+      hasMore: false,
+    });
+    await settle();
+    expect(columnCount('Backlog')).toBe('1');
+    expect(columnCount('Done')).toBe('2');
+
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: mover, targetState: 'Done', targetIndex: 1 });
+    await settle();
+
+    // The card visually moved into "Done" even though its own boardOrder
+    // was filtered as "unchanged" — this is the regression: without the
+    // fix, the mover is skipped by both the optimistic patch and the PUT
+    // loop, so it silently stays put. "Backlog" is now empty and (being
+    // unconfigured) disappears entirely, same as other tests' empty-column
+    // assertions.
+    expect(screen.queryByText('Backlog')).not.toBeInTheDocument();
+    expect(columnCount('Done')).toBe('3');
+
+    // card-x didn't move — no PUT for it.
+    http.expectNone('/api/pages/card-x');
+
+    const reqY = http.expectOne('/api/pages/card-y');
+    expect(reqY.request.body).toEqual({ boardOrder: 3000 });
+
+    // The mover's PUT must still fire, carrying the `state` change. Its own
+    // boardOrder genuinely didn't change (2000 -> 2000), so the body must
+    // NOT carry a boardOrder field — only `properties`.
+    const reqMover = http.expectOne('/api/pages/card-coincidence');
+    const moverBody = reqMover.request.body as {
+      boardOrder?: number;
+      properties: Record<string, { type: string; value: unknown }>;
+    };
+    expect(moverBody.boardOrder).toBeUndefined();
+    expect(moverBody.properties.state).toEqual({ type: 'string', value: 'Done' });
+
+    reqY.flush({
+      guid: 'card-y', title: 'Card Y', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    reqMover.flush({
+      guid: 'card-coincidence', title: 'Coincidence Card', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+
+    const pending = http
+      .match('/api/pages/parent-coincidence/children?include=properties&limit=200')
+      .filter((req) => !req.cancelled);
+    for (const req of pending) {
+      req.flush({
+        children: [
+          cardX,
+          { ...cardY, boardOrder: 3000 },
+          { ...mover, properties: { state: { type: 'string', value: 'Done' } } },
+        ],
+        hasMore: false,
+      });
+    }
+    await settle();
+
+    expect(columnCount('Done')).toBe('3');
+    expect(screen.queryByText('Backlog')).not.toBeInTheDocument();
+  });
+
   it('rolls back only the cards whose PUT failed in a renumber batch', async () => {
     const { fixture } = await render(BoardView, {
       providers: baseProviders(),

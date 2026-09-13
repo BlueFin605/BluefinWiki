@@ -254,6 +254,22 @@ export class BoardView {
         : result.renumber.map((r) => [r.guid, r.value] as const),
     );
 
+    // `boardOrderByGuid` now governs ONLY whether a guid's PUT body carries a
+    // `boardOrder` field — it is not the full set of guids that need a PUT.
+    // The renumber fallback (fix wave 1) omits a card from its result when
+    // that card's renumbered value happens to equal its current
+    // `boardOrder`, so the mover can legitimately be absent from
+    // `boardOrderByGuid` even on a cross-column drop: two columns sharing
+    // the same base-1000 sequential convention make it plausible for the
+    // mover's freshly renumbered slot in the destination column to
+    // coincidentally match the value it already carried from its PREVIOUS
+    // column. When that happens the mover's `state` change must still reach
+    // the server — dropped entirely was fix wave 2's regression. So the
+    // mover is always affected when `stateChanged`, regardless of whether
+    // its `boardOrder` component survived the renumber filter.
+    const affectedGuids = new Set(boardOrderByGuid.keys());
+    if (stateChanged) affectedGuids.add(card.guid);
+
     // Optimistic move: patch every affected card's local model immediately,
     // before any PUT resolves, per the React reference behaviour. Capture
     // the generation token *before* mutating — see the comment further down
@@ -262,23 +278,25 @@ export class BoardView {
     const priors = new Map<string, PageChildDetail>();
     this.accumulated.update((cards) =>
       cards.map((c) => {
-        const boardOrder = boardOrderByGuid.get(c.guid);
-        if (boardOrder === undefined) return c;
+        if (!affectedGuids.has(c.guid)) return c;
         priors.set(c.guid, c);
         const isMover = c.guid === card.guid;
+        const boardOrder = boardOrderByGuid.get(c.guid);
         return {
           ...c,
-          boardOrder,
+          ...(boardOrder !== undefined ? { boardOrder } : {}),
           ...(isMover && moverProperties ? { properties: moverProperties } : {}),
         };
       }),
     );
 
-    const entries = [...boardOrderByGuid.entries()];
+    const entries = [...affectedGuids];
     const settled = await Promise.allSettled(
-      entries.map(([guid, boardOrder]) => {
+      entries.map((guid) => {
         const isMover = guid === card.guid;
-        const body: UpdatePageRequest = { boardOrder };
+        const boardOrder = boardOrderByGuid.get(guid);
+        const body: UpdatePageRequest = {};
+        if (boardOrder !== undefined) body.boardOrder = boardOrder;
         if (isMover && moverProperties) body.properties = moverProperties;
         return this.pages.updatePage(guid, body);
       }),
@@ -291,7 +309,7 @@ export class BoardView {
     // visible jump when the reset lands.
 
     const failures = settled
-      .map((r, i) => ({ r, guid: entries[i][0] }))
+      .map((r, i) => ({ r, guid: entries[i] }))
       .filter((x): x is { r: PromiseRejectedResult; guid: string } => x.r.status === 'rejected');
     if (failures.length === 0) return;
 
