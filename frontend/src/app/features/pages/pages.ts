@@ -223,18 +223,44 @@ export class Pages {
         if (!params.parentGuid) {
           throw new Error('childrenWithPropertiesResource: parentGuid is null');
         }
-        const qs = new URLSearchParams();
-        qs.set('include', 'properties');
-        const opts = params.opts;
-        if (opts.targetTypeGuid) qs.set('type', opts.targetTypeGuid);
-        if (opts.depth !== undefined) qs.set('depth', String(opts.depth));
-        if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
-        if (opts.cursor) qs.set('cursor', opts.cursor);
         return this.http.get<ChildrenWithPropertiesResponse>(
-          `/api/pages/${params.parentGuid}/children?${qs.toString()}`,
+          this.childrenWithPropertiesUrl(params.parentGuid, params.opts),
         );
       },
     });
+  }
+
+  /**
+   * Imperative children-with-properties fetch — used by the Board view to
+   * load subsequent pages ("Load more cards", step 5.2). `rxResource` has no
+   * built-in accumulation primitive, so the consumer keeps its own
+   * `PageChildDetail[]` accumulator and drives paging through this method
+   * (passing the previous response's `nextCursor` as `options.cursor`)
+   * rather than through the resource above, which always fetches page one.
+   * Read-only: bumps no invalidation tag.
+   */
+  async fetchChildrenWithProperties(
+    parentGuid: string,
+    options: ChildrenWithPropertiesOptions,
+  ): Promise<ChildrenWithPropertiesResponse> {
+    return firstValueFrom(
+      this.http.get<ChildrenWithPropertiesResponse>(
+        this.childrenWithPropertiesUrl(parentGuid, options),
+      ),
+    );
+  }
+
+  private childrenWithPropertiesUrl(
+    parentGuid: string,
+    opts: ChildrenWithPropertiesOptions,
+  ): string {
+    const qs = new URLSearchParams();
+    qs.set('include', 'properties');
+    if (opts.targetTypeGuid) qs.set('type', opts.targetTypeGuid);
+    if (opts.depth !== undefined) qs.set('depth', String(opts.depth));
+    if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
+    if (opts.cursor) qs.set('cursor', opts.cursor);
+    return `/api/pages/${parentGuid}/children?${qs.toString()}`;
   }
 
   /**

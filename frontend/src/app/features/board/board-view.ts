@@ -1,5 +1,13 @@
 import { CdkDropListGroup } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Pages, type ChildrenWithPropertiesOptions } from '../pages/pages';
@@ -30,35 +38,70 @@ import type {
     } @else if (childrenResource.error()) {
       <div class="state error">Failed to load board.</div>
     } @else {
-      <div cdkDropListGroup class="board-cols">
-        @for (col of grouping().columns; track col) {
-          <wiki-board-column
-            [name]="col"
-            [color]="columnColor(col)"
-            [cards]="grouping().cardsByColumn[col] ?? []"
-            [pageTypesMap]="pageTypesMap()"
-            [swapTitles]="boardConfig()?.swapTitles ?? false"
-            (cardDropped)="onCardDropped($event)"
-            (cardClick)="onCardClick($event)"
-          />
-        } @empty {
-          <div class="state">No items to display on the board.</div>
+      <div class="board-body">
+        <div cdkDropListGroup class="board-cols">
+          @for (col of grouping().columns; track col) {
+            <wiki-board-column
+              [name]="col"
+              [color]="columnColor(col)"
+              [cards]="grouping().cardsByColumn[col] ?? []"
+              [pageTypesMap]="pageTypesMap()"
+              [swapTitles]="boardConfig()?.swapTitles ?? false"
+              (cardDropped)="onCardDropped($event)"
+              (cardClick)="onCardClick($event)"
+            />
+          } @empty {
+            <div class="state">No items to display on the board.</div>
+          }
+        </div>
+        @if (hasMoreCards()) {
+          <div class="load-more">
+            <button
+              type="button"
+              class="load-more-btn"
+              [disabled]="loadingMore()"
+              (click)="onLoadMore()"
+            >
+              {{ loadingMore() ? 'Loading…' : 'Load more cards' }}
+            </button>
+          </div>
         }
       </div>
     }
   `,
   styles: [`
     :host { display: block; height: 100%; }
+    .board-body {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
     .board-cols {
       display: flex;
       gap: 1rem;
       padding: 1rem;
       overflow-x: auto;
       overflow-y: hidden;
-      height: 100%;
+      flex: 1;
     }
     .state { padding: 2rem; color: #6b7280; }
     .state.error { color: #b91c1c; }
+    .load-more {
+      display: flex;
+      justify-content: center;
+      padding: 0 1rem 1rem;
+    }
+    .load-more-btn {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      background: #fff;
+      cursor: pointer;
+    }
+    .load-more-btn:disabled {
+      cursor: default;
+      opacity: 0.7;
+    }
   `],
 })
 export class BoardView {
@@ -82,6 +125,29 @@ export class BoardView {
   readonly childrenResource = this.pages.childrenWithPropertiesResource(this.parentGuidSig, this.options);
   readonly pageTypesResource = this.pageTypes.pageTypesResource();
 
+  // The resource above always fetches page one (it re-fetches on parentGuid /
+  // options change and on invalidation-bus bumps). "Load more cards" pages
+  // beyond that imperatively via `pages.fetchChildrenWithProperties` and
+  // appends into this accumulator, which is what `grouping` reads from.
+  private readonly accumulated = signal<PageChildDetail[]>([]);
+  private readonly nextCursor = signal<string | null>(null);
+  protected readonly hasMoreCards = signal(false);
+  protected readonly loadingMore = signal(false);
+
+  constructor() {
+    // Reset the accumulator every time the resource resolves a fresh page
+    // one — a parentGuid/targetTypeGuid/depth change or an invalidation bump
+    // (e.g. step 1.2's `children:<parent>`) always re-fetches page one, so
+    // resetting here covers both without a separate watcher.
+    effect(() => {
+      if (this.childrenResource.status() !== 'resolved') return;
+      const value = this.childrenResource.value();
+      this.accumulated.set(value?.children ?? []);
+      this.nextCursor.set(value?.nextCursor ?? null);
+      this.hasMoreCards.set(value?.hasMore === true);
+    });
+  }
+
   protected readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() => {
     if (this.pageTypesResource.status() !== 'resolved') return {};
     const list = this.pageTypesResource.value() ?? [];
@@ -89,10 +155,7 @@ export class BoardView {
   });
 
   protected readonly grouping = computed(() => {
-    const children = this.childrenResource.status() === 'resolved'
-      ? (this.childrenResource.value()?.children ?? [])
-      : [];
-    return groupByState(children, this.boardConfig() ?? undefined);
+    return groupByState(this.accumulated(), this.boardConfig() ?? undefined);
   });
 
   protected columnColor(name: string): string {
@@ -121,5 +184,23 @@ export class BoardView {
     const pageType = card.pageType ? this.pageTypesMap()[card.pageType] ?? null : null;
     const data: CardSummaryDialogData = { card, pageType };
     this.dialog.open(CardSummaryDialog, { data });
+  }
+
+  async onLoadMore(): Promise<void> {
+    const cursor = this.nextCursor();
+    const parentGuid = this.parentGuidSig();
+    if (!cursor || !parentGuid || this.loadingMore()) return;
+    this.loadingMore.set(true);
+    try {
+      const response = await this.pages.fetchChildrenWithProperties(parentGuid, {
+        ...(this.options() ?? {}),
+        cursor,
+      });
+      this.accumulated.update((current) => [...current, ...(response.children ?? [])]);
+      this.nextCursor.set(response.nextCursor ?? null);
+      this.hasMoreCards.set(response.hasMore === true);
+    } finally {
+      this.loadingMore.set(false);
+    }
   }
 }

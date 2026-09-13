@@ -163,4 +163,130 @@ describe('BoardView', () => {
     await instance.onCardDropped({ card: sameCard, targetState: 'To Do' });
     http.expectNone('/api/pages/same');
   });
+
+  it('shows a "Load more cards" button when hasMore is true, and none when false', async () => {
+    await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-more' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-more/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+
+    expect(screen.getByRole('button', { name: /load more cards/i })).toBeInTheDocument();
+  });
+
+  it('omits the "Load more cards" button when hasMore is false', async () => {
+    await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-no-more' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-no-more/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: false,
+    });
+    await settle();
+
+    expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
+  });
+
+  it('clicking "Load more cards" fetches with nextCursor and appends the result', async () => {
+    await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-load' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-load/children?include=properties&limit=200').flush({
+      children: [
+        card({ guid: 'a', title: 'Card A', properties: { state: { type: 'string', value: 'To Do' } } }),
+      ],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+
+    screen.getByRole('button', { name: /load more cards/i }).click();
+    await settle();
+
+    const nextReq = http.expectOne(
+      '/api/pages/parent-load/children?include=properties&limit=200&cursor=cursor-1',
+    );
+    nextReq.flush({
+      children: [
+        card({ guid: 'b', title: 'Card B', properties: { state: { type: 'string', value: 'Done' } } }),
+      ],
+      hasMore: false,
+    });
+    await settle();
+
+    expect(screen.getByRole('button', { name: /card a/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /card b/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a loading state on the button while fetching the next page', async () => {
+    await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-loading-more' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-loading-more/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+
+    screen.getByRole('button', { name: /load more cards/i }).click();
+    await settle();
+
+    expect(screen.getByRole('button', { name: /loading/i })).toBeInTheDocument();
+
+    const nextReq = http.expectOne(
+      '/api/pages/parent-loading-more/children?include=properties&limit=200&cursor=cursor-1',
+    );
+    nextReq.flush({ children: [], hasMore: false });
+    await settle();
+  });
+
+  it('resets the accumulator when the parent changes', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-reset-a' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-reset-a/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+    expect(screen.getByRole('button', { name: /card a/i })).toBeInTheDocument();
+
+    fixture.componentRef.setInput('parentGuid', 'parent-reset-b');
+    await settle();
+    http.expectOne('/api/pages/parent-reset-b/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'c', title: 'Card C' })],
+      hasMore: false,
+    });
+    await settle();
+
+    expect(screen.queryByRole('button', { name: /card a/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /card c/i })).toBeInTheDocument();
+  });
 });
