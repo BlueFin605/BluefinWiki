@@ -100,6 +100,27 @@ describe('PageTypes service', () => {
 
       expect(list.value()).toEqual([]);
     });
+
+    it('skips the fetch while the optional enabled gate is false', async () => {
+      const enabled = signal(false);
+      TestBed.runInInjectionContext(() => pageTypes.pageTypesResource(enabled));
+      await settle();
+      http.expectNone(() => true);
+    });
+
+    it('fetches once the enabled gate flips true', async () => {
+      const enabled = signal(false);
+      const resource = TestBed.runInInjectionContext(() => pageTypes.pageTypesResource(enabled));
+      await settle();
+      http.expectNone(() => true);
+
+      enabled.set(true);
+      await settle();
+      http.expectOne('/api/page-types').flush({ pageTypes: [pageType({ guid: 'a' })] });
+      await settle();
+
+      expect(resource.value()?.[0].guid).toBe('a');
+    });
   });
 
   describe('pageTypeResource', () => {

@@ -39,14 +39,32 @@ export class PageTypes {
   private readonly http = inject(HttpClient);
   private readonly bus = inject(InvalidationBus);
 
-  /** All defined page types. Keys on `page-types:list`. */
-  pageTypesResource() {
+  /**
+   * All defined page types. Keys on `page-types:list`.
+   *
+   * `enabled` is an optional gate signal (default: always enabled) — pass
+   * `() => false` to suspend the fetch entirely, e.g. while a consumer that
+   * only needs the list in one of several modes is mounted in another. Mirrors
+   * the `SKIP_*_FETCH` sentinel convention used elsewhere in this file: the
+   * `stream` throws while disabled, which resolves the resource to `error`
+   * status rather than firing the request — callers that already branch on
+   * `status() !== 'resolved'` (e.g. `.value() ?? []`) treat that identically
+   * to "not loaded yet".
+   */
+  pageTypesResource(enabled?: Signal<boolean>) {
     return rxResource({
-      params: () => this.bus.version(pageTypesListTag()),
-      stream: () =>
-        this.http
+      params: () => ({
+        v: this.bus.version(pageTypesListTag()),
+        enabled: enabled ? enabled() : true,
+      }),
+      stream: ({ params }) => {
+        if (!params.enabled) {
+          throw new Error('pageTypesResource: fetch disabled');
+        }
+        return this.http
           .get<{ pageTypes: PageTypeDefinition[] }>('/api/page-types')
-          .pipe(map((r) => r.pageTypes ?? [])),
+          .pipe(map((r) => r.pageTypes ?? []));
+      },
     });
   }
 

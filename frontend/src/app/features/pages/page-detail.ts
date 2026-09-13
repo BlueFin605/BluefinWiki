@@ -572,8 +572,16 @@ export class PageDetail {
     return this.resource.value()?.boardConfig ?? null;
   });
 
-  /** All defined page types, keyed by guid — feeds {@link boardEligible}'s child-state check. */
-  private readonly pageTypesResource = this.pageTypes.pageTypesResource();
+  /**
+   * All defined page types, keyed by guid — feeds {@link boardEligible}'s
+   * child-state check, which only matters for the Content|Board toggle
+   * (`mode() === 'view'`). Gated on view mode so mounting `/pages/:guid/edit`
+   * doesn't fire a `GET /api/page-types` this component has no use for there
+   * (the inspector's Properties panel fetches its own copy independently
+   * whenever a type-picker is actually shown).
+   */
+  private readonly pageTypesEnabled = computed<boolean>(() => this.mode() === 'view');
+  private readonly pageTypesResource = this.pageTypes.pageTypesResource(this.pageTypesEnabled);
   private readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() => {
     if (this.pageTypesResource.status() !== 'resolved') return {};
     const list = this.pageTypesResource.value() ?? [];

@@ -482,6 +482,17 @@ describe('PageDetail', () => {
     expect(screen.queryByRole('radio', { name: /^board$/i })).toBeNull();
   });
 
+  it('does not fetch page types when the page is in edit mode', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+    // Board eligibility (and its `/api/page-types` fetch) only matters for the
+    // view-mode Content|Board toggle — mounting the edit route should not pay
+    // for it.
+    http.expectNone('/api/page-types');
+  });
+
   it('clears a stale editor-crash panel when a fresh page resolves', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     const state = TestBed.inject(EditorErrorState);
