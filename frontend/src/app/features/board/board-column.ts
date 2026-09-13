@@ -32,6 +32,7 @@ import type { PageChildDetail, PageTypeDefinition } from '../pages/page.types';
             [card]="card"
             [pageTypesMap]="pageTypesMap()"
             [swapTitles]="swapTitles()"
+            [showParentTitle]="showParentTitle()"
             (cardClick)="cardClick.emit($event)"
           />
         } @empty {
@@ -95,6 +96,7 @@ export class BoardColumn {
   readonly cards = input.required<PageChildDetail[]>();
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
   readonly swapTitles = input<boolean>(false);
+  readonly showParentTitle = input<boolean>(true);
 
   readonly cardDropped = output<{ card: PageChildDetail; targetState: string }>();
   readonly cardClick = output<PageChildDetail>();

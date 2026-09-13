@@ -164,6 +164,56 @@ describe('BoardView', () => {
     http.expectNone('/api/pages/same');
   });
 
+  it('hides the parent subtitle on cards when boardConfig.showParentTitle is false', async () => {
+    await render(BoardView, {
+      providers: baseProviders(),
+      inputs: {
+        parentGuid: 'parent-no-parent-title',
+        boardConfig: { showParentTitle: false },
+      },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-no-parent-title/children?include=properties&limit=200').flush({
+      children: [
+        card({
+          guid: 'a',
+          title: 'Card A',
+          parentTitle: 'Parent A',
+          properties: { state: { type: 'string', value: 'To Do' } },
+        }),
+      ],
+      hasMore: false,
+    });
+    await settle();
+    expect(screen.getByRole('button', { name: /card a/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('board-card-secondary')).not.toBeInTheDocument();
+  });
+
+  it('shows the parent subtitle on cards by default when boardConfig.showParentTitle is unset', async () => {
+    await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-default-parent-title' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-default-parent-title/children?include=properties&limit=200').flush({
+      children: [
+        card({
+          guid: 'a',
+          title: 'Card A',
+          parentTitle: 'Parent A',
+          properties: { state: { type: 'string', value: 'To Do' } },
+        }),
+      ],
+      hasMore: false,
+    });
+    await settle();
+    expect(screen.getByTestId('board-card-secondary')).toHaveTextContent('Parent A');
+  });
+
   it('shows a "Load more cards" button when hasMore is true, and none when false', async () => {
     await render(BoardView, {
       providers: baseProviders(),

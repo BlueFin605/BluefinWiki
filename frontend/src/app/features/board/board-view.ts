@@ -47,6 +47,7 @@ import type {
               [cards]="grouping().cardsByColumn[col] ?? []"
               [pageTypesMap]="pageTypesMap()"
               [swapTitles]="boardConfig()?.swapTitles ?? false"
+              [showParentTitle]="boardConfig()?.showParentTitle ?? true"
               (cardDropped)="onCardDropped($event)"
               (cardClick)="onCardClick($event)"
             />

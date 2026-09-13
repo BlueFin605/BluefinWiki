@@ -90,6 +90,32 @@ describe('BoardColumn', () => {
     expect(events).toEqual([{ card: draggedCard, targetState: 'Done' }]);
   });
 
+  it('passes showParentTitle through to board-card, hiding the parent subtitle when false', async () => {
+    await render(BoardColumn, {
+      inputs: {
+        name: 'X',
+        color: '#000',
+        cards: [card({ guid: 'a', title: 'Card A', parentTitle: 'Parent A' })],
+        showParentTitle: false,
+      },
+    });
+    await settle();
+    expect(screen.getByRole('button', { name: /card a/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('board-card-secondary')).not.toBeInTheDocument();
+  });
+
+  it('shows the parent subtitle by default (showParentTitle defaults to true)', async () => {
+    await render(BoardColumn, {
+      inputs: {
+        name: 'X',
+        color: '#000',
+        cards: [card({ guid: 'a', title: 'Card A', parentTitle: 'Parent A' })],
+      },
+    });
+    await settle();
+    expect(screen.getByTestId('board-card-secondary')).toHaveTextContent('Parent A');
+  });
+
   it('bubbles cardClick from a child board-card', async () => {
     const clicked: PageChildDetail[] = [];
     await render(BoardColumn, {
