@@ -9,6 +9,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { convertToParamMap, type ParamMap } from '@angular/router';
 import { By } from '@angular/platform-browser';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { BehaviorSubject, of } from 'rxjs';
 
 jest.mock('mermaid', () => ({
@@ -1584,6 +1586,194 @@ describe('PageDetail', () => {
     fixture.detectChanges();
     await settle();
     expect(tocCmp.compact()).toBe(false);
+  });
+
+  // ---- Step 2.7: Create-Page-from-Link source-markdown rewrite -----------
+
+  interface BrokenLinkResult { newGuid: string; linkText: string; originalTarget: string }
+  interface BrokenLinkHandle {
+    onBrokenLink: (e: { target: string; displayText: string }) => Promise<void>;
+  }
+
+  function stubBrokenLinkDialog(result: BrokenLinkResult | null): jest.SpyInstance {
+    const dialog = TestBed.inject(MatDialog);
+    return jest.spyOn(dialog, 'open').mockReturnValue({ afterClosed: () => of(result) } as never);
+  }
+
+  it('rewrites [[target]] to [[newGuid|target]] via a CM transaction and marks the buffer dirty', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Ghost Page]] here.' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    stubBrokenLinkDialog({ newGuid: 'new-guid', linkText: 'Ghost Page', originalTarget: 'Ghost Page' });
+    const ed = (
+      fixture.componentInstance as unknown as { editor: () => { replaceRange: (...a: unknown[]) => void } }
+    ).editor();
+    const replaceSpy = jest.spyOn(ed, 'replaceRange');
+
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost Page',
+      displayText: 'Ghost Page',
+    });
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toBe('See [[new-guid|Ghost Page]] here.');
+    // A multi-occurrence rewrite can't be expressed as one CodeMirror range,
+    // so the whole buffer is swapped in a single `replaceRange` call — one
+    // dispatch, one undo step — rather than per-occurrence dispatches.
+    expect(replaceSpy).toHaveBeenCalledTimes(1);
+    expect(replaceSpy).toHaveBeenCalledWith(0, 'See [[Ghost Page]] here.'.length, 'See [[new-guid|Ghost Page]] here.');
+    expect((fixture.componentInstance as unknown as { dirty: () => boolean }).dirty()).toBe(true);
+  });
+
+  it('rewrites every occurrence of a repeated broken target', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      content: '[[Ghost]] and again [[Ghost|alias]].',
+    });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    stubBrokenLinkDialog({ newGuid: 'new-guid', linkText: 'Ghost', originalTarget: 'Ghost' });
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost',
+      displayText: 'Ghost',
+    });
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toBe('[[new-guid|Ghost]] and again [[new-guid|alias]].');
+  });
+
+  it('leaves a different [[target]] untouched', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '[[Ghost]] and [[Other]].' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    stubBrokenLinkDialog({ newGuid: 'new-guid', linkText: 'Ghost', originalTarget: 'Ghost' });
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost',
+      displayText: 'Ghost',
+    });
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toBe('[[new-guid|Ghost]] and [[Other]].');
+  });
+
+  it('shows the "save the page" hint via the snackbar after a successful rewrite', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Ghost Page]] here.' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    stubBrokenLinkDialog({ newGuid: 'new-guid', linkText: 'Ghost Page', originalTarget: 'Ghost Page' });
+    const snack = TestBed.inject(MatSnackBar);
+    const snackSpy = jest.spyOn(snack, 'open').mockReturnValue({} as never);
+
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost Page',
+      displayText: 'Ghost Page',
+    });
+    await settle();
+
+    expect(snackSpy).toHaveBeenCalledWith(
+      'Link updated — save the page to keep the change.',
+      'Dismiss',
+      { duration: 4000 },
+    );
+  });
+
+  it('does not auto-save after the rewrite — no PUT is fired', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Ghost Page]] here.' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    stubBrokenLinkDialog({ newGuid: 'new-guid', linkText: 'Ghost Page', originalTarget: 'Ghost Page' });
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost Page',
+      displayText: 'Ghost Page',
+    });
+    await settle();
+
+    expect(http.match((req) => req.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('does nothing when the modal is cancelled (result is null)', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Ghost Page]] here.' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    stubBrokenLinkDialog(null);
+    const snack = TestBed.inject(MatSnackBar);
+    const snackSpy = jest.spyOn(snack, 'open').mockReturnValue({} as never);
+
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost Page',
+      displayText: 'Ghost Page',
+    });
+    await settle();
+
+    expect(fixture.componentInstance.content()).toBe('See [[Ghost Page]] here.');
+    expect(snackSpy).not.toHaveBeenCalled();
+  });
+
+  it('rewrites the buffer directly (no CM dispatch) when CodeMirror is unmounted in Preview', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Ghost Page]] here.' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Preview' }));
+    fixture.detectChanges();
+    await settle();
+    expect((fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror')).toBeNull();
+
+    stubBrokenLinkDialog({ newGuid: 'new-guid', linkText: 'Ghost Page', originalTarget: 'Ghost Page' });
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost Page',
+      displayText: 'Ghost Page',
+    });
+    await settle();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.content()).toBe('See [[new-guid|Ghost Page]] here.');
+  });
+
+  it('passes the raw wiki-link target (not the display text) as originalTarget to the modal', async () => {
+    const { http, fixture } = await renderDetail({ editMode: true });
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, content: 'See [[Ghost Page|alias]] here.' });
+    await settle();
+    fixture.detectChanges();
+    await settle();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(null) } as never);
+
+    await (fixture.componentInstance as unknown as BrokenLinkHandle).onBrokenLink({
+      target: 'Ghost Page',
+      displayText: 'alias',
+    });
+    await settle();
+
+    const call = openSpy.mock.calls[0] as [unknown, { data: { target: string; originalTarget: string } }];
+    expect(call[1].data.target).toBe('alias');
+    expect(call[1].data.originalTarget).toBe('Ghost Page');
   });
 });
 

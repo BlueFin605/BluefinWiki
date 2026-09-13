@@ -41,7 +41,12 @@ import { PageContext } from './page-context';
 import { PageTypes } from '../page-types/page-types';
 import { BoardView } from '../board/board-view';
 import { BoardSettingsPanel, type BoardSettingsPanelData } from '../board/board-settings-panel';
-import { CreatePageFromLinkModal, type CreatePageFromLinkModalData } from './create-page-from-link-modal';
+import {
+  CreatePageFromLinkModal,
+  type CreatePageFromLinkModalData,
+  type CreatePageFromLinkResult,
+} from './create-page-from-link-modal';
+import { rewriteWikiLink } from '../../shared/markdown/rewrite-wiki-link';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import type { BoardConfig, PageContent } from './page.types';
@@ -1144,19 +1149,57 @@ export class PageDetail {
     );
   }
 
+  /**
+   * A broken `[[target]]` was clicked: offer to create the target page, then
+   * (on success) rewrite every `[[originalTarget]]` / `[[originalTarget|text]]`
+   * occurrence in the working buffer to `[[newGuid|text]]` — see
+   * {@link rewriteWikiLink}. `originalTarget` is `event.target` (the wiki-
+   * link's raw target), never `event.displayText` — the two differ whenever
+   * the clicked link carried explicit display text (`[[target|text]]`), and
+   * matching against the displayed text would miss the actual link token.
+   *
+   * No auto-save (React parity): only the in-memory buffer changes here; the
+   * user saves manually, same as {@link setFirstH1} / {@link onImageResize}.
+   */
   async onBrokenLink(event: WikiBrokenLinkEvent): Promise<void> {
     const data: CreatePageFromLinkModalData = {
       target: event.displayText || event.target,
       parentGuid: this.guid(),
+      originalTarget: event.target,
     };
-    const ref = this.dialog.open<CreatePageFromLinkModal, CreatePageFromLinkModalData, string | null>(
+    const ref = this.dialog.open<CreatePageFromLinkModal, CreatePageFromLinkModalData, CreatePageFromLinkResult | null>(
       CreatePageFromLinkModal,
       { data },
     );
-    await firstValueFrom(ref.afterClosed());
-    // TODO(2.7): the modal resolves with the created page's guid on success —
-    // rewrite the [[target]] token to [[<newGuid>]] in the buffer after
-    // successful create (the source-markdown rewrite is step 2.7's job).
+    const result = await firstValueFrom(ref.afterClosed());
+    if (!result) return;
+
+    const current = this.content();
+    const next = rewriteWikiLink(current, result.originalTarget, result.newGuid);
+    if (next === current) return;
+
+    try {
+      const ed = this.editor();
+      const view = ed?.getView();
+      if (ed && view) {
+        // A link rewrite can touch multiple, non-contiguous occurrences —
+        // unlike setFirstH1's single-heading range, that can't be expressed
+        // as one `[from, to)` span. Swapping the whole document still lands
+        // as a single `view.dispatch` (one coherent undo step), mirroring the
+        // external-content sync in WikiCodemirror's own `value` effect.
+        ed.replaceRange(0, current.length, next);
+      } else {
+        // No CodeMirror view (Preview sub-mode) — rewrite the buffer signal
+        // directly, mirroring onImageResize/setFirstH1's fallback. Does NOT
+        // enter CodeMirror's undo history.
+        this.content.set(next);
+      }
+    } catch (err) {
+      this.errorState.setError(this.editorErrMessage(err));
+      return;
+    }
+
+    this.snack.open('Link updated — save the page to keep the change.', 'Dismiss', { duration: 4000 });
   }
 
   async openBoardSettings(): Promise<void> {
