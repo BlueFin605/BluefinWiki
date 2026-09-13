@@ -289,4 +289,75 @@ describe('BoardView', () => {
     expect(screen.queryByRole('button', { name: /card a/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /card c/i })).toBeInTheDocument();
   });
+
+  it('discards a stale "Load more" response when a reset lands while it is in flight', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-race' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    const draggedCard = card({
+      guid: 'card-race',
+      title: 'Race Card',
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    http.expectOne('/api/pages/parent-race/children?include=properties&limit=200').flush({
+      children: [draggedCard],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+
+    // Start "Load more" (request A) but do not resolve it yet.
+    const instance = fixture.componentInstance;
+    const loadMorePromise = instance.onLoadMore();
+    await settle();
+    const loadMoreReq = http.expectOne(
+      '/api/pages/parent-race/children?include=properties&limit=200&cursor=cursor-1',
+    );
+
+    // Before A resolves, something elsewhere bumps the coarse `children:any`
+    // invalidation tag (e.g. dragging a card into a new column calls
+    // updatePage) — this re-fetches page one and resets the accumulator.
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    await settle();
+    const updateReq = http.expectOne('/api/pages/card-race');
+    updateReq.flush({
+      guid: 'card-race', title: 'Race Card', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+
+    const freshReq = http.expectOne('/api/pages/parent-race/children?include=properties&limit=200');
+    freshReq.flush({
+      children: [card({ guid: 'fresh', title: 'Fresh Card' })],
+      hasMore: false,
+    });
+    await settle();
+
+    // The reset has already landed and won: fresh page one is shown, no
+    // "Load more" button (hasMore: false on the fresh response).
+    expect(screen.getByRole('button', { name: /fresh card/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
+
+    // Now the stale request A finally resolves.
+    loadMoreReq.flush({
+      children: [card({ guid: 'stale', title: 'Stale Card' })],
+      hasMore: true,
+      nextCursor: 'stale-cursor',
+    });
+    await loadMorePromise;
+    await settle();
+
+    // The stale response must be discarded silently: no stale card appended,
+    // and it must not resurrect the "Load more" button with its stale
+    // hasMore/nextCursor.
+    expect(screen.queryByRole('button', { name: /stale card/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /fresh card/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
+  });
 });

@@ -134,6 +134,17 @@ export class BoardView {
   protected readonly hasMoreCards = signal(false);
   protected readonly loadingMore = signal(false);
 
+  // Bumped every time the reset effect below runs (i.e. every time
+  // `childrenResource` resolves a fresh page one). `onLoadMore()` captures
+  // the current value before it starts its fetch and only applies the
+  // response if the generation is unchanged when it comes back — this closes
+  // the race where a reset (parent/config change, or an invalidation-bus
+  // bump such as `children:any`) lands while a "Load more" request is still
+  // in flight: without the guard, the in-flight response would overwrite the
+  // just-reset `nextCursor`/`hasMoreCards` with values computed against the
+  // stale pre-reset basis.
+  private readonly generation = signal(0);
+
   constructor() {
     // Reset the accumulator every time the resource resolves a fresh page
     // one — a parentGuid/targetTypeGuid/depth change or an invalidation bump
@@ -142,10 +153,29 @@ export class BoardView {
     effect(() => {
       if (this.childrenResource.status() !== 'resolved') return;
       const value = this.childrenResource.value();
-      this.accumulated.set(value?.children ?? []);
-      this.nextCursor.set(value?.nextCursor ?? null);
-      this.hasMoreCards.set(value?.hasMore === true);
+      this.generation.update((g) => g + 1);
+      this.applyPage(value ?? null, 'reset');
     });
+  }
+
+  /**
+   * Shared apply logic for both the reset effect and `onLoadMore()`: writes
+   * `nextCursor`/`hasMoreCards` from a page response, either replacing
+   * `accumulated` ('reset', fresh page one) or appending to it ('append', a
+   * "Load more" page).
+   */
+  private applyPage(
+    value: { children?: PageChildDetail[]; nextCursor?: string | null; hasMore?: boolean } | null,
+    mode: 'reset' | 'append',
+  ): void {
+    const children = value?.children ?? [];
+    if (mode === 'reset') {
+      this.accumulated.set(children);
+    } else {
+      this.accumulated.update((current) => [...current, ...children]);
+    }
+    this.nextCursor.set(value?.nextCursor ?? null);
+    this.hasMoreCards.set(value?.hasMore === true);
   }
 
   protected readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() => {
@@ -190,15 +220,20 @@ export class BoardView {
     const cursor = this.nextCursor();
     const parentGuid = this.parentGuidSig();
     if (!cursor || !parentGuid || this.loadingMore()) return;
+    // Capture the generation before the request goes out. If a reset (parent/
+    // config change, or an invalidation-bus bump) runs while this request is
+    // in flight, the generation will have moved on by the time the response
+    // arrives — discard it silently rather than appending stale-cursor data
+    // onto the freshly-reset accumulator.
+    const token = this.generation();
     this.loadingMore.set(true);
     try {
       const response = await this.pages.fetchChildrenWithProperties(parentGuid, {
         ...(this.options() ?? {}),
         cursor,
       });
-      this.accumulated.update((current) => [...current, ...(response.children ?? [])]);
-      this.nextCursor.set(response.nextCursor ?? null);
-      this.hasMoreCards.set(response.hasMore === true);
+      if (this.generation() !== token) return;
+      this.applyPage(response, 'append');
     } finally {
       this.loadingMore.set(false);
     }
