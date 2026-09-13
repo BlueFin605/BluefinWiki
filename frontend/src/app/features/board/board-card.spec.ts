@@ -64,6 +64,43 @@ describe('BoardCard', () => {
     expect(secondary.textContent).toBe('My Card');
   });
 
+  it('hides the parent subtitle when showParentTitle is false, even if parentTitle is set', async () => {
+    await render(BoardCard, {
+      inputs: {
+        card: card({ title: 'My Card', parentTitle: 'Parent Page' }),
+        showParentTitle: false,
+      },
+    });
+    await settle();
+    expect(screen.queryByTestId('board-card-secondary')).not.toBeInTheDocument();
+  });
+
+  it('shows the parent subtitle when showParentTitle is true', async () => {
+    await render(BoardCard, {
+      inputs: {
+        card: card({ title: 'My Card', parentTitle: 'Parent Page' }),
+        showParentTitle: true,
+      },
+    });
+    await settle();
+    expect(screen.getByTestId('board-card-secondary').textContent).toBe('Parent Page');
+  });
+
+  it('still swaps titles when showParentTitle is true and swapTitles is true', async () => {
+    await render(BoardCard, {
+      inputs: {
+        card: card({ title: 'My Card', parentTitle: 'Parent Page' }),
+        showParentTitle: true,
+        swapTitles: true,
+      },
+    });
+    await settle();
+    const primary = screen.getByTestId('board-card-primary');
+    const secondary = screen.getByTestId('board-card-secondary');
+    expect(primary.textContent).toBe('Parent Page');
+    expect(secondary.textContent).toBe('My Card');
+  });
+
   it('attaches the cdkDrag directive to the card root', async () => {
     const { container } = await render(BoardCard, {
       inputs: { card: card() },

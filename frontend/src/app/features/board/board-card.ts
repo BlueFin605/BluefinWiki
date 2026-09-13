@@ -35,7 +35,7 @@ interface DisplayProperty {
         }
         <div class="titles">
           <span class="primary" data-testid="board-card-primary">{{ primaryTitle() }}</span>
-          @if (secondaryTitle(); as sub) {
+          @if (showParentTitle() && secondaryTitle(); as sub) {
             <span class="secondary" data-testid="board-card-secondary">{{ sub }}</span>
           }
         </div>
@@ -77,6 +77,7 @@ export class BoardCard {
   readonly card = input.required<PageChildDetail>();
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
   readonly swapTitles = input<boolean>(false);
+  readonly showParentTitle = input<boolean>(true);
   readonly cardClick = output<PageChildDetail>();
 
   protected readonly icon = computed<string | null>(() => {
