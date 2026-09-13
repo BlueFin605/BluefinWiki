@@ -204,11 +204,75 @@ export class BoardView {
       ...(card.properties ?? {}),
       state: { type: 'string', value: targetState },
     };
+
+    // Optimistic move: patch the local model immediately so the card jumps
+    // columns before the PUT resolves, per the React reference behaviour.
+    // Capture the generation token *before* mutating — see the comment on
+    // `restoreCard` below for why a failure only rolls back when this token
+    // still matches.
+    const token = this.generation();
+    const prior = this.applyOptimisticCardUpdate(card.guid, { ...card, properties: merged });
+
     try {
       await this.pages.updatePage(card.guid, { properties: merged });
-    } catch {
-      this.snack.open(`Failed to move "${card.title}".`, 'Dismiss', { duration: 4000 });
+      // Success: `updatePage` bumps `children:any` (see its doc comment),
+      // which re-fetches page one and resets `accumulated` via the
+      // constructor effect above — that reconciles this card with the
+      // server's authoritative state. Nothing further to do here: the
+      // optimistic patch already shows the moved card in the meantime, so
+      // there's no visible jump when the reset lands.
+    } catch (err) {
+      // Only roll back the local model if nothing has reset the accumulator
+      // since we started the optimistic move (generation unchanged). If a
+      // reset landed in between — our own success path above, or an
+      // unrelated invalidation-bus bump elsewhere — `accumulated` has
+      // already been replaced wholesale with fresher server data; blindly
+      // restoring this stale snapshot over it would clobber that fresher
+      // state (or resurrect a card that a fresh fetch legitimately dropped,
+      // e.g. after a parentGuid change). The reset itself already reflects
+      // the server's true state for this card (our PUT never landed), so
+      // skipping the restore in that case is correct, not merely safe.
+      if (this.generation() === token && prior) {
+        this.restoreCard(prior);
+      }
+      const message = this.toMessage(err, 'Something went wrong.');
+      this.snack.open(`Couldn't move card — ${message}`, 'Dismiss', { duration: 4000 });
     }
+  }
+
+  /**
+   * Snapshots the current card with `guid` in `accumulated` and replaces it
+   * with `next`, for optimistic local updates that may need rollback (step
+   * 5.3 column DnD; step 5.4's positional reorder is expected to reuse this
+   * for its own optimistic `boardOrder` patch). Returns the prior card object
+   * so the caller can restore it verbatim via `restoreCard`, or `null` if no
+   * card with that guid was found (e.g. it was already removed by a
+   * concurrent reset).
+   */
+  private applyOptimisticCardUpdate(guid: string, next: PageChildDetail): PageChildDetail | null {
+    let prior: PageChildDetail | null = null;
+    this.accumulated.update((cards) =>
+      cards.map((c) => {
+        if (c.guid !== guid) return c;
+        prior = c;
+        return next;
+      }),
+    );
+    return prior;
+  }
+
+  /** Restores a card snapshot captured by `applyOptimisticCardUpdate`. */
+  private restoreCard(prior: PageChildDetail): void {
+    this.accumulated.update((cards) => cards.map((c) => (c.guid === prior.guid ? prior : c)));
+  }
+
+  private toMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'object' && err !== null && 'message' in err) {
+      const m = (err as { message?: unknown }).message;
+      if (typeof m === 'string') return m;
+    }
+    return fallback;
   }
 
   onCardClick(card: PageChildDetail): void {

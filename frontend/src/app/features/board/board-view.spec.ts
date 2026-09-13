@@ -1,11 +1,13 @@
 import { TestBed } from '@angular/core/testing';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { BoardView } from './board-view';
+import { errorInterceptor } from '../../core/api/error-interceptor';
 import type { PageChildDetail } from '../pages/page.types';
 
 function card(over: Partial<PageChildDetail> = {}): PageChildDetail {
@@ -31,7 +33,10 @@ function baseProviders() {
   return [
     provideAnimationsAsync(),
     provideRouter([]),
-    provideHttpClient(),
+    // errorInterceptor mirrors production (app.config.ts) so a failed PUT's
+    // body `message` surfaces the same way it does in the real app —
+    // needed to assert the toast text on rollback.
+    provideHttpClient(withInterceptors([errorInterceptor])),
     provideHttpClientTesting(),
   ];
 }
@@ -39,6 +44,12 @@ function baseProviders() {
 function flushPageTypes(http: HttpTestingController): void {
   const req = http.match('/api/page-types');
   for (const r of req) r.flush({ pageTypes: [] });
+}
+
+/** Reads the card count badge for the column whose header shows `name`. */
+function columnCount(name: string): string {
+  const header = screen.getByText(name).closest('.header') as HTMLElement;
+  return within(header).getByTestId('board-column-count').textContent?.trim() ?? '';
 }
 
 describe('BoardView', () => {
@@ -409,5 +420,176 @@ describe('BoardView', () => {
     expect(screen.queryByRole('button', { name: /stale card/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /fresh card/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
+  });
+
+  it('moves the card to the target column immediately on drop, and it stays after the PUT succeeds', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-optimistic' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    await settle();
+    flushPageTypes(http);
+
+    const draggedCard = card({
+      guid: 'card-opt',
+      title: 'Optimistic Card',
+      properties: {
+        state: { type: 'string', value: 'To Do' },
+        owner: { type: 'string', value: 'Dean' },
+      },
+    });
+    http.expectOne('/api/pages/parent-optimistic/children?include=properties&limit=200').flush({
+      children: [draggedCard],
+      hasMore: false,
+    });
+    await settle();
+    expect(columnCount('To Do')).toBe('1');
+
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    await settle();
+
+    // The card has already moved even though the PUT is still pending —
+    // the "To Do" column has no cards left in it (and disappears, since
+    // unconfigured empty columns aren't rendered) while "Done" shows it.
+    expect(screen.queryByText('To Do')).not.toBeInTheDocument();
+    expect(columnCount('Done')).toBe('1');
+    expect(screen.getByRole('button', { name: /optimistic card/i })).toBeInTheDocument();
+
+    const updateReq = http.expectOne('/api/pages/card-opt');
+    expect(updateReq.request.method).toBe('PUT');
+    const body = updateReq.request.body as {
+      properties: Record<string, { type: string; value: unknown }>;
+    };
+    expect(body.properties.state).toEqual({ type: 'string', value: 'Done' });
+    expect(body.properties.owner).toEqual({ type: 'string', value: 'Dean' });
+
+    updateReq.flush({
+      guid: 'card-opt', title: 'Optimistic Card', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+
+    // updatePage bumps children:any, so the board's children-with-properties
+    // resource re-requests page one — reconcile with the server's state
+    // without any visible jump (the optimistic move already showed "Done").
+    http.expectOne('/api/pages/parent-optimistic/children?include=properties&limit=200').flush({
+      children: [{
+        ...draggedCard,
+        properties: { ...draggedCard.properties, state: { type: 'string', value: 'Done' } },
+      }],
+      hasMore: false,
+    });
+    await settle();
+
+    expect(columnCount('Done')).toBe('1');
+    expect(screen.queryByText('To Do')).not.toBeInTheDocument();
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('rolls back to the source column and shows a toast with the server message when the PUT fails', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-fail-move' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    await settle();
+    flushPageTypes(http);
+
+    const draggedCard = card({
+      guid: 'card-fail',
+      title: 'Fail Card',
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    http.expectOne('/api/pages/parent-fail-move/children?include=properties&limit=200').flush({
+      children: [draggedCard],
+      hasMore: false,
+    });
+    await settle();
+
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    await settle();
+    expect(columnCount('Done')).toBe('1');
+    expect(screen.queryByText('To Do')).not.toBeInTheDocument();
+
+    const updateReq = http.expectOne('/api/pages/card-fail');
+    updateReq.flush({ message: 'Card is locked' }, { status: 409, statusText: 'Conflict' });
+    await dropped;
+    await settle();
+
+    // Rolled back to the source column; "Done" is empty again and (being
+    // unconfigured) disappears.
+    expect(columnCount('To Do')).toBe('1');
+    expect(screen.queryByText('Done')).not.toBeInTheDocument();
+    expect(openSpy).toHaveBeenCalledWith(
+      "Couldn't move card — Card is locked",
+      'Dismiss',
+      { duration: 4000 },
+    );
+  });
+
+  it('does not resurrect a stale card when a reset lands before a failed move resolves', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-race-move' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    await settle();
+    flushPageTypes(http);
+
+    const draggedCard = card({
+      guid: 'card-race-move',
+      title: 'Race Move Card',
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    http.expectOne('/api/pages/parent-race-move/children?include=properties&limit=200').flush({
+      children: [draggedCard],
+      hasMore: false,
+    });
+    await settle();
+
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    await settle();
+    const updateReq = http.expectOne('/api/pages/card-race-move');
+
+    // Before the PUT resolves, the parent changes — this resets the
+    // accumulator (a fresh page one, new generation) out from under the
+    // in-flight optimistic move.
+    fixture.componentRef.setInput('parentGuid', 'parent-race-move-2');
+    await settle();
+    http.expectOne('/api/pages/parent-race-move-2/children?include=properties&limit=200').flush({
+      children: [
+        card({
+          guid: 'fresh',
+          title: 'Fresh Card',
+          properties: { state: { type: 'string', value: 'To Do' } },
+        }),
+      ],
+      hasMore: false,
+    });
+    await settle();
+    expect(screen.getByRole('button', { name: /fresh card/i })).toBeInTheDocument();
+
+    // Now the stale PUT finally fails.
+    updateReq.flush({ message: 'Conflict' }, { status: 409, statusText: 'Conflict' });
+    await dropped;
+    await settle();
+
+    // A toast still informs the user the move failed…
+    expect(openSpy).toHaveBeenCalled();
+    // …but the rollback must not resurrect the stale card into the freshly
+    // reset board — it belongs to a different parent's accumulator now.
+    expect(screen.queryByRole('button', { name: /race move card/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /fresh card/i })).toBeInTheDocument();
   });
 });
