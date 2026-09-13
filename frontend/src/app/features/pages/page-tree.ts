@@ -1,6 +1,7 @@
 import { CdkDropList, CdkDropListGroup, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
 import { Pages } from './pages';
+import { checkSiblingDropAllowed } from './check-type-constraints';
 import { PageTreeItem } from './page-tree-item';
 import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeExpandTarget } from './page.types';
 
@@ -91,10 +92,23 @@ export class PageTree {
 
   readonly rootChildren = this.pages.childrenResource(this.rootSignal);
 
+  /**
+   * Reparent a dragged page to the tree root. The zone has no
+   * `cdkDropListEnterPredicate` (there is no row to compute a zone against), so
+   * the type check happens here, on drop: the root is a "no parent" target, which
+   * `checkSiblingDropAllowed` models with a `null` parent page type. A page whose
+   * type demands a specific parent (`allowAnyParent: false`) is refused with the
+   * same alert-and-abort the `onto` and cross-parent drop paths use.
+   */
   async onRootDrop(event: CdkDragDrop<null>): Promise<void> {
     const dragged = event.item.data as PageSummary | undefined;
     if (!dragged) return;
     if (dragged.parentGuid === null) return; // already a root page
+    const warnings = checkSiblingDropAllowed(dragged, null, this.pageTypesMap());
+    if (warnings.length > 0) {
+      window.alert('Cannot move here:\n' + warnings.join('\n'));
+      return;
+    }
     await this.pages.movePage(dragged.guid, { newParentGuid: null });
   }
 }

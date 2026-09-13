@@ -41,6 +41,46 @@ describe('NewPageModal', () => {
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
   });
 
+  // Final review #6: the Parent line must name the real parent, not "Root".
+  it('shows "Root" as the parent when creating a top-level page', async () => {
+    const { ref } = dialogRefStub();
+    await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: { parentGuid: null } },
+        { provide: MatDialogRef, useValue: ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    expect(screen.getByText('Root')).toBeInTheDocument();
+  });
+
+  it('shows the parent title (not "Root") when creating a child page', async () => {
+    const { ref } = dialogRefStub();
+    await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: MAT_DIALOG_DATA,
+          useValue: { parentGuid: 'parent-1', parentTitle: 'Cookbook', parentPageType: 'pt-parent' },
+        },
+        { provide: MatDialogRef, useValue: ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types/pt-parent/allowed-children')
+      .flush({ allowedChildTypes: [], allowWikiPageChildren: true });
+    await settle();
+
+    expect(screen.getByText('Cookbook')).toBeInTheDocument();
+    expect(screen.queryByText('Root')).toBeNull();
+  });
+
   it('disables submit when title is empty', async () => {
     const { ref } = dialogRefStub();
     await render(NewPageModal, {

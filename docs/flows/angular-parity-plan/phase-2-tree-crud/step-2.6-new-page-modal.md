@@ -37,6 +37,10 @@
 - Send `content = "# ${title}\n\nStart writing…"` **unless** verification shows
   the backend already seeds page content — check `POST /api/pages` behaviour
   and note the finding in the PR. If the backend seeds it, skip and document.
+  - **Verified (2026-09-13):** `backend/src/pages/pages-create.ts` defaults
+    `content` to `''` (`content: z.string().default('')`) and writes it through
+    unchanged — the backend does **no** seeding, so the frontend must send the
+    `# Title` boilerplate itself. Done.
 - Inline messages under the title field: "Title is required" / "3–100
   characters". Show on blur / submit-attempt.
 - On success: navigate to edit mode (already works) **and** emit the

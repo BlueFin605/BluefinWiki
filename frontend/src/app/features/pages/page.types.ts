@@ -141,7 +141,12 @@ export interface TreeDropRequest {
   movingGuid: string;
   movingParentGuid: string | null;
   targetGuid: string;
-  /** The target row's parent — the parent the moving page joins for before/after. */
+  /**
+   * The target row's parent — the parent the moving page joins for before/after,
+   * and the single authoritative destination `pages-view` passes to BOTH
+   * `movePage` and `reorderPages` (`computeReorder` deliberately never re-derives
+   * a parent of its own, so the two calls cannot disagree on a stale tree).
+   */
   targetParentGuid: string | null;
   zone: 'before' | 'after';
   /**

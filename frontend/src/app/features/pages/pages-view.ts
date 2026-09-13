@@ -23,7 +23,7 @@ import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
 import type { PageTypeDefinition, TreeDropRequest, TreeExpandTarget } from './page.types';
 import { computeReorder } from './reorder-maths';
-import { checkTypeConstraints } from './check-type-constraints';
+import { checkSiblingDropAllowed } from './check-type-constraints';
 import { SearchDialog } from '../search/search-dialog';
 import { AiButton } from '../ai/ai-button';
 import { AiSidebar } from '../ai/ai-sidebar';
@@ -600,12 +600,15 @@ export class PagesView {
   private async openNewPageModal(parentGuid: string | null): Promise<void> {
     const data: NewPageModalData = { parentGuid };
     if (parentGuid) {
-      // Fetch the parent's full record so the modal can scope its type
-      // dropdown to the parent's allowed children and inherit the parent's
-      // properties (step 2.6). Best-effort: on failure, open the modal
-      // unscoped rather than blocking page creation.
+      // Fetch the parent's full record so the modal can name the parent on its
+      // "Parent:" line, scope its type dropdown to the parent's allowed children
+      // and inherit the parent's properties (step 2.6). Best-effort: on failure,
+      // open the modal unscoped rather than blocking page creation.
       try {
         const parent = await this.pages.fetchPage(parentGuid);
+        // Without this the modal's `parentLabel` falls back to 'Root' and every
+        // "New child" create claimed to be creating a top-level page.
+        data.parentTitle = parent.title;
         data.parentPageType = parent.pageType ?? null;
         data.parentProperties = parent.properties ?? null;
       } catch {
@@ -675,13 +678,15 @@ export class PagesView {
     // check the tree's `enterPredicate` applied on hover, so the drop cannot
     // slip an illegal child past the backstop. A same-parent reorder never
     // changes the parent, so it is exempt. The check's "target" is the parent
-    // the moving page would join; only its `.pageType` is read, so
-    // `req.targetParentType` (spread onto the moving page for a valid shape) is
-    // all it needs — no extra fetch.
+    // the moving page would join, so it goes through the shared
+    // `checkSiblingDropAllowed` — the same helper the row's `enterPredicate`,
+    // its `.drop-invalid` hover warning and the root drop zone use. Only the
+    // parent's `.pageType` matters, so `req.targetParentType` is all it needs —
+    // no extra fetch.
     if (newParentGuid !== req.movingParentGuid) {
-      const warnings = checkTypeConstraints(
+      const warnings = checkSiblingDropAllowed(
         req.movingPage,
-        { ...req.movingPage, pageType: req.targetParentType ?? undefined },
+        req.targetParentType,
         this.pageTypesMap(),
       );
       if (warnings.length > 0) {
@@ -694,7 +699,7 @@ export class PagesView {
       const siblings = await this.pages.fetchChildren(newParentGuid);
       const plan = computeReorder(siblings, req.movingGuid, req.targetGuid, req.zone);
 
-      if (!('moveTo' in plan)) {
+      if (!plan.crossParent) {
         // Same parent — a single reorder, no move.
         await this.pages.reorderPages({ parentGuid: newParentGuid, orderedGuids: plan.orderedGuids });
         return;
@@ -702,8 +707,15 @@ export class PagesView {
 
       // Cross parent. Capture the source order first so a failed reorder can be
       // fully rolled back, then run move -> reorder sequentially.
+      //
+      // `newParentGuid` is the single authoritative destination for BOTH calls.
+      // `computeReorder` deliberately reports only a `crossParent` flag: a parent
+      // guid re-derived from the fetched sibling list could disagree with
+      // `req.targetParentGuid` when the tree is stale (target row gone from the
+      // list), which would move the page to one parent while ordering it under
+      // another.
       const sourceOrder = (await this.pages.fetchChildren(req.movingParentGuid)).map((p) => p.guid);
-      await this.pages.movePage(req.movingGuid, { newParentGuid: plan.moveTo ?? null });
+      await this.pages.movePage(req.movingGuid, { newParentGuid });
       try {
         await this.pages.reorderPages({ parentGuid: newParentGuid, orderedGuids: plan.orderedGuids });
       } catch (reorderErr) {

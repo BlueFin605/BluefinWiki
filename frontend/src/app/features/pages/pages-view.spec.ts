@@ -1339,10 +1339,11 @@ describe('PagesView', () => {
     http.match(() => true).forEach((r) => r.flush(null));
   });
 
-  it('opening "New child" fetches the parent record and passes its pageType + properties to the modal', async () => {
+  it('opening "New child" fetches the parent record and passes its title + pageType + properties to the modal', async () => {
     const { fixture, http } = await renderShell();
     jest.spyOn(TestBed.inject(Pages), 'fetchPage').mockResolvedValue(pageContent({
       guid: 'parent-1',
+      title: 'Cookbook',
       pageType: 'pt-parent',
       properties: { status: { type: 'string', value: 'in-progress' } },
     }));
@@ -1356,7 +1357,11 @@ describe('PagesView', () => {
     await settle();
 
     expect(openSpy).toHaveBeenCalledTimes(1);
-    const config = openSpy.mock.calls[0][1] as { data: { parentPageType?: string | null; parentProperties?: unknown } };
+    const config = openSpy.mock.calls[0][1] as {
+      data: { parentTitle?: string; parentPageType?: string | null; parentProperties?: unknown };
+    };
+    // Final review #6: without this the modal always showed "Parent: Root".
+    expect(config.data.parentTitle).toBe('Cookbook');
     expect(config.data.parentPageType).toBe('pt-parent');
     expect(config.data.parentProperties).toEqual({ status: { type: 'string', value: 'in-progress' } });
 
@@ -1481,6 +1486,28 @@ describe('PagesView', () => {
 
     alertSpy.mockRestore();
     errSpy.mockRestore();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('a stale cross-parent drop (target row gone from the fetched siblings) moves AND orders under the same parent', async () => {
+    const { fixture, http } = await renderShell();
+    const pages = TestBed.inject(Pages);
+    jest.spyOn(pages, 'fetchChildren')
+      // Target parent's list no longer contains the dropped-on row 'y'.
+      .mockResolvedValueOnce([sib('x', 'np'), sib('z', 'np')])
+      .mockResolvedValueOnce([sib('m', 'op'), sib('n', 'op')]);
+    const moveSpy = jest.spyOn(pages, 'movePage').mockResolvedValue(undefined);
+    const reorderSpy = jest.spyOn(pages, 'reorderPages').mockResolvedValue({ updated: 3 });
+
+    await drop(fixture).onTreeDrop(treeDrop({
+      movingGuid: 'm', movingParentGuid: 'op', targetGuid: 'y', targetParentGuid: 'np', zone: 'before',
+    }));
+    await settle();
+
+    // The move must NOT fall back to the root just because the target vanished.
+    expect(moveSpy).toHaveBeenCalledWith('m', { newParentGuid: 'np' });
+    expect(reorderSpy).toHaveBeenCalledWith({ parentGuid: 'np', orderedGuids: ['x', 'z', 'm'] });
+
     http.match(() => true).forEach((r) => r.flush(null));
   });
 
