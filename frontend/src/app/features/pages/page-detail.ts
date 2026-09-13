@@ -35,12 +35,18 @@ import type { WikiTargetResolver } from '../../shared/markdown/plugins/remark-wi
 import { parseWikiLinks } from '../../shared/markdown/wiki-link-parser';
 import type { WikiImageResize } from '../../shared/markdown/wiki-image';
 import { setImageWidth } from '../../shared/codemirror/set-image-width';
-import { Pages, type PageSearchResult, type WikiLinkResolution } from './pages';
+import {
+  Pages,
+  type ChildrenWithPropertiesOptions,
+  type PageSearchResult,
+  type WikiLinkResolution,
+} from './pages';
 import { Drafts, type PageMetadata } from './drafts';
 import { PageContext } from './page-context';
 import { PageTypes } from '../page-types/page-types';
 import { BoardView } from '../board/board-view';
 import { BoardSettingsPanel, type BoardSettingsPanelData } from '../board/board-settings-panel';
+import { isBoardEligible } from '../board/is-board-eligible';
 import {
   CreatePageFromLinkModal,
   type CreatePageFromLinkModalData,
@@ -49,7 +55,7 @@ import {
 import { rewriteWikiLink } from '../../shared/markdown/rewrite-wiki-link';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { EditorErrorState } from '../../core/error/editor-error-state';
-import type { BoardConfig, PageContent } from './page.types';
+import type { BoardConfig, PageContent, PageTypeDefinition } from './page.types';
 
 type Mode = 'view' | 'edit';
 type ViewMode = 'content' | 'board';
@@ -129,7 +135,7 @@ export function resolveSaveStatus(state: {
       <header class="bar">
         <span class="title">{{ resolvedTitle() ?? 'Untitled' }}</span>
 
-        @if (mode() === 'view' && boardConfig()) {
+        @if (mode() === 'view' && boardEligible()) {
           <mat-button-toggle-group
             class="view-toggle"
             [value]="viewMode()"
@@ -564,6 +570,51 @@ export class PageDetail {
   protected readonly boardConfig = computed<BoardConfig | null>(() => {
     if (this.resource.status() !== 'resolved') return null;
     return this.resource.value()?.boardConfig ?? null;
+  });
+
+  /** All defined page types, keyed by guid — feeds {@link boardEligible}'s child-state check. */
+  private readonly pageTypesResource = this.pageTypes.pageTypesResource();
+  private readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() => {
+    if (this.pageTypesResource.status() !== 'resolved') return {};
+    const list = this.pageTypesResource.value() ?? [];
+    return Object.fromEntries(list.map((t) => [t.guid, t]));
+  });
+
+  /**
+   * Direct-children probe purely for {@link boardEligible} (step 5.1): a page
+   * with no `boardConfig.targetTypeGuid` can still be board-eligible when a
+   * direct child's page type carries a `state` property with a non-empty
+   * value. Disabled (`null` parentGuid, so `childrenWithPropertiesResource`
+   * fetches nothing) outside view mode, before the page resource has
+   * resolved, and once `targetTypeGuid` is already known — that alone makes
+   * the page eligible, so the extra request would be wasted.
+   */
+  private readonly eligibilityParentGuid = computed<string | null>(() => {
+    if (this.mode() !== 'view') return null;
+    if (this.resource.status() !== 'resolved') return null;
+    if (this.boardConfig()?.targetTypeGuid) return null;
+    return this.guid();
+  });
+  private readonly eligibilityOptions = computed<ChildrenWithPropertiesOptions | null>(
+    () => ({ limit: 50 }),
+  );
+  private readonly eligibilityChildrenResource = this.pages.childrenWithPropertiesResource(
+    this.eligibilityParentGuid,
+    this.eligibilityOptions,
+  );
+
+  /**
+   * Board-eligibility gate (step 5.1): true when `boardConfig.targetTypeGuid`
+   * is set, or a direct child of a state-bearing page type has a non-empty
+   * value for it. Drives the Content | Board toggle; `defaultView` (see the
+   * constructor effect below) still decides which view opens first once
+   * eligible — this only controls whether the toggle appears at all.
+   */
+  protected readonly boardEligible = computed<boolean>(() => {
+    const children = this.eligibilityChildrenResource.status() === 'resolved'
+      ? (this.eligibilityChildrenResource.value()?.children ?? [])
+      : [];
+    return isBoardEligible({ boardConfig: this.boardConfig() }, children, this.pageTypesMap());
   });
 
   /** Whether the working copy diverges from the persisted server page. */

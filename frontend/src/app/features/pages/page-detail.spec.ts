@@ -364,7 +364,22 @@ describe('PageDetail', () => {
     expect(screen.queryByRole('radio', { name: /^board$/i })).toBeNull();
   });
 
-  it('shows the board toggle in view mode when the page has a boardConfig', async () => {
+  it('shows the board toggle in view mode when boardConfig.targetTypeGuid is set', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      boardConfig: { targetTypeGuid: 'pt-task', columns: ['Alpha'], defaultView: 'content' },
+    });
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
+  });
+
+  // ---- Step 5.1: child-state auto-eligibility ----
+
+  it('does not show the board toggle for a boardConfig without targetTypeGuid and no state-bearing children', async () => {
     const { http, fixture } = await renderDetail();
     http.expectOne('/api/pages/g1').flush({
       ...serverPage,
@@ -374,7 +389,97 @@ describe('PageDetail', () => {
     drain();
     await settle();
     fixture.detectChanges();
+    expect(screen.queryByRole('radio', { name: /^board$/i })).toBeNull();
+  });
+
+  it('shows the board toggle via child-state auto-eligibility with no boardConfig at all', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    http.expectOne('/api/page-types').flush({
+      pageTypes: [
+        {
+          guid: 'pt-task',
+          name: 'Task',
+          icon: '✅',
+          properties: [{ name: 'state', type: 'string', required: false }],
+          allowedChildTypes: [],
+          allowWikiPageChildren: false,
+          allowedParentTypes: [],
+          allowAnyParent: true,
+          createdBy: 'u',
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+    });
+    http.expectOne('/api/pages/g1/children?include=properties&limit=50').flush({
+      children: [
+        {
+          guid: 'c1',
+          title: 'Card',
+          parentGuid: 'g1',
+          status: 'published',
+          modifiedAt: '2026-01-01T00:00:00Z',
+          modifiedBy: 'u',
+          hasChildren: false,
+          pageType: 'pt-task',
+          properties: { state: { type: 'string', value: 'To Do' } },
+        },
+      ],
+      hasMore: false,
+    });
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
     expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
+  });
+
+  it('does not show the board toggle when children of a state-bearing type all have an empty state value', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    http.expectOne('/api/page-types').flush({
+      pageTypes: [
+        {
+          guid: 'pt-task',
+          name: 'Task',
+          icon: '✅',
+          properties: [{ name: 'state', type: 'string', required: false }],
+          allowedChildTypes: [],
+          allowWikiPageChildren: false,
+          allowedParentTypes: [],
+          allowAnyParent: true,
+          createdBy: 'u',
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+    });
+    http.expectOne('/api/pages/g1/children?include=properties&limit=50').flush({
+      children: [
+        {
+          guid: 'c1',
+          title: 'Card',
+          parentGuid: 'g1',
+          status: 'published',
+          modifiedAt: '2026-01-01T00:00:00Z',
+          modifiedBy: 'u',
+          hasChildren: false,
+          pageType: 'pt-task',
+          properties: { state: { type: 'string', value: '' } },
+        },
+      ],
+      hasMore: false,
+    });
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+    expect(screen.queryByRole('radio', { name: /^board$/i })).toBeNull();
   });
 
   it('clears a stale editor-crash panel when a fresh page resolves', async () => {
