@@ -97,7 +97,7 @@ backend", that verification is part of the step.
 |---|---|---|---|
 | 0 | 7 | 7/7 | ✅ complete (branch `feat/angular-rewrite`) — CI prod-build wiring deferred (FOLLOWUP) |
 | 1 | 5 | 5/5 | ✅ complete (`529e35a..adb5860`) — 1.5 design-only, code is 1b |
-| 2 | 8 | 0/8 | not started |
+| 2 | 8 | 8/8 | ✅ code-complete (`5426b70..d64052b`) — whole-branch review found 1 Critical + 5 Important, all fixed + re-reviewed clean (ready to merge: yes); **manual browser walkthrough still owed** (like 1b); touch drag-drop positional reorder is a known gap (desktop mouse unaffected) |
 | 3 | 10 | 10/10 | ✅ complete (`c18a876..2cc674f`) — whole-branch review passed with fixes; Minor sweep deferred to branch finish |
 | 4 | 9 | 9/9 | ✅ complete (`bd38aeb..6b416db`) — whole-branch review passed with fixes; retry status text (I2) + tab-switch refetch storm (I8) carried to a follow-up step **4.10**; Minor sweep deferred to branch finish |
 | 1b | 9 | 9/9 | ✅ code-complete (`c8c13b5..a886bdb`) — whole-branch review passed with fixes (1 Critical + 3 Important in `a886bdb`); **manual responsive matrix at 360/800/1440 still owed**; DESIGN D9 added (mobile surface mutual-exclusion); Minor sweep + step 4.10 deferred |
@@ -106,4 +106,4 @@ backend", that verification is part of the step.
 | 6 | 7 | 0/7 | not started |
 | 7 | 4 | 0/4 | not started |
 | 8 | 6 | 0/6 | not started |
-| **Total** | **73** | **50/73** | |
+| **Total** | **73** | **58/73** | |

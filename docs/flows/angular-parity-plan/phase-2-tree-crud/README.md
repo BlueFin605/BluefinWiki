@@ -28,8 +28,12 @@ Parallel-safe groups: {2.3, 2.5, 2.8} independent; {2.1 → 2.2} sequential;
 
 ## Phase exit criteria
 
-- [ ] All step acceptance criteria met; `npm test` + `npm run lint` green.
+- [x] All step acceptance criteria met; `npm test` + `npm run lint` green.
+      (96 suites / 950 tests, lint + `npm run build` AOT clean, whole-branch
+      review + fix-wave re-review both passed — see `.superpowers/sdd/progress.md`.)
 - [ ] Manual: drag a sibling above/below another → order persists after reload.
+      (Automated: covered by jsdom tests incl. the nested-forwarding fix;
+      **mouse-only** — touch drag-drop is a known residual gap, see below.)
 - [ ] Manual: drag a page onto a disallowed parent type → amber warning +
       blocked drop + explanatory alert.
 - [ ] Manual: `→`/`←` expand/collapse tree rows; creating a child expands the
@@ -42,3 +46,19 @@ Parallel-safe groups: {2.3, 2.5, 2.8} independent; {2.1 → 2.2} sequential;
       new GUID; "save the page" hint shown.
 - [ ] Manual: delete a page with children → `ConfirmDialog` with child-aware
       copy; server error surfaced on failure.
+
+**Status (2026-09-13): code-complete.** All 8 steps implemented + task-reviewed
+(spec ✅ each) + a whole-branch review (1 Critical + 5 Important found, all
+fixed in a follow-up wave, re-reviewed clean — **ready to merge: yes**). The
+manual walkthrough above (real browser, all 7 rows) is **still owed**, same as
+Phase 1b's responsive matrix — jsdom cannot verify actual pointer/CDK behavior.
+
+**Known gap carried forward:** touch drag-drop still can't reach the
+before/after (positional-reorder) zones — CDK v21 gives a touch pointer
+implicit capture to the dragged row, so per-row `pointermove` can't see the
+hovered row during a touch drag; every touch drop still defaults to reparent
+(`onto`). Root-caused against `@angular/cdk`'s drag-drop source; fix path
+identified (drive the drop zone from `(cdkDragMoved)` + `elementFromPoint`
+instead of per-row `pointermove`) but not implemented this phase. Desktop
+mouse drag is unaffected. See `.superpowers/sdd/progress.md`'s "Residual debt
+from the final-fix wave" for the full list of small follow-ups.
