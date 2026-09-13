@@ -5,9 +5,11 @@ import type { PageChildDetail, PageTypeDefinition } from '../pages/page.types';
 
 /**
  * A single Kanban column. Implements `cdkDropList` so other cards can be
- * dropped onto it. Emits `cardDropped` with the dragged card and this
- * column's name; the parent `BoardView` is responsible for persisting the
- * state change.
+ * dropped onto it. Emits `cardDropped` with the dragged card, this column's
+ * name, and the drop's target index (`event.currentIndex` — CDK's own
+ * target-array-insertion index, computed as if the dragged card had already
+ * been removed from wherever it came from); the parent `BoardView` is
+ * responsible for persisting the state and `boardOrder` change (step 5.4).
  */
 @Component({
   selector: 'wiki-board-column',
@@ -98,12 +100,12 @@ export class BoardColumn {
   readonly swapTitles = input<boolean>(false);
   readonly showParentTitle = input<boolean>(true);
 
-  readonly cardDropped = output<{ card: PageChildDetail; targetState: string }>();
+  readonly cardDropped = output<{ card: PageChildDetail; targetState: string; targetIndex: number }>();
   readonly cardClick = output<PageChildDetail>();
 
   onDrop(event: CdkDragDrop<string>): void {
     const dragged = event.item.data as PageChildDetail | undefined;
     if (!dragged) return;
-    this.cardDropped.emit({ card: dragged, targetState: this.name() });
+    this.cardDropped.emit({ card: dragged, targetState: this.name(), targetIndex: event.currentIndex });
   }
 }

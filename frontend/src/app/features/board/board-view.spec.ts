@@ -129,16 +129,19 @@ describe('BoardView', () => {
     await settle();
 
     const instance = fixture.componentInstance;
-    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done', targetIndex: 0 });
     await settle();
 
     const updateReq = http.expectOne('/api/pages/card-drop');
     expect(updateReq.request.method).toBe('PUT');
     const body = updateReq.request.body as {
       properties: Record<string, { type: string; value: unknown }>;
+      boardOrder: number;
     };
     expect(body.properties.state).toEqual({ type: 'string', value: 'Done' });
     expect(body.properties.owner).toEqual({ type: 'string', value: 'Dean' });
+    // "Done" was empty, so the dropped card gets the base boardOrder.
+    expect(body.boardOrder).toBe(1000);
     updateReq.flush({
       guid: 'card-drop', title: 'Drop me', content: '', folderId: 'f', tags: [],
       status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
@@ -171,7 +174,9 @@ describe('BoardView', () => {
     await settle();
 
     const instance = fixture.componentInstance;
-    await instance.onCardDropped({ card: sameCard, targetState: 'To Do' });
+    // sameCard is the only card in "To Do", i.e. already at index 0 — dropping
+    // it back at index 0 with the same target state is a true no-op.
+    await instance.onCardDropped({ card: sameCard, targetState: 'To Do', targetIndex: 0 });
     http.expectNone('/api/pages/same');
   });
 
@@ -383,7 +388,7 @@ describe('BoardView', () => {
     // Before A resolves, something elsewhere bumps the coarse `children:any`
     // invalidation tag (e.g. dragging a card into a new column calls
     // updatePage) — this re-fetches page one and resets the accumulator.
-    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done', targetIndex: 0 });
     await settle();
     const updateReq = http.expectOne('/api/pages/card-race');
     updateReq.flush({
@@ -449,7 +454,7 @@ describe('BoardView', () => {
     expect(columnCount('To Do')).toBe('1');
 
     const instance = fixture.componentInstance;
-    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done', targetIndex: 0 });
     await settle();
 
     // The card has already moved even though the PUT is still pending —
@@ -514,7 +519,7 @@ describe('BoardView', () => {
     await settle();
 
     const instance = fixture.componentInstance;
-    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done', targetIndex: 0 });
     await settle();
     expect(columnCount('Done')).toBe('1');
     expect(screen.queryByText('To Do')).not.toBeInTheDocument();
@@ -558,7 +563,7 @@ describe('BoardView', () => {
     await settle();
 
     const instance = fixture.componentInstance;
-    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done' });
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done', targetIndex: 0 });
     await settle();
     const updateReq = http.expectOne('/api/pages/card-race-move');
 
@@ -591,5 +596,264 @@ describe('BoardView', () => {
     // reset board — it belongs to a different parent's accumulator now.
     expect(screen.queryByRole('button', { name: /race move card/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /fresh card/i })).toBeInTheDocument();
+  });
+
+  // ---- step 5.4: positional boardOrder reorder ----
+
+  it('same-column reorder issues a boardOrder-only PUT computed via the midpoint', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-reorder' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    const cardA = card({
+      guid: 'card-a', title: 'Card A', boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const cardB = card({
+      guid: 'card-b', title: 'Card B', boardOrder: 2000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    // Starts at the bottom (highest boardOrder); the test drags it up to
+    // between A and B.
+    const mover = card({
+      guid: 'card-mover', title: 'Mover Card', boardOrder: 5000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    http.expectOne('/api/pages/parent-reorder/children?include=properties&limit=200').flush({
+      children: [cardA, cardB, mover],
+      hasMore: false,
+    });
+    await settle();
+
+    const instance = fixture.componentInstance;
+    // Drop between card A (index 0) and card B (index 1) — same column, so
+    // only boardOrder changes; no `properties` in the PUT.
+    const dropped = instance.onCardDropped({ card: mover, targetState: 'To Do', targetIndex: 1 });
+    await settle();
+
+    const updateReq = http.expectOne('/api/pages/card-mover');
+    expect(updateReq.request.method).toBe('PUT');
+    const body = updateReq.request.body as { boardOrder: number; properties?: unknown };
+    expect(body).toEqual({ boardOrder: 1500 });
+
+    updateReq.flush({
+      guid: 'card-mover', title: 'Mover Card', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+    http.expectOne('/api/pages/parent-reorder/children?include=properties&limit=200').flush({
+      children: [cardA, { ...mover, boardOrder: 1500 }, cardB],
+      hasMore: false,
+    });
+    await settle();
+  });
+
+  it('cross-column drop carries both state and boardOrder in one PUT', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-cross' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    const moving = card({
+      guid: 'card-moving', title: 'Moving Card',
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const doneCard = card({
+      guid: 'card-done', title: 'Done Card', boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'Done' } },
+    });
+    http.expectOne('/api/pages/parent-cross/children?include=properties&limit=200').flush({
+      children: [moving, doneCard],
+      hasMore: false,
+    });
+    await settle();
+
+    const instance = fixture.componentInstance;
+    // Drop at the top of "Done" (index 0), above the existing card.
+    const dropped = instance.onCardDropped({ card: moving, targetState: 'Done', targetIndex: 0 });
+    await settle();
+
+    const updateReq = http.expectOne('/api/pages/card-moving');
+    const body = updateReq.request.body as {
+      boardOrder: number;
+      properties: Record<string, { type: string; value: unknown }>;
+    };
+    expect(body.boardOrder).toBe(0); // 1000 - 1000
+    expect(body.properties.state).toEqual({ type: 'string', value: 'Done' });
+
+    updateReq.flush({
+      guid: 'card-moving', title: 'Moving Card', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+    http.expectOne('/api/pages/parent-cross/children?include=properties&limit=200').flush({
+      children: [{ ...moving, boardOrder: 0, properties: { state: { type: 'string', value: 'Done' } } }, doneCard],
+      hasMore: false,
+    });
+    await settle();
+  });
+
+  it('renumbers the whole column and PUTs every affected card when the gap is exhausted', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-renumber' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    const cardA = card({
+      guid: 'card-a', title: 'Card A', boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const cardB = card({
+      guid: 'card-b', title: 'Card B', boardOrder: 1001,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const mover = card({
+      guid: 'card-mover', title: 'Mover Card', boardOrder: 5000,
+      properties: { state: { type: 'string', value: 'Backlog' } },
+    });
+    http.expectOne('/api/pages/parent-renumber/children?include=properties&limit=200').flush({
+      children: [cardA, cardB, mover],
+      hasMore: false,
+    });
+    await settle();
+
+    const instance = fixture.componentInstance;
+    // Drop the mover between card A and card B — gap is 1, too small for a
+    // distinct integer midpoint, so the whole "To Do" column renumbers.
+    const dropped = instance.onCardDropped({ card: mover, targetState: 'To Do', targetIndex: 1 });
+    await settle();
+
+    const reqA = http.expectOne('/api/pages/card-a');
+    const reqMover = http.expectOne('/api/pages/card-mover');
+    const reqB = http.expectOne('/api/pages/card-b');
+
+    expect(reqA.request.body).toEqual({ boardOrder: 1000 });
+    const moverBody = reqMover.request.body as { boardOrder: number; properties: unknown };
+    expect(moverBody.boardOrder).toBe(2000);
+    expect((moverBody.properties as Record<string, { value: unknown }>)['state']).toEqual({
+      type: 'string', value: 'To Do',
+    });
+    expect(reqB.request.body).toEqual({ boardOrder: 3000 });
+
+    reqA.flush({
+      guid: 'card-a', title: 'Card A', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    reqB.flush({
+      guid: 'card-b', title: 'Card B', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    reqMover.flush({
+      guid: 'card-mover', title: 'Mover Card', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+
+    // Each successful updatePage call bumps children:any, so multiple resets
+    // may fire — drain them all with the final authoritative state.
+    const pending = http
+      .match('/api/pages/parent-renumber/children?include=properties&limit=200')
+      .filter((req) => !req.cancelled);
+    for (const req of pending) {
+      req.flush({
+        children: [
+          { ...cardA, boardOrder: 1000 },
+          { ...mover, boardOrder: 2000, properties: { state: { type: 'string', value: 'To Do' } } },
+          { ...cardB, boardOrder: 3000 },
+        ],
+        hasMore: false,
+      });
+    }
+    await settle();
+  });
+
+  it('rolls back only the cards whose PUT failed in a renumber batch', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-renumber-fail' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    await settle();
+    flushPageTypes(http);
+
+    const cardA = card({
+      guid: 'card-a2', title: 'Card A2', boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const cardB = card({
+      guid: 'card-b2', title: 'Card B2', boardOrder: 1001,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const mover = card({
+      guid: 'card-mover2', title: 'Mover Card2', boardOrder: 5000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    http.expectOne('/api/pages/parent-renumber-fail/children?include=properties&limit=200').flush({
+      children: [cardA, cardB, mover],
+      hasMore: false,
+    });
+    await settle();
+
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: mover, targetState: 'To Do', targetIndex: 1 });
+    await settle();
+
+    const reqA = http.expectOne('/api/pages/card-a2');
+    const reqMover = http.expectOne('/api/pages/card-mover2');
+    const reqB = http.expectOne('/api/pages/card-b2');
+
+    // card-b2's PUT fails; the other two succeed.
+    reqA.flush({
+      guid: 'card-a2', title: 'Card A2', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    reqMover.flush({
+      guid: 'card-mover2', title: 'Mover Card2', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    reqB.flush({ message: 'Card B is locked' }, { status: 409, statusText: 'Conflict' });
+    await dropped;
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "Couldn't move card — Card B is locked",
+      'Dismiss',
+      { duration: 4000 },
+    );
+
+    // Drain the resets triggered by the two successful PUTs.
+    const pending = http
+      .match('/api/pages/parent-renumber-fail/children?include=properties&limit=200')
+      .filter((req) => !req.cancelled);
+    for (const req of pending) {
+      req.flush({
+        children: [
+          { ...cardA, boardOrder: 1000 },
+          { ...mover, boardOrder: 2000 },
+          cardB, // unchanged server-side — its PUT failed
+        ],
+        hasMore: false,
+      });
+    }
+    await settle();
   });
 });

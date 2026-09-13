@@ -62,8 +62,8 @@ describe('BoardColumn', () => {
     expect(screen.getByText(/no items/i)).toBeInTheDocument();
   });
 
-  it('emits cardDropped with the dragged card and target column name', async () => {
-    const events: { card: PageChildDetail; targetState: string }[] = [];
+  it('emits cardDropped with the dragged card, target column name, and target index', async () => {
+    const events: { card: PageChildDetail; targetState: string; targetIndex: number }[] = [];
     const { fixture } = await render(BoardColumn, {
       inputs: {
         name: 'Done',
@@ -71,7 +71,8 @@ describe('BoardColumn', () => {
         cards: [card({ guid: 'c-drop' })],
       },
       on: {
-        cardDropped: (e: { card: PageChildDetail; targetState: string }) => events.push(e),
+        cardDropped: (e: { card: PageChildDetail; targetState: string; targetIndex: number }) =>
+          events.push(e),
       },
     });
     await settle();
@@ -81,13 +82,13 @@ describe('BoardColumn', () => {
       previousContainer: { id: 'src', data: 'X' } as unknown as CdkDragDrop<string>['previousContainer'],
       container: { id: 'dst', data: 'Done' } as unknown as CdkDragDrop<string>['container'],
       previousIndex: 0,
-      currentIndex: 0,
+      currentIndex: 1,
       isPointerOverContainer: true,
       distance: { x: 0, y: 0 },
     };
     const instance = fixture.componentInstance;
     instance.onDrop(dropEvent as CdkDragDrop<string>);
-    expect(events).toEqual([{ card: draggedCard, targetState: 'Done' }]);
+    expect(events).toEqual([{ card: draggedCard, targetState: 'Done', targetIndex: 1 }]);
   });
 
   it('passes showParentTitle through to board-card, hiding the parent subtitle when false', async () => {

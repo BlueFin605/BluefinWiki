@@ -14,12 +14,14 @@ import { Pages, type ChildrenWithPropertiesOptions } from '../pages/pages';
 import { PageTypes } from '../page-types/page-types';
 import { BoardColumn } from './board-column';
 import { CardSummaryDialog, type CardSummaryDialogData } from './card-summary-dialog';
+import { computeBoardOrder } from './compute-board-order';
 import { getColumnColor, groupByState } from './group-by-state';
 import type {
   BoardConfig,
   PageChildDetail,
   PageProperty,
   PageTypeDefinition,
+  UpdatePageRequest,
 } from '../pages/page.types';
 
 /**
@@ -193,77 +195,132 @@ export class BoardView {
     return getColumnColor(name, this.boardConfig()?.colors);
   }
 
-  async onCardDropped(event: { card: PageChildDetail; targetState: string }): Promise<void> {
-    const { card, targetState } = event;
+  /**
+   * Handles a card dropped at `targetIndex` within `targetState`'s column
+   * (step 5.4; supersedes step 5.3's column-only handling). Computes the new
+   * `boardOrder`(s) via `computeBoardOrder`, applies an optimistic patch to
+   * every affected card, PUTs one request per affected card (`state` +
+   * `boardOrder` together for the dragged card when it also crosses
+   * columns, `boardOrder` alone for everyone else), and rolls back on
+   * failure — reusing step 5.3's generation-guard so a concurrent reset
+   * never gets clobbered by a stale rollback.
+   *
+   * No batch/bulk update endpoint exists on the backend (confirmed against
+   * `infrastructure/.../UnifiedStack.cs`'s API Gateway routes: the only page
+   * mutation routes are `PUT /pages/{guid}` and `PUT /pages/reorder`, the
+   * latter dedicated to the *tree's* `sortOrder`, not `boardOrder`) — so the
+   * renumber fallback below always issues N independent `PUT /pages/{guid}`
+   * calls, same as the single-card path.
+   */
+  async onCardDropped(event: {
+    card: PageChildDetail;
+    targetState: string;
+    targetIndex: number;
+  }): Promise<void> {
+    const { card, targetState, targetIndex } = event;
     const currentStateValue = card.properties?.['state']?.value;
     const currentState = typeof currentStateValue === 'string' && currentStateValue
       ? currentStateValue
       : 'Uncategorised';
-    if (currentState === targetState) return;
-    const merged: Record<string, PageProperty> = {
-      ...(card.properties ?? {}),
-      state: { type: 'string', value: targetState },
-    };
+    const stateChanged = currentState !== targetState;
 
-    // Optimistic move: patch the local model immediately so the card jumps
-    // columns before the PUT resolves, per the React reference behaviour.
-    // Capture the generation token *before* mutating — see the comment on
-    // `restoreCard` below for why a failure only rolls back when this token
-    // still matches.
+    // The destination column's current cards (pre-drop), in display order —
+    // this is exactly what the user saw `targetIndex` measured against.
+    const destCardsAll = this.grouping().cardsByColumn[targetState] ?? [];
+    const currentIndexInDest = destCardsAll.findIndex((c) => c.guid === card.guid);
+    // True no-op: same column, same slot — nothing moved.
+    if (!stateChanged && currentIndexInDest === targetIndex) return;
+
+    // Splice the dragged card into its target slot among the OTHER cards in
+    // the destination column (removing it first if this is a same-column
+    // reorder, so it isn't double-counted), matching CDK's own
+    // remove-then-reinsert semantics for `event.currentIndex`.
+    const destOthers = destCardsAll.filter((c) => c.guid !== card.guid);
+    const clampedIndex = Math.max(0, Math.min(targetIndex, destOthers.length));
+    const columnCards = [
+      ...destOthers.slice(0, clampedIndex),
+      card,
+      ...destOthers.slice(clampedIndex),
+    ];
+    const result = computeBoardOrder(columnCards, clampedIndex);
+
+    const moverProperties: Record<string, PageProperty> | undefined = stateChanged
+      ? { ...(card.properties ?? {}), state: { type: 'string', value: targetState } }
+      : undefined;
+
+    const boardOrderByGuid = new Map<string, number>(
+      'value' in result
+        ? [[card.guid, result.value]]
+        : result.renumber.map((r) => [r.guid, r.value] as const),
+    );
+
+    // Optimistic move: patch every affected card's local model immediately,
+    // before any PUT resolves, per the React reference behaviour. Capture
+    // the generation token *before* mutating — see the comment further down
+    // for why a failure only rolls back when this token still matches.
     const token = this.generation();
-    const prior = this.applyOptimisticCardUpdate(card.guid, { ...card, properties: merged });
-
-    try {
-      await this.pages.updatePage(card.guid, { properties: merged });
-      // Success: `updatePage` bumps `children:any` (see its doc comment),
-      // which re-fetches page one and resets `accumulated` via the
-      // constructor effect above — that reconciles this card with the
-      // server's authoritative state. Nothing further to do here: the
-      // optimistic patch already shows the moved card in the meantime, so
-      // there's no visible jump when the reset lands.
-    } catch (err) {
-      // Only roll back the local model if nothing has reset the accumulator
-      // since we started the optimistic move (generation unchanged). If a
-      // reset landed in between — our own success path above, or an
-      // unrelated invalidation-bus bump elsewhere — `accumulated` has
-      // already been replaced wholesale with fresher server data; blindly
-      // restoring this stale snapshot over it would clobber that fresher
-      // state (or resurrect a card that a fresh fetch legitimately dropped,
-      // e.g. after a parentGuid change). The reset itself already reflects
-      // the server's true state for this card (our PUT never landed), so
-      // skipping the restore in that case is correct, not merely safe.
-      if (this.generation() === token && prior) {
-        this.restoreCard(prior);
-      }
-      const message = this.toMessage(err, 'Something went wrong.');
-      this.snack.open(`Couldn't move card — ${message}`, 'Dismiss', { duration: 4000 });
-    }
-  }
-
-  /**
-   * Snapshots the current card with `guid` in `accumulated` and replaces it
-   * with `next`, for optimistic local updates that may need rollback (step
-   * 5.3 column DnD; step 5.4's positional reorder is expected to reuse this
-   * for its own optimistic `boardOrder` patch). Returns the prior card object
-   * so the caller can restore it verbatim via `restoreCard`, or `null` if no
-   * card with that guid was found (e.g. it was already removed by a
-   * concurrent reset).
-   */
-  private applyOptimisticCardUpdate(guid: string, next: PageChildDetail): PageChildDetail | null {
-    let prior: PageChildDetail | null = null;
+    const priors = new Map<string, PageChildDetail>();
     this.accumulated.update((cards) =>
       cards.map((c) => {
-        if (c.guid !== guid) return c;
-        prior = c;
-        return next;
+        const boardOrder = boardOrderByGuid.get(c.guid);
+        if (boardOrder === undefined) return c;
+        priors.set(c.guid, c);
+        const isMover = c.guid === card.guid;
+        return {
+          ...c,
+          boardOrder,
+          ...(isMover && moverProperties ? { properties: moverProperties } : {}),
+        };
       }),
     );
-    return prior;
-  }
 
-  /** Restores a card snapshot captured by `applyOptimisticCardUpdate`. */
-  private restoreCard(prior: PageChildDetail): void {
-    this.accumulated.update((cards) => cards.map((c) => (c.guid === prior.guid ? prior : c)));
+    const entries = [...boardOrderByGuid.entries()];
+    const settled = await Promise.allSettled(
+      entries.map(([guid, boardOrder]) => {
+        const isMover = guid === card.guid;
+        const body: UpdatePageRequest = { boardOrder };
+        if (isMover && moverProperties) body.properties = moverProperties;
+        return this.pages.updatePage(guid, body);
+      }),
+    );
+    // Success: each successful `updatePage` bumps `children:any` (see its
+    // doc comment), which re-fetches page one and resets `accumulated` via
+    // the constructor effect above — that reconciles the affected cards with
+    // the server's authoritative state. Nothing further to do for those:
+    // the optimistic patch already shows them in place, so there's no
+    // visible jump when the reset lands.
+
+    const failures = settled
+      .map((r, i) => ({ r, guid: entries[i][0] }))
+      .filter((x): x is { r: PromiseRejectedResult; guid: string } => x.r.status === 'rejected');
+    if (failures.length === 0) return;
+
+    // Only roll back cards whose own PUT failed — a card whose PUT
+    // succeeded is already correct server-side (and will shortly be
+    // reconciled by the reset above); rolling it back too would show a
+    // position the server no longer has. And only roll back at all if
+    // nothing has reset the accumulator since we started (generation
+    // unchanged) — if a reset landed in between (a sibling PUT's own
+    // success above, or an unrelated invalidation-bus bump elsewhere),
+    // `accumulated` has already been replaced wholesale with fresher server
+    // data; blindly restoring a stale snapshot over it would clobber that
+    // fresher state (or resurrect a card a fresh fetch legitimately
+    // dropped, e.g. after a parentGuid change). The reset itself already
+    // reflects the server's true state for a card whose PUT never landed,
+    // so skipping the restore in that case is correct, not merely safe.
+    if (this.generation() === token) {
+      const failedGuids = new Set(failures.map((f) => f.guid));
+      this.accumulated.update((cards) =>
+        cards.map((c) => {
+          if (!failedGuids.has(c.guid)) return c;
+          const prior = priors.get(c.guid);
+          return prior ?? c;
+        }),
+      );
+    }
+    const message = this.toMessage(failures[0].r.reason, 'Something went wrong.');
+    const suffix = failures.length > 1 ? ` (and ${failures.length - 1} more)` : '';
+    this.snack.open(`Couldn't move card — ${message}${suffix}`, 'Dismiss', { duration: 4000 });
   }
 
   private toMessage(err: unknown, fallback: string): string {
