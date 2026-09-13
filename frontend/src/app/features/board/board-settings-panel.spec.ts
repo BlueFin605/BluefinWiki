@@ -46,6 +46,33 @@ async function settle(): Promise<void> {
 }
 
 describe('BoardSettingsPanel', () => {
+  it('lists only state-bearing page types in the target-type select', async () => {
+    const stateBearing = pageType({
+      guid: 'pt-task',
+      name: 'Task',
+      properties: [{ name: 'state', type: 'string', required: false }],
+    });
+    const plain = pageType({ guid: 'pt-note', name: 'Note', properties: [] });
+    await renderPanel({ config: null, pageTypes: [plain, stateBearing] });
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('combobox', { name: /target type/i }));
+    await settle();
+    expect(screen.getByRole('option', { name: /task/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /note/i })).not.toBeInTheDocument();
+  });
+
+  it('disables the target-type select and shows a hint when there are no boardable types', async () => {
+    const plain = pageType({ guid: 'pt-note', name: 'Note', properties: [] });
+    await renderPanel({ config: null, pageTypes: [plain] });
+    await settle();
+    expect(screen.getByRole('combobox', { name: /target type/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByText(/no page types define a "state" property/i)).toBeInTheDocument();
+  });
+
   it('renders the existing columns from the config', async () => {
     const config: BoardConfig = { columns: ['To Do', 'Done'] };
     await renderPanel({ config, pageTypes: [pageType()] });

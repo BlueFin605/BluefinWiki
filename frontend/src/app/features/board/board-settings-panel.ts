@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { boardableTypes } from './boardable-types';
 import type { BoardConfig, PageTypeDefinition } from '../pages/page.types';
 
 export interface BoardSettingsPanelData {
@@ -140,14 +141,18 @@ const COLOR_PALETTE = [
           <mat-label>Target type</mat-label>
           <mat-select
             [value]="targetTypeGuid()"
+            [disabled]="boardableTypeOptions().length === 0"
             (selectionChange)="targetTypeGuid.set($event.value)"
           >
             <mat-option [value]="''">(Direct children)</mat-option>
-            @for (pt of data.pageTypes; track pt.guid) {
+            @for (pt of boardableTypeOptions(); track pt.guid) {
               <mat-option [value]="pt.guid">{{ pt.icon }} {{ pt.name }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
+        @if (boardableTypeOptions().length === 0) {
+          <p class="muted">No page types define a "state" property — nothing to collect from descendants.</p>
+        }
         @if (targetTypeGuid()) {
           <mat-form-field appearance="fill" class="depth-input">
             <mat-label>Depth</mat-label>
@@ -230,6 +235,15 @@ export class BoardSettingsPanel {
     const name = this.newColumn().trim();
     return name.length > 0 && !this.columns().includes(name);
   });
+
+  /**
+   * The target-type options offered by "Collect pages of type" — page types
+   * with a `state` property to group cards by (step 5.5). Filters
+   * {@link BoardSettingsPanelData.pageTypes}, not the full page-types list.
+   */
+  protected readonly boardableTypeOptions = computed<PageTypeDefinition[]>(() =>
+    boardableTypes(this.data.pageTypes),
+  );
 
   addColumn(): void {
     if (!this.canAddColumn()) return;
