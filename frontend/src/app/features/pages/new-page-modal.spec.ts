@@ -103,6 +103,233 @@ describe('NewPageModal', () => {
     expect(stub.calls).toEqual(['g-new']);
   });
 
+  it('auto-selects the sole allowed child type when wiki (untyped) children are disallowed', async () => {
+    const { ref } = dialogRefStub<string | null>();
+    const rendered = await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: { parentGuid: 'parent-1', parentPageType: 'pt-parent' } },
+        { provide: MatDialogRef, useValue: ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types/pt-parent/allowed-children').flush({
+      allowedChildTypes: [
+        {
+          guid: 'pt-note',
+          name: 'Note',
+          icon: 'note',
+          properties: [],
+          allowedChildTypes: [],
+          allowWikiPageChildren: true,
+          allowedParentTypes: [],
+          allowAnyParent: true,
+          createdBy: '',
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+      allowWikiPageChildren: false,
+    });
+    await settle();
+    rendered.fixture.detectChanges();
+
+    const select = screen.getByRole('combobox');
+    expect(select).toHaveTextContent('Note');
+  });
+
+  it('does not re-fight a deliberate change back to "(none)" after auto-selecting', async () => {
+    const rendered = await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: { parentGuid: 'parent-1', parentPageType: 'pt-parent' } },
+        { provide: MatDialogRef, useValue: dialogRefStub().ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types/pt-parent/allowed-children').flush({
+      allowedChildTypes: [
+        {
+          guid: 'pt-note', name: 'Note', icon: 'note', properties: [],
+          allowedChildTypes: [], allowWikiPageChildren: true, allowedParentTypes: [],
+          allowAnyParent: true, createdBy: '', createdAt: '', updatedAt: '',
+        },
+      ],
+      allowWikiPageChildren: false,
+    });
+    await settle();
+    rendered.fixture.detectChanges();
+
+    const cmp = rendered.fixture.componentInstance as unknown as {
+      pageType: { set: (v: string | null) => void; (): string | null };
+    };
+    expect(cmp.pageType()).toBe('pt-note'); // auto-selected
+
+    cmp.pageType.set(null); // user deliberately picks "(none)"
+    await settle();
+    rendered.fixture.detectChanges();
+
+    expect(cmp.pageType()).toBeNull();
+  });
+
+  it('does NOT auto-select when more than one child type is allowed', async () => {
+    const { ref } = dialogRefStub<string | null>();
+    const rendered = await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: { parentGuid: 'parent-1', parentPageType: 'pt-parent' } },
+        { provide: MatDialogRef, useValue: ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types/pt-parent/allowed-children').flush({
+      allowedChildTypes: [
+        {
+          guid: 'pt-note', name: 'Note', icon: 'note', properties: [],
+          allowedChildTypes: [], allowWikiPageChildren: true, allowedParentTypes: [],
+          allowAnyParent: true, createdBy: '', createdAt: '', updatedAt: '',
+        },
+        {
+          guid: 'pt-task', name: 'Task', icon: 'task', properties: [],
+          allowedChildTypes: [], allowWikiPageChildren: true, allowedParentTypes: [],
+          allowAnyParent: true, createdBy: '', createdAt: '', updatedAt: '',
+        },
+      ],
+      allowWikiPageChildren: false,
+    });
+    await settle();
+    rendered.fixture.detectChanges();
+
+    const cmp = rendered.fixture.componentInstance as unknown as { pageType: () => string | null };
+    expect(cmp.pageType()).toBeNull();
+  });
+
+  it('shows "Title is required" after blurring an empty title', async () => {
+    const { ref } = dialogRefStub();
+    await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: { parentGuid: null } },
+        { provide: MatDialogRef, useValue: ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    const user = userEvent.setup();
+    const titleInput = screen.getByLabelText(/title/i);
+    await user.click(titleInput);
+    await user.tab();
+
+    expect(screen.getByText(/title is required/i)).toBeInTheDocument();
+  });
+
+  it('shows "3–100 characters" after blurring a too-short title', async () => {
+    const { ref } = dialogRefStub();
+    await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: { parentGuid: null } },
+        { provide: MatDialogRef, useValue: ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    const user = userEvent.setup();
+    const titleInput = screen.getByLabelText(/title/i);
+    await user.type(titleInput, 'ab');
+    await user.tab();
+
+    expect(screen.getByText(/3–100 characters/i)).toBeInTheDocument();
+  });
+
+  it('does not show a title error before the field has been touched', async () => {
+    const { ref } = dialogRefStub();
+    await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: MAT_DIALOG_DATA, useValue: { parentGuid: null } },
+        { provide: MatDialogRef, useValue: ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+
+    expect(screen.queryByText(/title is required/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/3–100 characters/i)).not.toBeInTheDocument();
+  });
+
+  it('submits content boilerplate and inherited properties built from the selected type + parent properties', async () => {
+    const stub = dialogRefStub<string | null>();
+    await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: MAT_DIALOG_DATA,
+          useValue: {
+            parentGuid: 'parent-1',
+            parentPageType: 'pt-parent',
+            parentProperties: { status: { type: 'string', value: 'in-progress' } },
+          },
+        },
+        { provide: MatDialogRef, useValue: stub.ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const ptReq = http.expectOne('/api/page-types/pt-parent/allowed-children');
+    ptReq.flush({
+      allowedChildTypes: [
+        {
+          guid: 'pt-note',
+          name: 'Note',
+          icon: 'note',
+          properties: [{ name: 'status', type: 'string', required: false, defaultValue: 'backlog' }],
+          allowedChildTypes: [],
+          allowWikiPageChildren: true,
+          allowedParentTypes: [],
+          allowAnyParent: true,
+          createdBy: '',
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+      allowWikiPageChildren: false, // sole type + wiki disallowed -> auto-selected
+    });
+    await settle();
+
+    const user = userEvent.setup();
+    const titleInput = screen.getByLabelText(/title/i);
+    await user.type(titleInput, 'My Page');
+    await user.click(screen.getByRole('button', { name: /create/i }));
+
+    const req = http.expectOne('/api/pages');
+    const body = req.request.body as {
+      content?: string;
+      properties?: Record<string, { type: string; value: unknown }>;
+    };
+    expect(body.content).toMatch(/^# My Page\n/);
+    expect(body.properties).toEqual({ status: { type: 'string', value: 'in-progress' } });
+    req.flush({
+      guid: 'g-new', title: 'My Page', content: '', folderId: 'f', tags: [], status: 'draft',
+      createdBy: 'u', modifiedBy: 'u', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    expect(stub.calls).toEqual(['g-new']);
+  });
+
   it('shows the allowed-child-types in the dropdown when present', async () => {
     const { ref } = dialogRefStub();
     const rendered = await render(NewPageModal, {

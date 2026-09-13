@@ -298,6 +298,16 @@ export class Pages {
   }
 
   /**
+   * Imperative single-page fetch — used by callers that need one full page
+   * record without spinning up an `rxResource` (e.g. the New Page modal's
+   * lookup of the parent's `pageType` + `properties` for type-scoping and
+   * property inheritance, step 2.6). Read-only: bumps no invalidation tag.
+   */
+  async fetchPage(guid: string): Promise<PageContent> {
+    return firstValueFrom(this.http.get<PageContent>(`/api/pages/${guid}`));
+  }
+
+  /**
    * Invalidation is derived from which keys the request body carries (it only
    * sends changed fields):
    * - `page:<guid>` always.

@@ -157,6 +157,22 @@ describe('Pages service', () => {
     });
   });
 
+  describe('fetchPage', () => {
+    it('GETs /api/pages/{guid} imperatively and returns the full record', async () => {
+      const promise = pages.fetchPage('parent-1');
+      const req = http.expectOne('/api/pages/parent-1');
+      expect(req.request.method).toBe('GET');
+      req.flush(pageContent({
+        guid: 'parent-1',
+        pageType: 'pt-1',
+        properties: { status: { type: 'string', value: 'in-progress' } },
+      }));
+      const result = await promise;
+      expect(result.pageType).toBe('pt-1');
+      expect(result.properties).toEqual({ status: { type: 'string', value: 'in-progress' } });
+    });
+  });
+
   describe('mutations', () => {
     it('updatePage PUTs /api/pages/{guid} and returns the response', async () => {
       const promise = pages.updatePage('g1', { title: 'New' });

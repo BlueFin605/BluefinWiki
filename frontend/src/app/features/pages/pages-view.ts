@@ -600,13 +600,14 @@ export class PagesView {
   private async openNewPageModal(parentGuid: string | null): Promise<void> {
     const data: NewPageModalData = { parentGuid };
     if (parentGuid) {
-      // Look up parent's pageType so the modal can scope the dropdown.
+      // Fetch the parent's full record so the modal can scope its type
+      // dropdown to the parent's allowed children and inherit the parent's
+      // properties (step 2.6). Best-effort: on failure, open the modal
+      // unscoped rather than blocking page creation.
       try {
-        const list = await this.pages.fetchChildren(parentGuid);
-        // Best-effort: parent's own metadata isn't on the children list, but
-        // fetchChildren confirms the parent exists. Skip pageType lookup
-        // here; the modal still defaults to "all types".
-        void list;
+        const parent = await this.pages.fetchPage(parentGuid);
+        data.parentPageType = parent.pageType ?? null;
+        data.parentProperties = parent.properties ?? null;
       } catch {
         // Non-fatal: open the modal anyway.
       }

@@ -26,7 +26,7 @@ import { PageTree } from './page-tree';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { SearchDialog } from '../search/search-dialog';
 import { provideBreakpointStub } from '../../testing/breakpoint-stub';
-import type { PageTypeDefinition, TreeDropRequest } from './page.types';
+import type { PageContent, PageTypeDefinition, TreeDropRequest } from './page.types';
 import type { PageMetadata } from './drafts';
 import type { PageTypeChange } from '../editor/page-properties-panel';
 
@@ -1261,9 +1261,17 @@ describe('PagesView', () => {
     return fixture.debugElement.query(By.directive(PageTree)).componentInstance as PageTree;
   }
 
+  function pageContent(over: Partial<PageContent> = {}): PageContent {
+    return {
+      guid: 'g', title: 'T', content: '', folderId: '', tags: [], status: 'published',
+      createdBy: 'u', modifiedBy: 'u', createdAt: '', modifiedAt: '',
+      ...over,
+    };
+  }
+
   it('after onNewChildRequested resolves, the tree receives the parent guid as the expand target', async () => {
     const { fixture, http } = await renderShell();
-    jest.spyOn(TestBed.inject(Pages), 'fetchChildren').mockResolvedValue([]);
+    jest.spyOn(TestBed.inject(Pages), 'fetchPage').mockResolvedValue(pageContent({ guid: 'parent-1' }));
     jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     stubNewPageModal('created-guid');
 
@@ -1278,7 +1286,7 @@ describe('PagesView', () => {
 
   it('re-fires a distinct expand target on a repeat create under the same parent', async () => {
     const { fixture, http } = await renderShell();
-    jest.spyOn(TestBed.inject(Pages), 'fetchChildren').mockResolvedValue([]);
+    jest.spyOn(TestBed.inject(Pages), 'fetchPage').mockResolvedValue(pageContent({ guid: 'parent-1' }));
     jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     stubNewPageModal('created-guid');
     const cmp = fixture.componentInstance as unknown as NewPageHandle;
@@ -1318,7 +1326,7 @@ describe('PagesView', () => {
 
   it('does NOT set the expand target when the New Page modal is dismissed without creating', async () => {
     const { fixture, http } = await renderShell();
-    jest.spyOn(TestBed.inject(Pages), 'fetchChildren').mockResolvedValue([]);
+    jest.spyOn(TestBed.inject(Pages), 'fetchPage').mockResolvedValue(pageContent({ guid: 'parent-1' }));
     jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     stubNewPageModal(null);
 
@@ -1328,6 +1336,49 @@ describe('PagesView', () => {
     fixture.detectChanges();
 
     expect(pageTree(fixture).expandGuid()).toBeNull();
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('opening "New child" fetches the parent record and passes its pageType + properties to the modal', async () => {
+    const { fixture, http } = await renderShell();
+    jest.spyOn(TestBed.inject(Pages), 'fetchPage').mockResolvedValue(pageContent({
+      guid: 'parent-1',
+      pageType: 'pt-parent',
+      properties: { status: { type: 'string', value: 'in-progress' } },
+    }));
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(null) } as never);
+
+    (fixture.componentInstance as unknown as NewPageHandle).onNewChildRequested('parent-1');
+    await settle();
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    const config = openSpy.mock.calls[0][1] as { data: { parentPageType?: string | null; parentProperties?: unknown } };
+    expect(config.data.parentPageType).toBe('pt-parent');
+    expect(config.data.parentProperties).toEqual({ status: { type: 'string', value: 'in-progress' } });
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('opening "New child" still opens the modal (unscoped) when the parent fetch fails', async () => {
+    const { fixture, http } = await renderShell();
+    jest.spyOn(TestBed.inject(Pages), 'fetchPage').mockRejectedValue(new Error('boom'));
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = jest
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(null) } as never);
+
+    (fixture.componentInstance as unknown as NewPageHandle).onNewChildRequested('parent-1');
+    await settle();
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    const config = openSpy.mock.calls[0][1] as { data: { parentGuid: string | null } };
+    expect(config.data.parentGuid).toBe('parent-1');
+
     http.match(() => true).forEach((r) => r.flush(null));
   });
 
