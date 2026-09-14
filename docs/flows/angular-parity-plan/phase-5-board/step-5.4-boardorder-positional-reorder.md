@@ -41,6 +41,22 @@ helper.
 - The helper is the heart of this step — unit-test every branch.
 - `board-column.onDrop` payload becomes `{ card, targetState, targetIndex }`.
 
+### Normalising invariant (added by the Phase 5 final-review fix wave)
+
+`computeBoardOrder` **requires and ensures that every card in a column
+carries an explicit `boardOrder` after a drop.** Any non-mover card in the
+target column with `boardOrder === undefined` counts as gap exhaustion and
+routes to the full-column renumber, rather than being read as `0`.
+
+This reconciles the helper with `group-by-state.ts`, which sorts cards that
+*have* a `boardOrder` **before** all that don't. The two files previously
+encoded opposite conventions for a missing order, and the mismatch corrupted
+any board predating this step: dropping a card at the bottom of an
+all-unordered column gave the mover `boardOrder: 1000` while its neighbours
+kept none, so the sort rendered it *first*, and the wrong order persisted.
+Renumbering normalises the whole column in one pass, so the rendered order
+always matches the drop the user made.
+
 ## Tests first (TDD)
 
 - `compute-board-order.spec.ts`: insert between 1000 & 2000 → 1500; at top of

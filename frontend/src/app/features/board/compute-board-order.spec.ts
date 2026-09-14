@@ -95,13 +95,68 @@ describe('computeBoardOrder', () => {
     });
   });
 
-  it('treats a neighbour with no boardOrder as 0 for gap/midpoint purposes', () => {
+  it('renumbers when a neighbour has no boardOrder at all, rather than treating it as 0', () => {
     const columnCards = [
-      { guid: 'a' }, // no explicit boardOrder -> treated as 0
+      { guid: 'a' }, // no explicit boardOrder
       { guid: 'mover' },
       { guid: 'b', boardOrder: 2000 },
     ];
-    expect(computeBoardOrder(columnCards, 1)).toEqual({ value: 1000 });
+    // Treating 'a' as 0 used to yield a midpoint of 1000 for the mover,
+    // leaving 'a' with no boardOrder at all — which `groupByState` then
+    // sorts AFTER both ordered cards, contradicting the drop. Renumbering
+    // normalises the whole column instead. 'b' renumbers 2000 -> 3000.
+    expect(computeBoardOrder(columnCards, 1)).toEqual({
+      renumber: [
+        { guid: 'a', value: 1000 },
+        { guid: 'mover', value: 2000 },
+        { guid: 'b', value: 3000 },
+      ],
+    });
+  });
+
+  it('renumbers on a bottom drop into an all-unordered column (the corruption case)', () => {
+    // The regression this guard exists for: column [A, B, C] where no card
+    // has ever been positioned, and the user drags A to the bottom. The old
+    // `(before.boardOrder ?? 0) + 1000` gave the mover 1000 while B and C
+    // kept no order — `groupByState` then rendered the mover FIRST, so the
+    // card visibly jumped to the top and persisted there.
+    const columnCards = [
+      { guid: 'b' },
+      { guid: 'c' },
+      { guid: 'mover' },
+    ];
+    expect(computeBoardOrder(columnCards, 2)).toEqual({
+      renumber: [
+        { guid: 'b', value: 1000 },
+        { guid: 'c', value: 2000 },
+        { guid: 'mover', value: 3000 },
+      ],
+    });
+  });
+
+  it('renumbers on a bottom drop into a partially-ordered column whose tail is unordered', () => {
+    const columnCards = [
+      { guid: 'a', boardOrder: 1000 },
+      { guid: 'b' }, // never positioned
+      { guid: 'mover' },
+    ];
+    // 'a' renumbers back onto its own 1000 and is omitted; 'b' and the mover
+    // both gain an explicit order, so the column is fully normalised.
+    expect(computeBoardOrder(columnCards, 2)).toEqual({
+      renumber: [
+        { guid: 'b', value: 2000 },
+        { guid: 'mover', value: 3000 },
+      ],
+    });
+  });
+
+  it('leaves the mover\'s own missing boardOrder alone — only other cards trigger normalising', () => {
+    const columnCards = [
+      { guid: 'a', boardOrder: 1000 },
+      { guid: 'mover' }, // the mover's own order is never read
+      { guid: 'b', boardOrder: 2000 },
+    ];
+    expect(computeBoardOrder(columnCards, 1)).toEqual({ value: 1500 });
   });
 
   it('rounds a non-integer midpoint to the nearest integer', () => {
