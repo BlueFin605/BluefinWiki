@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  afterRenderEffect,
   computed,
   effect,
   inject,
@@ -16,6 +17,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Search } from './search';
+import { moveSelection } from './move-selection';
 import type { WikiSearchResult } from './search.types';
 
 type ScopeValue = 'all' | 'titles' | 'content';
@@ -58,8 +60,13 @@ const RESULT_LIMIT = 10;
           type="text"
           [(ngModel)]="rawQuery"
           (ngModelChange)="onQueryChange($event)"
+          (keydown)="onKeydown($event)"
           placeholder="Search wiki..."
           aria-label="Search wiki"
+          role="combobox"
+          aria-controls="search-results-listbox"
+          [attr.aria-expanded]="resultsOpen()"
+          [attr.aria-activedescendant]="activeDescendant()"
           maxlength="500"
           #searchInput
         />
@@ -87,7 +94,12 @@ const RESULT_LIMIT = 10;
         </mat-button-toggle-group>
       </div>
 
-      <div class="results" role="listbox" aria-label="Search results">
+      <div
+        id="search-results-listbox"
+        class="results"
+        role="listbox"
+        aria-label="Search results"
+      >
         @if (rawQuery().trim().length === 0) {
           <p class="hint">Start typing to search...</p>
         } @else if (state().status === 'error') {
@@ -95,14 +107,16 @@ const RESULT_LIMIT = 10;
         } @else if (state().status === 'resolved' && state().results.length === 0) {
           <p class="hint">No results for "{{ rawQuery() }}".</p>
         } @else {
-          @for (result of state().results; track result.pageId) {
+          @for (result of state().results; track result.pageId; let i = $index) {
             <button
               type="button"
               class="result"
               role="option"
+              [id]="'search-result-' + i"
               [attr.aria-label]="result.title"
-              [attr.aria-selected]="false"
+              [attr.aria-selected]="i === selectedIndex()"
               (click)="onSelect(result)"
+              (mouseenter)="selectedIndex.set(i)"
             >
               <div class="title">{{ result.title }}</div>
               <div class="path">{{ result.path }}</div>
@@ -191,6 +205,24 @@ export class SearchDialog {
   protected readonly scope = signal<ScopeValue>('all');
   protected readonly state = signal<SearchState>(IDLE_STATE);
 
+  /** `-1` when nothing is highlighted. Moved by {@link moveSelection}, hover, and Enter/Ctrl+Enter. */
+  protected readonly selectedIndex = signal(-1);
+
+  // Read via a computed (not `state().results` directly) so effects below only
+  // re-run when the results *array reference* actually changes — e.g. not on
+  // every idle → loading → resolved status flip for the same result set.
+  private readonly results = computed(() => this.state().results);
+
+  protected readonly activeDescendant = computed(() => {
+    const i = this.selectedIndex();
+    return i >= 0 ? `search-result-${i}` : null;
+  });
+
+  /** Whether the results listbox currently has selectable options — drives `aria-expanded`. */
+  protected readonly resultsOpen = computed(
+    () => this.state().status === 'resolved' && this.state().results.length > 0,
+  );
+
   // Combine raw + scope into a tuple so a scope change also re-issues the search.
   private readonly trigger = computed(() => ({
     text: this.rawQuery(),
@@ -214,6 +246,26 @@ export class SearchDialog {
     effect(() => {
       this.state.set(this.debounced());
     });
+
+    // Reset the highlighted row whenever a new result set arrives (including
+    // going back to empty) — a stale index from the previous query must never
+    // carry over. See the `results` computed above for why this only fires on
+    // real result-set changes rather than every status transition.
+    effect(() => {
+      this.results();
+      this.selectedIndex.set(-1);
+    });
+
+    // Keep the highlighted row visible as selection moves via keyboard/hover.
+    afterRenderEffect(() => {
+      const results = this.results();
+      const i = this.selectedIndex();
+      if (i < 0 || i >= results.length) return;
+      const el = document.getElementById(`search-result-${i}`);
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
   }
 
   protected onQueryChange(value: string): void {
@@ -225,6 +277,29 @@ export class SearchDialog {
 
   protected onScopeChange(value: ScopeValue): void {
     this.scope.set(value);
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    const key = event.key;
+    if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
+      const length = this.results().length;
+      if (length === 0) return;
+      event.preventDefault();
+      this.selectedIndex.set(moveSelection(this.selectedIndex(), key, length));
+      return;
+    }
+    if (key === 'Enter') {
+      const selected = this.results()[this.selectedIndex()];
+      if (!selected) return;
+      event.preventDefault();
+      if (event.ctrlKey || event.metaKey) {
+        // Open in a new tab; the dialog and its result list stay open so the
+        // user can keep browsing (matches React).
+        window.open('/pages/' + selected.pageId, '_blank');
+        return;
+      }
+      void this.onSelect(selected);
+    }
   }
 
   protected async onSelect(result: WikiSearchResult): Promise<void> {
