@@ -340,7 +340,16 @@ export function resolveSaveStatus(state: {
                     }
                   </div>
                 }
-              } @else if (viewMode() === 'board') {
+              } @else if (viewMode() === 'board' && boardEligible()) {
+                <!--
+                  Gated on boardEligible() as well as viewMode(), matching the
+                  Content|Board toggle's own gate above. Without it a page that
+                  was eligible when its boardConfig was saved but has since lost
+                  eligibility (its state-bearing children edited or deleted)
+                  opens straight into an empty board with the toggle hidden and
+                  no route back to its content. Falling through to the content
+                  branch keeps the page readable either way.
+                -->
                 <wiki-board-view [parentGuid]="page.guid" [boardConfig]="page.boardConfig ?? null" />
               } @else {
                 <div class="view-with-toc">
@@ -695,11 +704,17 @@ export class PageDetail {
       .subscribe((change) => void this.onPageTypeChange(change));
 
     // Sync the board default view from boardConfig once the page resolves.
+    // Eligibility is part of the condition so the effect never parks the page
+    // in a mode the template will refuse to render: `defaultView: 'board'` on
+    // a page that has since lost eligibility falls back to content instead.
+    // (Eligibility resolves asynchronously — this re-runs and switches to the
+    // board once the child-state probe confirms it.)
     effect(() => {
       const cfg = this.boardConfig();
-      if (cfg?.defaultView === 'board') {
+      const eligible = this.boardEligible();
+      if (cfg?.defaultView === 'board' && eligible) {
         this._viewMode.set('board');
-      } else if (!cfg) {
+      } else if (!cfg || !eligible) {
         this._viewMode.set('content');
       }
     });

@@ -392,6 +392,55 @@ describe('PageDetail', () => {
     expect(screen.queryByRole('radio', { name: /^board$/i })).toBeNull();
   });
 
+  it('opens the board when defaultView is board and the page is eligible', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      boardConfig: { targetTypeGuid: 'pt-task', columns: ['Alpha'], defaultView: 'board' },
+    });
+    await settle();
+    // PageDetail and the mounted BoardView each fetch the page-type list.
+    for (const req of http.match('/api/page-types')) req.flush({ pageTypes: [] });
+    await settle();
+    fixture.detectChanges();
+
+    // The board view mounted: it is the only thing that fetches children with
+    // the board's own page size.
+    http.expectOne((req) => req.url.includes('/api/pages/g1/children') && req.url.includes('limit=200'))
+      .flush({ children: [], hasMore: false });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
+  });
+
+  it('falls back to content when defaultView is board but the page is no longer eligible', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      content: '# Original',
+      // Saved while the page was eligible; its state-bearing children have
+      // since been edited away, so `boardEligible()` is now false and the
+      // Content|Board toggle is hidden. Rendering the board anyway would
+      // strand the user on an empty board with no way back to the content.
+      boardConfig: { columns: ['Alpha'], defaultView: 'board' },
+    });
+    await settle();
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    http.expectOne('/api/pages/g1/children?include=properties&limit=50').flush({
+      children: [],
+      hasMore: false,
+    });
+    await settle();
+    drain();
+    await settle();
+    fixture.detectChanges();
+
+    expect(screen.queryByRole('radio', { name: /^board$/i })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Original' })).toBeInTheDocument();
+    // The board view never mounted, so it never fetched its cards.
+    http.expectNone((req) => req.url.includes('limit=200'));
+  });
+
   it('shows the board toggle via child-state auto-eligibility with no boardConfig at all', async () => {
     const { http, fixture } = await renderDetail();
     http.expectOne('/api/pages/g1').flush(serverPage);
