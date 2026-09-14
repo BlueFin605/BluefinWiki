@@ -544,7 +544,9 @@ export class SearchDialog {
       event.preventDefault();
       if (event.ctrlKey || event.metaKey) {
         // Open in a new tab; the dialog and its result list stay open so the
-        // user can keep browsing (matches React).
+        // user can keep browsing (matches React). Still a genuine selection
+        // of this result — record it the same as a plain click/Enter would.
+        this.recordRecent(this.rawQuery());
         window.open('/pages/' + selected.pageId, '_blank');
         return;
       }
@@ -571,20 +573,21 @@ export class SearchDialog {
 
   /** Removes just this one recent-search entry (the row's "×" control). */
   protected onRemoveRecent(term: string): void {
-    const next = removeRecent(this.recentSearches(), term);
-    this.recentSearches.set(next);
-    writeRecentSearches(next);
+    this.persistRecent(removeRecent(this.recentSearches(), term));
   }
 
   /** "Clear all" — empties the recent-searches list. */
   protected onClearRecent(): void {
-    this.recentSearches.set([]);
-    writeRecentSearches([]);
+    this.persistRecent([]);
   }
 
   /** Records `term` as the most-recent search (deduped + capped — see `addRecent`). */
   private recordRecent(term: string): void {
-    const next = addRecent(this.recentSearches(), term);
+    this.persistRecent(addRecent(this.recentSearches(), term));
+  }
+
+  /** Single choke point for a recent-searches mutation: updates the signal and persists it. */
+  private persistRecent(next: string[]): void {
     this.recentSearches.set(next);
     writeRecentSearches(next);
   }

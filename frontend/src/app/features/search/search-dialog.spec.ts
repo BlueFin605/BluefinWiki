@@ -892,7 +892,7 @@ describe('SearchDialog recent searches (step 6.4)', () => {
     expect(storedRecent()).toEqual([]);
   });
 
-  it('does not record when Ctrl/Cmd+Enter opens a result in a new tab', async () => {
+  it('records the term when Ctrl/Cmd+Enter opens a result in a new tab (still a genuine selection)', async () => {
     const dialogRef = makeDialogRef();
     const { input } = await seedThreeResults(dialogRef);
     const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
@@ -901,7 +901,12 @@ describe('SearchDialog recent searches (step 6.4)', () => {
     fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });
     await settle();
 
-    expect(storedRecent()).toEqual([]);
+    // Recorded exactly like a plain click/Enter selection would be...
+    expect(storedRecent()).toEqual(['thing']);
+    // ...but the dialog/tab-opening behaviour itself is unchanged: it stays
+    // open rather than navigating/closing like a plain selection.
+    expect(openSpy).toHaveBeenCalledWith('/pages/g1', '_blank');
+    expect(dialogRef.close).not.toHaveBeenCalled();
     openSpy.mockRestore();
   });
 
