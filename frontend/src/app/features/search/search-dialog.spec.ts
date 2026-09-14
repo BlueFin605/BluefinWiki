@@ -198,7 +198,10 @@ describe('SearchDialog', () => {
     });
     await settle();
 
-    expect(await screen.findByText('Family Recipes')).toBeInTheDocument();
+    // Not `getByText('Family Recipes')`: the query ('recipe') matches inside
+    // the title, so step 6.5 splits it around a `<mark>` — the row's
+    // `aria-label` still carries the full plain title regardless.
+    expect(await screen.findByRole('option', { name: 'Family Recipes' })).toBeInTheDocument();
     expect(screen.getByText(/pasta/i)).toBeInTheDocument();
   });
 
@@ -629,6 +632,256 @@ describe('SearchDialog pagination (step 6.2)', () => {
   });
 });
 
+describe('SearchDialog result highlighting + tags (step 6.5)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('wraps the matched query term in <mark> in both the title and the snippet', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'recipe');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Family Recipes',
+          snippet: 'A great recipe for pasta.',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'Cooking > Family Recipes',
+          tags: [],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /family recipes/i });
+    const titleMarks = option.querySelectorAll('.title mark');
+    expect(titleMarks).toHaveLength(1);
+    expect(titleMarks[0]).toHaveTextContent(/recipe/i);
+
+    const snippetMarks = option.querySelectorAll('.snippet mark');
+    expect(snippetMarks).toHaveLength(1);
+    expect(snippetMarks[0]).toHaveTextContent(/recipe/i);
+    // Rest of the title/snippet text is still present, unmarked.
+    expect(option.querySelector('.title')).toHaveTextContent('Family Recipes');
+    expect(option.querySelector('.snippet')).toHaveTextContent('A great recipe for pasta.');
+  });
+
+  it('highlights multiple occurrences of the query term', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'cat');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Cat',
+          snippet: 'The cat sat on the cat mat.',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'Animals > Cat',
+          tags: [],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /^cat$/i });
+    expect(option.querySelectorAll('.snippet mark')).toHaveLength(2);
+  });
+
+  it('renders no <mark> elements when the result does not match the query text directly', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'zzz');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Unrelated Title',
+          snippet: 'Semantic match with no literal overlap.',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'Root > Unrelated Title',
+          tags: [],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /unrelated title/i });
+    expect(option.querySelectorAll('mark')).toHaveLength(0);
+    expect(option.querySelector('.title')).toHaveTextContent('Unrelated Title');
+  });
+
+  it('renders up to 3 tags and no more', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'thing');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Thing',
+          snippet: '',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'p1',
+          tags: ['one', 'two', 'three', 'four', 'five'],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /^thing$/i });
+    const tagEls = option.querySelectorAll('.tag');
+    expect(tagEls).toHaveLength(3);
+    expect(Array.from(tagEls).map((el) => el.textContent)).toEqual(['one', 'two', 'three']);
+  });
+
+  it('renders no tag elements when the result has none', async () => {
+    const dialogRef = makeDialogRef();
+    await seedThreeResults(dialogRef);
+
+    const option = screen.getByRole('option', { name: /^one$/i });
+    expect(option.querySelectorAll('.tag')).toHaveLength(0);
+  });
+
+  it('applies the clamp class to the snippet element', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'thing');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Thing',
+          snippet: 'Some snippet text that could run long.',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'p1',
+          tags: [],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /^thing$/i });
+    expect(option.querySelector('.snippet')).toHaveClass('snippet-clamp');
+  });
+
+  it('still shows the folder path alongside highlighted title/snippet', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'recipe');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Family Recipes',
+          snippet: 'A recipe for pasta.',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'Cooking > Family Recipes',
+          tags: [],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /family recipes/i });
+    expect(option.querySelector('.path')).toHaveTextContent('Cooking > Family Recipes');
+  });
+
+  it('does not throw and renders no <mark> when the query contains regex-special characters', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, '(cost)');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Budget (cost) notes',
+          snippet: 'Track (cost) over time.',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'p1',
+          tags: [],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /budget/i });
+    expect(option.querySelectorAll('mark')).toHaveLength(2);
+  });
+});
+
 describe('SearchDialog rate limiting (step 6.3)', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -833,7 +1086,9 @@ describe('SearchDialog recent searches (step 6.4)', () => {
       executionTimeMs: 1,
     });
     await settle();
-    expect(await screen.findByText('Pizza Recipe')).toBeInTheDocument();
+    // As above: the query ('pizza') matches inside the title, so step 6.5
+    // splits it around a `<mark>` — assert via the row's `aria-label`.
+    expect(await screen.findByRole('option', { name: 'Pizza Recipe' })).toBeInTheDocument();
   });
 
   it('removes just the clicked item via its "×" control', async () => {

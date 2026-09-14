@@ -22,7 +22,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RATE_LIMIT_MESSAGE, RateLimitExceededError, Search, hasMoreResults } from './search';
 import { moveSelection } from './move-selection';
 import { addRecent, readRecentSearches, removeRecent, writeRecentSearches } from './recent-searches';
+import { highlight, type HighlightSegment } from './highlight';
 import type { SearchPageSize, WikiSearchResult } from './search.types';
+
+/** Up to this many tags are shown per result row (matches React parity). */
+const MAX_TAGS = 3;
 
 type ScopeValue = 'all' | 'titles' | 'content';
 
@@ -171,10 +175,25 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
               (click)="onSelect(result)"
               (mouseenter)="selectedIndex.set(i)"
             >
-              <div class="title">{{ result.title }}</div>
+              <div class="title">
+                @for (seg of highlightSegments(result.title); track $index) {
+                  @if (seg.match) {<mark>{{ seg.text }}</mark>} @else {<ng-container>{{ seg.text }}</ng-container>}
+                }
+              </div>
               <div class="path">{{ result.path }}</div>
               @if (result.snippet) {
-                <div class="snippet">{{ result.snippet }}</div>
+                <div class="snippet snippet-clamp">
+                  @for (seg of highlightSegments(result.snippet); track $index) {
+                    @if (seg.match) {<mark>{{ seg.text }}</mark>} @else {<ng-container>{{ seg.text }}</ng-container>}
+                  }
+                </div>
+              }
+              @if (result.tags.length > 0) {
+                <div class="tags">
+                  @for (tag of visibleTags(result.tags); track tag) {
+                    <span class="tag">{{ tag }}</span>
+                  }
+                </div>
               }
             </button>
           }
@@ -321,8 +340,33 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
       background: #f3f4f6;
     }
     .title { font-weight: 500; color: #111827; }
+    .title mark, .snippet mark {
+      background: #fef08a;
+      color: inherit;
+      border-radius: 0.125rem;
+    }
     .path { font-size: 0.75rem; color: #6b7280; margin-top: 0.125rem; }
     .snippet { font-size: 0.875rem; color: #4b5563; margin-top: 0.25rem; }
+    .snippet-clamp {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.375rem;
+    }
+    .tag {
+      font-size: 0.6875rem;
+      color: #4b5563;
+      background: #f3f4f6;
+      border-radius: 0.75rem;
+      padding: 0.0625rem 0.5rem;
+    }
     .footer {
       padding: 0.5rem 1rem;
       font-size: 0.75rem;
@@ -650,6 +694,22 @@ export class SearchDialog {
   private teardownLoadMoreObserver(): void {
     this.loadMoreObserver?.disconnect();
     this.loadMoreObserver = null;
+  }
+
+  /**
+   * Splits `text` into `{ text, match }` segments around the current query
+   * (step 6.5) for the template to render with `@for` + `<mark>` — see
+   * {@link highlight}. Called straight from the template rather than a
+   * `computed()`: it's per-row (keyed on `text`, not on any single signal),
+   * and cheap pure string work over whatever's currently rendered.
+   */
+  protected highlightSegments(text: string): HighlightSegment[] {
+    return highlight(text, this.rawQuery());
+  }
+
+  /** At most {@link MAX_TAGS} tags per result row (matches React parity). */
+  protected visibleTags(tags: readonly string[]): readonly string[] {
+    return tags.slice(0, MAX_TAGS);
   }
 
   /**
