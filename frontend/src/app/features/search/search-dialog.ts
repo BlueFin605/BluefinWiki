@@ -111,6 +111,7 @@ const RESULT_LIMIT = 10;
             <button
               type="button"
               class="result"
+              [class.selected]="i === selectedIndex()"
               role="option"
               [id]="'search-result-' + i"
               [attr.aria-label]="result.title"
@@ -182,7 +183,7 @@ const RESULT_LIMIT = 10;
       padding: 0.5rem 1rem;
       cursor: pointer;
     }
-    .result:hover, .result:focus-visible {
+    .result:hover, .result:focus-visible, .result.selected {
       background: #f3f4f6;
     }
     .title { font-weight: 500; color: #111827; }
@@ -218,10 +219,14 @@ export class SearchDialog {
     return i >= 0 ? `search-result-${i}` : null;
   });
 
-  /** Whether the results listbox currently has selectable options — drives `aria-expanded`. */
-  protected readonly resultsOpen = computed(
-    () => this.state().status === 'resolved' && this.state().results.length > 0,
-  );
+  /**
+   * Whether the results listbox currently has selectable options — drives
+   * `aria-expanded`. Keyed only off `results.length`, not `status`: while a
+   * new search is `loading`, the previous result set's rows are still
+   * rendered (see the template), so the listbox stays "expanded" until that
+   * changes.
+   */
+  protected readonly resultsOpen = computed(() => this.results().length > 0);
 
   // Combine raw + scope into a tuple so a scope change also re-issues the search.
   private readonly trigger = computed(() => ({
@@ -281,15 +286,15 @@ export class SearchDialog {
 
   protected onKeydown(event: KeyboardEvent): void {
     const key = event.key;
+    const results = this.results();
     if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
-      const length = this.results().length;
-      if (length === 0) return;
+      if (results.length === 0) return;
       event.preventDefault();
-      this.selectedIndex.set(moveSelection(this.selectedIndex(), key, length));
+      this.selectedIndex.set(moveSelection(this.selectedIndex(), key, results.length));
       return;
     }
     if (key === 'Enter') {
-      const selected = this.results()[this.selectedIndex()];
+      const selected = results[this.selectedIndex()];
       if (!selected) return;
       event.preventDefault();
       if (event.ctrlKey || event.metaKey) {

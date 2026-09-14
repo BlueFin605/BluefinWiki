@@ -209,6 +209,10 @@ describe('SearchDialog', () => {
     expect(options[0]).toHaveAttribute('aria-selected', 'true');
     expect(options[1]).toHaveAttribute('aria-selected', 'false');
     expect(input).toHaveAttribute('aria-activedescendant', 'search-result-0');
+    // Visual indicator, not just the ARIA attribute — a sighted user must see
+    // which row is highlighted before pressing Enter.
+    expect(options[0]).toHaveClass('selected');
+    expect(options[1]).not.toHaveClass('selected');
 
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     await settle();
@@ -216,12 +220,15 @@ describe('SearchDialog', () => {
     expect(options[0]).toHaveAttribute('aria-selected', 'false');
     expect(options[1]).toHaveAttribute('aria-selected', 'true');
     expect(input).toHaveAttribute('aria-activedescendant', 'search-result-1');
+    expect(options[0]).not.toHaveClass('selected');
+    expect(options[1]).toHaveClass('selected');
 
     fireEvent.keyDown(input, { key: 'ArrowUp' });
     await settle();
     options = screen.getAllByRole('option');
     expect(options[0]).toHaveAttribute('aria-selected', 'true');
     expect(input).toHaveAttribute('aria-activedescendant', 'search-result-0');
+    expect(options[0]).toHaveClass('selected');
   });
 
   it('ArrowUp at the top and ArrowDown at the bottom clamp instead of wrapping', async () => {
@@ -303,6 +310,7 @@ describe('SearchDialog', () => {
     await settle();
 
     expect(options[2]).toHaveAttribute('aria-selected', 'true');
+    expect(options[2]).toHaveClass('selected');
     expect(screen.getByPlaceholderText(/search wiki/i)).toHaveAttribute(
       'aria-activedescendant',
       'search-result-2',
