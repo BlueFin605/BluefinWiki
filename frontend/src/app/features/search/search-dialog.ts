@@ -378,7 +378,15 @@ export class SearchDialog {
   protected onQueryChange(value: string): void {
     this.rawQuery.set(value);
     if (!value.trim()) {
+      // Bypasses the debounce/switchMap pipeline entirely (there's nothing
+      // to search), so it must also bump `generation` itself here — the
+      // pipeline effect that normally does this won't run for another
+      // DEBOUNCE_MS, and the selection-reset effect is keyed off
+      // `generation`, not `results()`. Without this, `selectedIndex` (and
+      // `aria-activedescendant`) would keep pointing at a row that just
+      // vanished from the DOM until the debounce eventually fires.
       this.state.set(IDLE_STATE);
+      this.generation.update((g) => g + 1);
     }
   }
 

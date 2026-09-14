@@ -435,6 +435,30 @@ describe('SearchDialog', () => {
 
     expect(input).not.toHaveAttribute('aria-activedescendant');
   });
+
+  it('resets the selection immediately (not after the debounce) when the query is cleared', async () => {
+    const dialogRef = makeDialogRef();
+    const { input } = await seedThreeResults(dialogRef);
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await settle();
+    expect(input).toHaveAttribute('aria-activedescendant', 'search-result-2');
+
+    const user = userEvent.setup();
+    await user.clear(input);
+    // Deliberately no `wait(260)` for the debounce here — clearing the input
+    // bypasses the debounce/switchMap pipeline entirely (onQueryChange sets
+    // IDLE_STATE synchronously), so the selection reset must be immediate,
+    // not dependent on the pipeline's own ~200ms-later emission.
+    await settle();
+
+    expect(input).not.toHaveAttribute('aria-activedescendant');
+    expect(screen.getByText(/start typing/i)).toBeInTheDocument();
+    // The stale row's id must not still be referenced anywhere either.
+    expect(screen.queryByText('One')).toBeNull();
+  });
 });
 
 describe('SearchDialog pagination (step 6.2)', () => {
