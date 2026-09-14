@@ -12,6 +12,7 @@ import { MatDialogRef } from '@angular/material/dialog';
 import { Component } from '@angular/core';
 
 import { SearchDialog } from './search-dialog';
+import { RateLimitExceededError, Search } from './search';
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -619,5 +620,110 @@ describe('SearchDialog pagination (step 6.2)', () => {
     // Only the fresh reset's 5 results are shown — the stale append never landed.
     expect(screen.getAllByRole('option')).toHaveLength(5);
     expect(screen.queryByText('Result 10')).toBeNull();
+  });
+});
+
+describe('SearchDialog rate limiting (step 6.3)', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('shows "Too many searches" and preserves the prior results when the debounced query is rate-limited', async () => {
+    const dialogRef = makeDialogRef();
+    const { input, http } = await seedThreeResults(dialogRef);
+    const search = TestBed.inject(Search);
+    jest.spyOn(search, 'search').mockImplementation(() => {
+      search.rateLimited.set(true);
+      return Promise.reject(new RateLimitExceededError());
+    });
+
+    const user = userEvent.setup();
+    await user.type(input, ' else');
+    await wait(260);
+    await settle();
+
+    expect(screen.getByText(/too many searches\. please wait a moment\./i)).toBeInTheDocument();
+    // The suppressed dispatch did not clobber the previously loaded results.
+    expect(screen.getByText('One')).toBeInTheDocument();
+    // Spinner must not be stuck showing "loading" forever for a suppressed request.
+    expect(screen.queryByLabelText(/searching/i)).toBeNull();
+    http.verify(); // Search.search was mocked, so nothing reached HttpClient.
+  });
+
+  it('hides the message once the query box is cleared', async () => {
+    const dialogRef = makeDialogRef();
+    const { input } = await seedThreeResults(dialogRef);
+    const search = TestBed.inject(Search);
+    jest.spyOn(search, 'search').mockImplementation(() => {
+      search.rateLimited.set(true);
+      return Promise.reject(new RateLimitExceededError());
+    });
+
+    const user = userEvent.setup();
+    await user.type(input, ' else');
+    await wait(260);
+    await settle();
+    expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
+
+    await user.clear(input);
+    await settle();
+
+    expect(screen.queryByText(/too many searches/i)).toBeNull();
+    expect(screen.getByText(/start typing/i)).toBeInTheDocument();
+  });
+
+  it('shows the message and leaves loaded results/pagination in place when "Load more" is rate-limited', async () => {
+    const dialogRef = makeDialogRef();
+    const { http } = await seedPaginatedResults(dialogRef, 42);
+    const search = TestBed.inject(Search);
+    jest.spyOn(search, 'search').mockImplementation(() => {
+      search.rateLimited.set(true);
+      return Promise.reject(new RateLimitExceededError());
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
+    await settle();
+
+    expect(screen.getByText(/too many searches\. please wait a moment\./i)).toBeInTheDocument();
+    expect(screen.getAllByRole('option')).toHaveLength(10);
+    expect(
+      screen.getByRole('button', { name: /load more results \(10 of 42\)/i }),
+    ).toBeInTheDocument();
+    http.verify(); // Search.search was mocked, so nothing reached HttpClient.
+  });
+
+  it('recovers: a later successful dispatch clears the message', async () => {
+    const dialogRef = makeDialogRef();
+    const { input, http } = await seedThreeResults(dialogRef);
+    const search = TestBed.inject(Search);
+    const realSearch = search.search.bind(search);
+    jest
+      .spyOn(search, 'search')
+      .mockImplementationOnce(() => {
+        search.rateLimited.set(true);
+        return Promise.reject(new RateLimitExceededError());
+      })
+      .mockImplementation((query) => realSearch(query));
+
+    const user = userEvent.setup();
+    await user.type(input, ' else');
+    await wait(260);
+    await settle();
+    expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
+
+    await user.type(input, ' again');
+    await wait(260);
+    await settle();
+    http
+      .expectOne((r) => r.url === '/api/search' && r.params.get('q') === 'thing else again')
+      .flush({
+        results: [
+          { pageId: 'g9', title: 'Recovered', snippet: '', relevanceScore: 900, matchCount: 0, path: 'p9', tags: [] },
+        ],
+        totalResults: 1,
+        executionTimeMs: 1,
+      });
+    await settle();
+
+    expect(await screen.findByText('Recovered')).toBeInTheDocument();
+    expect(screen.queryByText(/too many searches/i)).toBeNull();
   });
 });

@@ -19,7 +19,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Search, hasMoreResults } from './search';
+import { RateLimitExceededError, Search, hasMoreResults } from './search';
 import { moveSelection } from './move-selection';
 import type { SearchPageSize, WikiSearchResult } from './search.types';
 
@@ -117,6 +117,9 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
         aria-label="Search results"
         #resultsList
       >
+        @if (rateLimited() && rawQuery().trim().length > 0) {
+          <p class="error">Too many searches. Please wait a moment.</p>
+        }
         @if (rawQuery().trim().length === 0) {
           <p class="hint">Start typing to search...</p>
         } @else if (state().status === 'error') {
@@ -270,6 +273,15 @@ export class SearchDialog {
 
   /** True while an imperative "Load more" fetch (appending a page) is in flight. */
   protected readonly loadingMore = signal(false);
+
+  /**
+   * True while `Search`'s client-side rate limiter (step 6.3) is suppressing
+   * dispatched requests — read directly from the service, which is the
+   * single choke point both the debounced query pipeline and "Load more"
+   * dispatch through, so this covers both. Drives the "Too many searches"
+   * message in the template; hidden while the query box is empty.
+   */
+  protected readonly rateLimited = this.searchService.rateLimited;
 
   /** `-1` when nothing is highlighted. Moved by {@link moveSelection}, hover, and Enter/Ctrl+Enter. */
   protected readonly selectedIndex = signal(-1);
@@ -500,7 +512,8 @@ export class SearchDialog {
     if (!trimmed) {
       return IDLE_STATE;
     }
-    this.state.set({ ...this.state(), status: 'loading' });
+    const before = this.state();
+    this.state.set({ ...before, status: 'loading' });
     try {
       const res = await this.searchService.search({
         text: trimmed,
@@ -516,6 +529,14 @@ export class SearchDialog {
         error: null,
       };
     } catch (err) {
+      if (err instanceof RateLimitExceededError) {
+        // Suppressed dispatch: revert the 'loading' flip above and leave
+        // whatever was previously on screen alone — the `rateLimited`
+        // signal (read straight off `Search`) drives the banner instead of
+        // a generic error state.
+        this.state.set(before);
+        return before;
+      }
       return {
         status: 'error',
         results: [],

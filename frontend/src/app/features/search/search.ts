@@ -8,12 +8,31 @@
  */
 
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { RateLimiter } from './rate-limiter';
 import type { WikiSearchQuery, WikiSearchResult, WikiSearchResultSet } from './search.types';
 
 const SEARCH_PATH = '/api/search';
 const MAX_QUERY_LENGTH = 500;
+
+// Client-side mirror of the React app's limiter (§3.6): at most 60 dispatched
+// search requests in any rolling 60s window.
+const RATE_LIMIT_MAX = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+/**
+ * Thrown by {@link Search.search} when the client-side rate limiter
+ * suppresses a dispatch. Callers that want to leave existing UI state alone
+ * (rather than surfacing a generic error) should catch this specifically —
+ * `Search.rateLimited` is the signal driving the user-facing message.
+ */
+export class RateLimitExceededError extends Error {
+  constructor() {
+    super('Too many searches. Please wait a moment.');
+    this.name = 'RateLimitExceededError';
+  }
+}
 
 /**
  * True when a search response's already-loaded results don't yet cover the
@@ -37,6 +56,16 @@ export function hasMoreResults(resultSet: {
 @Injectable({ providedIn: 'root' })
 export class Search {
   private readonly http = inject(HttpClient);
+  private readonly limiter = new RateLimiter(RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS);
+
+  /**
+   * True while the client-side rate limiter is suppressing dispatched
+   * requests. `SearchDialog` reads this directly to show/hide the "Too many
+   * searches" message. Cleared as soon as a subsequent dispatch has capacity
+   * again (not on a timer — the limiter only counts actual dispatches, per
+   * step 6.3's brief).
+   */
+  readonly rateLimited = signal(false);
 
   async search(query: WikiSearchQuery): Promise<WikiSearchResultSet> {
     const sanitized = query.text
@@ -47,6 +76,15 @@ export class Search {
     if (!sanitized) {
       return { results: [], totalResults: 0, executionTimeMs: 0 };
     }
+
+    // Gate here — the single choke point both the debounced query pipeline
+    // and the imperative "Load more" fetch dispatch through — so both share
+    // one combined 60/min budget.
+    if (!this.limiter.tryAcquire(Date.now())) {
+      this.rateLimited.set(true);
+      throw new RateLimitExceededError();
+    }
+    this.rateLimited.set(false);
 
     const params = new HttpParams()
       .set('q', sanitized)

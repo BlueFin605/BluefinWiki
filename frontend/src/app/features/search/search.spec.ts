@@ -4,7 +4,7 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { Search, hasMoreResults } from './search';
+import { RateLimitExceededError, Search, hasMoreResults } from './search';
 import type { WikiSearchQuery, WikiSearchResultSet } from './search.types';
 
 const baseQuery: WikiSearchQuery = {
@@ -109,6 +109,64 @@ describe('Search service', () => {
     const req = http.expectOne((r) => r.url === '/api/search');
     req.flush('boom', { status: 503, statusText: 'Service Unavailable' });
     await expect(promise).rejects.toThrow('Search failed: 503');
+  });
+});
+
+describe('Search rate limiting (step 6.3)', () => {
+  let http: HttpTestingController;
+  let search: Search;
+  let now: number;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    http = TestBed.inject(HttpTestingController);
+    search = TestBed.inject(Search);
+    now = 1_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+  });
+
+  afterEach(() => {
+    http.verify();
+    jest.restoreAllMocks();
+  });
+
+  /** Dispatches and flushes one successful search, advancing the fake clock by 1ms. */
+  async function dispatchOne(text: string): Promise<void> {
+    const promise = search.search({ ...baseQuery, text });
+    http.expectOne((r) => r.url === '/api/search').flush(sampleResponse);
+    await promise;
+    now += 1;
+  }
+
+  it('allows 60 rapid dispatched searches and leaves rateLimited false', async () => {
+    for (let i = 0; i < 60; i++) await dispatchOne(`q${i}`);
+    expect(search.rateLimited()).toBe(false);
+  });
+
+  it('suppresses the 61st rapid dispatched search without hitting HttpClient and sets rateLimited', async () => {
+    for (let i = 0; i < 60; i++) await dispatchOne(`q${i}`);
+
+    await expect(search.search({ ...baseQuery, text: 'over-limit' })).rejects.toThrow(
+      new RateLimitExceededError().message,
+    );
+    expect(search.rateLimited()).toBe(true);
+    // http.verify() in afterEach confirms no request was issued for the 61st.
+  });
+
+  it('clears rateLimited once a later dispatch has capacity again', async () => {
+    for (let i = 0; i < 60; i++) await dispatchOne(`q${i}`);
+    await expect(search.search({ ...baseQuery, text: 'blocked' })).rejects.toThrow(
+      RateLimitExceededError,
+    );
+    expect(search.rateLimited()).toBe(true);
+
+    // Jump past the 60s window from the very first (oldest) dispatch.
+    now = 1_000_000 + 60_000;
+    await dispatchOne('recovered');
+
+    expect(search.rateLimited()).toBe(false);
   });
 });
 
