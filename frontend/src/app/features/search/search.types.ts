@@ -50,3 +50,12 @@ export interface WikiSearchResultSet {
   totalResults: number;
   executionTimeMs: number;
 }
+
+/**
+ * Page-size choices exposed by the search dialog's selector (step 6.2). The
+ * backend (`backend/src/search/search-query.ts`) paginates by plain
+ * `offset`/`limit` — it slices an already-ranked hit list and returns
+ * `totalResults` alongside the page — so there is no cursor to model; any of
+ * these values is valid as `WikiSearchQuery.limit` (backend ceiling is 50).
+ */
+export type SearchPageSize = 10 | 25 | 50;

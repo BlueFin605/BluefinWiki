@@ -23,6 +23,45 @@ async function wait(ms: number): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * jsdom has no `IntersectionObserver`. This stub records instances/callbacks
+ * so a test can synthesise an intersection — mirrors
+ * `table-of-contents.spec.ts`'s pattern for the same gap.
+ */
+class MockIntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
+  readonly callback: IntersectionObserverCallback;
+  readonly observed = new Set<Element>();
+  disconnected = false;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  observe(el: Element): void {
+    this.observed.add(el);
+  }
+  unobserve(el: Element): void {
+    this.observed.delete(el);
+  }
+  disconnect(): void {
+    this.disconnected = true;
+    this.observed.clear();
+  }
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+
+  fire(entries: Array<Partial<IntersectionObserverEntry>>): void {
+    this.callback(entries as IntersectionObserverEntry[], this as unknown as IntersectionObserver);
+  }
+
+  static last(): MockIntersectionObserver {
+    return this.instances[this.instances.length - 1];
+  }
+}
+
 interface DialogRefStub {
   close: jest.Mock;
 }
@@ -68,6 +107,44 @@ async function seedThreeResults(dialogRef: DialogRefStub): Promise<{
   });
   await settle();
   await screen.findByText('One');
+
+  return { input, http };
+}
+
+/** Builds `count` distinct result rows starting at `offset` (for paging fixtures). */
+function makeResults(offset: number, count: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const n = offset + i;
+    return {
+      pageId: `g${n}`,
+      title: `Result ${n}`,
+      snippet: '',
+      relevanceScore: 900 - n,
+      matchCount: 0,
+      path: `p${n}`,
+      tags: [],
+    };
+  });
+}
+
+/** Renders the dialog, types a query, and flushes a page-1 response out of `total`. */
+async function seedPaginatedResults(
+  dialogRef: DialogRefStub,
+  total: number,
+): Promise<{ input: HTMLElement; http: HttpTestingController }> {
+  await render(SearchDialog, { providers: baseProviders(dialogRef) });
+  const http = TestBed.inject(HttpTestingController);
+  const input = screen.getByPlaceholderText(/search wiki/i);
+  const user = userEvent.setup();
+  await user.type(input, 'thing');
+  await wait(260);
+  await settle();
+
+  http
+    .expectOne((r) => r.url === '/api/search' && r.params.get('offset') === '0')
+    .flush({ results: makeResults(0, 10), totalResults: total, executionTimeMs: 2 });
+  await settle();
+  await screen.findByText('Result 0');
 
   return { input, http };
 }
@@ -357,5 +434,166 @@ describe('SearchDialog', () => {
     await screen.findByText('Fresh');
 
     expect(input).not.toHaveAttribute('aria-activedescendant');
+  });
+});
+
+describe('SearchDialog pagination (step 6.2)', () => {
+  let originalIO: typeof IntersectionObserver | undefined;
+
+  beforeEach(() => {
+    MockIntersectionObserver.instances = [];
+    originalIO = (globalThis as { IntersectionObserver?: typeof IntersectionObserver })
+      .IntersectionObserver;
+  });
+
+  afterEach(() => {
+    (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = originalIO;
+  });
+
+  it('shows "Load more results (N of M)" after page 1 when more results remain', async () => {
+    const dialogRef = makeDialogRef();
+    await seedPaginatedResults(dialogRef, 42);
+
+    expect(
+      screen.getByRole('button', { name: /load more results \(10 of 42\)/i }),
+    ).toBeInTheDocument();
+    // The plain result-count footer only appears once nothing more remains.
+    expect(screen.queryByText(/^10 result/i)).toBeNull();
+  });
+
+  it('clicking "Load more" requests the next offset and appends the results', async () => {
+    const dialogRef = makeDialogRef();
+    const { http } = await seedPaginatedResults(dialogRef, 42);
+
+    fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
+
+    const req = http.expectOne(
+      (r) => r.url === '/api/search' && r.params.get('offset') === '10',
+    );
+    expect(req.request.params.get('limit')).toBe('10');
+    req.flush({ results: makeResults(10, 10), totalResults: 42, executionTimeMs: 3 });
+    await settle();
+
+    await screen.findByText('Result 19');
+    expect(screen.getByText('Result 0')).toBeInTheDocument();
+    expect(screen.getAllByRole('option')).toHaveLength(20);
+    expect(
+      screen.getByRole('button', { name: /load more results \(20 of 42\)/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides "Load more" and shows the plain footer once every result is loaded', async () => {
+    const dialogRef = makeDialogRef();
+    const { http } = await seedPaginatedResults(dialogRef, 13);
+
+    fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
+    http
+      .expectOne((r) => r.url === '/api/search' && r.params.get('offset') === '10')
+      .flush({ results: makeResults(10, 3), totalResults: 13, executionTimeMs: 3 });
+    await settle();
+    await screen.findByText('Result 12');
+
+    expect(screen.queryByRole('button', { name: /load more results/i })).toBeNull();
+    expect(screen.getByText(/13 result/i)).toBeInTheDocument();
+  });
+
+  it('changing the page size re-runs the search from scratch', async () => {
+    const dialogRef = makeDialogRef();
+    const { http } = await seedPaginatedResults(dialogRef, 42);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('radio', { name: '25' }));
+    await wait(260);
+    await settle();
+
+    const req = http.expectOne(
+      (r) => r.url === '/api/search' && r.params.get('offset') === '0',
+    );
+    expect(req.request.params.get('limit')).toBe('25');
+    req.flush({ results: makeResults(0, 25), totalResults: 42, executionTimeMs: 4 });
+    await settle();
+    await screen.findByText('Result 24');
+
+    // Reset, not appended: exactly the new page's 25 rows, not 10 + 25.
+    expect(screen.getAllByRole('option')).toHaveLength(25);
+    expect(
+      screen.getByRole('button', { name: /load more results \(25 of 42\)/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('preserves the highlighted selection across a "Load more" append', async () => {
+    const dialogRef = makeDialogRef();
+    const { input, http } = await seedPaginatedResults(dialogRef, 42);
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await settle();
+    expect(input).toHaveAttribute('aria-activedescendant', 'search-result-1');
+
+    fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
+    http
+      .expectOne((r) => r.url === '/api/search' && r.params.get('offset') === '10')
+      .flush({ results: makeResults(10, 10), totalResults: 42, executionTimeMs: 3 });
+    await settle();
+    await screen.findByText('Result 19');
+
+    // Still row 1 highlighted — an append must not reset selection the way a
+    // genuinely new result set (new query/scope/page-size) does.
+    expect(input).toHaveAttribute('aria-activedescendant', 'search-result-1');
+    const options = screen.getAllByRole('option');
+    expect(options[1]).toHaveAttribute('aria-selected', 'true');
+    expect(options[1]).toHaveTextContent('Result 1');
+  });
+
+  it('auto-loads the next page when the "Load more" control scrolls into view', async () => {
+    (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver =
+      MockIntersectionObserver;
+    const dialogRef = makeDialogRef();
+    const { http } = await seedPaginatedResults(dialogRef, 42);
+    await settle();
+
+    const io = MockIntersectionObserver.last();
+    expect(io).toBeDefined();
+
+    io.fire([{ isIntersecting: true }]);
+    await settle();
+
+    const req = http.expectOne(
+      (r) => r.url === '/api/search' && r.params.get('offset') === '10',
+    );
+    req.flush({ results: makeResults(10, 10), totalResults: 42, executionTimeMs: 3 });
+    await settle();
+    await screen.findByText('Result 19');
+  });
+
+  it('discards a stale "Load more" response that resolves after a newer query has reset the results', async () => {
+    const dialogRef = makeDialogRef();
+    const { input, http } = await seedPaginatedResults(dialogRef, 42);
+
+    fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
+    const staleReq = http.expectOne(
+      (r) => r.url === '/api/search' && r.params.get('offset') === '10',
+    );
+
+    // A new query lands (and resolves) while the "Load more" request above is
+    // still in flight.
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, 'else');
+    await wait(260);
+    await settle();
+    http
+      .expectOne((r) => r.url === '/api/search' && r.params.get('q') === 'else')
+      .flush({ results: makeResults(100, 5), totalResults: 5, executionTimeMs: 1 });
+    await settle();
+    await screen.findByText('Result 100');
+
+    // The stale page-2 response for the old query now resolves.
+    staleReq.flush({ results: makeResults(10, 10), totalResults: 42, executionTimeMs: 3 });
+    await settle();
+
+    // Only the fresh reset's 5 results are shown — the stale append never landed.
+    expect(screen.getAllByRole('option')).toHaveLength(5);
+    expect(screen.queryByText('Result 10')).toBeNull();
   });
 });

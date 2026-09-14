@@ -4,7 +4,7 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { Search } from './search';
+import { Search, hasMoreResults } from './search';
 import type { WikiSearchQuery, WikiSearchResultSet } from './search.types';
 
 const baseQuery: WikiSearchQuery = {
@@ -109,5 +109,23 @@ describe('Search service', () => {
     const req = http.expectOne((r) => r.url === '/api/search');
     req.flush('boom', { status: 503, statusText: 'Service Unavailable' });
     await expect(promise).rejects.toThrow('Search failed: 503');
+  });
+});
+
+function makeResults(count: number): WikiSearchResultSet['results'] {
+  return Array.from({ length: count }, () => sampleResponse.results[0]);
+}
+
+describe('hasMoreResults', () => {
+  it('is true when fewer results are loaded than the reported total', () => {
+    expect(hasMoreResults({ results: makeResults(10), totalResults: 42 })).toBe(true);
+  });
+
+  it('is false once the loaded results cover the reported total', () => {
+    expect(hasMoreResults({ results: makeResults(42), totalResults: 42 })).toBe(false);
+  });
+
+  it('is false for an empty result set with no total', () => {
+    expect(hasMoreResults({ results: [], totalResults: 0 })).toBe(false);
   });
 });

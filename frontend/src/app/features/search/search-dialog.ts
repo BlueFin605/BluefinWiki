@@ -1,11 +1,14 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  ElementRef,
   afterRenderEffect,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
@@ -16,11 +19,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Search } from './search';
+import { Search, hasMoreResults } from './search';
 import { moveSelection } from './move-selection';
-import type { WikiSearchResult } from './search.types';
+import type { SearchPageSize, WikiSearchResult } from './search.types';
 
 type ScopeValue = 'all' | 'titles' | 'content';
+
+const PAGE_SIZES: readonly SearchPageSize[] = [10, 25, 50];
 
 interface SearchState {
   status: 'idle' | 'loading' | 'resolved' | 'error';
@@ -39,7 +44,7 @@ const IDLE_STATE: SearchState = {
 };
 
 const DEBOUNCE_MS = 200;
-const RESULT_LIMIT = 10;
+const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
 
 @Component({
   selector: 'wiki-search-dialog',
@@ -92,6 +97,17 @@ const RESULT_LIMIT = 10;
           <mat-button-toggle value="titles">Titles</mat-button-toggle>
           <mat-button-toggle value="content">Content</mat-button-toggle>
         </mat-button-toggle-group>
+
+        <mat-button-toggle-group
+          class="page-size-group"
+          [value]="pageSize()"
+          (change)="onPageSizeChange($any($event.value))"
+          aria-label="Results per page"
+        >
+          @for (size of pageSizes; track size) {
+            <mat-button-toggle [value]="size">{{ size }}</mat-button-toggle>
+          }
+        </mat-button-toggle-group>
       </div>
 
       <div
@@ -99,6 +115,7 @@ const RESULT_LIMIT = 10;
         class="results"
         role="listbox"
         aria-label="Search results"
+        #resultsList
       >
         @if (rawQuery().trim().length === 0) {
           <p class="hint">Start typing to search...</p>
@@ -126,7 +143,23 @@ const RESULT_LIMIT = 10;
               }
             </button>
           }
-          @if (state().results.length > 0) {
+          @if (hasMore()) {
+            <div class="load-more-row">
+              <button
+                type="button"
+                class="load-more-btn"
+                #loadMoreBtn
+                [disabled]="loadingMore()"
+                (click)="onLoadMore()"
+              >
+                {{
+                  loadingMore()
+                    ? 'Loading…'
+                    : 'Load more results (' + state().results.length + ' of ' + state().totalResults + ')'
+                }}
+              </button>
+            </div>
+          } @else if (state().results.length > 0) {
             <div class="footer">
               {{ state().totalResults }} result(s) in {{ state().executionTimeMs }}ms
             </div>
@@ -158,8 +191,15 @@ const RESULT_LIMIT = 10;
       background: transparent;
     }
     .scope-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
       padding: 0.5rem 1rem;
       border-bottom: 1px solid #e5e7eb;
+    }
+    .page-size-group {
+      font-size: 0.75rem;
     }
     .results {
       flex: 1;
@@ -195,24 +235,67 @@ const RESULT_LIMIT = 10;
       color: #9ca3af;
       border-top: 1px solid #e5e7eb;
     }
+    .load-more-row {
+      display: flex;
+      justify-content: center;
+      padding: 0.5rem 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .load-more-btn {
+      padding: 0.375rem 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      background: #fff;
+      font-size: 0.8125rem;
+      cursor: pointer;
+    }
+    .load-more-btn:disabled {
+      cursor: default;
+      opacity: 0.7;
+    }
   `],
 })
 export class SearchDialog {
   private readonly searchService = inject(Search);
   private readonly router = inject(Router);
   private readonly dialogRef = inject(MatDialogRef<SearchDialog, string | null>);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly pageSizes = PAGE_SIZES;
 
   protected readonly rawQuery = signal('');
   protected readonly scope = signal<ScopeValue>('all');
+  protected readonly pageSize = signal<SearchPageSize>(DEFAULT_PAGE_SIZE);
   protected readonly state = signal<SearchState>(IDLE_STATE);
+
+  /** True while an imperative "Load more" fetch (appending a page) is in flight. */
+  protected readonly loadingMore = signal(false);
 
   /** `-1` when nothing is highlighted. Moved by {@link moveSelection}, hover, and Enter/Ctrl+Enter. */
   protected readonly selectedIndex = signal(-1);
+
+  /**
+   * Bumped every time the debounce/switchMap pipeline below lands a fresh
+   * page one (a new query, scope change, or page-size change — anything that
+   * legitimately restarts pagination from scratch). `onLoadMore()` captures
+   * this before its request goes out and discards the response if it no
+   * longer matches when the response arrives: the switchMap pipeline cancels
+   * a *stale page-one* request for us at the RxJS level, but "Load more" is
+   * a separate imperative fetch outside that pipeline, so a slow append for
+   * an old query could otherwise land after — and clobber — a newer reset
+   * (e.g. the user kept typing while "Load more" was still in flight).
+   */
+  private readonly generation = signal(0);
 
   // Read via a computed (not `state().results` directly) so effects below only
   // re-run when the results *array reference* actually changes — e.g. not on
   // every idle → loading → resolved status flip for the same result set.
   private readonly results = computed(() => this.state().results);
+
+  /** True once more results exist beyond what's currently loaded (accumulated). */
+  protected readonly hasMore = computed(
+    () => this.state().status === 'resolved' && hasMoreResults(this.state()),
+  );
 
   protected readonly activeDescendant = computed(() => {
     const i = this.selectedIndex();
@@ -228,10 +311,12 @@ export class SearchDialog {
    */
   protected readonly resultsOpen = computed(() => this.results().length > 0);
 
-  // Combine raw + scope into a tuple so a scope change also re-issues the search.
+  // Combine raw + scope + pageSize into a tuple so a scope or page-size
+  // change also re-issues the search (always from offset 0 — see `run`).
   private readonly trigger = computed(() => ({
     text: this.rawQuery(),
     scope: this.scope(),
+    pageSize: this.pageSize(),
   }));
 
   // Debounced + de-duped stream that fans out to the search service.
@@ -239,25 +324,35 @@ export class SearchDialog {
     toObservable(this.trigger).pipe(
       debounceTime(DEBOUNCE_MS),
       distinctUntilChanged(
-        (a, b) => a.text === b.text && a.scope === b.scope,
+        (a, b) => a.text === b.text && a.scope === b.scope && a.pageSize === b.pageSize,
       ),
-      switchMap((trig) => this.run(trig.text, trig.scope)),
+      switchMap((trig) => this.run(trig.text, trig.scope, trig.pageSize)),
     ),
     { initialValue: IDLE_STATE },
   );
 
+  private readonly loadMoreBtnEl = viewChild('loadMoreBtn', { read: ElementRef });
+  private readonly resultsListEl = viewChild('resultsList', { read: ElementRef });
+  private loadMoreObserver: IntersectionObserver | null = null;
+
   constructor() {
     // Pipe debounced() into state() so the OnPush template re-reads cleanly.
+    // This is the ONLY place `state` is replaced wholesale with a fresh page
+    // one, so it's also the right place to bump `generation` (see its doc
+    // comment) — `onLoadMore()`'s in-place append below deliberately does
+    // NOT touch `generation`.
     effect(() => {
       this.state.set(this.debounced());
+      this.generation.update((g) => g + 1);
     });
 
-    // Reset the highlighted row whenever a new result set arrives (including
-    // going back to empty) — a stale index from the previous query must never
-    // carry over. See the `results` computed above for why this only fires on
-    // real result-set changes rather than every status transition.
+    // Reset the highlighted row whenever a genuinely new result set arrives
+    // (including going back to empty) — a stale index from the previous
+    // query must never carry over. Keyed off `generation`, not `results()`:
+    // an appended "Load more" page also changes the `results` array
+    // reference but must NOT reset the user's current selection.
     effect(() => {
-      this.results();
+      this.generation();
       this.selectedIndex.set(-1);
     });
 
@@ -271,6 +366,13 @@ export class SearchDialog {
         el.scrollIntoView({ block: 'nearest' });
       }
     });
+
+    // Wire/re-wire an IntersectionObserver on the "Load more" control so it
+    // auto-fires when scrolled near the bottom of the results list, in
+    // addition to being clickable. Re-runs whenever the control mounts,
+    // unmounts (hasMore flips), or the scroll container changes.
+    afterRenderEffect(() => this.syncLoadMoreObserver());
+    this.destroyRef.onDestroy(() => this.teardownLoadMoreObserver());
   }
 
   protected onQueryChange(value: string): void {
@@ -282,6 +384,11 @@ export class SearchDialog {
 
   protected onScopeChange(value: ScopeValue): void {
     this.scope.set(value);
+  }
+
+  /** Page-size selector change — re-runs the search from the start (offset 0). */
+  protected onPageSizeChange(value: SearchPageSize): void {
+    this.pageSize.set(value);
   }
 
   protected onKeydown(event: KeyboardEvent): void {
@@ -316,9 +423,70 @@ export class SearchDialog {
     this.dialogRef.close(null);
   }
 
+  /**
+   * Fetches the next page (offset = however many results are already
+   * accumulated) and appends it — clicked explicitly, or auto-fired by the
+   * IntersectionObserver in {@link syncLoadMoreObserver}. Guarded by
+   * `loadingMore`/`hasMore` so a double click or an overlapping IO callback
+   * can't fire a second overlapping request, and by `generation` so a
+   * response that outlives a newer reset is discarded (see its doc comment).
+   */
+  protected async onLoadMore(): Promise<void> {
+    if (this.loadingMore() || !this.hasMore()) return;
+    const trimmed = this.rawQuery().trim();
+    if (!trimmed) return;
+
+    const before = this.state();
+    const token = this.generation();
+    this.loadingMore.set(true);
+    try {
+      const res = await this.searchService.search({
+        text: trimmed,
+        scope: this.scope(),
+        limit: this.pageSize(),
+        offset: before.results.length,
+      });
+      if (this.generation() !== token) return;
+      this.state.set({
+        ...before,
+        results: [...before.results, ...res.results],
+        totalResults: res.totalResults,
+        executionTimeMs: res.executionTimeMs,
+      });
+    } catch {
+      // Leave the already-loaded results on screen; the "Load more" button
+      // stays put (hasMore is unchanged) so the user can simply retry.
+    } finally {
+      this.loadingMore.set(false);
+    }
+  }
+
+  /** Re-wires the "Load more" auto-scroll observer against the current DOM. */
+  private syncLoadMoreObserver(): void {
+    this.teardownLoadMoreObserver();
+    if (typeof IntersectionObserver === 'undefined') return;
+    const btn = this.loadMoreBtnEl()?.nativeElement as HTMLElement | undefined;
+    if (!btn) return;
+    const root = (this.resultsListEl()?.nativeElement as HTMLElement | undefined) ?? null;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void this.onLoadMore();
+      },
+      { root, threshold: 0 },
+    );
+    observer.observe(btn);
+    this.loadMoreObserver = observer;
+  }
+
+  private teardownLoadMoreObserver(): void {
+    this.loadMoreObserver?.disconnect();
+    this.loadMoreObserver = null;
+  }
+
   private async run(
     text: string,
     scope: ScopeValue,
+    pageSize: SearchPageSize,
   ): Promise<SearchState> {
     const trimmed = text.trim();
     if (!trimmed) {
@@ -329,7 +497,7 @@ export class SearchDialog {
       const res = await this.searchService.search({
         text: trimmed,
         scope,
-        limit: RESULT_LIMIT,
+        limit: pageSize,
         offset: 0,
       });
       return {
