@@ -77,6 +77,7 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="search-dialog" role="dialog" aria-label="Search wiki">
+      <span class="sr-only" aria-live="polite">{{ liveMessage() }}</span>
       <div class="input-row">
         <mat-icon aria-hidden="true">search</mat-icon>
         <input
@@ -236,6 +237,19 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
     </div>
   `,
   styles: [`
+    /* Visually hidden but still reachable by screen readers (step 6.6). No
+       existing sr-only utility class was found elsewhere in the app to reuse. */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     .search-dialog {
       display: flex;
       flex-direction: column;
@@ -483,6 +497,32 @@ export class SearchDialog {
    * changes.
    */
   protected readonly resultsOpen = computed(() => this.results().length > 0);
+
+  /**
+   * Screen-reader announcement for the current search state (step 6.6):
+   * "Searching…" / "{N} results found" / "No results" / empty. Reads
+   * `state()` directly rather than `rawQuery()` — `state.status` only flips
+   * away from `idle` once the debounce/switchMap pipeline below (`trigger`
+   * → `debounceTime(DEBOUNCE_MS)` → `switchMap` → `run()`) actually
+   * dispatches, so this is already debounced against rapid typing without
+   * any further delay of its own. The "Searching…" message still shows the
+   * moment a request is genuinely in flight: `run()` sets
+   * `status: 'loading'` synchronously, before awaiting the fetch, so there's
+   * no *additional* lag layered on top of the pipeline's existing debounce.
+   * Empty on `idle` (blank query — nothing to announce) and `error` (the
+   * error banner in the template already speaks for itself).
+   */
+  protected readonly liveMessage = computed(() => {
+    const s = this.state();
+    switch (s.status) {
+      case 'loading':
+        return 'Searching…';
+      case 'resolved':
+        return s.totalResults > 0 ? `${s.totalResults} results found` : 'No results';
+      default:
+        return '';
+    }
+  });
 
   // Combine raw + scope + pageSize into a tuple so a scope or page-size
   // change also re-issues the search (always from offset 0 — see `run`).

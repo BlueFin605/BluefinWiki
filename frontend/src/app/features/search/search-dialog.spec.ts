@@ -528,7 +528,10 @@ describe('SearchDialog pagination (step 6.2)', () => {
     await screen.findByText('Result 12');
 
     expect(screen.queryByRole('button', { name: /load more results/i })).toBeNull();
-    expect(screen.getByText(/13 result/i)).toBeInTheDocument();
+    // Scoped to `.footer`: the step 6.6 aria-live region also announces
+    // "13 results found" once results land, which would otherwise ambiguously
+    // match this same loose regex elsewhere in the document.
+    expect(screen.getByText(/13 result/i, { selector: '.footer' })).toBeInTheDocument();
   });
 
   it('changing the page size re-runs the search from scratch', async () => {
@@ -1076,6 +1079,103 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
 
     jest.restoreAllMocks();
+  });
+});
+
+describe('SearchDialog aria-live region (step 6.6)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  /** The visually-hidden `aria-live="polite"` announcement span. */
+  function liveRegion(): Element {
+    const el = document.querySelector('[aria-live="polite"]');
+    if (!el) throw new Error('aria-live region not found');
+    return el;
+  }
+
+  it('is empty when the query is empty', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+
+    expect(liveRegion()).toHaveTextContent('');
+  });
+
+  it('does not announce while the debounce is still pending (no spam on every keystroke)', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+
+    await user.type(input, 'th');
+    await settle();
+
+    // Well inside the 200ms debounce window — nothing dispatched yet, so
+    // nothing has been announced yet either.
+    expect(liveRegion()).toHaveTextContent('');
+    http.verify();
+  });
+
+  it('announces "Searching…" once a request is actually in flight', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+
+    await user.type(input, 'thing');
+    await wait(260);
+    await settle();
+
+    expect(liveRegion()).toHaveTextContent('Searching…');
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [],
+      totalResults: 0,
+      executionTimeMs: 1,
+    });
+    await settle();
+  });
+
+  it('announces "N results found" once results land', async () => {
+    const dialogRef = makeDialogRef();
+    await seedThreeResults(dialogRef);
+
+    expect(liveRegion()).toHaveTextContent('3 results found');
+  });
+
+  it('announces "No results" when a completed search returns nothing', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+
+    await user.type(input, 'zzz');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search').flush({
+      results: [],
+      totalResults: 0,
+      executionTimeMs: 1,
+    });
+    await settle();
+
+    expect(liveRegion()).toHaveTextContent('No results');
+  });
+
+  it('clears back to empty when the query is cleared after results landed', async () => {
+    const dialogRef = makeDialogRef();
+    await seedThreeResults(dialogRef);
+    expect(liveRegion()).toHaveTextContent('3 results found');
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByPlaceholderText(/search wiki/i));
+    await settle();
+
+    expect(liveRegion()).toHaveTextContent('');
   });
 });
 
