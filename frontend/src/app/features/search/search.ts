@@ -22,6 +22,13 @@ const RATE_LIMIT_MAX = 60;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
 /**
+ * User-facing copy for a suppressed (rate-limited) dispatch. Exported so
+ * `RateLimitExceededError` and the dialog's template share one source of
+ * truth instead of two copies drifting apart.
+ */
+export const RATE_LIMIT_MESSAGE = 'Too many searches. Please wait a moment.';
+
+/**
  * Thrown by {@link Search.search} when the client-side rate limiter
  * suppresses a dispatch. Callers that want to leave existing UI state alone
  * (rather than surfacing a generic error) should catch this specifically —
@@ -29,7 +36,7 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
  */
 export class RateLimitExceededError extends Error {
   constructor() {
-    super('Too many searches. Please wait a moment.');
+    super(RATE_LIMIT_MESSAGE);
     this.name = 'RateLimitExceededError';
   }
 }

@@ -726,4 +726,46 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     expect(await screen.findByText('Recovered')).toBeInTheDocument();
     expect(screen.queryByText(/too many searches/i)).toBeNull();
   });
+
+  it('preserves the highlighted selection when a debounced dispatch is rate-limited after a "Load more" append (regression)', async () => {
+    const dialogRef = makeDialogRef();
+    const { input, http } = await seedPaginatedResults(dialogRef, 42);
+
+    // "Load more" appends directly to `state`, bypassing the
+    // debounced/toSignal pipeline entirely — this is what makes `state`
+    // diverge (by reference) from whatever `debounced` last cached
+    // internally, which is the precondition for the regression below.
+    fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
+    http
+      .expectOne((r) => r.url === '/api/search' && r.params.get('offset') === '10')
+      .flush({ results: makeResults(10, 10), totalResults: 42, executionTimeMs: 3 });
+    await settle();
+    await screen.findByText('Result 19');
+
+    // Highlight a row.
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await settle();
+    expect(input).toHaveAttribute('aria-activedescendant', 'search-result-1');
+
+    // A further debounced dispatch (continuing to type) gets rate-limited.
+    const search = TestBed.inject(Search);
+    jest.spyOn(search, 'search').mockImplementation(() => {
+      search.rateLimited.set(true);
+      return Promise.reject(new RateLimitExceededError());
+    });
+
+    const user = userEvent.setup();
+    await user.type(input, ' more');
+    await wait(260);
+    await settle();
+
+    // Nothing the user can see actually changed — the highlighted row must
+    // survive the suppressed dispatch exactly like 6.2's "Load more" append
+    // already preserves it.
+    expect(input).toHaveAttribute('aria-activedescendant', 'search-result-1');
+    expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
+
+    jest.restoreAllMocks();
+  });
 });

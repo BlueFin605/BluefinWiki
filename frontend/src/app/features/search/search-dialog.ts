@@ -11,7 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import { debounceTime, distinctUntilChanged, filter, switchMap } from 'rxjs';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
@@ -19,7 +19,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { RateLimitExceededError, Search, hasMoreResults } from './search';
+import { RATE_LIMIT_MESSAGE, RateLimitExceededError, Search, hasMoreResults } from './search';
 import { moveSelection } from './move-selection';
 import type { SearchPageSize, WikiSearchResult } from './search.types';
 
@@ -118,7 +118,7 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
         #resultsList
       >
         @if (rateLimited() && rawQuery().trim().length > 0) {
-          <p class="error">Too many searches. Please wait a moment.</p>
+          <p class="error">{{ rateLimitMessage }}</p>
         }
         @if (rawQuery().trim().length === 0) {
           <p class="hint">Start typing to search...</p>
@@ -283,6 +283,9 @@ export class SearchDialog {
    */
   protected readonly rateLimited = this.searchService.rateLimited;
 
+  /** Shared with `RateLimitExceededError` so the two copies can't drift. */
+  protected readonly rateLimitMessage = RATE_LIMIT_MESSAGE;
+
   /** `-1` when nothing is highlighted. Moved by {@link moveSelection}, hover, and Enter/Ctrl+Enter. */
   protected readonly selectedIndex = signal(-1);
 
@@ -339,6 +342,20 @@ export class SearchDialog {
         (a, b) => a.text === b.text && a.scope === b.scope && a.pageSize === b.pageSize,
       ),
       switchMap((trig) => this.run(trig.text, trig.scope, trig.pageSize)),
+      // `run()` returns `null` for a rate-limited (suppressed) dispatch —
+      // drop it here rather than letting it re-enter the pipeline. A
+      // suppressed dispatch is a genuine no-op (see `run`'s catch, which
+      // reverts `state` directly and synchronously), so it must never reach
+      // `toSignal`/the constructor's `effect()` below: that effect bumps
+      // `generation` on every emission it sees, by *reference*, regardless
+      // of content — and once `onLoadMore()` has appended a page (which
+      // mutates `state` directly, bypassing this pipeline entirely), the
+      // `before` reference `run()` would otherwise push back through here is
+      // no longer reference-equal to whatever `toSignal` last cached, so it
+      // would read as a "real" change and spuriously reset the selection.
+      // Filtering the no-op out here sidesteps that reference-equality trap
+      // altogether instead of depending on it.
+      filter((result): result is SearchState => result !== null),
     ),
     { initialValue: IDLE_STATE },
   );
@@ -503,11 +520,17 @@ export class SearchDialog {
     this.loadMoreObserver = null;
   }
 
+  /**
+   * Returns `null` (rather than a `SearchState`) for a suppressed
+   * (rate-limited) dispatch — the `debounced` pipeline above filters that
+   * out before it reaches `toSignal`, so it can never masquerade as a "real"
+   * state transition. See the `filter` call above for why that matters.
+   */
   private async run(
     text: string,
     scope: ScopeValue,
     pageSize: SearchPageSize,
-  ): Promise<SearchState> {
+  ): Promise<SearchState | null> {
     const trimmed = text.trim();
     if (!trimmed) {
       return IDLE_STATE;
@@ -530,12 +553,15 @@ export class SearchDialog {
       };
     } catch (err) {
       if (err instanceof RateLimitExceededError) {
-        // Suppressed dispatch: revert the 'loading' flip above and leave
-        // whatever was previously on screen alone — the `rateLimited`
-        // signal (read straight off `Search`) drives the banner instead of
-        // a generic error state.
+        // Suppressed dispatch: revert the 'loading' flip above directly and
+        // synchronously, and leave whatever was previously on screen alone.
+        // Deliberately does NOT flow back through the debounced/toSignal
+        // pipeline (return null, filtered out above) — nothing actually
+        // changed, so it must not be able to bump `generation` or reset the
+        // selection. The `rateLimited` signal (read straight off `Search`)
+        // drives the banner instead of a generic error state.
         this.state.set(before);
-        return before;
+        return null;
       }
       return {
         status: 'error',
