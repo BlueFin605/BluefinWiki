@@ -40,6 +40,38 @@ function propertiesEqual(
 }
 
 /**
+ * Drop `number` / `date` fields that are still unset before the properties
+ * go out in a `PUT` body.
+ *
+ * `mergeSchema` seeds a schema field that has no `defaultValue` as `''` for
+ * everything except `tags`. The backend's `PagePropertySchema.refine()`
+ * (`backend/src/pages/pages-update.ts`) requires `typeof value === 'number'`
+ * for `type: 'number'` and a `YYYY-MM-DD` match for `type: 'date'`, so
+ * `{ type: 'number', value: '' }` is rejected with an opaque
+ * "Property value does not match its declared type" 400 — which used to fire
+ * on something as ordinary as renaming a card whose type declares an
+ * optional number/date field the card never filled in.
+ *
+ * Omitting the entry is the correct wire representation of "unset": the
+ * backend replaces the properties map wholesale (it does not merge
+ * field-by-field), and its type validation for a missing required field is
+ * advisory-only (a logged warning, not a rejection).
+ *
+ * Scoped to this dialog deliberately — `mergeSchema`'s `''` seed is shared
+ * with the inspector's save path (a pre-existing Phase 4 defect), and fixing
+ * it at the source is a separate, wider change.
+ */
+function withoutUnsetTypedProps(
+  props: Record<string, PageProperty>,
+): Record<string, PageProperty> {
+  return Object.fromEntries(
+    Object.entries(props).filter(
+      ([, prop]) => !((prop.type === 'number' || prop.type === 'date') && prop.value === ''),
+    ),
+  );
+}
+
+/**
  * Board card inline-edit dialog (step 5.7, React `CardSummaryDialog` parity):
  * edit **title + properties inline** using the same per-type editors as the
  * inspector ({@link CustomPropertiesEditor}, text/number/date/tags-with-vocab,
@@ -166,7 +198,7 @@ export class CardSummaryDialog {
     try {
       await this.pages.updatePage(this.data.card.guid, {
         title: this.title().trim(),
-        properties: merged,
+        properties: withoutUnsetTypedProps(merged),
       });
       this.dialogRef.close();
     } catch (err) {

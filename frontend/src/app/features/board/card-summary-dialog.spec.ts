@@ -166,6 +166,97 @@ describe('CardSummaryDialog', () => {
     expect(ref.close).toHaveBeenCalled();
   });
 
+  it('omits unset number/date properties from the PUT body when only the title is edited', async () => {
+    const { ref } = await renderDialog({
+      card: card({
+        guid: 'card-unset',
+        title: 'My Card',
+        properties: { status: { type: 'string', value: 'todo' } },
+      }),
+      // `estimate` and `due` are declared by the type but never filled in on
+      // this card, and neither declares a defaultValue — `mergeSchema` seeds
+      // both as ''. Sent as `{type:'number', value:''}` the backend rejects
+      // the whole save with a 400, so a plain rename would fail.
+      pageType: pageType({
+        properties: [
+          { name: 'status', type: 'string', required: false },
+          { name: 'estimate', type: 'number', required: false },
+          { name: 'due', type: 'date', required: false },
+          { name: 'labels', type: 'tags', required: false },
+        ],
+      }),
+    });
+    await settle();
+    const http = TestBed.inject(HttpTestingController);
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText(/title/i));
+    await user.type(screen.getByLabelText(/title/i), 'Renamed Card');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    const req = http.expectOne('/api/pages/card-unset');
+    const body = req.request.body as {
+      title: string;
+      properties: Record<string, { type: string; value: unknown }>;
+    };
+    expect(body.title).toBe('Renamed Card');
+    // The unset number/date fields are absent entirely — not sent as ''.
+    expect(body.properties).toEqual({
+      status: { type: 'string', value: 'todo' },
+      labels: { type: 'tags', value: [] },
+    });
+    expect(body.properties['estimate']).toBeUndefined();
+    expect(body.properties['due']).toBeUndefined();
+
+    req.flush({
+      guid: 'card-unset',
+      title: 'Renamed Card',
+      content: '',
+      folderId: 'p1',
+      tags: [],
+      status: 'published',
+      createdBy: 'u',
+      modifiedBy: 'u',
+      createdAt: '',
+      modifiedAt: '',
+    });
+    await settle();
+    expect(ref.close).toHaveBeenCalled();
+  });
+
+  it('still sends a number property that actually has a value', async () => {
+    await renderDialog({
+      card: card({
+        guid: 'card-filled',
+        properties: { estimate: { type: 'number', value: 0 } },
+      }),
+      pageType: pageType({
+        properties: [{ name: 'estimate', type: 'number', required: false }],
+      }),
+    });
+    await settle();
+    const http = TestBed.inject(HttpTestingController);
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText(/title/i));
+    await user.type(screen.getByLabelText(/title/i), 'Renamed');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    const req = http.expectOne('/api/pages/card-filled');
+    const body = req.request.body as {
+      properties: Record<string, { type: string; value: unknown }>;
+    };
+    // 0 is a real value, not "unset" — it must survive the filter.
+    expect(body.properties['estimate']).toEqual({ type: 'number', value: 0 });
+    req.flush({
+      guid: 'card-filled', title: 'Renamed', content: '', folderId: 'p1', tags: [],
+      status: 'published', createdBy: 'u', modifiedBy: 'u', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+  });
+
   it('"Open full editor" opens /pages/:guid in a new tab', async () => {
     const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
     await renderDialog({ card: card({ guid: 'open-me' }), pageType: null });
