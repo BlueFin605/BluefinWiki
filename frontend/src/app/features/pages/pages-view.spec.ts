@@ -14,6 +14,7 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSidenav } from '@angular/material/sidenav';
+import { MatTooltip } from '@angular/material/tooltip';
 import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
 import { Auth } from '../../core/auth/auth';
@@ -1130,6 +1131,42 @@ describe('PagesView', () => {
       expect(panelClass).not.toContain('fullscreen-dialog');
     });
   }
+
+  // ---- Step 6.7: visible Search button in the toolbar -----------------------
+
+  it('renders a visible Search button with an accessible label and the Ctrl/Cmd+K tooltip hint', async () => {
+    const { fixture } = await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+
+    const btn = screen.getByRole('button', { name: /^search$/i });
+    expect(btn).toBeInTheDocument();
+
+    const tooltip = fixture.debugElement
+      .query(By.css('button[aria-label="Search"]'))
+      .injector.get(MatTooltip);
+    expect(tooltip.message).toMatch(/ctrl/i);
+    expect(tooltip.message).toMatch(/cmd/i);
+    expect(tooltip.message).toMatch(/k/i);
+  });
+
+  it('clicking the Search button opens the SearchDialog (same path as Ctrl/Cmd+K)', async () => {
+    await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+
+    const openSpy = spyDialogOpen();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith(SearchDialog, expect.any(Object));
+  });
 
   // ---- Step 2.5: rename modal is pre-filled with the real page title --------
 

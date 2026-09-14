@@ -61,6 +61,14 @@ import { AiSidebar } from '../ai/ai-sidebar';
         }
         <span class="title">BluefinWiki</span>
         <span class="spacer"></span>
+        <button
+          mat-icon-button
+          aria-label="Search"
+          matTooltip="Search (Ctrl/Cmd+K)"
+          (click)="openSearch()"
+        >
+          <mat-icon>search</mat-icon>
+        </button>
         <button mat-button (click)="onNewPage()">
           New page
         </button>
@@ -748,7 +756,7 @@ export class PagesView {
     }
   }
 
-  private openSearch(): void {
+  openSearch(): void {
     // Full-screen below 1024, 640px centered on desktop (step 1b.9, DESIGN.md
     // D7 sibling). The branch is decided at open time from the live breakpoint.
     // The `fullscreen-dialog` panel-class style is global (src/styles.scss) —
