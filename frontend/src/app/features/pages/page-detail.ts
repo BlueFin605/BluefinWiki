@@ -6,6 +6,7 @@ import {
   computed,
   effect,
   inject,
+  linkedSignal,
   signal,
   viewChild,
 } from '@angular/core';
@@ -55,7 +56,12 @@ import {
 import { rewriteWikiLink } from '../../shared/markdown/rewrite-wiki-link';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { EditorErrorState } from '../../core/error/editor-error-state';
-import type { BoardConfig, PageContent, PageTypeDefinition } from './page.types';
+import type {
+  BoardConfig,
+  PageChildDetail,
+  PageContent,
+  PageTypeDefinition,
+} from './page.types';
 
 type Mode = 'view' | 'edit';
 type ViewMode = 'content' | 'board';
@@ -621,18 +627,68 @@ export class PageDetail {
   );
 
   /**
+   * The probe's children, RETAINED across reloads.
+   *
+   * `eligibilityChildrenResource` keys on the invalidation bus's
+   * `children:any`, so EVERY successful board drop and Card Summary save
+   * re-fetches it (their PUT bodies carry `properties`/`boardOrder`). A
+   * params change puts an Angular `resource()` back into `'loading'` with its
+   * value cleared — reading `status() === 'resolved' ? children : []`
+   * directly therefore made {@link boardEligible} flicker `false` for the
+   * duration of every such refetch, which destroyed the mounted `BoardView`
+   * (erasing the in-flight optimistic patch) AND let the `defaultView` effect
+   * below permanently move the user to Content. Holding the last fully
+   * resolved answer until a new one lands is the same "keep painting the
+   * last-good data through a reload" rule `BoardView.showInitialLoading`
+   * already applies to the cards themselves.
+   *
+   * Retention is scoped to the parent guid the answer was fetched for, so
+   * navigating to another page never inherits the previous page's children,
+   * and only a fully resolved probe can ever shrink this back to empty.
+   */
+  private readonly eligibilityChildren = linkedSignal<
+    { parentGuid: string | null; resolved: readonly PageChildDetail[] | null },
+    readonly PageChildDetail[]
+  >({
+    source: () => {
+      const parentGuid = this.eligibilityParentGuid();
+      // `value()` throws on an errored resource — only read it when resolved.
+      const resolved =
+        this.eligibilityChildrenResource.status() === 'resolved'
+          ? (this.eligibilityChildrenResource.value()?.children ?? [])
+          : null;
+      return { parentGuid, resolved };
+    },
+    computation: (source, previous) => {
+      // Probe disabled (edit mode, page not yet resolved, or an explicit
+      // `targetTypeGuid` that makes it redundant) — nothing to retain.
+      if (!source.parentGuid) return [];
+      if (source.resolved !== null) return source.resolved;
+      // Loading / reloading / error: keep the last resolved answer for THIS
+      // parent rather than momentarily reporting "no state-bearing children".
+      if (previous && previous.source.parentGuid === source.parentGuid) return previous.value;
+      return [];
+    },
+  });
+
+  /**
    * Board-eligibility gate (step 5.1): true when `boardConfig.targetTypeGuid`
    * is set, or a direct child of a state-bearing page type has a non-empty
    * value for it. Drives the Content | Board toggle; `defaultView` (see the
    * constructor effect below) still decides which view opens first once
    * eligible — this only controls whether the toggle appears at all.
+   *
+   * Reads the retained {@link eligibilityChildren} rather than the resource
+   * directly, so this only goes `true` → `false` when a fully resolved probe
+   * genuinely reports no eligibility — never mid-reload.
    */
-  protected readonly boardEligible = computed<boolean>(() => {
-    const children = this.eligibilityChildrenResource.status() === 'resolved'
-      ? (this.eligibilityChildrenResource.value()?.children ?? [])
-      : [];
-    return isBoardEligible({ boardConfig: this.boardConfig() }, children, this.pageTypesMap());
-  });
+  protected readonly boardEligible = computed<boolean>(() =>
+    isBoardEligible(
+      { boardConfig: this.boardConfig() },
+      this.eligibilityChildren(),
+      this.pageTypesMap(),
+    ),
+  );
 
   /** Whether the working copy diverges from the persisted server page. */
   protected readonly dirty = computed<boolean>(() => {

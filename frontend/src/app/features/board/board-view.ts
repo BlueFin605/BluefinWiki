@@ -236,6 +236,14 @@ export class BoardView {
     const token = this.generation();
 
     if (basisChanged || this.loadedPages() <= 1) {
+      // No `restoreWindow` follows this branch, so nothing else would ever
+      // clear the flag: an in-flight restore superseded by a basis CHANGE
+      // returns early on its generation check and its `finally` guard
+      // (rightly) refuses to release a token it no longer owns, orphaning
+      // `restoringWindow` at `true` and permanently disabling "Load more" for
+      // this board. A basis change abandons any in-flight restore outright,
+      // so release the flag unconditionally here.
+      this.restoringWindow.set(false);
       this.loadedPages.set(1);
       this.applyPage(value, 'reset');
       return;

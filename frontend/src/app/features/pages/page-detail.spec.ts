@@ -23,6 +23,8 @@ jest.mock('mermaid', () => ({
 
 import { PageDetail, resolveSaveStatus } from './page-detail';
 import { PageContext } from './page-context';
+import { Pages } from './pages';
+import { BoardView } from '../board/board-view';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { buildAttachmentMarkdown } from '../attachments/attachment.types';
 import { Drafts } from './drafts';
@@ -529,6 +531,101 @@ describe('PageDetail', () => {
     await settle();
     fixture.detectChanges();
     expect(screen.queryByRole('radio', { name: /^board$/i })).toBeNull();
+  });
+
+  // ---- Fix wave 2: the eligibility probe reloading must not eject the board ----
+
+  /** A page type carrying a `state` property — the auto-eligibility trigger. */
+  const stateBearingType = {
+    guid: 'pt-task',
+    name: 'Task',
+    icon: '✅',
+    properties: [{ name: 'state', type: 'string', required: false }],
+    allowedChildTypes: [],
+    allowWikiPageChildren: false,
+    allowedParentTypes: [],
+    allowAnyParent: true,
+    createdBy: 'u',
+    createdAt: '',
+    updatedAt: '',
+  };
+  const stateCard = (state: string) => ({
+    guid: 'c1',
+    title: 'Card',
+    parentGuid: 'g1',
+    status: 'published',
+    modifiedAt: '2026-01-01T00:00:00Z',
+    modifiedBy: 'u',
+    hasChildren: false,
+    pageType: 'pt-task',
+    properties: { state: { type: 'string', value: state } },
+  });
+
+  it('keeps the board mounted and in Board view while a card PUT reloads the eligibility probe', async () => {
+    const { http, fixture } = await renderDetail();
+    // No boardConfig at all: eligibility comes purely from the child-state
+    // probe, which is exactly the case that reloads on `children:any`.
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    http.expectOne('/api/page-types').flush({ pageTypes: [stateBearingType] });
+    http.expectOne('/api/pages/g1/children?include=properties&limit=50').flush({
+      children: [stateCard('To Do')],
+      hasMore: false,
+    });
+    await settle();
+    fixture.detectChanges();
+
+    const comp = fixture.componentInstance as unknown as { viewMode: () => string };
+    await userEvent.click(screen.getByRole('radio', { name: /^board$/i }));
+    await settle();
+    fixture.detectChanges();
+    expect(comp.viewMode()).toBe('board');
+
+    // The board mounted — it fetches its own page-type list and page one.
+    for (const req of http.match('/api/page-types')) req.flush({ pageTypes: [stateBearingType] });
+    http
+      .expectOne((r) => r.url.includes('/api/pages/g1/children') && r.url.includes('limit=200'))
+      .flush({ children: [stateCard('To Do')], hasMore: false });
+    await settle();
+    fixture.detectChanges();
+
+    const board = fixture.debugElement.query(By.directive(BoardView));
+    expect(board).not.toBeNull();
+
+    // A drop / Card Summary save: a real PUT whose body carries `properties`,
+    // so it bumps `children:any` and puts the eligibility probe back in flight.
+    void TestBed.inject(Pages).updatePage('c1', {
+      properties: { state: { type: 'string', value: 'Done' } },
+    });
+    await settle();
+    http
+      .expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/c1')
+      .flush({ ...serverPage, guid: 'c1', folderId: 'g1' });
+    await settle();
+    fixture.detectChanges();
+
+    // MID-RELOAD. The probe has no value right now; `boardEligible()` must not
+    // read that as "no longer eligible" — tearing the board down here would
+    // erase the optimistic patch, and the defaultView effect would silently
+    // move the user to Content with no way back.
+    expect(comp.viewMode()).toBe('board');
+    const midBoard = fixture.debugElement.query(By.directive(BoardView));
+    expect(midBoard).not.toBeNull();
+    expect(midBoard.componentInstance).toBe(board.componentInstance);
+    expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
+
+    // ...and once the probe lands again, still the same board instance.
+    for (const req of http.match((r) => r.url.includes('include=properties'))) {
+      req.flush({ children: [stateCard('Done')], hasMore: false });
+    }
+    await settle();
+    fixture.detectChanges();
+
+    expect(comp.viewMode()).toBe('board');
+    expect(fixture.debugElement.query(By.directive(BoardView))?.componentInstance).toBe(
+      board.componentInstance,
+    );
   });
 
   it('does not fetch page types when the page is in edit mode', async () => {

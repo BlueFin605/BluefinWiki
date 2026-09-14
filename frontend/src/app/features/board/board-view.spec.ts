@@ -8,6 +8,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { BoardView } from './board-view';
 import { errorInterceptor } from '../../core/api/error-interceptor';
+import { InvalidationBus, childrenAnyTag } from '../../core/api/invalidation';
 import type { PageChildDetail } from '../pages/page.types';
 
 function card(over: Partial<PageChildDetail> = {}): PageChildDetail {
@@ -789,6 +790,66 @@ describe('BoardView', () => {
     expect(screen.queryByRole('button', { name: /card a/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /card b/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /card c/i })).toBeInTheDocument();
+  });
+
+  it('keeps "Load more" usable when a parent change supersedes an in-flight window restore', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-orphan-a' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    http.expectOne('/api/pages/parent-orphan-a/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+    screen.getByRole('button', { name: /load more cards/i }).click();
+    await settle();
+    http
+      .expectOne('/api/pages/parent-orphan-a/children?include=properties&limit=200&cursor=cursor-1')
+      .flush({ children: [card({ guid: 'b', title: 'Card B' })], hasMore: false });
+    await settle();
+
+    // A same-basis invalidation (a drop or Card Summary save) re-fetches page
+    // one, which starts a window restore…
+    TestBed.inject(InvalidationBus).bump(childrenAnyTag());
+    await settle();
+    http.expectOne('/api/pages/parent-orphan-a/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+    // …which is still in flight — deliberately not flushed.
+    http.expectOne('/api/pages/parent-orphan-a/children?include=properties&limit=399&cursor=cursor-1');
+
+    // A genuine parent change supersedes it. That branch collapses to page one
+    // and never starts another restore, so it has to release `restoringWindow`
+    // itself — the superseded restore's own `finally` guard (rightly) won't,
+    // since it no longer owns the generation token. Left orphaned at `true`,
+    // `paging()` would disable "Load more" for the rest of this instance's life.
+    fixture.componentRef.setInput('parentGuid', 'parent-orphan-b');
+    await settle();
+    http.expectOne('/api/pages/parent-orphan-b/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'c', title: 'Card C' })],
+      hasMore: true,
+      nextCursor: 'cursor-b',
+    });
+    await settle();
+
+    const loadMore = screen.getByRole('button', { name: /load more cards/i });
+    expect(loadMore).toBeEnabled();
+    loadMore.click();
+    await settle();
+    http
+      .expectOne('/api/pages/parent-orphan-b/children?include=properties&limit=200&cursor=cursor-b')
+      .flush({ children: [card({ guid: 'd', title: 'Card D' })], hasMore: false });
+    await settle();
+    expect(screen.getByRole('button', { name: /card d/i })).toBeInTheDocument();
   });
 
   // ---- step 5.4: positional boardOrder reorder ----
