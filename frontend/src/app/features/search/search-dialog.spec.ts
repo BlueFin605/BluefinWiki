@@ -1166,6 +1166,32 @@ describe('SearchDialog aria-live region (step 6.6)', () => {
     expect(liveRegion()).toHaveTextContent('No results');
   });
 
+  it('announces the error message when a search fails, so the failure is not silent to a screen reader', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+
+    await user.type(input, 'thing');
+    await wait(260);
+    await settle();
+    expect(liveRegion()).toHaveTextContent('Searching…');
+
+    http
+      .expectOne((r) => r.url === '/api/search')
+      .flush('boom', { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    // Same text as the visible `<p class="error">` banner — the live region
+    // must not go quiet just because the visible error already covers a
+    // sighted user. Scoped to `.error`: the sr-only live region now carries
+    // the identical text too, so an unscoped query would match both.
+    const visibleError = screen.getByText(/search failed/i, { selector: '.error' });
+    expect(liveRegion()).toHaveTextContent(visibleError.textContent ?? '');
+    expect(liveRegion()).not.toHaveTextContent('Searching…');
+  });
+
   it('clears back to empty when the query is cleared after results landed', async () => {
     const dialogRef = makeDialogRef();
     await seedThreeResults(dialogRef);

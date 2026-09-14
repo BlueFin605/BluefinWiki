@@ -500,17 +500,20 @@ export class SearchDialog {
 
   /**
    * Screen-reader announcement for the current search state (step 6.6):
-   * "Searching…" / "{N} results found" / "No results" / empty. Reads
-   * `state()` directly rather than `rawQuery()` — `state.status` only flips
-   * away from `idle` once the debounce/switchMap pipeline below (`trigger`
-   * → `debounceTime(DEBOUNCE_MS)` → `switchMap` → `run()`) actually
-   * dispatches, so this is already debounced against rapid typing without
-   * any further delay of its own. The "Searching…" message still shows the
-   * moment a request is genuinely in flight: `run()` sets
+   * "Searching…" / "{N} results found" / "No results" / the error message /
+   * empty. Reads `state()` directly rather than `rawQuery()` —
+   * `state.status` only flips away from `idle` once the debounce/switchMap
+   * pipeline below (`trigger` → `debounceTime(DEBOUNCE_MS)` → `switchMap` →
+   * `run()`) actually dispatches, so this is already debounced against rapid
+   * typing without any further delay of its own. The "Searching…" message
+   * still shows the moment a request is genuinely in flight: `run()` sets
    * `status: 'loading'` synchronously, before awaiting the fetch, so there's
    * no *additional* lag layered on top of the pipeline's existing debounce.
-   * Empty on `idle` (blank query — nothing to announce) and `error` (the
-   * error banner in the template already speaks for itself).
+   * The `error` case echoes `state().error` — the same text already shown
+   * visually in the `<p class="error">` banner in the template — so a screen
+   * reader user hears the failure too, rather than the region silently going
+   * quiet after a "Searching…" that never resolves into anything spoken.
+   * Empty only on `idle` (blank query — nothing to announce yet).
    */
   protected readonly liveMessage = computed(() => {
     const s = this.state();
@@ -519,6 +522,8 @@ export class SearchDialog {
         return 'Searching…';
       case 'resolved':
         return s.totalResults > 0 ? `${s.totalResults} results found` : 'No results';
+      case 'error':
+        return s.error ?? '';
       default:
         return '';
     }
