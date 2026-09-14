@@ -635,6 +635,69 @@ describe('SearchDialog pagination (step 6.2)', () => {
   });
 });
 
+describe('SearchDialog onLoadMore dispatch/merge consistency (whole-branch fix)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('declines to dispatch — and never mixes result sets — when "Load more" fires after the live input has raced ahead of the displayed query, mid-debounce', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'cat');
+    await wait(260);
+    await settle();
+
+    http
+      .expectOne(
+        (r) => r.url === '/api/search' && r.params.get('q') === 'cat' && r.params.get('offset') === '0',
+      )
+      .flush({ results: makeResults(0, 10), totalResults: 42, executionTimeMs: 2 });
+    await settle();
+    await screen.findByText('Result 0');
+    expect(
+      screen.getByRole('button', { name: /load more results \(10 of 42\)/i }),
+    ).toBeInTheDocument();
+
+    // Type further WITHOUT waiting out the 200ms debounce — the live input
+    // now reads "cats" while the *displayed* snapshot (`state().query`) is
+    // still "cat" (10 of 42 loaded). Fire "Load more" in this exact window —
+    // by click, or (equivalently) the IntersectionObserver auto-fire.
+    await user.type(input, 's');
+    fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
+    await settle();
+
+    // Must NOT dispatch at all here — neither page 2 of the stale "cat"
+    // query nor (worse) a mixed `q=cats&offset=10` request, which would
+    // append "cats" results onto page 1 of "cat" as one ranked list.
+    http.expectNone((r) => r.url === '/api/search' && r.params.get('offset') === '10');
+    // Nothing appended and nothing stuck "loading" — exactly the original
+    // 10 "cat" rows, button still reads its pre-click state.
+    expect(screen.getAllByRole('option')).toHaveLength(10);
+    expect(screen.getByText('Result 0')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /load more results \(10 of 42\)/i }),
+    ).toBeInTheDocument();
+
+    // Once the debounce settles, the pipeline picks up "cats" normally on
+    // its own — a clean reset from offset 0, never an append onto "cat".
+    await wait(260);
+    await settle();
+    const req = http.expectOne(
+      (r) => r.url === '/api/search' && r.params.get('q') === 'cats' && r.params.get('offset') === '0',
+    );
+    req.flush({ results: makeResults(200, 4), totalResults: 4, executionTimeMs: 1 });
+    await settle();
+    await screen.findByText('Result 200');
+
+    expect(screen.getAllByRole('option')).toHaveLength(4);
+    expect(screen.queryByText('Result 0')).toBeNull();
+  });
+});
+
 describe('SearchDialog result highlighting + tags (step 6.5)', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -952,7 +1015,12 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     await wait(260);
     await settle();
 
-    expect(screen.getByText(/too many searches\. please wait a moment\./i)).toBeInTheDocument();
+    // Scoped to `.error` (the visible banner): step 6.6's live region now
+    // announces this same text too (whole-branch fix), so an unscoped query
+    // would ambiguously match both.
+    expect(
+      screen.getByText(/too many searches\. please wait a moment\./i, { selector: '.error' }),
+    ).toBeInTheDocument();
     // The suppressed dispatch did not clobber the previously loaded results.
     expect(screen.getByText('One')).toBeInTheDocument();
     // Spinner must not be stuck showing "loading" forever for a suppressed request.
@@ -973,7 +1041,8 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     await user.type(input, ' else');
     await wait(260);
     await settle();
-    expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
+    // Scoped to `.error`: the live region now carries the same text too.
+    expect(screen.getByText(/too many searches/i, { selector: '.error' })).toBeInTheDocument();
 
     await user.clear(input);
     await settle();
@@ -994,7 +1063,10 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     fireEvent.click(screen.getByRole('button', { name: /load more results/i }));
     await settle();
 
-    expect(screen.getByText(/too many searches\. please wait a moment\./i)).toBeInTheDocument();
+    // Scoped to `.error`: the live region now carries the same text too.
+    expect(
+      screen.getByText(/too many searches\. please wait a moment\./i, { selector: '.error' }),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole('option')).toHaveLength(10);
     expect(
       screen.getByRole('button', { name: /load more results \(10 of 42\)/i }),
@@ -1019,7 +1091,8 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     await user.type(input, ' else');
     await wait(260);
     await settle();
-    expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
+    // Scoped to `.error`: the live region now carries the same text too.
+    expect(screen.getByText(/too many searches/i, { selector: '.error' })).toBeInTheDocument();
 
     await user.type(input, ' again');
     await wait(260);
@@ -1076,7 +1149,8 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     // survive the suppressed dispatch exactly like 6.2's "Load more" append
     // already preserves it.
     expect(input).toHaveAttribute('aria-activedescendant', 'search-result-1');
-    expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
+    // Scoped to `.error`: the live region now carries the same text too.
+    expect(screen.getByText(/too many searches/i, { selector: '.error' })).toBeInTheDocument();
 
     jest.restoreAllMocks();
   });
@@ -1202,6 +1276,38 @@ describe('SearchDialog aria-live region (step 6.6)', () => {
     await settle();
 
     expect(liveRegion()).toHaveTextContent('');
+  });
+
+  it('announces the rate-limit message when a dispatch is suppressed, mirroring the visible banner (whole-branch fix)', async () => {
+    const dialogRef = makeDialogRef();
+    const { input } = await seedThreeResults(dialogRef);
+    expect(liveRegion()).toHaveTextContent('3 results found');
+
+    const search = TestBed.inject(Search);
+    jest.spyOn(search, 'search').mockImplementation(() => {
+      search.rateLimited.set(true);
+      return Promise.reject(new RateLimitExceededError());
+    });
+
+    const user = userEvent.setup();
+    await user.type(input, ' else');
+    await wait(260);
+    await settle();
+
+    // The suppressed dispatch never changes `state` (see `run`'s catch), so
+    // a `status`-only live message would stay "3 results found" here — the
+    // same text as before, which `aria-live="polite"` would never announce
+    // to begin with (screen readers only speak on a text *change*). The
+    // visible banner (same `rateLimited()` condition) confirms this really
+    // is the suppressed-dispatch case — scoped to `.error` since the live
+    // region now carries this same text too (that's the point of this test).
+    expect(
+      screen.getByText(/too many searches\. please wait a moment\./i, { selector: '.error' }),
+    ).toBeInTheDocument();
+    // ...and the live region must announce it too, not stay silent.
+    expect(liveRegion()).toHaveTextContent('Too many searches. Please wait a moment.');
+
+    jest.restoreAllMocks();
   });
 });
 

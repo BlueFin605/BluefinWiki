@@ -23,7 +23,7 @@ import { RATE_LIMIT_MESSAGE, RateLimitExceededError, Search, hasMoreResults } fr
 import { moveSelection } from './move-selection';
 import { addRecent, readRecentSearches, removeRecent, writeRecentSearches } from './recent-searches';
 import { highlight, type HighlightSegment } from './highlight';
-import type { SearchPageSize, WikiSearchResult } from './search.types';
+import type { SearchPageSize, WikiSearchQuery, WikiSearchResult } from './search.types';
 
 /** Up to this many tags are shown per result row (matches React parity). */
 const MAX_TAGS = 3;
@@ -31,6 +31,8 @@ const MAX_TAGS = 3;
 type ScopeValue = 'all' | 'titles' | 'content';
 
 const PAGE_SIZES: readonly SearchPageSize[] = [10, 25, 50];
+
+const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
 
 interface SearchState {
   status: 'idle' | 'loading' | 'resolved' | 'error';
@@ -50,6 +52,18 @@ interface SearchState {
    * that row matched.
    */
   query: string;
+  /**
+   * The scope/page-size that actually produced `results` — captured in
+   * `run()` at dispatch time, exactly like `query` above (see its doc
+   * comment). `onLoadMore()` reads these three fields together off the
+   * *displayed* snapshot rather than the live `scope()`/`pageSize()`
+   * signals, so a "Load more" dispatch always describes what's on screen —
+   * never a mix of an old page-one result set and whatever the controls have
+   * moved on to since (see `onLoadMore`'s doc comment for the reachable
+   * sequence this prevents).
+   */
+  scope: ScopeValue;
+  pageSize: SearchPageSize;
 }
 
 const IDLE_STATE: SearchState = {
@@ -59,10 +73,11 @@ const IDLE_STATE: SearchState = {
   executionTimeMs: 0,
   error: null,
   query: '',
+  scope: 'all',
+  pageSize: DEFAULT_PAGE_SIZE,
 };
 
 const DEBOUNCE_MS = 200;
-const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
 
 @Component({
   selector: 'wiki-search-dialog',
@@ -175,7 +190,7 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
         } @else if (state().status === 'error') {
           <p class="error">{{ state().error }}</p>
         } @else if (state().status === 'resolved' && state().results.length === 0) {
-          <p class="hint">No results for "{{ rawQuery() }}".</p>
+          <p class="hint">No results for "{{ state().query }}".</p>
         } @else {
           @for (result of state().results; track result.pageId; let i = $index) {
             <button
@@ -514,8 +529,21 @@ export class SearchDialog {
    * reader user hears the failure too, rather than the region silently going
    * quiet after a "Searching…" that never resolves into anything spoken.
    * Empty only on `idle` (blank query — nothing to announce yet).
+   *
+   * Checked first, ahead of `state().status`: a suppressed (rate-limited)
+   * dispatch never changes `status` at all — `run()` returns `null` for it
+   * and reverts `state` to exactly what it was (see `run`'s catch), so
+   * `state` is byte-identical before and after and a `status`-only switch
+   * would announce nothing, even though the visible "Too many searches..."
+   * banner (driven by the same `rateLimited()` condition below, matching the
+   * template's own `@if`) has appeared. Mirroring that condition here — not
+   * reading `state` for it — keeps the live region and the banner from ever
+   * being able to drift apart.
    */
   protected readonly liveMessage = computed(() => {
+    if (this.rateLimited() && this.rawQuery().trim().length > 0) {
+      return this.rateLimitMessage;
+    }
     const s = this.state();
     switch (s.status) {
       case 'loading':
@@ -648,7 +676,7 @@ export class SearchDialog {
         // Open in a new tab; the dialog and its result list stay open so the
         // user can keep browsing (matches React). Still a genuine selection
         // of this result — record it the same as a plain click/Enter would.
-        this.recordRecent(this.rawQuery());
+        this.recordRecentForSelection();
         window.open('/pages/' + selected.pageId, '_blank');
         return;
       }
@@ -659,7 +687,7 @@ export class SearchDialog {
   protected async onSelect(result: WikiSearchResult): Promise<void> {
     // Recorded on selection, not on every keystroke (step 6.4) — the term
     // that actually produced a result the user picked, not merely typed.
-    this.recordRecent(this.rawQuery());
+    this.recordRecentForSelection();
     await this.router.navigate(['/pages', result.pageId]);
     this.dialogRef.close(result.pageId);
   }
@@ -688,6 +716,21 @@ export class SearchDialog {
     this.persistRecent(addRecent(this.recentSearches(), term));
   }
 
+  /**
+   * Records a recent-search entry for a genuine result selection (click,
+   * Enter, or Ctrl/Cmd+Enter). Reads `state().query` — the term that
+   * actually produced the *displayed* result being picked — not the live
+   * `rawQuery()` input: a still-rendered result set stays selectable while
+   * the user keeps typing past it (same staleness `SearchState.query`'s doc
+   * comment describes for highlighting), so recording the live input could
+   * attribute the selection to a term that never actually ran. Falls back to
+   * `rawQuery()` only for the (unreachable in practice, since a selectable
+   * result implies a resolved `state().query`) case where it's empty.
+   */
+  private recordRecentForSelection(): void {
+    this.recordRecent(this.state().query || this.rawQuery());
+  }
+
   /** Single choke point for a recent-searches mutation: updates the signal and persists it. */
   private persistRecent(next: string[]): void {
     this.recentSearches.set(next);
@@ -701,29 +744,53 @@ export class SearchDialog {
    * `loadingMore`/`hasMore` so a double click or an overlapping IO callback
    * can't fire a second overlapping request, and by `generation` so a
    * response that outlives a newer reset is discarded (see its doc comment).
+   *
+   * Dispatches with `before.query`/`before.scope`/`before.pageSize` — the
+   * *displayed* snapshot — never the live `rawQuery()`/`scope()`/`pageSize()`
+   * signals. Those only agree with what's on screen while the debounced
+   * pipeline is settled; mid-debounce (or under real network latency) they
+   * can diverge, e.g. the user has 10-of-42 results for "cat" showing, types
+   * "s" within the 200ms debounce window, and clicks/scrolls to "Load more"
+   * before the new search has even dispatched. Reading the live signals here
+   * would send `q=cats&offset=10` and append page 2 of "cats" onto page 1 of
+   * "cat" — a genuinely mixed-query result list (and a potential duplicate
+   * `@for` track key, since the two pages can overlap). The early-return
+   * guard below detects that divergence *before* dispatching and simply
+   * declines to fetch — the debounce/switchMap pipeline will pick up the
+   * live values and reset from scratch on its own shortly after anyway.
+   *
+   * Merges the response into `this.state.update(cur => ...)` — the CURRENT
+   * state at response time — not the captured `before` snapshot: `before` is
+   * only used to build the request. Merging into `before` would clobber any
+   * `status` change a concurrent dispatch had made in the meantime (e.g.
+   * reverting a fresh 'loading' back to 'resolved' and silently killing its
+   * spinner) with stale data from this snapshot.
    */
   protected async onLoadMore(): Promise<void> {
     if (this.loadingMore() || !this.hasMore()) return;
-    const trimmed = this.rawQuery().trim();
-    if (!trimmed) return;
-
     const before = this.state();
+    if (
+      !before.query ||
+      before.query !== this.rawQuery().trim() ||
+      before.scope !== this.scope() ||
+      before.pageSize !== this.pageSize()
+    ) {
+      return;
+    }
+
     const token = this.generation();
     this.loadingMore.set(true);
     try {
-      const res = await this.searchService.search({
-        text: trimmed,
-        scope: this.scope(),
-        limit: this.pageSize(),
-        offset: before.results.length,
-      });
+      const res = await this.searchService.search(
+        this.buildQuery(before.query, before.scope, before.pageSize, before.results.length),
+      );
       if (this.generation() !== token) return;
-      this.state.set({
-        ...before,
-        results: [...before.results, ...res.results],
+      this.state.update((cur) => ({
+        ...cur,
+        results: [...cur.results, ...res.results],
         totalResults: res.totalResults,
         executionTimeMs: res.executionTimeMs,
-      });
+      }));
     } catch {
       // Leave the already-loaded results on screen; the "Load more" button
       // stays put (hasMore is unchanged) so the user can simply retry.
@@ -775,6 +842,16 @@ export class SearchDialog {
     return tags.slice(0, MAX_TAGS);
   }
 
+  /** Single place `run()` and `onLoadMore()` build a `WikiSearchQuery` — kept in sync by construction. */
+  private buildQuery(
+    text: string,
+    scope: ScopeValue,
+    pageSize: SearchPageSize,
+    offset: number,
+  ): WikiSearchQuery {
+    return { text, scope, limit: pageSize, offset };
+  }
+
   /**
    * Returns `null` (rather than a `SearchState`) for a suppressed
    * (rate-limited) dispatch — the `debounced` pipeline above filters that
@@ -793,12 +870,7 @@ export class SearchDialog {
     const before = this.state();
     this.state.set({ ...before, status: 'loading' });
     try {
-      const res = await this.searchService.search({
-        text: trimmed,
-        scope,
-        limit: pageSize,
-        offset: 0,
-      });
+      const res = await this.searchService.search(this.buildQuery(trimmed, scope, pageSize, 0));
       return {
         status: 'resolved',
         results: res.results,
@@ -806,6 +878,8 @@ export class SearchDialog {
         executionTimeMs: res.executionTimeMs,
         error: null,
         query: trimmed,
+        scope,
+        pageSize,
       };
     } catch (err) {
       if (err instanceof RateLimitExceededError) {
@@ -826,6 +900,8 @@ export class SearchDialog {
         executionTimeMs: 0,
         error: err instanceof Error ? err.message : 'Search failed',
         query: trimmed,
+        scope,
+        pageSize,
       };
     }
   }
