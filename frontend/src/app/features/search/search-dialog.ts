@@ -21,6 +21,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RATE_LIMIT_MESSAGE, RateLimitExceededError, Search, hasMoreResults } from './search';
 import { moveSelection } from './move-selection';
+import { addRecent, readRecentSearches, removeRecent, writeRecentSearches } from './recent-searches';
 import type { SearchPageSize, WikiSearchResult } from './search.types';
 
 type ScopeValue = 'all' | 'titles' | 'content';
@@ -121,7 +122,38 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
           <p class="error">{{ rateLimitMessage }}</p>
         }
         @if (rawQuery().trim().length === 0) {
-          <p class="hint">Start typing to search...</p>
+          @if (recentSearches().length > 0) {
+            <div class="recent-searches">
+              <div class="recent-header">
+                <span>Recent searches</span>
+                <button type="button" class="clear-all-btn" (click)="onClearRecent()">
+                  Clear all
+                </button>
+              </div>
+              @for (term of recentSearches(); track term) {
+                <div class="recent-item">
+                  <button
+                    type="button"
+                    class="recent-term"
+                    (click)="onSelectRecent(term)"
+                  >
+                    <mat-icon aria-hidden="true">history</mat-icon>
+                    {{ term }}
+                  </button>
+                  <button
+                    type="button"
+                    class="recent-remove"
+                    [attr.aria-label]="'Remove recent search ' + term"
+                    (click)="onRemoveRecent(term)"
+                  >
+                    <mat-icon aria-hidden="true">close</mat-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="hint">Start typing to search...</p>
+          }
         } @else if (state().status === 'error') {
           <p class="error">{{ state().error }}</p>
         } @else if (state().status === 'resolved' && state().results.length === 0) {
@@ -217,6 +249,65 @@ const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
       font-size: 0.875rem;
     }
     .error { color: #b91c1c; }
+    .recent-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .clear-all-btn {
+      border: 0;
+      background: none;
+      color: #2563eb;
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0;
+    }
+    .recent-item {
+      display: flex;
+      align-items: center;
+    }
+    .recent-term {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-align: left;
+      border: 0;
+      background: none;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: #111827;
+    }
+    .recent-term:hover, .recent-term:focus-visible {
+      background: #f3f4f6;
+    }
+    .recent-term mat-icon {
+      color: #9ca3af;
+      font-size: 1.125rem;
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+    .recent-remove {
+      border: 0;
+      background: none;
+      cursor: pointer;
+      padding: 0.25rem 0.75rem;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+    }
+    .recent-remove:hover, .recent-remove:focus-visible {
+      color: #4b5563;
+    }
+    .recent-remove mat-icon {
+      font-size: 1.125rem;
+      width: 1.125rem;
+      height: 1.125rem;
+    }
     .result {
       display: block;
       width: 100%;
@@ -288,6 +379,16 @@ export class SearchDialog {
 
   /** `-1` when nothing is highlighted. Moved by {@link moveSelection}, hover, and Enter/Ctrl+Enter. */
   protected readonly selectedIndex = signal(-1);
+
+  /**
+   * Persisted recent-search terms (step 6.4), most-recent-first. Seeded from
+   * `localStorage` at construction; every mutation below writes straight
+   * back out via {@link writeRecentSearches} so this signal and storage
+   * never drift. Rendered in place of the "Start typing..." hint while the
+   * query box is empty (see the template) — the hint still shows when it's
+   * empty too (nothing recent to offer yet).
+   */
+  protected readonly recentSearches = signal<string[]>(readRecentSearches());
 
   /**
    * Bumped every time the debounce/switchMap pipeline below lands a fresh
@@ -452,12 +553,40 @@ export class SearchDialog {
   }
 
   protected async onSelect(result: WikiSearchResult): Promise<void> {
+    // Recorded on selection, not on every keystroke (step 6.4) — the term
+    // that actually produced a result the user picked, not merely typed.
+    this.recordRecent(this.rawQuery());
     await this.router.navigate(['/pages', result.pageId]);
     this.dialogRef.close(result.pageId);
   }
 
   protected onClose(): void {
     this.dialogRef.close(null);
+  }
+
+  /** Clicking a recent-search term re-runs it, same as typing it. */
+  protected onSelectRecent(term: string): void {
+    this.onQueryChange(term);
+  }
+
+  /** Removes just this one recent-search entry (the row's "×" control). */
+  protected onRemoveRecent(term: string): void {
+    const next = removeRecent(this.recentSearches(), term);
+    this.recentSearches.set(next);
+    writeRecentSearches(next);
+  }
+
+  /** "Clear all" — empties the recent-searches list. */
+  protected onClearRecent(): void {
+    this.recentSearches.set([]);
+    writeRecentSearches([]);
+  }
+
+  /** Records `term` as the most-recent search (deduped + capped — see `addRecent`). */
+  private recordRecent(term: string): void {
+    const next = addRecent(this.recentSearches(), term);
+    this.recentSearches.set(next);
+    writeRecentSearches(next);
   }
 
   /**

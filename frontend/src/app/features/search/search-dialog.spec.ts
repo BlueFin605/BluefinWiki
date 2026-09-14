@@ -13,6 +13,7 @@ import { Component } from '@angular/core';
 
 import { SearchDialog } from './search-dialog';
 import { RateLimitExceededError, Search } from './search';
+import { RECENT_SEARCHES_KEY } from './recent-searches';
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -151,6 +152,10 @@ async function seedPaginatedResults(
 }
 
 describe('SearchDialog', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('renders an input and an empty state when nothing has been typed', async () => {
     const dialogRef = makeDialogRef();
     await render(SearchDialog, { providers: baseProviders(dialogRef) });
@@ -466,6 +471,7 @@ describe('SearchDialog pagination (step 6.2)', () => {
   let originalIO: typeof IntersectionObserver | undefined;
 
   beforeEach(() => {
+    localStorage.clear();
     MockIntersectionObserver.instances = [];
     originalIO = (globalThis as { IntersectionObserver?: typeof IntersectionObserver })
       .IntersectionObserver;
@@ -624,6 +630,9 @@ describe('SearchDialog pagination (step 6.2)', () => {
 });
 
 describe('SearchDialog rate limiting (step 6.3)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
   afterEach(() => jest.restoreAllMocks());
 
   it('shows "Too many searches" and preserves the prior results when the debounced query is rate-limited', async () => {
@@ -767,5 +776,150 @@ describe('SearchDialog rate limiting (step 6.3)', () => {
     expect(screen.getByText(/too many searches/i)).toBeInTheDocument();
 
     jest.restoreAllMocks();
+  });
+});
+
+describe('SearchDialog recent searches (step 6.4)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  function seedRecent(terms: string[]): void {
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(terms));
+  }
+
+  function storedRecent(): string[] {
+    return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) ?? '[]') as string[];
+  }
+
+  it('shows the "Start typing" hint (not a recent list) when nothing is stored', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+
+    expect(screen.getByText(/start typing/i)).toBeInTheDocument();
+    expect(screen.queryByText(/recent search/i)).toBeNull();
+  });
+
+  it('renders the stored recent list, most-recent-first, when the query is empty', async () => {
+    seedRecent(['pizza', 'pasta']);
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+
+    expect(screen.queryByText(/start typing/i)).toBeNull();
+    const items = screen.getAllByRole('button', { name: /^pizza$|^pasta$/i });
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('pizza');
+    expect(items[1]).toHaveTextContent('pasta');
+  });
+
+  it('clicking a recent item runs that search', async () => {
+    seedRecent(['pizza']);
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    fireEvent.click(screen.getByRole('button', { name: 'pizza' }));
+    await wait(260);
+    await settle();
+
+    const req = http.expectOne(
+      (r) => r.url === '/api/search' && r.params.get('q') === 'pizza',
+    );
+    req.flush({
+      results: [
+        { pageId: 'g1', title: 'Pizza Recipe', snippet: '', relevanceScore: 900, matchCount: 0, path: 'p1', tags: [] },
+      ],
+      totalResults: 1,
+      executionTimeMs: 1,
+    });
+    await settle();
+    expect(await screen.findByText('Pizza Recipe')).toBeInTheDocument();
+  });
+
+  it('removes just the clicked item via its "×" control', async () => {
+    seedRecent(['pizza', 'pasta']);
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+
+    fireEvent.click(screen.getByRole('button', { name: /remove.*pizza/i }));
+    await settle();
+
+    expect(screen.queryByRole('button', { name: 'pizza' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'pasta' })).toBeInTheDocument();
+    expect(storedRecent()).toEqual(['pasta']);
+  });
+
+  it('removing the last item falls back to the "Start typing" hint', async () => {
+    seedRecent(['pizza']);
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+
+    fireEvent.click(screen.getByRole('button', { name: /remove.*pizza/i }));
+    await settle();
+
+    expect(screen.getByText(/start typing/i)).toBeInTheDocument();
+    expect(storedRecent()).toEqual([]);
+  });
+
+  it('"Clear all" empties the list and persists the empty list', async () => {
+    seedRecent(['pizza', 'pasta']);
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+
+    fireEvent.click(screen.getByRole('button', { name: /clear all/i }));
+    await settle();
+
+    expect(screen.getByText(/start typing/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'pizza' })).toBeNull();
+    expect(storedRecent()).toEqual([]);
+  });
+
+  it('records the current query term in localStorage when a result is selected', async () => {
+    const dialogRef = makeDialogRef();
+    await seedThreeResults(dialogRef);
+
+    fireEvent.click(screen.getByRole('option', { name: /one/i }));
+    await settle();
+
+    expect(storedRecent()).toEqual(['thing']);
+  });
+
+  it('does not record anything while the user is merely typing (not yet selected)', async () => {
+    const dialogRef = makeDialogRef();
+    const { http } = await seedThreeResults(dialogRef);
+    http.verify();
+
+    expect(storedRecent()).toEqual([]);
+  });
+
+  it('does not record when Ctrl/Cmd+Enter opens a result in a new tab', async () => {
+    const dialogRef = makeDialogRef();
+    const { input } = await seedThreeResults(dialogRef);
+    const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });
+    await settle();
+
+    expect(storedRecent()).toEqual([]);
+    openSpy.mockRestore();
+  });
+
+  it('swallows a storage failure on selection without throwing', async () => {
+    const dialogRef = makeDialogRef();
+    await seedThreeResults(dialogRef);
+    const spy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+    const router = TestBed.inject(Router);
+    const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    const result = screen.getByRole('option', { name: /one/i });
+    expect(() => fireEvent.click(result)).not.toThrow();
+    await settle();
+
+    expect(navSpy).toHaveBeenCalledWith(['/pages', 'g1']);
+    expect(dialogRef.close).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
