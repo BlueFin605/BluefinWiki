@@ -7,6 +7,7 @@ import {
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -24,6 +25,18 @@ import type {
   UpdatePageRequest,
 } from '../pages/page.types';
 
+/** The slice of a children-with-properties response the board accumulator needs. */
+interface BoardPageResponse {
+  children?: PageChildDetail[];
+  nextCursor?: string | null;
+  hasMore?: boolean;
+}
+
+/** Base page size the board asks for. */
+const PAGE_SIZE = 200;
+/** Backend page-size ceiling (`backend/src/pages/pages-list-children.ts`). */
+const MAX_LIMIT = 500;
+
 /**
  * Kanban Board view. Loads the children of `parentGuid` with their
  * properties, groups them by `state`, and renders one column per state.
@@ -35,7 +48,7 @@ import type {
   imports: [CdkDropListGroup, BoardColumn],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (childrenResource.isLoading()) {
+    @if (showInitialLoading()) {
       <div class="state">Loading board...</div>
     } @else if (childrenResource.error()) {
       <div class="state error">Failed to load board.</div>
@@ -62,10 +75,10 @@ import type {
             <button
               type="button"
               class="load-more-btn"
-              [disabled]="loadingMore()"
+              [disabled]="paging()"
               (click)="onLoadMore()"
             >
-              {{ loadingMore() ? 'Loading…' : 'Load more cards' }}
+              {{ paging() ? 'Loading…' : 'Load more cards' }}
             </button>
           </div>
         }
@@ -120,9 +133,9 @@ export class BoardView {
   private readonly options = computed<ChildrenWithPropertiesOptions | null>(() => {
     const cfg = this.boardConfig();
     if (cfg?.targetTypeGuid) {
-      return { targetTypeGuid: cfg.targetTypeGuid, depth: cfg.depth ?? 10, limit: 200 };
+      return { targetTypeGuid: cfg.targetTypeGuid, depth: cfg.depth ?? 10, limit: PAGE_SIZE };
     }
-    return { limit: 200 };
+    return { limit: PAGE_SIZE };
   });
 
   readonly childrenResource = this.pages.childrenWithPropertiesResource(this.parentGuidSig, this.options);
@@ -136,6 +149,39 @@ export class BoardView {
   private readonly nextCursor = signal<string | null>(null);
   protected readonly hasMoreCards = signal(false);
   protected readonly loadingMore = signal(false);
+  /** True while {@link restoreWindow} is re-fetching a multi-page window. */
+  private readonly restoringWindow = signal(false);
+  /** Either kind of paging work — drives the "Load more" button's busy state. */
+  protected readonly paging = computed(() => this.loadingMore() || this.restoringWindow());
+
+  /**
+   * How many `PAGE_SIZE`-sized pages `accumulated` currently represents: 1
+   * after a fresh page one, +1 per successful "Load more". Used to restore
+   * the same window after an invalidation-triggered reset (see
+   * {@link restoreWindow}) instead of collapsing the user back to page one.
+   */
+  private readonly loadedPages = signal(1);
+
+  /**
+   * Identity of the basis `accumulated` was built against — parent guid plus
+   * the query-shaping options. A reset whose basis key is UNCHANGED is an
+   * invalidation-bus refresh of the same board (a drop, a Card Summary save)
+   * and must preserve the loaded window; a reset whose key CHANGED is a
+   * genuine parent/config switch, where collapsing to page one is correct.
+   */
+  private lastBasisKey: string | null = null;
+
+  /**
+   * Show the "Loading board…" placeholder only on a genuine first load. Every
+   * successful drop and Card Summary save bumps `children:any`, which puts
+   * `childrenResource` back into a loading state — blanking the whole board
+   * there would unmount every column and erase the optimistic patch that
+   * steps 5.3/5.4 exist to produce. With something already accumulated we
+   * keep painting the last-good grouping until the reload lands.
+   */
+  protected readonly showInitialLoading = computed(
+    () => this.childrenResource.isLoading() && this.accumulated().length === 0,
+  );
 
   // Bumped every time the reset effect below runs (i.e. every time
   // `childrenResource` resolves a fresh page one). `onLoadMore()` captures
@@ -152,13 +198,115 @@ export class BoardView {
     // Reset the accumulator every time the resource resolves a fresh page
     // one — a parentGuid/targetTypeGuid/depth change or an invalidation bump
     // (e.g. step 1.2's `children:<parent>`) always re-fetches page one, so
-    // resetting here covers both without a separate watcher.
+    // handling both here covers them without a separate watcher. The body
+    // runs `untracked` so that the bookkeeping signals it reads (and writes)
+    // never become dependencies of this effect — the resource's
+    // status/value are the only intended triggers.
     effect(() => {
       if (this.childrenResource.status() !== 'resolved') return;
-      const value = this.childrenResource.value();
-      this.generation.update((g) => g + 1);
-      this.applyPage(value ?? null, 'reset');
+      const value = this.childrenResource.value() ?? null;
+      untracked(() => this.onPageOneResolved(value));
     });
+  }
+
+  /** Parent + query options that `accumulated` is currently built against. */
+  private basisKey(): string {
+    const opts = this.options() ?? {};
+    return JSON.stringify([
+      this.parentGuidSig(),
+      opts.targetTypeGuid ?? null,
+      opts.depth ?? null,
+      opts.limit ?? null,
+    ]);
+  }
+
+  /**
+   * Fresh page one landed. Either collapse to it (a genuine parent/config
+   * change, or nothing beyond page one was ever loaded) or — when this is
+   * just an invalidation refresh of the SAME board and the user had paged
+   * further — restore the window they had, so a single drag doesn't silently
+   * throw away the 400 extra cards they clicked "Load more" for.
+   */
+  private onPageOneResolved(value: BoardPageResponse | null): void {
+    const key = this.basisKey();
+    const basisChanged = key !== this.lastBasisKey;
+    this.lastBasisKey = key;
+
+    this.generation.update((g) => g + 1);
+    const token = this.generation();
+
+    if (basisChanged || this.loadedPages() <= 1) {
+      this.loadedPages.set(1);
+      this.applyPage(value, 'reset');
+      return;
+    }
+    void this.restoreWindow(value, token);
+  }
+
+  /**
+   * Re-page forward from `firstPage` until the previously-loaded window is
+   * covered again, then swap it in as one atomic replacement.
+   *
+   * Deliberately does NOT apply `firstPage` first: doing so would visibly
+   * collapse the board to 200 cards and pop the "Load more" button back for
+   * the duration of the refetch. The (already optimistically patched) old
+   * accumulator stays on screen until the full window is in hand.
+   *
+   * The window is requested with an inflated `limit` (capped at the
+   * backend's own 500 ceiling) so the common two- or three-page window costs
+   * exactly one extra request, not one per page.
+   */
+  private async restoreWindow(firstPage: BoardPageResponse | null, token: number): Promise<void> {
+    const parentGuid = this.parentGuidSig();
+    if (!parentGuid) {
+      this.loadedPages.set(1);
+      this.applyPage(firstPage, 'reset');
+      return;
+    }
+    const basePageSize = this.options()?.limit ?? PAGE_SIZE;
+    const targetCount = basePageSize * this.loadedPages();
+
+    let children = firstPage?.children ?? [];
+    let cursor = firstPage?.nextCursor ?? null;
+    let hasMore = firstPage?.hasMore === true;
+
+    this.restoringWindow.set(true);
+    try {
+      while (hasMore && cursor && children.length < targetCount) {
+        const response = await this.pages.fetchChildrenWithProperties(parentGuid, {
+          ...(this.options() ?? {}),
+          limit: Math.min(targetCount - children.length, MAX_LIMIT),
+          cursor,
+        });
+        // A newer reset has superseded this restore — drop it on the floor,
+        // exactly as `onLoadMore` does with a stale page.
+        if (this.generation() !== token) return;
+        children = [...children, ...(response.children ?? [])];
+        cursor = response.nextCursor ?? null;
+        hasMore = response.hasMore === true;
+      }
+    } catch (err) {
+      if (this.generation() !== token) return;
+      // Couldn't rebuild the window: fall back to the collapsed page one
+      // rather than leaving stale pre-mutation cards on screen, and say so.
+      this.loadedPages.set(1);
+      this.applyPage(firstPage, 'reset');
+      this.snack.open(
+        `Couldn't reload all cards — ${this.toMessage(err, 'Something went wrong.')}`,
+        'Dismiss',
+        { duration: 4000 },
+      );
+      return;
+    } finally {
+      if (this.generation() === token) this.restoringWindow.set(false);
+    }
+
+    // `loadedPages` is deliberately left as-is: it records the window the
+    // user asked for, not how many cards came back. A shrinking board (cards
+    // deleted elsewhere) just makes the next restore stop early on `hasMore`.
+    this.accumulated.set(children);
+    this.nextCursor.set(cursor);
+    this.hasMoreCards.set(hasMore);
   }
 
   /**
@@ -168,7 +316,7 @@ export class BoardView {
    * "Load more" page).
    */
   private applyPage(
-    value: { children?: PageChildDetail[]; nextCursor?: string | null; hasMore?: boolean } | null,
+    value: BoardPageResponse | null,
     mode: 'reset' | 'append',
   ): void {
     const children = value?.children ?? [];
@@ -359,7 +507,7 @@ export class BoardView {
   async onLoadMore(): Promise<void> {
     const cursor = this.nextCursor();
     const parentGuid = this.parentGuidSig();
-    if (!cursor || !parentGuid || this.loadingMore()) return;
+    if (!cursor || !parentGuid || this.paging()) return;
     // Capture the generation before the request goes out. If a reset (parent/
     // config change, or an invalidation-bus bump) runs while this request is
     // in flight, the generation will have moved on by the time the response
@@ -374,6 +522,18 @@ export class BoardView {
       });
       if (this.generation() !== token) return;
       this.applyPage(response, 'append');
+      this.loadedPages.update((n) => n + 1);
+    } catch (err) {
+      // Without this the failure was invisible: the button simply spun and
+      // reset with nothing appended, and the rejection surfaced only as an
+      // unhandled promise in the console. Toast it like every other failure
+      // path in this view (see the drop-rollback toast above).
+      if (this.generation() !== token) return;
+      this.snack.open(
+        `Couldn't load more cards — ${this.toMessage(err, 'Something went wrong.')}`,
+        'Dismiss',
+        { duration: 4000 },
+      );
     } finally {
       this.loadingMore.set(false);
     }

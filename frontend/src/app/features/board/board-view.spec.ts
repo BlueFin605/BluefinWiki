@@ -598,6 +598,199 @@ describe('BoardView', () => {
     expect(screen.getByRole('button', { name: /fresh card/i })).toBeInTheDocument();
   });
 
+  it('toasts the server message when "Load more" fails, instead of failing silently', async () => {
+    await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-load-fail' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-load-fail/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+
+    screen.getByRole('button', { name: /load more cards/i }).click();
+    await settle();
+
+    http
+      .expectOne('/api/pages/parent-load-fail/children?include=properties&limit=200&cursor=cursor-1')
+      .flush({ message: 'Gateway timeout' }, { status: 504, statusText: 'Gateway Timeout' });
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "Couldn't load more cards — Gateway timeout",
+      'Dismiss',
+      { duration: 4000 },
+    );
+    // The button is usable again (not stuck spinning) so the user can retry.
+    expect(screen.getByRole('button', { name: /load more cards/i })).toBeEnabled();
+  });
+
+  it('does not blank the board with the loading placeholder while the post-drop reload is in flight', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-no-blank' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    const draggedCard = card({
+      guid: 'card-no-blank',
+      title: 'Stays Put',
+      boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    http.expectOne('/api/pages/parent-no-blank/children?include=properties&limit=200').flush({
+      children: [draggedCard],
+      hasMore: false,
+    });
+    await settle();
+
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done', targetIndex: 0 });
+    await settle();
+    http.expectOne('/api/pages/card-no-blank').flush({
+      guid: 'card-no-blank', title: 'Stays Put', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+
+    // The success bumped `children:any`, so page one is re-fetching right
+    // now — but the optimistically-moved card must stay on screen rather
+    // than the whole board unmounting behind "Loading board…".
+    const reload = http.expectOne('/api/pages/parent-no-blank/children?include=properties&limit=200');
+    expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument();
+    expect(columnCount('Done')).toBe('1');
+    expect(screen.getByRole('button', { name: /stays put/i })).toBeInTheDocument();
+
+    reload.flush({
+      children: [{ ...draggedCard, properties: { state: { type: 'string', value: 'Done' } } }],
+      hasMore: false,
+    });
+    await settle();
+    expect(columnCount('Done')).toBe('1');
+  });
+
+  it('restores the loaded multi-page window after an invalidation-triggered reset', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-window' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    const cardA = card({
+      guid: 'card-a', title: 'Card A', boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const cardB = card({
+      guid: 'card-b', title: 'Card B', boardOrder: 2000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+
+    // Page one.
+    http.expectOne('/api/pages/parent-window/children?include=properties&limit=200').flush({
+      children: [cardA],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+
+    // Page two, via "Load more".
+    screen.getByRole('button', { name: /load more cards/i }).click();
+    await settle();
+    http
+      .expectOne('/api/pages/parent-window/children?include=properties&limit=200&cursor=cursor-1')
+      .flush({ children: [cardB], hasMore: false });
+    await settle();
+    expect(columnCount('To Do')).toBe('2');
+
+    // A same-column drag of card B above card A — enough to bump
+    // `children:any` and trigger the page-one reset that used to collapse
+    // the accumulator back to page one.
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: cardB, targetState: 'To Do', targetIndex: 0 });
+    await settle();
+    const putReq = http.expectOne('/api/pages/card-b');
+    expect(putReq.request.body).toEqual({ boardOrder: 0 }); // 1000 - 1000
+    putReq.flush({
+      guid: 'card-b', title: 'Card B', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+
+    // The reset re-fetches page one only…
+    http.expectOne('/api/pages/parent-window/children?include=properties&limit=200').flush({
+      children: [cardA],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+
+    // …and the view immediately re-requests the rest of the window it had,
+    // with an inflated limit (2 pages * 200, minus the 1 card page one
+    // already returned) so it costs one request, not one per page.
+    http
+      .expectOne('/api/pages/parent-window/children?include=properties&limit=399&cursor=cursor-1')
+      .flush({ children: [{ ...cardB, boardOrder: 0 }], hasMore: false });
+    await settle();
+
+    // Both pages' cards are still on the board — not collapsed to page one —
+    // and "Load more" is gone because the whole window is loaded.
+    expect(columnCount('To Do')).toBe('2');
+    expect(screen.getByRole('button', { name: /card a/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /card b/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
+  });
+
+  it('still collapses to page one when the parent genuinely changes, even with a multi-page window loaded', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-window-a' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    http.expectOne('/api/pages/parent-window-a/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A' })],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+    screen.getByRole('button', { name: /load more cards/i }).click();
+    await settle();
+    http
+      .expectOne('/api/pages/parent-window-a/children?include=properties&limit=200&cursor=cursor-1')
+      .flush({ children: [card({ guid: 'b', title: 'Card B' })], hasMore: false });
+    await settle();
+
+    fixture.componentRef.setInput('parentGuid', 'parent-window-b');
+    await settle();
+    http.expectOne('/api/pages/parent-window-b/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'c', title: 'Card C' })],
+      hasMore: false,
+    });
+    await settle();
+
+    // A different parent is a genuine basis change: collapse to page one, and
+    // do NOT try to restore the old parent's window.
+    http.expectNone((req) => req.url.includes('cursor=cursor-1'));
+    expect(screen.queryByRole('button', { name: /card a/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /card b/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /card c/i })).toBeInTheDocument();
+  });
+
   // ---- step 5.4: positional boardOrder reorder ----
 
   it('same-column reorder issues a boardOrder-only PUT computed via the midpoint', async () => {
@@ -955,5 +1148,107 @@ describe('BoardView', () => {
       });
     }
     await settle();
+  });
+
+  // ---- cross-step: pagination window x renumber-triggering drop ----
+
+  it('keeps the second loaded page after a drop that triggers a full-column renumber', async () => {
+    const { fixture } = await render(BoardView, {
+      providers: baseProviders(),
+      inputs: { parentGuid: 'parent-window-renumber' },
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+
+    const cardA = card({
+      guid: 'card-a', title: 'Card A', boardOrder: 1000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    // Page two carries the tight-gap neighbour and the mover — so the drop
+    // below depends on cards that only exist because of "Load more".
+    const cardB = card({
+      guid: 'card-b', title: 'Card B', boardOrder: 1001,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+    const mover = card({
+      guid: 'card-mover', title: 'Mover Card', boardOrder: 5000,
+      properties: { state: { type: 'string', value: 'Backlog' } },
+    });
+
+    http.expectOne('/api/pages/parent-window-renumber/children?include=properties&limit=200').flush({
+      children: [cardA],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+    await settle();
+    screen.getByRole('button', { name: /load more cards/i }).click();
+    await settle();
+    http
+      .expectOne('/api/pages/parent-window-renumber/children?include=properties&limit=200&cursor=cursor-1')
+      .flush({ children: [cardB, mover], hasMore: false });
+    await settle();
+    expect(columnCount('To Do')).toBe('2');
+    expect(columnCount('Backlog')).toBe('1');
+
+    // Drop the mover between A (1000) and B (1001): gap 1 forces the
+    // full-column renumber, which PUTs two cards and therefore bumps
+    // `children:any` twice.
+    const instance = fixture.componentInstance;
+    const dropped = instance.onCardDropped({ card: mover, targetState: 'To Do', targetIndex: 1 });
+    await settle();
+    http.expectNone('/api/pages/card-a'); // 1000 -> 1000, unchanged
+    const reqMover = http.expectOne('/api/pages/card-mover');
+    const reqB = http.expectOne('/api/pages/card-b');
+    expect((reqMover.request.body as { boardOrder: number }).boardOrder).toBe(2000);
+    expect(reqB.request.body).toEqual({ boardOrder: 3000 });
+
+    reqB.flush({
+      guid: 'card-b', title: 'Card B', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    reqMover.flush({
+      guid: 'card-mover', title: 'Mover Card', content: '', folderId: 'f', tags: [],
+      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+    });
+    await dropped;
+    await settle();
+
+    // Drain every reset (one per successful PUT) plus the window restore each
+    // one kicks off. Superseded restores are discarded by the generation
+    // guard; the last one wins.
+    const finalMover = {
+      ...mover,
+      boardOrder: 2000,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    };
+    const finalB = { ...cardB, boardOrder: 3000 };
+    for (let round = 0; round < 4; round++) {
+      const pageOnes = http
+        .match('/api/pages/parent-window-renumber/children?include=properties&limit=200')
+        .filter((req) => !req.cancelled);
+      const restores = http
+        .match('/api/pages/parent-window-renumber/children?include=properties&limit=399&cursor=cursor-1')
+        .filter((req) => !req.cancelled);
+      if (pageOnes.length === 0 && restores.length === 0) break;
+      for (const req of pageOnes) {
+        req.flush({ children: [cardA], hasMore: true, nextCursor: 'cursor-1' });
+      }
+      for (const req of restores) {
+        req.flush({ children: [finalMover, finalB], hasMore: false });
+      }
+      await settle();
+    }
+
+    // The window survives the renumber: all three cards are still on the
+    // board, the mover has landed in "To Do", and nothing collapsed back to
+    // a single page with a "Load more" button.
+    expect(columnCount('To Do')).toBe('3');
+    expect(screen.queryByText('Backlog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /card a/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /card b/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mover card/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
   });
 });
