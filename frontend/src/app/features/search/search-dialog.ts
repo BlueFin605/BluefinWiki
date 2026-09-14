@@ -38,6 +38,18 @@ interface SearchState {
   totalResults: number;
   executionTimeMs: number;
   error: string | null;
+  /**
+   * The (trimmed) query text that actually produced `results` — captured in
+   * `run()` at dispatch time, not read live off the input box. Highlighting
+   * (step 6.5) must key off *this*, not `rawQuery()`: the previous result
+   * set stays rendered while a new search is `loading` (see `resultsOpen`'s
+   * doc comment) and while debouncing, so `rawQuery()` can race ahead of
+   * what's actually on screen — reading it directly would make the
+   * highlighted terms on still-stale rows flicker/relocate/disappear on
+   * every keystroke, based on characters that have nothing to do with why
+   * that row matched.
+   */
+  query: string;
 }
 
 const IDLE_STATE: SearchState = {
@@ -46,6 +58,7 @@ const IDLE_STATE: SearchState = {
   totalResults: 0,
   executionTimeMs: 0,
   error: null,
+  query: '',
 };
 
 const DEBOUNCE_MS = 200;
@@ -697,14 +710,19 @@ export class SearchDialog {
   }
 
   /**
-   * Splits `text` into `{ text, match }` segments around the current query
-   * (step 6.5) for the template to render with `@for` + `<mark>` — see
-   * {@link highlight}. Called straight from the template rather than a
-   * `computed()`: it's per-row (keyed on `text`, not on any single signal),
-   * and cheap pure string work over whatever's currently rendered.
+   * Splits `text` into `{ text, match }` segments around the query that
+   * produced the *currently-displayed* results (step 6.5) for the template
+   * to render with `@for` + `<mark>` — see {@link highlight}. Deliberately
+   * reads `this.state().query`, NOT the live `rawQuery()` signal: see
+   * `SearchState.query`'s doc comment for why highlighting off the input
+   * box directly is wrong here (it would flicker/relocate on every
+   * keystroke against still-stale, already-rendered rows). Called straight
+   * from the template rather than a `computed()`: it's per-row (keyed on
+   * `text`, not on any single signal), and cheap pure string work over
+   * whatever's currently rendered.
    */
   protected highlightSegments(text: string): HighlightSegment[] {
-    return highlight(text, this.rawQuery());
+    return highlight(text, this.state().query);
   }
 
   /** At most {@link MAX_TAGS} tags per result row (matches React parity). */
@@ -742,6 +760,7 @@ export class SearchDialog {
         totalResults: res.totalResults,
         executionTimeMs: res.executionTimeMs,
         error: null,
+        query: trimmed,
       };
     } catch (err) {
       if (err instanceof RateLimitExceededError) {
@@ -761,6 +780,7 @@ export class SearchDialog {
         totalResults: 0,
         executionTimeMs: 0,
         error: err instanceof Error ? err.message : 'Search failed',
+        query: trimmed,
       };
     }
   }

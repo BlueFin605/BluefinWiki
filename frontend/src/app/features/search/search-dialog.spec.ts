@@ -849,7 +849,7 @@ describe('SearchDialog result highlighting + tags (step 6.5)', () => {
     expect(option.querySelector('.path')).toHaveTextContent('Cooking > Family Recipes');
   });
 
-  it('does not throw and renders no <mark> when the query contains regex-special characters', async () => {
+  it('highlights matches when the query contains regex-special characters, treated literally not as a regex', async () => {
     const dialogRef = makeDialogRef();
     await render(SearchDialog, { providers: baseProviders(dialogRef) });
     const http = TestBed.inject(HttpTestingController);
@@ -879,6 +879,53 @@ describe('SearchDialog result highlighting + tags (step 6.5)', () => {
 
     const option = await screen.findByRole('option', { name: /budget/i });
     expect(option.querySelectorAll('mark')).toHaveLength(2);
+  });
+
+  it('keeps highlighting the query that produced the currently-displayed (stale) results while the user keeps typing, not the live input value', async () => {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, { providers: baseProviders(dialogRef) });
+    const http = TestBed.inject(HttpTestingController);
+
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    const user = userEvent.setup();
+    await user.type(input, 'recipe');
+    await wait(260);
+    await settle();
+
+    http.expectOne((r) => r.url === '/api/search' && r.params.get('q') === 'recipe').flush({
+      results: [
+        {
+          pageId: 'p1',
+          title: 'Family Recipes',
+          snippet: '',
+          relevanceScore: 900,
+          matchCount: 0,
+          path: 'p1',
+          tags: [],
+        },
+      ],
+      totalResults: 1,
+      executionTimeMs: 2,
+    });
+    await settle();
+
+    const option = await screen.findByRole('option', { name: /family recipes/i });
+    expect(option.querySelectorAll('.title mark')).toHaveLength(1);
+    expect(option.querySelector('.title mark')).toHaveTextContent(/recipe/i);
+
+    // Keep typing PAST the query that produced these results, without
+    // waiting out the debounce — the row above is still the stale, already
+    // -rendered result set (per `resultsOpen`'s own doc comment: the
+    // previous results stay on screen while a new search is `loading`/
+    // debouncing). "recipe club" is not a literal substring of "Family
+    // Recipes" at all, so if highlighting read the live input value, the
+    // mark on this still-visible row would vanish entirely — it must not.
+    await user.type(input, ' club');
+    await settle();
+
+    const staleOption = screen.getByRole('option', { name: /family recipes/i });
+    expect(staleOption.querySelectorAll('.title mark')).toHaveLength(1);
+    expect(staleOption.querySelector('.title mark')).toHaveTextContent(/recipe/i);
   });
 });
 
