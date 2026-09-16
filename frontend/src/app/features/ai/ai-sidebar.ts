@@ -8,6 +8,8 @@ import {
   signal,
   viewChild,
   type OnInit,
+  type ElementRef,
+  afterRenderEffect,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -72,7 +74,7 @@ import { UnavailableState } from './unavailable-state';
         />
         <wiki-instruction-picker [loadedGuids]="ai.loadedInstructionIds()" />
 
-        <div class="messages" role="log" aria-label="Conversation">
+        <div class="messages" role="log" aria-label="Conversation" #messagesContainer>
           @if (ai.messages().length === 0) {
             <p class="hint">
               Ask me about the wiki — I can summarise pages, propose new pages,
@@ -166,6 +168,7 @@ export class AiSidebar implements OnInit {
   readonly closed = output<void>();
 
   private readonly picker = viewChild(InstructionPicker);
+  private readonly messagesContainer = viewChild<ElementRef<HTMLDivElement>>('messagesContainer');
 
   protected readonly availability = signal<AiAvailability | null>(null);
   protected readonly draft = signal('');
@@ -178,6 +181,30 @@ export class AiSidebar implements OnInit {
   protected readonly canSend = computed(
     () => !this.ai.streaming() && this.draft().trim().length > 0,
   );
+
+  constructor() {
+    // Auto-scroll to bottom when messages are added or streaming state changes
+    afterRenderEffect(() => {
+      // Trigger effect whenever messages or streaming state changes
+      void this.ai.messages();
+      void this.ai.streaming();
+
+      // After DOM is updated, check if we should scroll
+      const container = this.messagesContainer()?.nativeElement;
+      if (!container) return;
+
+      // Check if user is already near the bottom
+      // Only auto-scroll if they're within 64px of the bottom
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+
+      if (distanceFromBottom < 64) {
+        // User is near the bottom, scroll to the very bottom
+        container.scrollTop = container.scrollHeight;
+      }
+      // If user has scrolled up to read history, don't force-scroll
+    });
+  }
 
   ngOnInit(): void {
     void this.refreshAvailability();
