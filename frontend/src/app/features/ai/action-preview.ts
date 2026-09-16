@@ -262,13 +262,14 @@ export class ActionPreview {
   }
 
   protected async onAccept(): Promise<void> {
-    const action = this.ai.beginApplyingAction();
-    if (!action) return;
+    const pending = this.ai.beginApplyingAction();
+    if (!pending) return;
+    const { action, messageId } = pending;
     const result = await this.runner.run(action);
     if (result.ok) {
-      this.ai.completeAction();
+      this.ai.completeAction(messageId);
     } else {
-      this.ai.markActionFailed(result.error ?? 'The action failed. Try again.');
+      this.ai.markActionFailed(messageId, result.error ?? 'The action failed. Try again.');
     }
   }
 

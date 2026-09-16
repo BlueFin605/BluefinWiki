@@ -272,12 +272,23 @@ export class AiSidebar implements OnInit {
     const text = this.draft().trim();
     this.draft.set('');
     try {
-      const instructionContext = await this.loadSelectedInstructions();
+      const { instructionContext, succeededGuids } = await this.loadSelectedInstructions();
       const ragContext = await this.contextLoader.buildRagContext({
         currentPageGuid: this.currentPageGuid(),
         userMessage: text,
       });
       await this.ai.sendMessage(text, ragContext || undefined, instructionContext);
+      // Only lock an instruction in once the SEND meant to inject it has
+      // actually succeeded (Finding 3, phase-7 final review) — marking it
+      // loaded right after the content fetch (the prior behavior) locked it
+      // even when this `sendMessage` call itself went on to fail (network
+      // error, model unavailable, etc.), stranding the instruction as
+      // "loaded" despite the model never having seen it, with no way to
+      // retry short of "New chat" (`toInject`'s filter below only retries
+      // GUIDs NOT already in `loadedInstructionIds()`).
+      if (succeededGuids.length > 0) {
+        this.ai.markInstructionsLoaded(succeededGuids);
+      }
     } catch (err) {
       this.ai.appendSystemMessage(
         `AI error: ${err instanceof Error ? err.message : String(err)}`,
@@ -289,21 +300,29 @@ export class AiSidebar implements OnInit {
    * Fetch content for any newly-selected (not yet loaded) instructions and
    * fold it into one context block, porting React's `buildInstructionsBlock`.
    *
-   * Only GUIDs whose `getInstructionContent` fetch actually succeeds are
-   * marked loaded on `Ai` — locking an instruction in the picker means
-   * "injected", not merely "attempted". A per-GUID failure is reported to
-   * the user via `Ai.appendSystemMessage` (the same convention used for
-   * fetch-tool errors elsewhere in `Ai`) and the GUID stays selected-but-
-   * unlocked, so `toInject`'s "not yet loaded" filter naturally retries it
-   * on the next send. All fetches run concurrently via `Promise.allSettled`
-   * so one failure never blocks or discards a sibling success in the same
-   * batch.
+   * Returns the GUIDs whose `getInstructionContent` fetch succeeded
+   * alongside the built context — it does NOT mark them loaded on `Ai`
+   * itself. Locking an instruction in the picker means "injected", not
+   * merely "fetched": the caller (`doSend`) marks `succeededGuids` loaded
+   * only after the `ai.sendMessage(...)` call that was meant to inject them
+   * has itself resolved without throwing (Finding 3, phase-7 final review) —
+   * a content fetch can succeed while the send that carries it still fails.
+   *
+   * A per-GUID fetch failure is reported to the user via
+   * `Ai.appendSystemMessage` (the same convention used for fetch-tool errors
+   * elsewhere in `Ai`) and the GUID stays selected-but-unlocked, so
+   * `toInject`'s "not yet loaded" filter naturally retries it on the next
+   * send. All fetches run concurrently via `Promise.allSettled` so one
+   * failure never blocks or discards a sibling success in the same batch.
    */
-  private async loadSelectedInstructions(): Promise<string | undefined> {
+  private async loadSelectedInstructions(): Promise<{
+    instructionContext?: string;
+    succeededGuids: string[];
+  }> {
     const selected = this.picker()?.getSelected() ?? [];
     const loaded = this.ai.loadedInstructionIds();
     const toInject = selected.filter((guid) => !loaded.includes(guid));
-    if (toInject.length === 0) return undefined;
+    if (toInject.length === 0) return { succeededGuids: [] };
 
     const results = await Promise.allSettled(
       toInject.map((guid) => this.aiInstructions.getInstructionContent(guid)),
@@ -325,12 +344,12 @@ export class AiSidebar implements OnInit {
       }
     });
 
-    if (succeededGuids.length > 0) {
-      this.ai.markInstructionsLoaded(succeededGuids);
-    }
-    if (sections.length === 0) return undefined;
+    if (sections.length === 0) return { succeededGuids };
 
-    return `[Active instructions]\nThe user has attached the following instructions to this chat. Follow them for this and subsequent turns.\n\n${sections.join('\n\n')}`;
+    return {
+      instructionContext: `[Active instructions]\nThe user has attached the following instructions to this chat. Follow them for this and subsequent turns.\n\n${sections.join('\n\n')}`,
+      succeededGuids,
+    };
   }
 
   /** Best-effort title lookup for an instruction GUID, for error messages. */

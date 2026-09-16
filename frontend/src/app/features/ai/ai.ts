@@ -401,6 +401,20 @@ export class Ai {
       // Either way, `finalAction`/`finalActionMessageId` are still `null`
       // here, which is the correct terminal state.
 
+      // A still-`pending` action left over from a PRIOR turn that this turn's
+      // outcome supersedes (a new proposal on a different message, or no
+      // actionable proposal at all) can no longer be applied or discarded by
+      // the user — its card is about to be replaced/removed from view. Patch
+      // it to `discarded` so `chat-message.ts` doesn't render it stuck on
+      // "Reviewing proposed change…" forever (Finding 2, phase-7 final
+      // review). No-op when this turn's action landed on the SAME message
+      // (i.e. nothing to supersede) or when there was no previous pending
+      // action.
+      const previousActionMessageId = this._currentActionMessageId();
+      if (previousActionMessageId && previousActionMessageId !== finalActionMessageId) {
+        this.updateMessage(previousActionMessageId, { actionStatus: 'discarded' });
+      }
+
       this._currentAction.set(finalAction);
       this._currentActionMessageId.set(finalActionMessageId);
 
@@ -460,13 +474,23 @@ export class Ai {
 
   /**
    * Begin applying the current action: flips the owning message's status to
-   * `applying` and returns the action for the caller (the action runner) to
-   * dispatch. Returns `null` when there is nothing pending. Deliberately does
+   * `applying` and returns the action PLUS the id of the message it belongs
+   * to, for the caller (the action runner) to dispatch and later report back
+   * against. Returns `null` when there is nothing pending. Deliberately does
    * NOT clear `currentAction` — the card stays mounted while the mutation is
    * in flight, and on failure the action stays current so the user can retry
    * (Apply again) or discard.
+   *
+   * Callers MUST thread the returned `messageId` into `completeAction` /
+   * `markActionFailed` rather than letting those re-read
+   * `_currentActionMessageId()` at completion time (Finding 1, phase-7 final
+   * review): nothing blocks the composer while an action is `applying`, so a
+   * new `sendMessage()` can move `_currentActionMessageId` on to a different
+   * message (or `null`) before this mutation's `await` resolves. Re-reading
+   * the signal at completion time would then silently mark the WRONG
+   * message.
    */
-  beginApplyingAction(): AiAction | null {
+  beginApplyingAction(): { action: AiAction; messageId: string } | null {
     const action = this._currentAction();
     const messageId = this._currentActionMessageId();
     if (!action || !messageId) return null;
@@ -474,27 +498,35 @@ export class Ai {
       actionStatus: 'applying',
       actionError: undefined,
     });
-    return action;
-  }
-
-  /** Mark the current action as successfully applied and clear it. */
-  completeAction(): void {
-    const messageId = this._currentActionMessageId();
-    if (messageId) {
-      this.updateMessage(messageId, { actionStatus: 'applied' });
-    }
-    this._currentAction.set(null);
-    this._currentActionMessageId.set(null);
+    return { action, messageId };
   }
 
   /**
-   * Mark the current action as failed with the given error message. The
-   * action is deliberately left current (not cleared) so the user can retry
-   * (Apply again) or discard it.
+   * Mark the action on the message identified by `messageId` (captured by
+   * the caller from `beginApplyingAction`, NOT re-read from
+   * `_currentActionMessageId()` — see that method's doc) as successfully
+   * applied. Only clears `currentAction`/`currentActionMessageId` when they
+   * still point at this same message — if a newer turn has since superseded
+   * it, that newer proposal's own pointer is left alone.
    */
-  markActionFailed(error: string): void {
-    const messageId = this._currentActionMessageId();
-    if (!messageId) return;
+  completeAction(messageId: string): void {
+    this.updateMessage(messageId, { actionStatus: 'applied' });
+    if (this._currentActionMessageId() === messageId) {
+      this._currentAction.set(null);
+      this._currentActionMessageId.set(null);
+    }
+  }
+
+  /**
+   * Mark the action on the message identified by `messageId` (captured by
+   * the caller from `beginApplyingAction` — see that method's doc) as failed
+   * with the given error message. The action is deliberately left current
+   * (not cleared) so the user can retry (Apply again) or discard it — this
+   * only has an externally visible effect on `currentAction` when
+   * `messageId` still matches it, since a superseded proposal has no "current"
+   * card to leave in place anyway.
+   */
+  markActionFailed(messageId: string, error: string): void {
     this.updateMessage(messageId, {
       actionStatus: 'failed',
       actionError: error,

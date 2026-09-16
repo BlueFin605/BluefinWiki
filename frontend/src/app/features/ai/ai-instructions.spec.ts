@@ -5,6 +5,7 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { AiInstructions, AI_INSTRUCTIONS_ROOT_TITLE } from './ai-instructions';
+import { InvalidationBus, childrenTag } from '../../core/api/invalidation';
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -135,5 +136,36 @@ describe('AiInstructions service', () => {
     });
 
     await expect(promise).resolves.toBe('new-child');
+  });
+
+  it('Finding 4: createInstruction routes through Pages.createPage, bumping the childrenTag(parent) invalidation tag — not a raw HttpClient bypass', async () => {
+    const bus = TestBed.inject(InvalidationBus);
+    const bumpSpy = jest.spyOn(bus, 'bump');
+
+    const promise = svc.createInstruction('New instruction');
+    await settle();
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [{ guid: 'root-1', title: AI_INSTRUCTIONS_ROOT_TITLE }] });
+    await settle();
+
+    const createReq = http.expectOne(
+      (r) => r.url === '/api/pages' && r.method === 'POST',
+    );
+    createReq.flush({
+      guid: 'new-child',
+      title: 'New instruction',
+      content: 'template',
+      folderId: 'root-1',
+      tags: [],
+      status: 'published',
+      createdBy: 'u',
+      modifiedBy: 'u',
+      createdAt: '2026-01-01T00:00:00Z',
+      modifiedAt: '2026-01-01T00:00:00Z',
+    });
+
+    await expect(promise).resolves.toBe('new-child');
+    expect(bumpSpy.mock.calls.map((c) => c[0])).toContain(childrenTag('root-1'));
   });
 });

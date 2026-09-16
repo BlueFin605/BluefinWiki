@@ -125,7 +125,7 @@ describe('Ai service', () => {
     expect(ai.currentAction()).toBeNull();
   });
 
-  it('beginApplyingAction flips the owning message to "applying" and returns the action without clearing currentAction', async () => {
+  it('beginApplyingAction flips the owning message to "applying" and returns the action + messageId without clearing currentAction', async () => {
     installStub(
       makeSession({
         prompt: jest
@@ -138,11 +138,12 @@ describe('Ai service', () => {
     const ai = TestBed.inject(Ai);
     await ai.sendMessage('please rename');
 
-    const action = ai.beginApplyingAction();
-    expect(action?.type).toBe('update_page');
+    const pending = ai.beginApplyingAction();
+    expect(pending?.action.type).toBe('update_page');
     expect(ai.currentAction()?.type).toBe('update_page');
     const assistant = ai.messages().find((m) => m.role === 'assistant');
     expect(assistant?.actionStatus).toBe('applying');
+    expect(pending?.messageId).toBe(assistant?.id);
   });
 
   it('beginApplyingAction returns null when there is no pending action', () => {
@@ -163,9 +164,9 @@ describe('Ai service', () => {
     );
     const ai = TestBed.inject(Ai);
     await ai.sendMessage('please rename');
-    ai.beginApplyingAction();
+    const pending = ai.beginApplyingAction();
 
-    ai.completeAction();
+    ai.completeAction(pending!.messageId);
 
     expect(ai.currentAction()).toBeNull();
     const assistant = ai.messages().find((m) => m.role === 'assistant');
@@ -184,9 +185,9 @@ describe('Ai service', () => {
     );
     const ai = TestBed.inject(Ai);
     await ai.sendMessage('please rename');
-    ai.beginApplyingAction();
+    const pending = ai.beginApplyingAction();
 
-    ai.markActionFailed('Server exploded');
+    ai.markActionFailed(pending!.messageId, 'Server exploded');
 
     expect(ai.currentAction()).not.toBeNull();
     const assistant = ai.messages().find((m) => m.role === 'assistant');
@@ -195,10 +196,70 @@ describe('Ai service', () => {
 
     // Retry: beginApplyingAction still works because currentAction survived.
     const retried = ai.beginApplyingAction();
-    expect(retried?.type).toBe('update_page');
+    expect(retried?.action.type).toBe('update_page');
     expect(ai.messages().find((m) => m.role === 'assistant')?.actionStatus).toBe(
       'applying',
     );
+  });
+
+  it('Finding 1: completeAction(id) updates the message identified by the captured id, even after a later sendMessage moves currentActionMessageId on — and leaves the newer message alone', async () => {
+    const session = makeSession({
+      prompt: jest
+        .fn<Promise<string>, [string, unknown]>()
+        .mockResolvedValueOnce(
+          '{"message":"first","action":{"type":"update_page","pageGuid":"g1","title":"First"}}',
+        )
+        .mockResolvedValueOnce(
+          '{"message":"second","action":{"type":"update_page","pageGuid":"g2","title":"Second"}}',
+        ),
+    });
+    installStub(session);
+    const ai = TestBed.inject(Ai);
+
+    await ai.sendMessage('first turn');
+    const pending = ai.beginApplyingAction();
+    expect(pending).not.toBeNull();
+    const originalMessageId = pending!.messageId;
+
+    // Before the in-flight mutation resolves, a new turn supersedes the
+    // pending action — nothing blocks the composer during "applying".
+    await ai.sendMessage('second turn');
+    const newMessage = ai.messages().find((m) => m.action?.title === 'Second');
+    expect(newMessage).toBeDefined();
+
+    // The original mutation resolves late, using the id captured at apply-time.
+    ai.completeAction(originalMessageId);
+
+    const originalMessage = ai.messages().find((m) => m.id === originalMessageId);
+    expect(originalMessage?.actionStatus).toBe('applied');
+
+    // The new message's own status must be untouched by the late completion.
+    const newMessageAfter = ai.messages().find((m) => m.id === newMessage!.id);
+    expect(newMessageAfter?.actionStatus).toBe('pending');
+    expect(ai.currentAction()?.title).toBe('Second');
+  });
+
+  it('Finding 2: superseding a still-pending action with a new turn marks the old message discarded', async () => {
+    const session = makeSession({
+      prompt: jest
+        .fn<Promise<string>, [string, unknown]>()
+        .mockResolvedValueOnce(
+          '{"message":"first","action":{"type":"update_page","pageGuid":"g1","title":"First"}}',
+        )
+        .mockResolvedValueOnce('{"message":"second","action":{"type":"none"}}'),
+    });
+    installStub(session);
+    const ai = TestBed.inject(Ai);
+
+    await ai.sendMessage('first turn');
+    const m1 = ai.messages().find((m) => m.role === 'assistant');
+    expect(m1?.actionStatus).toBe('pending');
+
+    await ai.sendMessage('second turn, no action this time');
+
+    const m1After = ai.messages().find((m) => m.id === m1!.id);
+    expect(m1After?.actionStatus).toBe('discarded');
+    expect(ai.currentAction()).toBeNull();
   });
 
   it('falls back to a no-action message when the model returns invalid JSON', async () => {

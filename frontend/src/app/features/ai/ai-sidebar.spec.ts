@@ -174,6 +174,11 @@ describe('AiSidebar', () => {
       });
       await settle();
     }
+    // Finding 3 (phase-7 final review) moved `markInstructionsLoaded` to run
+    // after `ai.sendMessage(...)` resolves rather than right after the
+    // content fetch — that resolution needs no further HTTP, so it isn't
+    // covered by the drain loop above; give it one more settle to complete.
+    await settle();
 
     expect(spy).toHaveBeenCalled();
     const [, , instructionContext] = spy.mock.calls[0];
@@ -251,6 +256,11 @@ describe('AiSidebar', () => {
       });
       await settle();
     }
+    // Finding 3 (phase-7 final review) moved `markInstructionsLoaded` to run
+    // after `ai.sendMessage(...)` resolves rather than right after the
+    // content fetch — that resolution needs no further HTTP, so it isn't
+    // covered by the drain loop above; give it one more settle to complete.
+    await settle();
 
     expect(spy).toHaveBeenCalled();
     const [, , instructionContext] = spy.mock.calls[0];
@@ -267,6 +277,81 @@ describe('AiSidebar', () => {
     const systemMessages = ai.messages().filter((m) => m.role === 'system');
     expect(
       systemMessages.some((m) => m.text.includes('Recipe writer')),
+    ).toBe(true);
+  });
+
+  it('Finding 3: instruction content fetch succeeds but the subsequent Ai.sendMessage call fails — the instruction stays unlocked so it retries next send', async () => {
+    installAvailable('{"message":"sure","action":{"type":"none"}}');
+    const { fixture } = await render(AiSidebar, { providers: baseProviders() });
+    await settle();
+    const http = TestBed.inject(HttpTestingController);
+
+    // Instruction picker loads its list; select one instruction.
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [{ guid: 'root-1', title: 'AI Instructions' }] });
+    await settle();
+    http
+      .expectOne('/api/pages/root-1/children')
+      .flush({ children: [{ guid: 'i1', title: 'Be terse' }] });
+    await settle();
+
+    const trigger = screen.getByRole('combobox', { name: /attach instructions/i });
+    await userEvent.setup().click(trigger);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('option', { name: /be terse/i }));
+    await settle();
+
+    const ai = TestBed.inject(Ai);
+    const sendMessageSpy = jest
+      .spyOn(ai, 'sendMessage')
+      .mockRejectedValue(new Error('model unavailable'));
+
+    interface SidebarCmp {
+      draft: { set(v: string): void; (): string };
+      onSubmit(event: Event): void;
+    }
+    const cmp = fixture.componentInstance as unknown as SidebarCmp;
+    cmp.draft.set('hello');
+    await settle();
+    fixture.detectChanges();
+
+    cmp.onSubmit(new Event('submit', { cancelable: true, bubbles: true }));
+    await settle();
+
+    // Drain the instruction-content fetch plus the RAG-context requests.
+    for (let i = 0; i < 6; i++) {
+      const pending = http.match(() => true);
+      if (pending.length === 0) break;
+      pending.forEach((r) => {
+        if (r.request.url === '/api/pages/i1') {
+          r.flush({
+            guid: 'i1',
+            title: 'Be terse',
+            content: 'Keep replies short.',
+            folderId: 'f',
+            tags: [],
+            status: 'published',
+            createdBy: 'u',
+            modifiedBy: 'u',
+            createdAt: '2026-01-01T00:00:00Z',
+            modifiedAt: '2026-01-01T00:00:00Z',
+          });
+        } else {
+          r.flush({ results: [], totalResults: 0, executionTimeMs: 0 });
+        }
+      });
+      await settle();
+    }
+
+    expect(sendMessageSpy).toHaveBeenCalled();
+    // The fetch succeeded, but the send meant to inject it failed — must not
+    // be locked, so the picker's "not yet loaded" filter retries it.
+    expect(ai.loadedInstructionIds()).not.toContain('i1');
+
+    const systemMessages = ai.messages().filter((m) => m.role === 'system');
+    expect(
+      systemMessages.some((m) => m.text.includes('model unavailable')),
     ).toBe(true);
   });
 

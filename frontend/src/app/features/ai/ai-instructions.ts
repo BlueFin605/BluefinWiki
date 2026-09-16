@@ -5,11 +5,19 @@
  * single root page exists at the wiki root with title ROOT_TITLE; its direct
  * children are individual AI instructions. The root page is lazy-created the
  * first time someone creates an instruction.
+ *
+ * Page CREATION (`createInstruction` / `ensureRootGuid`) goes through
+ * `Pages.createPage()` rather than a raw `HttpClient` POST (Finding 4,
+ * phase-7 final review) so it inherits `Pages`'s `InvalidationBus` tag bumps
+ * (`children:<parent>` / `children:any`) for free — the same convention the
+ * action runner (step 7.1) relies on. Read-only lookups here stay on
+ * `HttpClient` directly; they bump no tag and have no invalidation to inherit.
  */
 
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { Pages } from '../pages/pages';
 import type {
   PageContent,
   PageSummary,
@@ -44,6 +52,7 @@ interface ChildrenResponse {
 @Injectable({ providedIn: 'root' })
 export class AiInstructions {
   private readonly http = inject(HttpClient);
+  private readonly pages = inject(Pages);
   private cachedRootGuid: string | null = null;
 
   async listInstructions(): Promise<AiInstructionSummary[]> {
@@ -69,13 +78,11 @@ export class AiInstructions {
 
   async createInstruction(title: string): Promise<string> {
     const rootGuid = await this.ensureRootGuid();
-    const created = await firstValueFrom(
-      this.http.post<PageContent>('/api/pages', {
-        title,
-        parentGuid: rootGuid,
-        content: NEW_INSTRUCTION_TEMPLATE,
-      }),
-    );
+    const created = await this.pages.createPage({
+      title,
+      parentGuid: rootGuid,
+      content: NEW_INSTRUCTION_TEMPLATE,
+    });
     return created.guid;
   }
 
@@ -98,13 +105,11 @@ export class AiInstructions {
   private async ensureRootGuid(): Promise<string> {
     const existing = await this.findRootGuid();
     if (existing) return existing;
-    const created = await firstValueFrom(
-      this.http.post<PageContent>('/api/pages', {
-        title: AI_INSTRUCTIONS_ROOT_TITLE,
-        parentGuid: null,
-        content: ROOT_DESCRIPTION,
-      }),
-    );
+    const created = await this.pages.createPage({
+      title: AI_INSTRUCTIONS_ROOT_TITLE,
+      parentGuid: null,
+      content: ROOT_DESCRIPTION,
+    });
     this.cachedRootGuid = created.guid;
     return created.guid;
   }
