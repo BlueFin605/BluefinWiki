@@ -418,4 +418,110 @@ describe('Ai service — auto fetch-tool loop (step 7.2)', () => {
     ).toBe(true);
     expect(ai.currentAction()).toBeNull();
   });
+
+  // --- Regression tests: task review findings on the fetch-tool loop ---
+
+  it('Finding 1a: clears a stale currentAction from a prior turn when the new turn hits the fetch-per-turn cap', async () => {
+    let call = 0;
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockResolvedValueOnce(
+        '{"message":"Sure","action":{"type":"update_page","pageGuid":"g","title":"Old pending"}}',
+      )
+      .mockImplementation(() => {
+        call += 1;
+        return Promise.resolve(
+          `{"message":"fetching #${call}","action":{"type":"fetch_url","url":"https://example.com/${call}"}}`,
+        );
+      });
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    jest.spyOn(tools, 'fetchUrl').mockImplementation((url: string) =>
+      Promise.resolve({
+        url,
+        text: 'x',
+        contentType: 'text/plain',
+        truncated: false,
+      }),
+    );
+
+    // Prior turn leaves a pending create/update proposal.
+    await ai.sendMessage('please rename it');
+    expect(ai.currentAction()?.type).toBe('update_page');
+
+    // New turn's fetch attempt runs into the per-turn cap — no actionable
+    // proposal comes out of it, so the stale pending action must be cleared.
+    await ai.sendMessage('keep fetching forever');
+
+    expect(ai.currentAction()).toBeNull();
+    // beginApplyingAction must not resurrect the stale card either.
+    expect(ai.beginApplyingAction()).toBeNull();
+  });
+
+  it('Finding 1b: clears a stale currentAction from a prior turn when the new turn breaks on a fetch error', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockResolvedValueOnce(
+        '{"message":"Sure","action":{"type":"update_page","pageGuid":"g","title":"Old pending"}}',
+      )
+      .mockResolvedValueOnce(
+        '{"message":"fetching","action":{"type":"fetch_url","url":"https://example.com"}}',
+      );
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    jest.spyOn(tools, 'fetchUrl').mockRejectedValue(new Error('network down'));
+
+    // Prior turn leaves a pending create/update proposal.
+    await ai.sendMessage('please rename it');
+    expect(ai.currentAction()?.type).toBe('update_page');
+
+    // New turn's fetch attempt breaks on a network error — no actionable
+    // proposal comes out of it, so the stale pending action must be cleared.
+    await ai.sendMessage('fetch this now');
+
+    expect(ai.currentAction()).toBeNull();
+    expect(ai.beginApplyingAction()).toBeNull();
+  });
+
+  it('Finding 2: bounds the loop even when the model repeatedly re-proposes an already-fetched key', async () => {
+    let call = 0;
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockImplementation(() => {
+        call += 1;
+        // Safety valve only: if the loop is not correctly bounded at
+        // MAX_FETCHES_PER_TURN rounds, stop it after 20 rounds so the test
+        // fails fast on a wrong call count instead of hanging the runner.
+        if (call > 20) {
+          return Promise.resolve('{"message":"giving up","action":{"type":"none"}}');
+        }
+        return Promise.resolve(
+          '{"message":"fetching","action":{"type":"fetch_url","url":"https://example.com"}}',
+        );
+      });
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    const fetchUrlSpy = jest.spyOn(tools, 'fetchUrl').mockResolvedValue({
+      url: 'https://example.com',
+      text: 'x',
+      contentType: 'text/plain',
+      truncated: false,
+    });
+
+    await ai.sendMessage('fetch that url forever');
+
+    // The very first fetch executes for real; every re-proposal of the same
+    // key after that must be treated as consuming the per-turn budget too,
+    // so the loop can run at most MAX_FETCHES_PER_TURN (3) rounds — never the
+    // 20-round safety valve above.
+    expect(prompt).toHaveBeenCalledTimes(4);
+    expect(fetchUrlSpy).toHaveBeenCalledTimes(1);
+    const messages = ai.messages();
+    expect(
+      messages.some((m) => m.role === 'system' && /limit/i.test(m.text)),
+    ).toBe(true);
+  });
 });

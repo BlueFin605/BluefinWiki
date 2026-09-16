@@ -260,6 +260,11 @@ export class Ai {
           this.appendSystemMessage(
             'AI repeated the same fetch request. I will answer from the data already retrieved.',
           );
+          // A duplicate proposal still consumes the per-turn budget — the
+          // model re-proposing the same key must not let the loop run
+          // unbounded (Finding 2). Genuine, distinct fetches are unaffected:
+          // this only fires once a key has already been recorded below.
+          fetchesRemaining -= 1;
           response = await this.promptModel(session, buildNoRefetchNudge(action.type));
           continue;
         }
@@ -335,6 +340,16 @@ export class Ai {
         );
       }
 
+      // Single finalization step for every loop exit path (success on a
+      // non-fetch action, cap-reached, or an error/missing-input break
+      // above): each one must leave `_currentAction` /
+      // `_currentActionMessageId` in a deliberate state, never a value left
+      // over from a prior turn (Finding 1). Only the non-fetch branch can
+      // ever produce an actionable proposal; the other two branches fall
+      // through to the `null` default below.
+      let finalAction: AiAction | null = null;
+      let finalActionMessageId: string | null = null;
+
       if (isAutoFetchAction(response.action) && fetchesRemaining === 0) {
         aiDebug('service:auto-fetch-limit-reached', { actionType: response.action.type });
         this.appendAssistantMessage(response.message);
@@ -357,17 +372,19 @@ export class Ai {
         ]);
 
         if (action) {
-          this._currentAction.set(action);
-          this._currentActionMessageId.set(assistantId);
-        } else {
-          this._currentAction.set(null);
-          this._currentActionMessageId.set(null);
+          finalAction = action;
+          finalActionMessageId = assistantId;
         }
       }
       // The remaining case — broke out of the loop above on a fetch error or
       // missing input, with fetches still remaining — has already reported
       // itself via the system message appended at the break site, matching
       // React: the turn simply ends without a further assistant bubble.
+      // Either way, `finalAction`/`finalActionMessageId` are still `null`
+      // here, which is the correct terminal state.
+
+      this._currentAction.set(finalAction);
+      this._currentActionMessageId.set(finalActionMessageId);
 
       this._inputUsage.set(session.inputUsage);
       this._inputQuota.set(session.inputQuota);
