@@ -182,6 +182,94 @@ describe('AiSidebar', () => {
     expect(ai.loadedInstructionIds()).toContain('i1');
   });
 
+  it('a failed instruction fetch is not locked and surfaces a system message, while a sibling success in the same batch still locks', async () => {
+    installAvailable('{"message":"sure","action":{"type":"none"}}');
+    const { fixture } = await render(AiSidebar, { providers: baseProviders() });
+    await settle();
+    const http = TestBed.inject(HttpTestingController);
+
+    // Instruction picker loads its list; select both instructions.
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [{ guid: 'root-1', title: 'AI Instructions' }] });
+    await settle();
+    http.expectOne('/api/pages/root-1/children').flush({
+      children: [
+        { guid: 'i1', title: 'Be terse' },
+        { guid: 'i2', title: 'Recipe writer' },
+      ],
+    });
+    await settle();
+
+    const trigger = screen.getByRole('combobox', { name: /attach instructions/i });
+    await userEvent.setup().click(trigger);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('option', { name: /be terse/i }));
+    await settle();
+    await userEvent.setup().click(screen.getByRole('option', { name: /recipe writer/i }));
+    await settle();
+
+    const ai = TestBed.inject(Ai);
+    const spy = jest.spyOn(ai, 'sendMessage');
+
+    interface SidebarCmp {
+      draft: { set(v: string): void; (): string };
+      onSubmit(event: Event): void;
+    }
+    const cmp = fixture.componentInstance as unknown as SidebarCmp;
+    cmp.draft.set('hello');
+    await settle();
+    fixture.detectChanges();
+
+    cmp.onSubmit(new Event('submit', { cancelable: true, bubbles: true }));
+    await settle();
+
+    // Drain the instruction-content fetches (i1 succeeds, i2 fails) plus the
+    // RAG-context requests.
+    for (let i = 0; i < 6; i++) {
+      const pending = http.match(() => true);
+      if (pending.length === 0) break;
+      pending.forEach((r) => {
+        if (r.request.url === '/api/pages/i1') {
+          r.flush({
+            guid: 'i1',
+            title: 'Be terse',
+            content: 'Keep replies short.',
+            folderId: 'f',
+            tags: [],
+            status: 'published',
+            createdBy: 'u',
+            modifiedBy: 'u',
+            createdAt: '2026-01-01T00:00:00Z',
+            modifiedAt: '2026-01-01T00:00:00Z',
+          });
+        } else if (r.request.url === '/api/pages/i2') {
+          r.flush('boom', { status: 500, statusText: 'Server Error' });
+        } else {
+          r.flush({ results: [], totalResults: 0, executionTimeMs: 0 });
+        }
+      });
+      await settle();
+    }
+
+    expect(spy).toHaveBeenCalled();
+    const [, , instructionContext] = spy.mock.calls[0];
+    expect(instructionContext).toContain('Be terse');
+    expect(instructionContext).toContain('Keep replies short.');
+    expect(instructionContext).not.toContain('Recipe writer');
+
+    // The successful instruction locks; the failed one stays unlocked so it
+    // is retried on the next send.
+    expect(ai.loadedInstructionIds()).toEqual(['i1']);
+    expect(ai.loadedInstructionIds()).not.toContain('i2');
+
+    // A user-visible system message references the failed instruction.
+    const systemMessages = ai.messages().filter((m) => m.role === 'system');
+    expect(
+      systemMessages.some((m) => m.text.includes('Recipe writer')),
+    ).toBe(true);
+  });
+
   it('New chat clears loaded instructions on Ai but keeps the picker selection', async () => {
     installAvailable();
     const { fixture } = await render(AiSidebar, { providers: baseProviders() });

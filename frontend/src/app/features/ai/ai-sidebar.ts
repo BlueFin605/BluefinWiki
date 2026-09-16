@@ -225,10 +225,16 @@ export class AiSidebar implements OnInit {
   /**
    * Fetch content for any newly-selected (not yet loaded) instructions and
    * fold it into one context block, porting React's `buildInstructionsBlock`.
-   * Marks the GUIDs as loaded on `Ai` immediately — once injection is
-   * attempted the picker locks them, whether or not the content fetch
-   * actually succeeds (matches React: a failed fetch still counts as "tried
-   * to attach", it just contributes nothing to the block).
+   *
+   * Only GUIDs whose `getInstructionContent` fetch actually succeeds are
+   * marked loaded on `Ai` — locking an instruction in the picker means
+   * "injected", not merely "attempted". A per-GUID failure is reported to
+   * the user via `Ai.appendSystemMessage` (the same convention used for
+   * fetch-tool errors elsewhere in `Ai`) and the GUID stays selected-but-
+   * unlocked, so `toInject`'s "not yet loaded" filter naturally retries it
+   * on the next send. All fetches run concurrently via `Promise.allSettled`
+   * so one failure never blocks or discards a sibling success in the same
+   * batch.
    */
   private async loadSelectedInstructions(): Promise<string | undefined> {
     const selected = this.picker()?.getSelected() ?? [];
@@ -236,21 +242,39 @@ export class AiSidebar implements OnInit {
     const toInject = selected.filter((guid) => !loaded.includes(guid));
     if (toInject.length === 0) return undefined;
 
-    this.ai.markInstructionsLoaded(toInject);
-
-    const fetched = await Promise.all(
-      toInject.map((guid) =>
-        this.aiInstructions.getInstructionContent(guid).catch((err) => {
-          console.warn(`Failed to load AI instruction ${guid}:`, err);
-          return null;
-        }),
-      ),
+    const results = await Promise.allSettled(
+      toInject.map((guid) => this.aiInstructions.getInstructionContent(guid)),
     );
-    const sections = fetched
-      .filter((x): x is NonNullable<typeof x> => x !== null)
-      .map((x) => `## ${x.title}\n${x.content.trim()}`);
+
+    const succeededGuids: string[] = [];
+    const sections: string[] = [];
+    results.forEach((result, i) => {
+      const guid = toInject[i];
+      if (result.status === 'fulfilled') {
+        succeededGuids.push(guid);
+        sections.push(`## ${result.value.title}\n${result.value.content.trim()}`);
+      } else {
+        console.warn(`Failed to load AI instruction ${guid}:`, result.reason);
+        const label = this.instructionLabel(guid);
+        this.ai.appendSystemMessage(
+          `Couldn't load instruction "${label}" — it was not added to this chat. It will be retried on your next message.`,
+        );
+      }
+    });
+
+    if (succeededGuids.length > 0) {
+      this.ai.markInstructionsLoaded(succeededGuids);
+    }
     if (sections.length === 0) return undefined;
 
     return `[Active instructions]\nThe user has attached the following instructions to this chat. Follow them for this and subsequent turns.\n\n${sections.join('\n\n')}`;
+  }
+
+  /** Best-effort title lookup for an instruction GUID, for error messages. */
+  private instructionLabel(guid: string): string {
+    const match = this.picker()
+      ?.instructions()
+      .find((instruction) => instruction.guid === guid);
+    return match?.title ?? guid;
   }
 }
