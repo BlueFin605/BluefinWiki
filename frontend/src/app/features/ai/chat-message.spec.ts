@@ -35,4 +35,79 @@ describe('ChatMessage', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent('oops');
   });
+
+  it('renders nothing extra when actionStatus is absent', async () => {
+    const { container } = await render(ChatMessage, {
+      inputs: { message: msg({ role: 'assistant', text: 'hi' }) },
+    });
+    expect(container.querySelector('.action-status')).toBeNull();
+  });
+
+  it('renders the pending action status', async () => {
+    await render(ChatMessage, {
+      inputs: {
+        message: msg({
+          role: 'assistant',
+          text: 'ok',
+          actionStatus: 'pending',
+        }),
+      },
+    });
+    expect(screen.getByText(/reviewing proposed change/i)).toBeInTheDocument();
+  });
+
+  it('renders the applying action status with a spinner', async () => {
+    const { container } = await render(ChatMessage, {
+      inputs: {
+        message: msg({
+          role: 'assistant',
+          text: 'ok',
+          actionStatus: 'applying',
+        }),
+      },
+    });
+    expect(screen.getByText(/applying/i)).toBeInTheDocument();
+    expect(container.querySelector('.spinner')).not.toBeNull();
+  });
+
+  it('renders the applied action status', async () => {
+    await render(ChatMessage, {
+      inputs: {
+        message: msg({
+          role: 'assistant',
+          text: 'ok',
+          actionStatus: 'applied',
+        }),
+      },
+    });
+    expect(screen.getByText('Applied')).toBeInTheDocument();
+  });
+
+  it('renders the failed action status with the error text', async () => {
+    await render(ChatMessage, {
+      inputs: {
+        message: msg({
+          role: 'assistant',
+          text: 'ok',
+          actionStatus: 'failed',
+          actionError: 'Server exploded',
+        }),
+      },
+    });
+    expect(screen.getByText(/failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/server exploded/i)).toBeInTheDocument();
+  });
+
+  it('renders the discarded action status', async () => {
+    await render(ChatMessage, {
+      inputs: {
+        message: msg({
+          role: 'assistant',
+          text: 'ok',
+          actionStatus: 'discarded',
+        }),
+      },
+    });
+    expect(screen.getByText('Discarded')).toBeInTheDocument();
+  });
 });

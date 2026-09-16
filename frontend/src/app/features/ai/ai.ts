@@ -5,13 +5,14 @@
  * Ports `frontend/src/services/AiService.ts` (273 lines) — schema, system
  * prompt, JSON parsing, ALLOW_DESTRUCTIVE gating — and folds the React
  * `useAi` orchestration of message log + action lifecycle into a single
- * Angular service. RAG context loading + action execution live in the
- * sidebar component for now; the React hook also handled the auto-fetch
- * tool loop which can land later (it is not in Phase 7's scope).
+ * Angular service. RAG context loading lives in the sidebar component; action
+ * execution is dispatched by `AiActionRunner` (step 7.1) and its lifecycle is
+ * tracked here (`beginApplyingAction` / `completeAction` / `markActionFailed`
+ * / `rejectAction`). The React hook also handled the auto-fetch tool loop,
+ * which can land later (it is not in Phase 7.1's scope).
  */
 
-import { HttpClient } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { aiDebug, aiElapsedMs, aiNow } from './ai-debug';
 
@@ -158,10 +159,6 @@ const PROMPT_OUTPUT_LANGUAGE = 'en' as const;
 
 @Injectable({ providedIn: 'root' })
 export class Ai {
-  // HttpClient is injected for action execution; action handlers live alongside
-  // the rest of the AI surface (used in Phase 7 by ActionPreview/AiSidebar).
-  private readonly http = inject(HttpClient);
-
   private readonly _messages = signal<readonly ChatMessage[]>([]);
   private readonly _inputUsage = signal<number>(0);
   private readonly _inputQuota = signal<number>(0);
@@ -281,20 +278,39 @@ export class Ai {
   }
 
   /**
-   * Mark the current action as accepted. Returns the accepted action so the
-   * caller can dispatch the matching HTTP mutation. Clears `currentAction`.
+   * Begin applying the current action: flips the owning message's status to
+   * `applying` and returns the action for the caller (the action runner) to
+   * dispatch. Returns `null` when there is nothing pending. Deliberately does
+   * NOT clear `currentAction` — the card stays mounted while the mutation is
+   * in flight, and on failure the action stays current so the user can retry
+   * (Apply again) or discard.
    */
-  acceptAction(): AiAction | null {
+  beginApplyingAction(): AiAction | null {
     const action = this._currentAction();
     const messageId = this._currentActionMessageId();
     if (!action || !messageId) return null;
-    this.updateMessage(messageId, { actionStatus: 'applied' });
-    this._currentAction.set(null);
-    this._currentActionMessageId.set(null);
+    this.updateMessage(messageId, {
+      actionStatus: 'applying',
+      actionError: undefined,
+    });
     return action;
   }
 
-  /** Mark the current action as failed with the given error message. */
+  /** Mark the current action as successfully applied and clear it. */
+  completeAction(): void {
+    const messageId = this._currentActionMessageId();
+    if (messageId) {
+      this.updateMessage(messageId, { actionStatus: 'applied' });
+    }
+    this._currentAction.set(null);
+    this._currentActionMessageId.set(null);
+  }
+
+  /**
+   * Mark the current action as failed with the given error message. The
+   * action is deliberately left current (not cleared) so the user can retry
+   * (Apply again) or discard it.
+   */
   markActionFailed(error: string): void {
     const messageId = this._currentActionMessageId();
     if (!messageId) return;
@@ -302,8 +318,6 @@ export class Ai {
       actionStatus: 'failed',
       actionError: error,
     });
-    this._currentAction.set(null);
-    this._currentActionMessageId.set(null);
   }
 
   /** Discard the proposed action without executing it. */
@@ -332,11 +346,6 @@ export class Ai {
     this._currentAction.set(null);
     this._currentActionMessageId.set(null);
     return Promise.resolve();
-  }
-
-  /** Exposed for ActionPreview's apply path. */
-  get httpClient(): HttpClient {
-    return this.http;
   }
 
   /** Test-only: append a system message (used by the sidebar for tool errors). */

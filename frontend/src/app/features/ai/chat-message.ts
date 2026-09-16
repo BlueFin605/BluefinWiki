@@ -22,14 +22,38 @@ import type { ChatMessage as ChatMessageType } from './ai';
           <div class="bubble">
             <wiki-markdown-renderer [markdown]="text()" />
           </div>
+          @if (actionStatus(); as status) {
+            <div class="action-status" [class]="'status-' + status" role="status">
+              @switch (status) {
+                @case ('pending') {
+                  <span>Reviewing proposed change…</span>
+                }
+                @case ('applying') {
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span>Applying…</span>
+                }
+                @case ('applied') {
+                  <span aria-hidden="true">✓</span>
+                  <span>Applied</span>
+                }
+                @case ('failed') {
+                  <span aria-hidden="true">✕</span>
+                  <span>Failed{{ actionError() ? ': ' + actionError() : '' }}</span>
+                }
+                @case ('discarded') {
+                  <span>Discarded</span>
+                }
+              }
+            </div>
+          }
         </div>
       }
     }
   `,
   styles: [`
-    .msg { display: flex; margin: 0.5rem 0; }
-    .msg.user { justify-content: flex-end; }
-    .msg.assistant { justify-content: flex-start; }
+    .msg { display: flex; flex-direction: column; align-items: flex-start; margin: 0.5rem 0; }
+    .msg.user { align-items: flex-end; }
+    .msg.assistant { align-items: flex-start; }
     .bubble {
       max-width: 85%;
       padding: 0.5rem 0.75rem;
@@ -48,6 +72,28 @@ import type { ChatMessage as ChatMessageType } from './ai';
       padding: 0.25rem 0.5rem;
       margin: 0.5rem 0;
     }
+    .action-status {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      margin-top: 0.25rem;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .action-status.status-failed { color: #b91c1c; }
+    .action-status.status-applied { color: #15803d; }
+    .spinner {
+      width: 0.75rem;
+      height: 0.75rem;
+      border: 2px solid #d1d5db;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      display: inline-block;
+      animation: wiki-ai-spin 0.7s linear infinite;
+    }
+    @keyframes wiki-ai-spin {
+      to { transform: rotate(360deg); }
+    }
   `],
 })
 export class ChatMessage {
@@ -55,4 +101,6 @@ export class ChatMessage {
 
   protected readonly role = computed(() => this.message().role);
   protected readonly text = computed(() => this.message().text);
+  protected readonly actionStatus = computed(() => this.message().actionStatus);
+  protected readonly actionError = computed(() => this.message().actionError);
 }

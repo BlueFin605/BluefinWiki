@@ -123,6 +123,82 @@ describe('Ai service', () => {
     expect(ai.currentAction()).toBeNull();
   });
 
+  it('beginApplyingAction flips the owning message to "applying" and returns the action without clearing currentAction', async () => {
+    installStub(
+      makeSession({
+        prompt: jest
+          .fn<Promise<string>, [string, unknown]>()
+          .mockResolvedValue(
+            '{"message":"Sure","action":{"type":"update_page","pageGuid":"g","title":"X"}}',
+          ),
+      }),
+    );
+    const ai = TestBed.inject(Ai);
+    await ai.sendMessage('please rename');
+
+    const action = ai.beginApplyingAction();
+    expect(action?.type).toBe('update_page');
+    expect(ai.currentAction()?.type).toBe('update_page');
+    const assistant = ai.messages().find((m) => m.role === 'assistant');
+    expect(assistant?.actionStatus).toBe('applying');
+  });
+
+  it('beginApplyingAction returns null when there is no pending action', () => {
+    installStub(makeSession());
+    const ai = TestBed.inject(Ai);
+    expect(ai.beginApplyingAction()).toBeNull();
+  });
+
+  it('completeAction marks the message applied and clears currentAction', async () => {
+    installStub(
+      makeSession({
+        prompt: jest
+          .fn<Promise<string>, [string, unknown]>()
+          .mockResolvedValue(
+            '{"message":"Sure","action":{"type":"update_page","pageGuid":"g","title":"X"}}',
+          ),
+      }),
+    );
+    const ai = TestBed.inject(Ai);
+    await ai.sendMessage('please rename');
+    ai.beginApplyingAction();
+
+    ai.completeAction();
+
+    expect(ai.currentAction()).toBeNull();
+    const assistant = ai.messages().find((m) => m.role === 'assistant');
+    expect(assistant?.actionStatus).toBe('applied');
+  });
+
+  it('markActionFailed sets the failed status and error but leaves currentAction so the user can retry or discard', async () => {
+    installStub(
+      makeSession({
+        prompt: jest
+          .fn<Promise<string>, [string, unknown]>()
+          .mockResolvedValue(
+            '{"message":"Sure","action":{"type":"update_page","pageGuid":"g","title":"X"}}',
+          ),
+      }),
+    );
+    const ai = TestBed.inject(Ai);
+    await ai.sendMessage('please rename');
+    ai.beginApplyingAction();
+
+    ai.markActionFailed('Server exploded');
+
+    expect(ai.currentAction()).not.toBeNull();
+    const assistant = ai.messages().find((m) => m.role === 'assistant');
+    expect(assistant?.actionStatus).toBe('failed');
+    expect(assistant?.actionError).toBe('Server exploded');
+
+    // Retry: beginApplyingAction still works because currentAction survived.
+    const retried = ai.beginApplyingAction();
+    expect(retried?.type).toBe('update_page');
+    expect(ai.messages().find((m) => m.role === 'assistant')?.actionStatus).toBe(
+      'applying',
+    );
+  });
+
   it('falls back to a no-action message when the model returns invalid JSON', async () => {
     installStub(
       makeSession({

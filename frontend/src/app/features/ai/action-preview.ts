@@ -2,16 +2,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
+  signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { Ai, type AiAction } from './ai';
+import { AiActionRunner } from './ai-action-runner';
+import { PageTitleResolver } from './page-title-resolver';
 
 @Component({
   selector: 'wiki-action-preview',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule],
+  imports: [MatButtonModule, MatIconModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (action(); as a) {
@@ -38,7 +43,8 @@ import { Ai, type AiAction } from './ai';
                   <dt>Tags</dt><dd>{{ a.tags?.join(', ') }}</dd>
                 }
                 @if (a.parentGuid) {
-                  <dt>Parent</dt><dd><code>{{ a.parentGuid }}</code></dd>
+                  <dt>Parent</dt>
+                  <dd><a [routerLink]="['/pages', a.parentGuid]">{{ titleFor(a.parentGuid) }}</a></dd>
                 }
                 @if (a.pageType) {
                   <dt>Type</dt><dd><code>{{ a.pageType }}</code></dd>
@@ -51,7 +57,12 @@ import { Ai, type AiAction } from './ai';
             }
             @case ('update_page') {
               <dl>
-                <dt>Page</dt><dd><code>{{ a.pageGuid }}</code></dd>
+                <dt>Page</dt>
+                <dd>
+                  @if (a.pageGuid) {
+                    <a [routerLink]="['/pages', a.pageGuid]">{{ titleFor(a.pageGuid) }}</a>
+                  }
+                </dd>
                 @if (a.title !== undefined) {
                   <dt>New title</dt><dd>{{ a.title }}</dd>
                 }
@@ -69,7 +80,12 @@ import { Ai, type AiAction } from './ai';
             }
             @case ('delete_page') {
               <dl>
-                <dt>Page</dt><dd><code>{{ a.pageGuid }}</code></dd>
+                <dt>Page</dt>
+                <dd>
+                  @if (a.pageGuid) {
+                    <a [routerLink]="['/pages', a.pageGuid]">{{ titleFor(a.pageGuid) }}</a>
+                  }
+                </dd>
                 @if (a.recursive) {
                   <dt>Recursive</dt><dd>yes — also deletes children</dd>
                 }
@@ -77,11 +93,16 @@ import { Ai, type AiAction } from './ai';
             }
             @case ('move_page') {
               <dl>
-                <dt>Page</dt><dd><code>{{ a.pageGuid }}</code></dd>
+                <dt>Page</dt>
+                <dd>
+                  @if (a.pageGuid) {
+                    <a [routerLink]="['/pages', a.pageGuid]">{{ titleFor(a.pageGuid) }}</a>
+                  }
+                </dd>
                 <dt>New parent</dt>
                 <dd>
                   @if (a.newParentGuid) {
-                    <code>{{ a.newParentGuid }}</code>
+                    <a [routerLink]="['/pages', a.newParentGuid]">{{ titleFor(a.newParentGuid) }}</a>
                   } @else {
                     <em>root</em>
                   }
@@ -105,16 +126,26 @@ import { Ai, type AiAction } from './ai';
           }
         </div>
 
+        @if (actionStatus() === 'failed' && actionError()) {
+          <p class="error" role="alert">{{ actionError() }}</p>
+        }
+
         <footer>
           <button
             type="button"
             mat-flat-button
             [color]="isDestructive() ? 'warn' : 'primary'"
+            [disabled]="isApplying()"
             (click)="onAccept()"
           >
-            {{ isDestructive() ? 'Apply (destructive)' : 'Apply' }}
+            {{ applyLabel() }}
           </button>
-          <button type="button" mat-stroked-button (click)="onReject()">
+          <button
+            type="button"
+            mat-stroked-button
+            [disabled]="isApplying()"
+            (click)="onReject()"
+          >
             Discard
           </button>
         </footer>
@@ -149,6 +180,8 @@ import { Ai, type AiAction } from './ai';
     dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.5rem; margin: 0; }
     dt { color: #6b7280; }
     dd { margin: 0; word-break: break-word; }
+    dd a { color: #2563eb; text-decoration: none; }
+    dd a:hover { text-decoration: underline; }
     pre {
       background: white;
       border: 1px solid #e5e7eb;
@@ -158,11 +191,18 @@ import { Ai, type AiAction } from './ai';
       overflow: auto;
       white-space: pre-wrap;
     }
+    .error {
+      margin: 0.5rem 0 0;
+      color: #b91c1c;
+      font-size: 0.8125rem;
+    }
     footer { margin-top: 0.75rem; display: flex; gap: 0.5rem; }
   `],
 })
 export class ActionPreview {
   private readonly ai = inject(Ai);
+  private readonly runner = inject(AiActionRunner);
+  private readonly titleResolver = inject(PageTitleResolver);
 
   protected readonly action = computed(() => this.ai.currentAction());
 
@@ -173,22 +213,77 @@ export class ActionPreview {
   protected readonly label = computed(() => actionLabel(this.action()?.type));
   protected readonly icon = computed(() => actionIcon(this.action()?.type));
 
-  protected onAccept(): void {
-    // The sidebar wires this through the action runner; here we mark the
-    // message accepted and clear the pending state. The actual HTTP mutation
-    // is dispatched by the parent (AiSidebar).
-    this.acceptedAction = this.ai.acceptAction();
-    // The sidebar subscribes to currentAction() going null; the parent's
-    // separate flow runs the HTTP call. We surface the accepted action via
-    // a public getter for tests + the sidebar.
+  /** The owning message's status, so the card can reflect applying/failed. */
+  protected readonly actionStatus = computed(() => {
+    const messages = this.ai.messages();
+    const action = this.action();
+    if (!action) return undefined;
+    return messages.find((m) => m.action === action)?.actionStatus;
+  });
+
+  protected readonly actionError = computed(() => {
+    const messages = this.ai.messages();
+    const action = this.action();
+    if (!action) return undefined;
+    return messages.find((m) => m.action === action)?.actionError;
+  });
+
+  protected readonly isApplying = computed(
+    () => this.actionStatus() === 'applying',
+  );
+
+  protected readonly applyLabel = computed(() => {
+    if (this.isApplying()) return 'Applying…';
+    return this.isDestructive() ? 'Apply (destructive)' : 'Apply';
+  });
+
+  private readonly resolvedTitles = signal<Record<string, string>>({});
+
+  constructor() {
+    // Resolve every page-GUID field of the current action to a title, once
+    // per distinct GUID. Runs whenever `action()` changes (a new proposal,
+    // or none). `PageTitleResolver` caches internally too, so a GUID shared
+    // across turns is fetched once for the lifetime of the app.
+    effect(() => {
+      const a = this.action();
+      if (!a) return;
+      for (const guid of guidsOf(a)) {
+        if (this.resolvedTitles()[guid] !== undefined) continue;
+        void this.titleResolver.resolveTitle(guid).then((title) => {
+          this.resolvedTitles.update((m) => ({ ...m, [guid]: title }));
+        });
+      }
+    });
+  }
+
+  /** Title for a referenced page GUID — falls back to the raw GUID until resolved. */
+  protected titleFor(guid: string): string {
+    return this.resolvedTitles()[guid] ?? guid;
+  }
+
+  protected async onAccept(): Promise<void> {
+    const action = this.ai.beginApplyingAction();
+    if (!action) return;
+    const result = await this.runner.run(action);
+    if (result.ok) {
+      this.ai.completeAction();
+    } else {
+      this.ai.markActionFailed(result.error ?? 'The action failed. Try again.');
+    }
   }
 
   protected onReject(): void {
     this.ai.rejectAction();
   }
+}
 
-  /** Public for tests: the most recent action returned from acceptAction(). */
-  acceptedAction: AiAction | null = null;
+/** Every page-GUID field a proposed action may reference (excludes `pageType`, which is a page-*type* GUID, not a page). */
+function guidsOf(action: AiAction): string[] {
+  const guids: string[] = [];
+  if (action.parentGuid) guids.push(action.parentGuid);
+  if (action.pageGuid) guids.push(action.pageGuid);
+  if (action.newParentGuid) guids.push(action.newParentGuid);
+  return guids;
 }
 
 function actionLabel(type: AiAction['type'] | undefined): string {
