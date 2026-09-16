@@ -2,6 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Ai } from './ai';
+import { AiTools } from './ai-tools';
+import type { FetchUrlResult, ImdbShowDetailsResult } from './ai-tools';
 
 interface LanguageModelStub {
   availability: jest.Mock<Promise<string>, []>;
@@ -212,6 +214,208 @@ describe('Ai service', () => {
     const assistant = ai.messages().find((m) => m.role === 'assistant');
     expect(assistant?.text).toBe('not json at all');
     expect(assistant?.action).toBeUndefined();
+    expect(ai.currentAction()).toBeNull();
+  });
+});
+
+describe('Ai service — auto fetch-tool loop (step 7.2)', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+  });
+
+  afterEach(() => {
+    delete (globalThis as unknown as { LanguageModel?: unknown }).LanguageModel;
+  });
+
+  it('fetch_url executes automatically: calls AiTools.fetchUrl, appends a tool row, and re-prompts the model', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockResolvedValueOnce(
+        '{"message":"Let me fetch that.","action":{"type":"fetch_url","url":"https://example.com"}}',
+      )
+      .mockResolvedValueOnce(
+        '{"message":"Here is a summary.","action":{"type":"none"}}',
+      );
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    const fetchResult: FetchUrlResult = {
+      url: 'https://example.com',
+      title: 'Example',
+      text: 'Some content',
+      contentType: 'text/html',
+      truncated: false,
+    };
+    const fetchUrlSpy = jest.spyOn(tools, 'fetchUrl').mockResolvedValue(fetchResult);
+
+    await ai.sendMessage('what is at https://example.com?');
+
+    expect(fetchUrlSpy).toHaveBeenCalledWith('https://example.com');
+    expect(prompt).toHaveBeenCalledTimes(2);
+
+    const messages = ai.messages();
+    expect(
+      messages.some((m) => m.role === 'assistant' && m.text === 'Let me fetch that.'),
+    ).toBe(true);
+    const toolMsg = messages.find((m) => m.role === 'tool');
+    expect(toolMsg?.text).toBe('Example');
+    expect(toolMsg?.toolMeta).toEqual({
+      url: 'https://example.com',
+      bytes: 'Some content'.length,
+      truncated: false,
+    });
+    const finalAssistant = messages.filter((m) => m.role === 'assistant').at(-1);
+    expect(finalAssistant?.text).toBe('Here is a summary.');
+    expect(ai.currentAction()).toBeNull();
+  });
+
+  it('fetch_imdb_show executes automatically via AiTools.fetchImdbShow', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockResolvedValueOnce(
+        '{"message":"Looking that up.","action":{"type":"fetch_imdb_show","showQuery":"Breaking Bad"}}',
+      )
+      .mockResolvedValueOnce(
+        '{"message":"It has 5 seasons.","action":{"type":"none"}}',
+      );
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    const imdbResult: ImdbShowDetailsResult = {
+      imdbId: 'tt0903747',
+      title: 'Breaking Bad',
+      synopsis: 'A chemistry teacher turns to crime.',
+      seasons: 5,
+      url: 'https://www.imdb.com/title/tt0903747/',
+    };
+    const fetchImdbSpy = jest
+      .spyOn(tools, 'fetchImdbShow')
+      .mockResolvedValue(imdbResult);
+
+    await ai.sendMessage('tell me about breaking bad');
+
+    expect(fetchImdbSpy).toHaveBeenCalledWith({
+      query: 'Breaking Bad',
+      imdbId: undefined,
+    });
+    expect(prompt).toHaveBeenCalledTimes(2);
+    const toolMsg = ai.messages().find((m) => m.role === 'tool');
+    expect(toolMsg?.text).toBe('Breaking Bad');
+    const finalAssistant = ai.messages().filter((m) => m.role === 'assistant').at(-1);
+    expect(finalAssistant?.text).toBe('It has 5 seasons.');
+  });
+
+  it('caps auto-fetches at 3 per turn; the 4th proposed fetch is replaced by an anti-loop nudge, not executed', async () => {
+    let call = 0;
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockImplementation(() => {
+        call += 1;
+        return Promise.resolve(
+          `{"message":"fetching #${call}","action":{"type":"fetch_url","url":"https://example.com/${call}"}}`,
+        );
+      });
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    const fetchUrlSpy = jest
+      .spyOn(tools, 'fetchUrl')
+      .mockImplementation((url: string) =>
+        Promise.resolve({
+          url,
+          text: 'x',
+          contentType: 'text/plain',
+          truncated: false,
+        }),
+      );
+
+    await ai.sendMessage('keep fetching forever');
+
+    expect(fetchUrlSpy).toHaveBeenCalledTimes(3);
+    expect(prompt).toHaveBeenCalledTimes(4);
+    const messages = ai.messages();
+    expect(
+      messages.some((m) => m.role === 'system' && /limit/i.test(m.text)),
+    ).toBe(true);
+  });
+
+  it('detects a repeated fetch target within the same turn and nudges instead of re-fetching', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockResolvedValueOnce(
+        '{"message":"fetching","action":{"type":"fetch_url","url":"https://example.com"}}',
+      )
+      .mockResolvedValueOnce(
+        '{"message":"fetching again","action":{"type":"fetch_url","url":"https://example.com"}}',
+      )
+      .mockResolvedValueOnce('{"message":"ok, done","action":{"type":"none"}}');
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    const fetchUrlSpy = jest.spyOn(tools, 'fetchUrl').mockResolvedValue({
+      url: 'https://example.com',
+      text: 'x',
+      contentType: 'text/plain',
+      truncated: false,
+    });
+
+    await ai.sendMessage('fetch that url twice');
+
+    expect(fetchUrlSpy).toHaveBeenCalledTimes(1);
+    expect(prompt).toHaveBeenCalledTimes(3);
+    const messages = ai.messages();
+    expect(
+      messages.some((m) => m.role === 'system' && /repeat/i.test(m.text)),
+    ).toBe(true);
+  });
+
+  it('resets the per-turn fetch cap and dedupe set on a new user message', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockResolvedValueOnce(
+        '{"message":"fetching","action":{"type":"fetch_url","url":"https://example.com"}}',
+      )
+      .mockResolvedValueOnce('{"message":"done 1","action":{"type":"none"}}')
+      .mockResolvedValueOnce(
+        '{"message":"fetching again","action":{"type":"fetch_url","url":"https://example.com"}}',
+      )
+      .mockResolvedValueOnce('{"message":"done 2","action":{"type":"none"}}');
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    const fetchUrlSpy = jest.spyOn(tools, 'fetchUrl').mockResolvedValue({
+      url: 'https://example.com',
+      text: 'x',
+      contentType: 'text/plain',
+      truncated: false,
+    });
+
+    await ai.sendMessage('first turn');
+    await ai.sendMessage('second turn, same url');
+
+    expect(fetchUrlSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces a system message and stops the turn when the fetch call fails', async () => {
+    const prompt = jest
+      .fn<Promise<string>, [string, unknown]>()
+      .mockResolvedValueOnce(
+        '{"message":"fetching","action":{"type":"fetch_url","url":"https://example.com"}}',
+      );
+    installStub(makeSession({ prompt }));
+    const ai = TestBed.inject(Ai);
+    const tools = TestBed.inject(AiTools);
+    jest.spyOn(tools, 'fetchUrl').mockRejectedValue(new Error('network down'));
+
+    await ai.sendMessage('fetch this');
+
+    expect(prompt).toHaveBeenCalledTimes(1);
+    const messages = ai.messages();
+    expect(
+      messages.some((m) => m.role === 'system' && /network down/.test(m.text)),
+    ).toBe(true);
     expect(ai.currentAction()).toBeNull();
   });
 });

@@ -17,6 +17,17 @@ import type { ChatMessage as ChatMessageType } from './ai';
           <div class="bubble">{{ text() }}</div>
         </div>
       }
+      @case ('tool') {
+        <div class="msg tool">
+          <div class="tool-row" role="status">
+            <span class="tool-icon" aria-hidden="true">&#128279;</span>
+            <span class="tool-text">{{ text() }}</span>
+            @if (toolMetaText(); as meta) {
+              <span class="tool-size">{{ meta }}</span>
+            }
+          </div>
+        </div>
+      }
       @default {
         <div class="msg assistant">
           <div class="bubble">
@@ -72,6 +83,27 @@ import type { ChatMessage as ChatMessageType } from './ai';
       padding: 0.25rem 0.5rem;
       margin: 0.5rem 0;
     }
+    .msg.tool { align-items: stretch; width: 100%; }
+    .tool-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: #4b5563;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.375rem;
+      padding: 0.375rem 0.625rem;
+      width: 100%;
+    }
+    .tool-icon { flex-shrink: 0; }
+    .tool-text {
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tool-size { margin-left: auto; color: #6b7280; flex-shrink: 0; }
     .action-status {
       display: flex;
       align-items: center;
@@ -103,4 +135,12 @@ export class ChatMessage {
   protected readonly text = computed(() => this.message().text);
   protected readonly actionStatus = computed(() => this.message().actionStatus);
   protected readonly actionError = computed(() => this.message().actionError);
+
+  /** e.g. "2.0 KB" or "1.5 KB (truncated)" — undefined when there's no toolMeta. */
+  protected readonly toolMetaText = computed(() => {
+    const meta = this.message().toolMeta;
+    if (!meta) return undefined;
+    const kb = (meta.bytes / 1024).toFixed(1);
+    return `${kb} KB${meta.truncated ? ' (truncated)' : ''}`;
+  });
 }

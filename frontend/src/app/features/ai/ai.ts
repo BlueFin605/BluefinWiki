@@ -8,13 +8,26 @@
  * Angular service. RAG context loading lives in the sidebar component; action
  * execution is dispatched by `AiActionRunner` (step 7.1) and its lifecycle is
  * tracked here (`beginApplyingAction` / `completeAction` / `markActionFailed`
- * / `rejectAction`). The React hook also handled the auto-fetch tool loop,
- * which can land later (it is not in Phase 7.1's scope).
+ * / `rejectAction`).
+ *
+ * `sendMessage` also owns the auto fetch-tool loop (step 7.2, porting React's
+ * `useAi.send`): when a response's `action.type` is `fetch_url` or
+ * `fetch_imdb_show`, the matching `AiTools` call is dispatched automatically
+ * (no Apply button — unlike create/update/delete/move), its result is
+ * rendered as a `tool`-role row and fed back to the model as the next turn,
+ * and the loop continues until the model stops proposing a fetch. A per-turn
+ * counter (`MAX_FETCHES_PER_TURN`) and a `Set` of already-fetched keys guard
+ * against runaway loops — both are local to one `sendMessage` call, so they
+ * reset on every new user message.
  */
 
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { aiDebug, aiElapsedMs, aiNow } from './ai-debug';
+import { AiTools, type FetchUrlResult, type ImdbShowDetailsResult } from './ai-tools';
+
+/** Hard cap on auto-executed `fetch_url` / `fetch_imdb_show` actions per user turn. */
+const MAX_FETCHES_PER_TURN = 3;
 
 const ALLOW_DESTRUCTIVE = environment.aiAllowDestructive;
 
@@ -142,7 +155,14 @@ export type ActionStatus =
   | 'discarded'
   | 'failed';
 
-export type ChatRole = 'user' | 'assistant' | 'system';
+export type ChatRole = 'user' | 'assistant' | 'system' | 'tool';
+
+/** Metadata shown on a `tool`-role message's grey info row. */
+export interface ToolMeta {
+  url: string;
+  bytes: number;
+  truncated: boolean;
+}
 
 export interface ChatMessage {
   id: string;
@@ -151,6 +171,7 @@ export interface ChatMessage {
   action?: AiAction;
   actionStatus?: ActionStatus;
   actionError?: string;
+  toolMeta?: ToolMeta;
 }
 
 export type AiAvailability = LanguageModelAvailability | 'unsupported';
@@ -172,6 +193,8 @@ export class Ai {
   readonly streaming = computed(() => this._streaming());
   readonly currentAction = computed(() => this._currentAction());
 
+  private readonly tools = inject(AiTools);
+
   private session: LanguageModelSession | null = null;
   private creating: Promise<LanguageModelSession> | null = null;
 
@@ -190,6 +213,12 @@ export class Ai {
    * `currentAction` (when the model proposes an actionable change).
    * `ragContext` is optional and prefixed onto the user turn — never as a
    * second system message (Chrome's Prompt API rejects that).
+   *
+   * When the model's response proposes `fetch_url` or `fetch_imdb_show`,
+   * this method auto-executes it (see the auto fetch-tool loop doc on the
+   * class) instead of surfacing it as a pending action — the loop keeps
+   * going, capped at `MAX_FETCHES_PER_TURN` and with duplicate-fetch
+   * detection, until the model settles on a non-fetch response.
    */
   async sendMessage(userMessage: string, ragContext?: string): Promise<AiResponse> {
     const startedAt = aiNow();
@@ -209,72 +238,189 @@ export class Ai {
     ]);
     this._streaming.set(true);
 
+    // Per-turn fetch-loop guards. Local to this call, so they reset on every
+    // new user message rather than persisting across the whole session.
+    const fetchedKeys = new Set<string>();
+    let fetchesRemaining = MAX_FETCHES_PER_TURN;
+
     try {
       const session = await this.ensureSession();
       const combined = ragContext
         ? `[Context]\n${ragContext}\n\n[Message]\n${trimmed}`
         : trimmed;
 
-      const promptStart = aiNow();
-      const promptOptions: LanguageModelPromptOptions & {
-        outputLanguage: 'en';
-      } = {
-        responseConstraint: RESPONSE_SCHEMA,
-        outputLanguage: PROMPT_OUTPUT_LANGUAGE,
-      };
+      let response = await this.promptModel(session, combined);
 
-      let raw: string;
-      try {
-        raw = await session.prompt(combined, promptOptions);
-        aiDebug('service:prompt-success', {
-          elapsedMs: aiElapsedMs(promptStart),
-          rawChars: raw.length,
+      while (isAutoFetchAction(response.action) && fetchesRemaining > 0) {
+        const action = response.action;
+        const fetchKey = makeFetchKey(action);
+
+        if (fetchedKeys.has(fetchKey)) {
+          aiDebug('service:auto-fetch-duplicate', { fetchKey, actionType: action.type });
+          this.appendSystemMessage(
+            'AI repeated the same fetch request. I will answer from the data already retrieved.',
+          );
+          response = await this.promptModel(session, buildNoRefetchNudge(action.type));
+          continue;
+        }
+        fetchedKeys.add(fetchKey);
+
+        if (action.type === 'fetch_url') {
+          const url = (action.url ?? '').trim();
+          if (!url) {
+            this.appendAssistantMessage(response.message);
+            this.appendSystemMessage('AI requested fetch_url but provided no URL.');
+            break;
+          }
+
+          this.appendAssistantMessage(response.message || `Fetching ${url}...`);
+
+          let fetched: FetchUrlResult;
+          try {
+            fetched = await this.tools.fetchUrl(url);
+          } catch (err) {
+            this.appendSystemMessage(`Fetch failed: ${errorMessage(err)}`);
+            break;
+          }
+
+          this.appendToolMessage(fetched.title || fetched.url, {
+            url: fetched.url,
+            bytes: fetched.text.length,
+            truncated: fetched.truncated,
+          });
+          fetchesRemaining -= 1;
+
+          response = await this.promptModel(
+            session,
+            formatFetchAsUserTurn(fetched, fetchesRemaining),
+          );
+          continue;
+        }
+
+        const showQuery = (action.showQuery ?? '').trim();
+        const imdbId = (action.imdbId ?? '').trim();
+        if (!showQuery && !imdbId) {
+          this.appendAssistantMessage(response.message);
+          this.appendSystemMessage(
+            'AI requested fetch_imdb_show but provided no showQuery or imdbId.',
+          );
+          break;
+        }
+
+        this.appendAssistantMessage(
+          response.message || `Fetching IMDb details for ${showQuery || imdbId}...`,
+        );
+
+        let fetchedImdb: ImdbShowDetailsResult;
+        try {
+          fetchedImdb = await this.tools.fetchImdbShow({
+            query: showQuery || undefined,
+            imdbId: imdbId || undefined,
+          });
+        } catch (err) {
+          this.appendSystemMessage(`IMDb lookup failed: ${errorMessage(err)}`);
+          break;
+        }
+
+        this.appendToolMessage(fetchedImdb.title || fetchedImdb.url, {
+          url: fetchedImdb.url,
+          bytes: fetchedImdb.synopsis.length,
+          truncated: false,
         });
-      } catch (err) {
-        aiDebug('service:prompt-failed', {
-          elapsedMs: aiElapsedMs(startedAt),
-          error: (err as Error).message,
-        });
-        throw new Error(`Prompt API call failed: ${(err as Error).message}`, {
-          cause: err,
-        });
+        fetchesRemaining -= 1;
+
+        response = await this.promptModel(
+          session,
+          formatImdbAsUserTurn(fetchedImdb, fetchesRemaining),
+        );
       }
 
-      const parsed = parseResponse(raw);
+      if (isAutoFetchAction(response.action) && fetchesRemaining === 0) {
+        aiDebug('service:auto-fetch-limit-reached', { actionType: response.action.type });
+        this.appendAssistantMessage(response.message);
+        this.appendSystemMessage(
+          'Reached the fetch-per-turn limit. Ask me again if you need more lookups.',
+        );
+      } else if (!isAutoFetchAction(response.action)) {
+        const assistantId = makeId();
+        const action =
+          response.action.type !== 'none' ? response.action : undefined;
+        this._messages.update((list) => [
+          ...list,
+          {
+            id: assistantId,
+            role: 'assistant',
+            text: response.message,
+            action,
+            actionStatus: action ? 'pending' : undefined,
+          },
+        ]);
+
+        if (action) {
+          this._currentAction.set(action);
+          this._currentActionMessageId.set(assistantId);
+        } else {
+          this._currentAction.set(null);
+          this._currentActionMessageId.set(null);
+        }
+      }
+      // The remaining case — broke out of the loop above on a fetch error or
+      // missing input, with fetches still remaining — has already reported
+      // itself via the system message appended at the break site, matching
+      // React: the turn simply ends without a further assistant bubble.
 
       this._inputUsage.set(session.inputUsage);
       this._inputQuota.set(session.inputQuota);
 
-      const assistantId = makeId();
-      const action =
-        parsed.action.type !== 'none' ? parsed.action : undefined;
-      this._messages.update((list) => [
-        ...list,
-        {
-          id: assistantId,
-          role: 'assistant',
-          text: parsed.message,
-          action,
-          actionStatus: action ? 'pending' : undefined,
-        },
-      ]);
-
-      if (action) {
-        this._currentAction.set(action);
-        this._currentActionMessageId.set(assistantId);
-      } else {
-        this._currentAction.set(null);
-        this._currentActionMessageId.set(null);
-      }
-
       aiDebug('service:send-complete', {
         elapsedMs: aiElapsedMs(startedAt),
-        actionType: parsed.action.type,
+        actionType: response.action.type,
       });
-      return parsed;
+      return response;
     } finally {
       this._streaming.set(false);
     }
+  }
+
+  /** Low-level model round trip: prompt + parse, with no message-log side effects. */
+  private async promptModel(
+    session: LanguageModelSession,
+    text: string,
+  ): Promise<AiResponse> {
+    const promptStart = aiNow();
+    const promptOptions: LanguageModelPromptOptions & { outputLanguage: 'en' } = {
+      responseConstraint: RESPONSE_SCHEMA,
+      outputLanguage: PROMPT_OUTPUT_LANGUAGE,
+    };
+    let raw: string;
+    try {
+      raw = await session.prompt(text, promptOptions);
+      aiDebug('service:prompt-success', {
+        elapsedMs: aiElapsedMs(promptStart),
+        rawChars: raw.length,
+      });
+    } catch (err) {
+      aiDebug('service:prompt-failed', {
+        elapsedMs: aiElapsedMs(promptStart),
+        error: errorMessage(err),
+      });
+      throw new Error(`Prompt API call failed: ${errorMessage(err)}`, { cause: err });
+    }
+    return parseResponse(raw);
+  }
+
+  private appendAssistantMessage(text: string): void {
+    this._messages.update((list) => [
+      ...list,
+      { id: makeId(), role: 'assistant', text },
+    ]);
+  }
+
+  private appendToolMessage(text: string, toolMeta: ToolMeta): void {
+    this._messages.update((list) => [
+      ...list,
+      { id: makeId(), role: 'tool', text, toolMeta },
+    ]);
   }
 
   /**
@@ -421,4 +567,58 @@ function parseResponse(raw: string): AiResponse {
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function isAutoFetchAction(
+  action: AiAction,
+): action is AiAction & { type: 'fetch_url' | 'fetch_imdb_show' } {
+  return action.type === 'fetch_url' || action.type === 'fetch_imdb_show';
+}
+
+/** Dedupe key for the per-turn fetched-keys set — case-insensitive on the target. */
+function makeFetchKey(action: AiAction): string {
+  if (action.type === 'fetch_url') {
+    return `fetch_url:${(action.url ?? '').trim().toLowerCase()}`;
+  }
+  return `fetch_imdb_show:${(action.imdbId ?? '').trim().toLowerCase()}:${(action.showQuery ?? '').trim().toLowerCase()}`;
+}
+
+function buildNoRefetchNudge(type: 'fetch_url' | 'fetch_imdb_show'): string {
+  const tool = type === 'fetch_imdb_show' ? 'IMDb show details' : 'URL fetch';
+  return `[System guidance]\nYou already received ${tool} results in this conversation.\nDo not request the same fetch again.\nNow answer the user directly with action.type = "none" unless they explicitly ask for another lookup.`;
+}
+
+function formatFetchAsUserTurn(fetched: FetchUrlResult, fetchesLeft: number): string {
+  const limitHint =
+    fetchesLeft === 0
+      ? '\n\nNote: no more fetches available this turn. Use this content to propose a concrete action.'
+      : `\n\nNote: you have ${fetchesLeft} more fetches available this turn if you need them.`;
+  return `[Fetch result]
+URL: ${fetched.url}
+${fetched.title ? `Title: ${fetched.title}\n` : ''}Content-Type: ${fetched.contentType}
+Truncated: ${fetched.truncated}
+
+[Content]
+${fetched.text}${limitHint}`;
+}
+
+function formatImdbAsUserTurn(
+  fetched: ImdbShowDetailsResult,
+  fetchesLeft: number,
+): string {
+  const limitHint =
+    fetchesLeft === 0
+      ? '\n\nNote: no more fetches available this turn. Use this content to propose a concrete action.'
+      : `\n\nNote: you have ${fetchesLeft} more fetches available this turn if you need them.`;
+  return `[IMDb show details]
+Title: ${fetched.title}
+IMDb ID: ${fetched.imdbId}
+URL: ${fetched.url}
+${fetched.rating !== undefined ? `Rating: ${fetched.rating}\n` : ''}${fetched.votes !== undefined ? `Votes: ${fetched.votes}\n` : ''}${fetched.seasons !== undefined ? `Seasons: ${fetched.seasons}\n` : ''}
+[Synopsis]
+${fetched.synopsis || '(No synopsis available)'}${limitHint}`;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

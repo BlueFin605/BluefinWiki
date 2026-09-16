@@ -98,6 +98,34 @@ describe('ChatMessage', () => {
     expect(screen.getByText(/server exploded/i)).toBeInTheDocument();
   });
 
+  it('renders a tool message as a grey info row', async () => {
+    const { container } = await render(ChatMessage, {
+      inputs: {
+        message: msg({
+          role: 'tool',
+          text: 'Example Article',
+          toolMeta: { url: 'https://example.com', bytes: 2048, truncated: false },
+        }),
+      },
+    });
+    expect(screen.getByText('Example Article')).toBeInTheDocument();
+    expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument();
+    expect(container.querySelector('.msg.tool')).not.toBeNull();
+  });
+
+  it('marks the truncated tool result in the meta text', async () => {
+    await render(ChatMessage, {
+      inputs: {
+        message: msg({
+          role: 'tool',
+          text: 'Big Page',
+          toolMeta: { url: 'https://example.com', bytes: 1536, truncated: true },
+        }),
+      },
+    });
+    expect(screen.getByText(/1\.5 KB \(truncated\)/)).toBeInTheDocument();
+  });
+
   it('renders the discarded action status', async () => {
     await render(ChatMessage, {
       inputs: {

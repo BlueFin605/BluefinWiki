@@ -14,9 +14,12 @@
  * -> `page:<guid>`, etc. "for free" — no parallel invalidation mechanism is
  * introduced.
  *
- * `fetch_url` / `fetch_imdb_show` have no mapped mutation yet (the auto-fetch
- * tool loop is step 7.2's scope) and resolve to a failure result rather than
- * throwing, so `ActionPreview` can surface it like any other apply failure.
+ * `fetch_url` / `fetch_imdb_show` have no mapped mutation here — `Ai.sendMessage`
+ * (step 7.2's auto fetch-tool loop) intercepts and auto-executes those two
+ * action types before a `currentAction` is ever set, so `ActionPreview`/this
+ * runner never sees them in practice. The `default` case below still resolves
+ * them (and any future unmapped type) to a failure result rather than
+ * throwing, purely as a defensive fallback.
  */
 
 import { Injectable, inject } from '@angular/core';
@@ -101,8 +104,9 @@ export class AiActionRunner {
 
         default:
           // 'none' never reaches here (Ai.sendMessage only sets currentAction
-          // for a non-none type); fetch_url/fetch_imdb_show have no mapped
-          // mutation yet (step 7.2's fetch-tool loop).
+          // for a non-none type); fetch_url/fetch_imdb_show are auto-executed
+          // by Ai.sendMessage's fetch-tool loop (step 7.2) and never surface
+          // as a currentAction, so this is a defensive fallback only.
           return {
             ok: false,
             error: `This action type ("${action.type}") can't be applied yet.`,
