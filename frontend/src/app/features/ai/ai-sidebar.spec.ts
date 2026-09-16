@@ -328,60 +328,48 @@ describe('AiSidebar', () => {
     expect(onClosed).toHaveBeenCalled();
   });
 
-  it('scrolls the transcript to the bottom when a new message is appended', async () => {
-    installAvailable('{"message":"response1","action":{"type":"none"}}');
-    const { fixture } = await render(AiSidebar, { providers: baseProviders() });
-    await settle();
-    const http = TestBed.inject(HttpTestingController);
-    http.match('/api/pages/root/children').forEach((r) => r.flush({ children: [] }));
-    await settle();
+  // jsdom stubs Element.scrollHeight/clientHeight to a constant 0 (see
+  // node_modules/jsdom/lib/jsdom/living/nodes/Element-impl.js), so these
+  // tests stub realistic, non-zero values on the container directly.
+  // scrollTop is left as a normal writable property — jsdom implements it
+  // as a plain instance field (see the same file's constructor), so no
+  // stub is needed for it.
+  function stubContainerGeometry(
+    container: HTMLElement,
+    initial: { scrollHeight: number; clientHeight: number },
+  ): { setScrollHeight(value: number): void } {
+    let scrollHeight = initial.scrollHeight;
+    Object.defineProperty(container, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    Object.defineProperty(container, 'clientHeight', {
+      configurable: true,
+      get: () => initial.clientHeight,
+    });
+    return {
+      setScrollHeight(value: number) {
+        scrollHeight = value;
+      },
+    };
+  }
 
-    interface SidebarCmp {
-      draft: { set(v: string): void; (): string };
-      onSubmit(event: Event): void;
-    }
-    const cmp = fixture.componentInstance as unknown as SidebarCmp;
+  interface SidebarCmp {
+    draft: { set(v: string): void; (): string };
+    onSubmit(event: Event): void;
+  }
 
-    // Send multiple messages to build scrollable content
-    for (let i = 0; i < 2; i++) {
-      cmp.draft.set('message ' + i);
-      await settle();
-      fixture.detectChanges();
-
-      cmp.onSubmit(new Event('submit', { cancelable: true, bubbles: true }));
-      await settle();
-
-      // Drain requests until settled
-      for (let j = 0; j < 6; j++) {
-        const pending = http.match(() => true);
-        if (pending.length === 0) break;
-        pending.forEach((r) =>
-          r.flush({ results: [], totalResults: 0, executionTimeMs: 0 }),
-        );
-        await settle();
-      }
-    }
-
-    await settle();
-    fixture.detectChanges();
-
-    // Get the messages container element
-    const messagesContainer = screen.getByRole('log', { name: /conversation/i });
-    expect(messagesContainer).toBeInTheDocument();
-
-    // Scroll to top to verify auto-scroll will work
-    messagesContainer.scrollTop = 0;
-    await settle();
-
-    // Now send another message
-    cmp.draft.set('hello');
+  async function sendMessage(
+    cmp: SidebarCmp,
+    fixture: { detectChanges(): void },
+    http: HttpTestingController,
+    text: string,
+  ): Promise<void> {
+    cmp.draft.set(text);
     await settle();
     fixture.detectChanges();
-
     cmp.onSubmit(new Event('submit', { cancelable: true, bubbles: true }));
     await settle();
-
-    // Drain requests until settled
     for (let i = 0; i < 6; i++) {
       const pending = http.match(() => true);
       if (pending.length === 0) break;
@@ -390,19 +378,48 @@ describe('AiSidebar', () => {
       );
       await settle();
     }
-
-    // Wait for the effect to run
     await settle();
     fixture.detectChanges();
+  }
+
+  it('scrolls the transcript to the bottom when a new message is appended near the bottom', async () => {
+    installAvailable('{"message":"response1","action":{"type":"none"}}');
+    const { fixture } = await render(AiSidebar, { providers: baseProviders() });
+    await settle();
+    const http = TestBed.inject(HttpTestingController);
+    http.match('/api/pages/root/children').forEach((r) => r.flush({ children: [] }));
     await settle();
 
-    // After a message is added, container should have scrolled down
-    // scrollHeight - scrollTop - clientHeight should be near 0 (at bottom)
-    const scrollDiff =
-      messagesContainer.scrollHeight -
-      messagesContainer.scrollTop -
-      messagesContainer.clientHeight;
-    expect(scrollDiff).toBeLessThan(64);
+    const cmp = fixture.componentInstance as unknown as SidebarCmp;
+    const messagesContainer = screen.getByRole('log', { name: /conversation/i });
+
+    // Prime the container at a fixed pre-append height (400px, 380px
+    // viewport) and let one message run through the effect so its
+    // guard/cache picks up that height.
+    const geometry = stubContainerGeometry(messagesContainer, {
+      scrollHeight: 400,
+      clientHeight: 380,
+    });
+    await sendMessage(cmp, fixture, http, 'priming message');
+
+    // Put the user 0px from the bottom of that 400px-tall content
+    // (400 - 20 - 380 === 0, well under the 64px threshold) — this is the
+    // state the DOM was in immediately BEFORE the next message arrives.
+    messagesContainer.scrollTop = 20;
+
+    // The next message's rendered content grows the container by 100px
+    // (a realistic chat-bubble height, comfortably over the 64px guard) —
+    // simulating what Angular's own change detection will have already
+    // written into the DOM by the time this effect's callbacks run.
+    geometry.setScrollHeight(500);
+
+    await sendMessage(cmp, fixture, http, 'hello');
+
+    // The user was at the bottom before this message arrived, so the
+    // container must have actually scrolled to the new (larger) height —
+    // not merely ended up "under 64px", which would also be true of a
+    // no-op on a short container.
+    expect(messagesContainer.scrollTop).toBe(500);
   });
 
   it('does not force-scroll when user has scrolled up beyond the threshold', async () => {
@@ -413,78 +430,33 @@ describe('AiSidebar', () => {
     http.match('/api/pages/root/children').forEach((r) => r.flush({ children: [] }));
     await settle();
 
-    interface SidebarCmp {
-      draft: { set(v: string): void; (): string };
-      onSubmit(event: Event): void;
-    }
     const cmp = fixture.componentInstance as unknown as SidebarCmp;
     const messagesContainer = screen.getByRole('log', { name: /conversation/i });
 
-    // Send multiple messages to build up conversation history
-    for (let i = 0; i < 3; i++) {
-      cmp.draft.set(`message ${i}`);
-      await settle();
-      fixture.detectChanges();
+    // Prime the container at a fixed pre-append height (1000px, 300px
+    // viewport) and let one message run through the effect so its
+    // guard/cache picks up that height.
+    const geometry = stubContainerGeometry(messagesContainer, {
+      scrollHeight: 1000,
+      clientHeight: 300,
+    });
+    await sendMessage(cmp, fixture, http, 'priming message');
 
-      cmp.onSubmit(new Event('submit', { cancelable: true, bubbles: true }));
-      await settle();
-
-      // Drain requests
-      for (let j = 0; j < 6; j++) {
-        const pending = http.match(() => true);
-        if (pending.length === 0) break;
-        pending.forEach((r) =>
-          r.flush({ results: [], totalResults: 0, executionTimeMs: 0 }),
-        );
-        await settle();
-      }
-    }
-
-    // Verify we have content to scroll
-    await settle();
-    fixture.detectChanges();
-
-    // Scroll to top (simulating user reading history)
-    messagesContainer.scrollTop = 0;
-    await settle();
-
+    // Scroll well up from the bottom: 1000 - 100 - 300 === 600, clearly
+    // over the 64px threshold — this is the state the DOM was in
+    // immediately BEFORE the next message arrives.
+    messagesContainer.scrollTop = 100;
     const scrollTopBefore = messagesContainer.scrollTop;
-    const scrollDiffBefore =
-      messagesContainer.scrollHeight -
-      scrollTopBefore -
-      messagesContainer.clientHeight;
 
-    // Ensure user is scrolled up beyond the 64px threshold
-    if (scrollDiffBefore <= 64) {
-      // Skip this test if container is not tall enough to scroll beyond threshold
-      return;
-    }
+    // The next message grows the container further, same as a real reply
+    // would.
+    geometry.setScrollHeight(1100);
 
-    // Send another message while scrolled up
-    cmp.draft.set('final message');
-    await settle();
-    fixture.detectChanges();
+    await sendMessage(cmp, fixture, http, 'final message');
 
-    cmp.onSubmit(new Event('submit', { cancelable: true, bubbles: true }));
-    await settle();
-
-    // Drain requests
-    for (let i = 0; i < 6; i++) {
-      const pending = http.match(() => true);
-      if (pending.length === 0) break;
-      pending.forEach((r) =>
-        r.flush({ results: [], totalResults: 0, executionTimeMs: 0 }),
-      );
-      await settle();
-    }
-
-    // Wait for the effect to run
-    await settle();
-    fixture.detectChanges();
-    await settle();
-
-    // If the guard is working, scrollTop should remain at top (or very close)
-    // since we were scrolled up beyond the 64px threshold
+    // The guard must have suppressed the scroll: scrollTop stays exactly
+    // where the user left it, proving the effect did not touch it — not
+    // merely that some assertion about it happened to hold.
     expect(messagesContainer.scrollTop).toBe(scrollTopBefore);
   });
 });

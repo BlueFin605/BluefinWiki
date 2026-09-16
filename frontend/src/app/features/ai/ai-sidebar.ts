@@ -182,27 +182,63 @@ export class AiSidebar implements OnInit {
     () => !this.ai.streaming() && this.draft().trim().length > 0,
   );
 
+  /**
+   * Auto-scroll to bottom when messages are added or streaming state changes.
+   *
+   * By the time ANY `afterRenderEffect` phase runs — `earlyRead` included —
+   * Angular's change detection has already written this render's new
+   * message(s) into the DOM (CD's own template writes always complete
+   * before the `afterRenderEffect` phase sequence runs; verified against
+   * this repo's `@angular/core` 21.2.14 build). So `container.scrollHeight`
+   * is never readable in its pre-append state from inside this effect —
+   * `earlyRead` sees the exact same grown value `mixedReadWrite` would.
+   * Instead, `previousMessagesScrollHeight` remembers the scrollHeight from
+   * the END of the previous run (i.e. before the CURRENT run's append).
+   * `scrollTop` and `clientHeight` are unaffected by appending content below
+   * the viewport, so reading them at either phase is safe and always
+   * reflects the same value the pre-append DOM had.
+   *
+   * `earlyRead` (read-only) computes "was near bottom" from that
+   * pre-append height and returns a freshly-allocated object each run —
+   * never a bare boolean — so `mixedReadWrite` (which reads the DOM to
+   * capture the new scrollHeight and writes scrollTop) is guaranteed to
+   * re-run on every append, even across a run of messages where the
+   * decision itself keeps coming out `true`. Angular only re-runs a later
+   * phase when the earlier phase's returned value fails an equality check;
+   * a repeated primitive would pass that check and silently freeze the
+   * cache after the first message.
+   */
   constructor() {
-    // Auto-scroll to bottom when messages are added or streaming state changes
-    afterRenderEffect(() => {
-      // Trigger effect whenever messages or streaming state changes
-      void this.ai.messages();
-      void this.ai.streaming();
+    let previousMessagesScrollHeight = 0;
 
-      // After DOM is updated, check if we should scroll
-      const container = this.messagesContainer()?.nativeElement;
-      if (!container) return;
+    afterRenderEffect({
+      earlyRead: () => {
+        // Read to register this effect's reactive dependencies.
+        void this.ai.messages();
+        void this.ai.streaming();
 
-      // Check if user is already near the bottom
-      // Only auto-scroll if they're within 64px of the bottom
-      const distanceFromBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight;
+        const container = this.messagesContainer()?.nativeElement;
+        if (!container) return { wasNearBottom: false };
 
-      if (distanceFromBottom < 64) {
-        // User is near the bottom, scroll to the very bottom
-        container.scrollTop = container.scrollHeight;
-      }
-      // If user has scrolled up to read history, don't force-scroll
+        // Only auto-scroll if the user was within 64px of the bottom
+        // before this render's content was inserted.
+        const distanceFromBottom =
+          previousMessagesScrollHeight - container.scrollTop - container.clientHeight;
+        return { wasNearBottom: distanceFromBottom < 64 };
+      },
+      mixedReadWrite: (guard) => {
+        const container = this.messagesContainer()?.nativeElement;
+        if (!container) return;
+
+        if (guard().wasNearBottom) {
+          // User was near the bottom, scroll to the very bottom.
+          container.scrollTop = container.scrollHeight;
+        }
+        // If the user had scrolled up to read history, don't force-scroll.
+
+        // Capture this render's (now grown) height for the next run's guard.
+        previousMessagesScrollHeight = container.scrollHeight;
+      },
     });
   }
 
