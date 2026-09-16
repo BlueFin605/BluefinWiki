@@ -22,7 +22,7 @@
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { Pages } from '../pages/pages';
-import type { PageProperty, UpdatePageRequest } from '../pages/page.types';
+import type { CreatePageRequest, PageProperty, UpdatePageRequest } from '../pages/page.types';
 import type { AiAction } from './ai';
 
 export interface ActionRunResult {
@@ -41,8 +41,8 @@ export class AiActionRunner {
   async run(action: AiAction): Promise<ActionRunResult> {
     try {
       switch (action.type) {
-        case 'create_page':
-          await this.pages.createPage({
+        case 'create_page': {
+          const body: CreatePageRequest = {
             title: action.title ?? '',
             parentGuid: action.parentGuid ?? null,
             content: action.content,
@@ -50,8 +50,14 @@ export class AiActionRunner {
             properties: action.pageProperties as
               | Record<string, PageProperty>
               | undefined,
-          });
+          };
+          // Conditionally included (unlike the fields above): Pages.createPage
+          // bumps the shared tag vocabulary based on `'tags' in body`, so an
+          // explicit `tags: undefined` key would wrongly trigger that bump.
+          if (action.tags !== undefined) body.tags = action.tags;
+          await this.pages.createPage(body);
           return { ok: true };
+        }
 
         case 'update_page': {
           if (!action.pageGuid) {

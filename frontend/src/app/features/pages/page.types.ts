@@ -103,6 +103,7 @@ export interface CreatePageRequest {
   parentGuid: string | null;
   description?: string;
   content?: string;
+  tags?: string[];
   pageType?: string;
   properties?: Record<string, PageProperty>;
 }

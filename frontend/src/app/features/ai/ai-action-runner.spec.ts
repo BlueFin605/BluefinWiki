@@ -53,6 +53,31 @@ describe('AiActionRunner', () => {
     });
   });
 
+  it('create_page forwards tags to Pages.createPage when present', async () => {
+    const pages = TestBed.inject(Pages);
+    const spy = jest.spyOn(pages, 'createPage').mockResolvedValue({} as never);
+    const runner = TestBed.inject(AiActionRunner);
+
+    await runner.run(
+      action({ type: 'create_page', title: 'New Page', tags: ['foo', 'bar'] }),
+    );
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ tags: ['foo', 'bar'] }),
+    );
+  });
+
+  it('create_page does not include a tags key when action.tags is absent', async () => {
+    const pages = TestBed.inject(Pages);
+    const spy = jest.spyOn(pages, 'createPage').mockResolvedValue({} as never);
+    const runner = TestBed.inject(AiActionRunner);
+
+    await runner.run(action({ type: 'create_page', title: 'New Page' }));
+
+    const calledWith = spy.mock.calls[0][0];
+    expect('tags' in calledWith).toBe(false);
+  });
+
   it('create_page defaults parentGuid to null when omitted', async () => {
     const pages = TestBed.inject(Pages);
     const spy = jest.spyOn(pages, 'createPage').mockResolvedValue({} as never);

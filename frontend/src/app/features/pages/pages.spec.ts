@@ -497,6 +497,32 @@ describe('Pages service', () => {
       const result = await promise;
       expect(result.guid).toBe('new');
     });
+
+    it('createPage with tags in the body bumps the page-tags vocabulary', async () => {
+      const bus = TestBed.inject(InvalidationBus);
+      const before = bus.version(pageTagsListTag());
+
+      const promise = pages.createPage({
+        title: 'New',
+        parentGuid: null,
+        tags: ['foo', 'bar'],
+      });
+      http.expectOne('/api/pages').flush(pageContent({ guid: 'new' }));
+      await promise;
+
+      expect(bus.version(pageTagsListTag())).toBe(before + 1);
+    });
+
+    it('createPage without tags leaves the page-tags vocabulary untouched', async () => {
+      const bus = TestBed.inject(InvalidationBus);
+      const before = bus.version(pageTagsListTag());
+
+      const promise = pages.createPage({ title: 'New', parentGuid: null });
+      http.expectOne('/api/pages').flush(pageContent({ guid: 'new' }));
+      await promise;
+
+      expect(bus.version(pageTagsListTag())).toBe(before);
+    });
   });
 
   describe('rejects-of-rxjs sanity', () => {

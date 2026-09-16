@@ -309,7 +309,12 @@ export class Pages {
 
   async createPage(body: CreatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.post<PageContent>('/api/pages', body));
-    this.bus.bumpMany([childrenTag(body.parentGuid), childrenAnyTag(), backlinksAnyTag()]);
+    const tags = [childrenTag(body.parentGuid), childrenAnyTag(), backlinksAnyTag()];
+    // The backend auto-registers page-level tags on write, so the shared
+    // vocabulary that feeds the Tags inspector autocomplete may have grown
+    // (same rationale as `updatePage`, above).
+    if ('tags' in body) tags.push(pageTagsListTag());
+    this.bus.bumpMany(tags);
     return result;
   }
 
