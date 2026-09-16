@@ -6,6 +6,7 @@ import {
   input,
   output,
   signal,
+  viewChild,
   type OnInit,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +15,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { Ai, type AiAvailability } from './ai';
 import { AiContextLoader } from './ai-context-loader';
+import { AiInstructions } from './ai-instructions';
 import { ChatMessage } from './chat-message';
 import { ContextMeter } from './context-meter';
 import { ActionPreview } from './action-preview';
@@ -68,7 +70,7 @@ import { UnavailableState } from './unavailable-state';
           [usage]="ai.inputUsage()"
           [quota]="ai.inputQuota()"
         />
-        <wiki-instruction-picker />
+        <wiki-instruction-picker [loadedGuids]="ai.loadedInstructionIds()" />
 
         <div class="messages" role="log" aria-label="Conversation">
           @if (ai.messages().length === 0) {
@@ -158,9 +160,12 @@ import { UnavailableState } from './unavailable-state';
 export class AiSidebar implements OnInit {
   protected readonly ai = inject(Ai);
   private readonly contextLoader = inject(AiContextLoader);
+  private readonly aiInstructions = inject(AiInstructions);
 
   readonly currentPageGuid = input<string | null>(null);
   readonly closed = output<void>();
+
+  private readonly picker = viewChild(InstructionPicker);
 
   protected readonly availability = signal<AiAvailability | null>(null);
   protected readonly draft = signal('');
@@ -204,15 +209,48 @@ export class AiSidebar implements OnInit {
     const text = this.draft().trim();
     this.draft.set('');
     try {
+      const instructionContext = await this.loadSelectedInstructions();
       const ragContext = await this.contextLoader.buildRagContext({
         currentPageGuid: this.currentPageGuid(),
         userMessage: text,
       });
-      await this.ai.sendMessage(text, ragContext || undefined);
+      await this.ai.sendMessage(text, ragContext || undefined, instructionContext);
     } catch (err) {
       this.ai.appendSystemMessage(
         `AI error: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  /**
+   * Fetch content for any newly-selected (not yet loaded) instructions and
+   * fold it into one context block, porting React's `buildInstructionsBlock`.
+   * Marks the GUIDs as loaded on `Ai` immediately — once injection is
+   * attempted the picker locks them, whether or not the content fetch
+   * actually succeeds (matches React: a failed fetch still counts as "tried
+   * to attach", it just contributes nothing to the block).
+   */
+  private async loadSelectedInstructions(): Promise<string | undefined> {
+    const selected = this.picker()?.getSelected() ?? [];
+    const loaded = this.ai.loadedInstructionIds();
+    const toInject = selected.filter((guid) => !loaded.includes(guid));
+    if (toInject.length === 0) return undefined;
+
+    this.ai.markInstructionsLoaded(toInject);
+
+    const fetched = await Promise.all(
+      toInject.map((guid) =>
+        this.aiInstructions.getInstructionContent(guid).catch((err) => {
+          console.warn(`Failed to load AI instruction ${guid}:`, err);
+          return null;
+        }),
+      ),
+    );
+    const sections = fetched
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .map((x) => `## ${x.title}\n${x.content.trim()}`);
+    if (sections.length === 0) return undefined;
+
+    return `[Active instructions]\nThe user has attached the following instructions to this chat. Follow them for this and subsequent turns.\n\n${sections.join('\n\n')}`;
   }
 }

@@ -12,6 +12,7 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { AiSidebar } from './ai-sidebar';
 import { Ai } from './ai';
 
@@ -26,6 +27,7 @@ function baseProviders() {
     provideNoopAnimations(),
     provideHttpClient(),
     provideHttpClientTesting(),
+    provideRouter([]),
   ];
 }
 
@@ -109,6 +111,115 @@ describe('AiSidebar', () => {
     expect(spy).toHaveBeenCalled();
     const firstCall = spy.mock.calls[0];
     expect(firstCall?.[0]).toBe('hello');
+  });
+
+  it('fetches selected instruction content and passes it as instructionContext to Ai.sendMessage; marks it loaded on Ai', async () => {
+    installAvailable('{"message":"sure","action":{"type":"none"}}');
+    const { fixture } = await render(AiSidebar, { providers: baseProviders() });
+    await settle();
+    const http = TestBed.inject(HttpTestingController);
+
+    // Instruction picker loads its list; select one instruction.
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [{ guid: 'root-1', title: 'AI Instructions' }] });
+    await settle();
+    http
+      .expectOne('/api/pages/root-1/children')
+      .flush({ children: [{ guid: 'i1', title: 'Be terse' }] });
+    await settle();
+
+    const trigger = screen.getByRole('combobox', { name: /attach instructions/i });
+    await userEvent.setup().click(trigger);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('option', { name: /be terse/i }));
+    await settle();
+
+    const ai = TestBed.inject(Ai);
+    const spy = jest.spyOn(ai, 'sendMessage');
+
+    interface SidebarCmp {
+      draft: { set(v: string): void; (): string };
+      onSubmit(event: Event): void;
+    }
+    const cmp = fixture.componentInstance as unknown as SidebarCmp;
+    cmp.draft.set('hello');
+    await settle();
+    fixture.detectChanges();
+
+    cmp.onSubmit(new Event('submit', { cancelable: true, bubbles: true }));
+    await settle();
+
+    // Drain the instruction-content fetch plus the RAG-context requests.
+    for (let i = 0; i < 6; i++) {
+      const pending = http.match(() => true);
+      if (pending.length === 0) break;
+      pending.forEach((r) => {
+        if (r.request.url === '/api/pages/i1') {
+          r.flush({
+            guid: 'i1',
+            title: 'Be terse',
+            content: 'Keep replies short.',
+            folderId: 'f',
+            tags: [],
+            status: 'published',
+            createdBy: 'u',
+            modifiedBy: 'u',
+            createdAt: '2026-01-01T00:00:00Z',
+            modifiedAt: '2026-01-01T00:00:00Z',
+          });
+        } else {
+          r.flush({ results: [], totalResults: 0, executionTimeMs: 0 });
+        }
+      });
+      await settle();
+    }
+
+    expect(spy).toHaveBeenCalled();
+    const [, , instructionContext] = spy.mock.calls[0];
+    expect(instructionContext).toContain('Be terse');
+    expect(instructionContext).toContain('Keep replies short.');
+    expect(ai.loadedInstructionIds()).toContain('i1');
+  });
+
+  it('New chat clears loaded instructions on Ai but keeps the picker selection', async () => {
+    installAvailable();
+    const { fixture } = await render(AiSidebar, { providers: baseProviders() });
+    await settle();
+    const http = TestBed.inject(HttpTestingController);
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [{ guid: 'root-1', title: 'AI Instructions' }] });
+    await settle();
+    http
+      .expectOne('/api/pages/root-1/children')
+      .flush({ children: [{ guid: 'i1', title: 'Be terse' }] });
+    await settle();
+
+    const trigger = screen.getByRole('combobox', { name: /attach instructions/i });
+    await userEvent.setup().click(trigger);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('option', { name: /be terse/i }));
+    await settle();
+
+    const ai = TestBed.inject(Ai);
+    ai.markInstructionsLoaded(['i1']);
+    expect(ai.loadedInstructionIds()).toEqual(['i1']);
+
+    interface SidebarCmp {
+      onNewChat(): void;
+    }
+    const cmp = fixture.componentInstance as unknown as SidebarCmp;
+    cmp.onNewChat();
+    await settle();
+
+    expect(ai.loadedInstructionIds()).toEqual([]);
+
+    // Selection survives — reopen the picker and confirm it's still checked.
+    await userEvent.setup().click(trigger);
+    await settle();
+    const option = screen.getByRole('option', { name: /be terse/i });
+    expect(option).toHaveAttribute('aria-selected', 'true');
   });
 
   it('emits closed when the close button is clicked', async () => {

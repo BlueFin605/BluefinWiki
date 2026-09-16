@@ -186,12 +186,15 @@ export class Ai {
   private readonly _streaming = signal<boolean>(false);
   private readonly _currentAction = signal<AiAction | null>(null);
   private readonly _currentActionMessageId = signal<string | null>(null);
+  /** GUIDs of instructions already injected into the current session (step 7.3). */
+  private readonly _loadedInstructionIds = signal<readonly string[]>([]);
 
   readonly messages = computed(() => this._messages());
   readonly inputUsage = computed(() => this._inputUsage());
   readonly inputQuota = computed(() => this._inputQuota());
   readonly streaming = computed(() => this._streaming());
   readonly currentAction = computed(() => this._currentAction());
+  readonly loadedInstructionIds = computed(() => this._loadedInstructionIds());
 
   private readonly tools = inject(AiTools);
 
@@ -211,8 +214,14 @@ export class Ai {
   /**
    * Send a user message. Updates `messages`, `inputUsage`/`inputQuota`, and
    * `currentAction` (when the model proposes an actionable change).
-   * `ragContext` is optional and prefixed onto the user turn — never as a
-   * second system message (Chrome's Prompt API rejects that).
+   * `ragContext` and `instructionContext` are optional and prefixed onto the
+   * user turn — never as a second system message (Chrome's Prompt API
+   * rejects that). When both are given, `instructionContext` comes first
+   * (matching React's `[instructionsBlock, ragContext]` ordering) — selected
+   * instructions are the user's standing preferences for the whole chat, RAG
+   * context is per-turn. Callers (the sidebar) are responsible for tracking
+   * which instructions they've already injected and only passing the text
+   * for newly-selected ones; this method does not dedupe on its own.
    *
    * When the model's response proposes `fetch_url` or `fetch_imdb_show`,
    * this method auto-executes it (see the auto fetch-tool loop doc on the
@@ -220,11 +229,16 @@ export class Ai {
    * going, capped at `MAX_FETCHES_PER_TURN` and with duplicate-fetch
    * detection, until the model settles on a non-fetch response.
    */
-  async sendMessage(userMessage: string, ragContext?: string): Promise<AiResponse> {
+  async sendMessage(
+    userMessage: string,
+    ragContext?: string,
+    instructionContext?: string,
+  ): Promise<AiResponse> {
     const startedAt = aiNow();
     aiDebug('service:send-start', {
       messageChars: userMessage.length,
       contextChars: ragContext?.length ?? 0,
+      instructionContextChars: instructionContext?.length ?? 0,
     });
 
     const trimmed = userMessage.trim();
@@ -245,9 +259,13 @@ export class Ai {
 
     try {
       const session = await this.ensureSession();
-      const combined = ragContext
-        ? `[Context]\n${ragContext}\n\n[Message]\n${trimmed}`
-        : trimmed;
+      const contextParts = [instructionContext, ragContext].filter(
+        (part): part is string => !!part && part.length > 0,
+      );
+      const combined =
+        contextParts.length > 0
+          ? `[Context]\n${contextParts.join('\n\n')}\n\n[Message]\n${trimmed}`
+          : trimmed;
 
       let response = await this.promptModel(session, combined);
 
@@ -493,6 +511,19 @@ export class Ai {
     this._currentActionMessageId.set(null);
   }
 
+  /**
+   * Record instruction GUIDs as injected into the current session (step
+   * 7.3). Once here, an instruction is locked in the picker — deselecting it
+   * cannot undo the injection — until `reset()` ("New chat") clears this.
+   * Additive and idempotent: existing entries are kept, duplicates skipped.
+   */
+  markInstructionsLoaded(ids: readonly string[]): void {
+    this._loadedInstructionIds.update((existing) => {
+      const additions = ids.filter((id) => !existing.includes(id));
+      return additions.length > 0 ? [...existing, ...additions] : existing;
+    });
+  }
+
   reset(): Promise<void> {
     aiDebug('chat:reset');
     if (this.session) {
@@ -508,6 +539,10 @@ export class Ai {
     this._inputQuota.set(0);
     this._currentAction.set(null);
     this._currentActionMessageId.set(null);
+    // Loaded (injected) instructions are cleared — the picker's own
+    // *selection* is untouched here; it lives outside `Ai` and survives
+    // "New chat" by design (React parity).
+    this._loadedInstructionIds.set([]);
     return Promise.resolve();
   }
 

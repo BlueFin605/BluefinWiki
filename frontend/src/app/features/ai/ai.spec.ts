@@ -216,6 +216,57 @@ describe('Ai service', () => {
     expect(assistant?.action).toBeUndefined();
     expect(ai.currentAction()).toBeNull();
   });
+
+  it('sendMessage folds instructionContext into the prompt ahead of ragContext, but stores the raw text in the message log', async () => {
+    const session = makeSession();
+    installStub(session);
+    const ai = TestBed.inject(Ai);
+
+    await ai.sendMessage('hello', 'rag stuff', 'instruction stuff');
+
+    const promptText = session.prompt.mock.calls[0]?.[0] ?? '';
+    expect(promptText).toContain('instruction stuff');
+    expect(promptText).toContain('rag stuff');
+    expect(promptText.indexOf('instruction stuff')).toBeLessThan(
+      promptText.indexOf('rag stuff'),
+    );
+    expect(ai.messages()[0]?.text).toBe('hello');
+  });
+
+  it('sendMessage works with no instructionContext (backward compatible)', async () => {
+    const session = makeSession();
+    installStub(session);
+    const ai = TestBed.inject(Ai);
+
+    await ai.sendMessage('hello', 'rag stuff');
+
+    const promptText = session.prompt.mock.calls[0]?.[0] ?? '';
+    expect(promptText).toContain('rag stuff');
+    expect(promptText).not.toContain('undefined');
+  });
+
+  it('loadedInstructionIds starts empty; markInstructionsLoaded appends without duplicates', () => {
+    installStub(makeSession());
+    const ai = TestBed.inject(Ai);
+    expect(ai.loadedInstructionIds()).toEqual([]);
+
+    ai.markInstructionsLoaded(['a', 'b']);
+    expect(ai.loadedInstructionIds()).toEqual(['a', 'b']);
+
+    ai.markInstructionsLoaded(['b', 'c']);
+    expect(ai.loadedInstructionIds()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('reset clears loadedInstructionIds but leaves the caller free to keep its own selection', async () => {
+    installStub(makeSession());
+    const ai = TestBed.inject(Ai);
+    ai.markInstructionsLoaded(['a']);
+    expect(ai.loadedInstructionIds()).toEqual(['a']);
+
+    await ai.reset();
+
+    expect(ai.loadedInstructionIds()).toEqual([]);
+  });
 });
 
 describe('Ai service — auto fetch-tool loop (step 7.2)', () => {

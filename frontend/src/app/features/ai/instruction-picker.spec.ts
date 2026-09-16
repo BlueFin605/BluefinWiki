@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient } from '@angular/common/http';
@@ -7,7 +7,9 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
+import { provideRouter, Router } from '@angular/router';
 import { InstructionPicker } from './instruction-picker';
+import { AiInstructions } from './ai-instructions';
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -20,6 +22,7 @@ function baseProviders() {
     provideNoopAnimations(),
     provideHttpClient(),
     provideHttpClientTesting(),
+    provideRouter([]),
   ];
 }
 
@@ -137,5 +140,92 @@ describe('InstructionPicker', () => {
     expect(fixture.componentInstance.instructions().map((i) => i.title)).toEqual([
       'Fresh',
     ]);
+  });
+
+  it('locks a loaded instruction: shown as "In context", disabled, and not removable', async () => {
+    const { fixture } = await render(InstructionPicker, {
+      providers: baseProviders(),
+    });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [{ guid: 'root-1', title: 'AI Instructions' }] });
+    await settle();
+    http
+      .expectOne('/api/pages/root-1/children')
+      .flush({
+        children: [
+          { guid: 'i1', title: 'Be terse' },
+          { guid: 'i2', title: 'Recipe writer' },
+        ],
+      });
+    await settle();
+
+    // Select it first (only a selected instruction is ever locked in real use).
+    const trigger = screen.getByRole('combobox', { name: /attach instructions/i });
+    await userEvent.setup().click(trigger);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('option', { name: /be terse/i }));
+    await settle();
+    expect(fixture.componentInstance.getSelected()).toEqual(['i1']);
+
+    // Now the caller (ai-sidebar) reports it as loaded/locked.
+    fixture.componentRef.setInput('loadedGuids', ['i1']);
+    await settle();
+
+    const lockedOption = screen.getByRole('option', { name: /be terse/i });
+    expect(lockedOption).toHaveAttribute('aria-disabled', 'true');
+    expect(within(lockedOption).getByText(/in context/i)).toBeInTheDocument();
+
+    // Material renders locked options with `pointer-events: none` — a real
+    // click can't even land on them, which is itself the "can't remove"
+    // guarantee. Confirm the selection is unaffected either way.
+    expect(fixture.componentInstance.getSelected()).toEqual(['i1']);
+
+    // A non-locked option can still be toggled freely.
+    await userEvent.setup().click(screen.getByRole('option', { name: /recipe writer/i }));
+    await settle();
+    expect(fixture.componentInstance.getSelected()).toEqual(['i1', 'i2']);
+  });
+
+  it('Create posts a new instruction and navigates to its editor', async () => {
+    await render(InstructionPicker, { providers: baseProviders() });
+    const http = TestBed.inject(HttpTestingController);
+    const aiInstructions = TestBed.inject(AiInstructions);
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    const createSpy = jest
+      .spyOn(aiInstructions, 'createInstruction')
+      .mockResolvedValue('new-guid');
+
+    await settle();
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [] });
+    await settle();
+
+    const trigger = screen.getByRole('combobox', { name: /attach instructions/i });
+    await userEvent.setup().click(trigger);
+    await settle();
+
+    const titleInput = screen.getByPlaceholderText(/new instruction title/i);
+    await userEvent.setup().type(titleInput, 'Be concise');
+    await settle();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /^create$/i }));
+    await settle();
+
+    expect(createSpy).toHaveBeenCalledWith('Be concise');
+
+    // Create triggers a reload of the instruction list (real, unmocked
+    // `load()`/`listInstructions()`) — the root lookup wasn't cached
+    // (the first lookup found no match), so it fires again.
+    http
+      .expectOne('/api/pages/root/children')
+      .flush({ children: [] });
+    await settle();
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/pages', 'new-guid', 'edit']);
   });
 });
