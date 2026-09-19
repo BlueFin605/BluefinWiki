@@ -221,3 +221,45 @@ describe('Auth.updateProfile / refreshUser', () => {
     http.verify();
   });
 });
+
+describe('Auth.changePassword', () => {
+  beforeEach(() => {
+    environment.disableAuth = true;
+  });
+
+  it('POSTs /api/auth/change-password with current/new passwords and resolves on success', async () => {
+    TestBed.configureTestingModule({
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
+    });
+    const auth = TestBed.inject(Auth);
+    await auth.whenReady();
+    const http = TestBed.inject(HttpTestingController);
+
+    const promise = auth.changePassword('OldPass1!', 'NewPass1!');
+    const req = http.expectOne('/api/auth/change-password');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ currentPassword: 'OldPass1!', newPassword: 'NewPass1!' });
+    req.flush({ message: 'Password changed' });
+
+    await expect(promise).resolves.toBeUndefined();
+    http.verify();
+  });
+
+  it('rejects on failure (e.g. wrong current password) and does not touch auth.user()', async () => {
+    TestBed.configureTestingModule({
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
+    });
+    const auth = TestBed.inject(Auth);
+    await auth.whenReady();
+    const http = TestBed.inject(HttpTestingController);
+    const userBefore = auth.user();
+
+    const promise = auth.changePassword('WrongPass1!', 'NewPass1!');
+    const req = http.expectOne('/api/auth/change-password');
+    req.flush({ error: 'Incorrect current password' }, { status: 400, statusText: 'Bad Request' });
+
+    await expect(promise).rejects.toBeTruthy();
+    expect(auth.user()).toEqual(userBefore);
+    http.verify();
+  });
+});

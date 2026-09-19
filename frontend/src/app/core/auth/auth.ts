@@ -118,6 +118,16 @@ export class Auth {
     this.refreshUser(res.displayName);
   }
 
+  /**
+   * POSTs a password change request. Does not touch `_user` — a password
+   * change doesn't change the cached AuthUser, so nothing to refresh.
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post('/api/auth/change-password', { currentPassword, newPassword }),
+    );
+  }
+
   /** Patches the cached user with a freshly known displayName (e.g. after updateProfile()). */
   refreshUser(displayName: string): void {
     const current = this._user();
