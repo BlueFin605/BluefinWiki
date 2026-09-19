@@ -265,13 +265,18 @@ import { AiSidebar } from '../ai/ai-sidebar';
       background: #f9fafb;
       /* Desktop width comes from [style.width.px]; this is the mobile drawer. */
       width: min(85vw, 320px);
-      /* Deterministic positioning context for .tree-divider (right: 0). */
-      position: relative;
+      /* .tree-divider positions against this element via Material's own
+         `.mat-drawer { position: absolute; top: 0; bottom: 0; }` (a duplicate
+         declaration in the same rule that wins over its earlier `relative`) —
+         that already makes `.mat-drawer` a positioned ancestor, so it does not
+         need to be repeated here. Setting `position: relative` on this
+         higher-specificity selector previously WON over Material's `absolute`
+         and silently dropped the `top:0; bottom:0` stretch, collapsing the
+         drawer to its content's height (manual walkthrough finding, Phase 1b). */
     }
     .body .inspector {
       background: #fff;
-      /* Positioning context for .inspector-divider (left: 0). */
-      position: relative;
+      /* See .body .sidebar above: no `position` override needed or wanted. */
     }
 
     /* Desktop-only grab handle pinned to the tree drawer's right edge. */
