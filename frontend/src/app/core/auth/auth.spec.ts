@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import type { CognitoUserPool } from 'amazon-cognito-identity-js';
 
 import { environment } from '../../../environments/environment';
@@ -12,6 +14,11 @@ function fakeUserPool(overrides: Partial<CognitoUserPool> = {}): CognitoUserPool
   } as unknown as CognitoUserPool;
 }
 
+/** Every TestBed module below constructs the real Auth, which now injects HttpClient. */
+function httpProviders() {
+  return [provideHttpClient(), provideHttpClientTesting()];
+}
+
 describe('Auth', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -23,7 +30,7 @@ describe('Auth', () => {
     beforeEach(() => {
       environment.disableAuth = true;
       TestBed.configureTestingModule({
-        providers: [{ provide: USER_POOL, useValue: fakeUserPool() }],
+        providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
       });
     });
 
@@ -50,7 +57,7 @@ describe('Auth', () => {
     beforeEach(() => {
       environment.disableAuth = false;
       TestBed.configureTestingModule({
-        providers: [{ provide: USER_POOL, useValue: fakeUserPool() }],
+        providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
       });
     });
 
@@ -71,6 +78,7 @@ describe('Auth', () => {
     it('catches errors during bootstrap and writes _error', async () => {
       TestBed.configureTestingModule({
         providers: [
+          ...httpProviders(),
           {
             provide: USER_POOL,
             useValue: fakeUserPool({
@@ -90,7 +98,7 @@ describe('Auth', () => {
 
     it('completeOAuthCallback writes _error and rethrows on state mismatch', async () => {
       TestBed.configureTestingModule({
-        providers: [{ provide: USER_POOL, useValue: fakeUserPool() }],
+        providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
       });
       const svc = TestBed.inject(Auth);
       await Promise.resolve();
@@ -107,7 +115,7 @@ describe('Auth', () => {
 describe('Auth.whenReady', () => {
   it('resolves after the first bootstrap settles and is reusable', async () => {
     TestBed.configureTestingModule({
-      providers: [{ provide: USER_POOL, useValue: { getCurrentUser: () => null } }],
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: { getCurrentUser: () => null } }],
     });
     const auth = TestBed.inject(Auth);
 
@@ -121,7 +129,7 @@ describe('Auth.whenReady', () => {
 describe('Auth.getAccessToken', () => {
   it('returns the stored access token or null', () => {
     TestBed.configureTestingModule({
-      providers: [{ provide: USER_POOL, useValue: { getCurrentUser: () => null } }],
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: { getCurrentUser: () => null } }],
     });
     const auth = TestBed.inject(Auth);
     localStorage.removeItem('accessToken');
@@ -151,7 +159,7 @@ describe('Auth.refreshIdToken single-flight', () => {
     // then exercise the real refresh path below.
     environment.disableAuth = true;
     TestBed.configureTestingModule({
-      providers: [{ provide: USER_POOL, useValue: { getCurrentUser: () => cognitoUser } }],
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: { getCurrentUser: () => cognitoUser } }],
     });
     const auth = TestBed.inject(Auth);
     await auth.whenReady();
@@ -168,5 +176,48 @@ describe('Auth.refreshIdToken single-flight', () => {
 
     await Promise.all([a, b]);
     expect(getSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Auth.updateProfile / refreshUser', () => {
+  beforeEach(() => {
+    environment.disableAuth = true;
+  });
+
+  it('PUTs /api/auth/profile with the name and patches auth.user() on success', async () => {
+    TestBed.configureTestingModule({
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
+    });
+    const auth = TestBed.inject(Auth);
+    await auth.whenReady();
+    const http = TestBed.inject(HttpTestingController);
+
+    const promise = auth.updateProfile('New Name');
+    const req = http.expectOne('/api/auth/profile');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ displayName: 'New Name' });
+    req.flush({ message: 'Profile updated successfully', displayName: 'New Name' });
+    await promise;
+
+    expect(auth.user()?.displayName).toBe('New Name');
+    http.verify();
+  });
+
+  it('rejects and leaves auth.user() unchanged on failure', async () => {
+    TestBed.configureTestingModule({
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
+    });
+    const auth = TestBed.inject(Auth);
+    await auth.whenReady();
+    const http = TestBed.inject(HttpTestingController);
+    const nameBefore = auth.user()?.displayName;
+
+    const promise = auth.updateProfile('Taken Name');
+    const req = http.expectOne('/api/auth/profile');
+    req.flush({ error: 'Validation error' }, { status: 400, statusText: 'Bad Request' });
+
+    await expect(promise).rejects.toBeTruthy();
+    expect(auth.user()?.displayName).toBe(nameBefore);
+    http.verify();
   });
 });

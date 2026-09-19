@@ -1,33 +1,54 @@
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
+import { signal, type WritableSignal } from '@angular/core';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { Auth } from '../../core/auth/auth';
 import { ProfilePage } from './profile-page';
 
-function authStub(over: {
-  user?: {
-    userId: string;
-    email: string;
-    displayName: string;
-    role: 'Admin' | 'Standard';
-    emailVerified: boolean;
-  } | null;
-  signOut?: jest.Mock;
-}): Partial<Auth> {
-  const u = over.user === undefined
-    ? {
-        userId: 'u',
-        email: 'me@x.com',
-        displayName: 'Me',
-        role: 'Standard' as const,
-        emailVerified: true,
-      }
-    : over.user;
+interface StubUser {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: 'Admin' | 'Standard';
+  emailVerified: boolean;
+}
+
+function defaultStubUser(): StubUser {
   return {
-    user: (() => u) as unknown as Auth['user'],
+    userId: 'u',
+    email: 'me@x.com',
+    displayName: 'Me',
+    role: 'Standard',
+    emailVerified: true,
+  };
+}
+
+/**
+ * Auth stub whose `user` is a real signal so `updateProfile` mocks can patch
+ * it, mirroring how the real Auth.refreshUser() updates auth.user() after a
+ * successful PUT. `userSignal` is exposed for assertions.
+ */
+function authStub(over: {
+  user?: StubUser | null;
+  signOut?: jest.Mock;
+  updateProfile?: jest.Mock;
+}): Partial<Auth> & { userSignal: WritableSignal<StubUser | null> } {
+  const initial = over.user === undefined ? defaultStubUser() : over.user;
+  const userSignal = signal<StubUser | null>(initial);
+  const updateProfile =
+    over.updateProfile ??
+    jest.fn((displayName: string) => {
+      const current = userSignal();
+      if (current) userSignal.set({ ...current, displayName });
+    });
+  return {
+    user: userSignal,
     signOut: over.signOut ?? jest.fn(),
+    updateProfile,
+    userSignal,
   };
 }
 
@@ -49,7 +70,7 @@ describe('ProfilePage', () => {
   it('renders the current user info', async () => {
     const stub = authStub({});
     await render(ProfilePage, { providers: providers(stub) });
-    expect(screen.getByText('Me')).toBeInTheDocument();
+    expect(screen.getByLabelText(/display name/i)).toHaveValue('Me');
     expect(screen.getByText('me@x.com')).toBeInTheDocument();
     expect(screen.getByText('Standard')).toBeInTheDocument();
   });
@@ -77,5 +98,73 @@ describe('ProfilePage', () => {
     await render(ProfilePage, { providers: providers(authStub({})) });
     expect(screen.getByRole('heading', { level: 1, name: /profile/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
+  });
+});
+
+describe('ProfilePage - display name form', () => {
+  it('disables Save when the name is blank/whitespace or unchanged, enables it when changed', async () => {
+    const stub = authStub({});
+    await render(ProfilePage, { providers: providers(stub) });
+    const input = screen.getByLabelText(/display name/i);
+    const save = screen.getByRole('button', { name: /^save$/i });
+    const user = userEvent.setup();
+
+    // Unchanged (still "Me").
+    expect(save).toBeDisabled();
+
+    // Blank.
+    await user.clear(input);
+    await settle();
+    expect(save).toBeDisabled();
+
+    // Whitespace only.
+    await user.type(input, '   ');
+    await settle();
+    expect(save).toBeDisabled();
+
+    // Changed to a real value.
+    await user.clear(input);
+    await user.type(input, 'New Name');
+    await settle();
+    expect(save).toBeEnabled();
+  });
+
+  it('Save PUTs the new name via Auth.updateProfile, shows a success toast, and auth.user() updates', async () => {
+    const stub = authStub({});
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const input = screen.getByLabelText(/display name/i);
+    const user = userEvent.setup();
+
+    await user.clear(input);
+    await user.type(input, 'New Name');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await settle();
+
+    expect(stub.updateProfile).toHaveBeenCalledWith('New Name');
+    expect(openSpy).toHaveBeenCalledWith('Profile updated.', 'Dismiss', { duration: 4000 });
+    expect(stub.userSignal()?.displayName).toBe('New Name');
+  });
+
+  it('shows the server error message on failure and keeps the entered value', async () => {
+    const updateProfile = jest.fn().mockRejectedValue(new Error('Display name already taken'));
+    const stub = authStub({ updateProfile });
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const input = screen.getByLabelText(/display name/i);
+    const user = userEvent.setup();
+
+    await user.clear(input);
+    await user.type(input, 'Taken Name');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith('Display name already taken', 'Dismiss', { duration: 4000 });
+    expect(input).toHaveValue('Taken Name');
+    expect(stub.userSignal()?.displayName).toBe('Me');
   });
 });

@@ -1,5 +1,7 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { CognitoUser, type CognitoUserSession } from 'amazon-cognito-identity-js';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { USER_POOL } from './cognito-config';
 import {
@@ -23,6 +25,7 @@ const MOCK_ADMIN: AuthUser = {
 @Injectable({ providedIn: 'root' })
 export class Auth {
   private readonly userPool = inject(USER_POOL);
+  private readonly http = inject(HttpClient);
 
   private readonly _user = signal<AuthUser | null>(null);
   private readonly _isLoading = signal(true);
@@ -105,6 +108,21 @@ export class Auth {
     if (cognitoUser) cognitoUser.signOut();
     this.clearTokens();
     this._user.set(null);
+  }
+
+  /** PUTs the new display name to the backend, then refreshes the cached user. */
+  async updateProfile(displayName: string): Promise<void> {
+    const res = await firstValueFrom(
+      this.http.put<{ displayName: string }>('/api/auth/profile', { displayName }),
+    );
+    this.refreshUser(res.displayName);
+  }
+
+  /** Patches the cached user with a freshly known displayName (e.g. after updateProfile()). */
+  refreshUser(displayName: string): void {
+    const current = this._user();
+    if (!current) return;
+    this._user.set({ ...current, displayName });
   }
 
   redirectToLogin(): void {
