@@ -5,6 +5,7 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { z } from 'zod';
 import { withAuth, AuthenticatedEvent } from '../middleware/auth.js';
+import { getHeader } from '../pages/attachments-utils.js';
 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
@@ -19,16 +20,18 @@ const ChangePasswordRequestSchema = z.object({
  * Lambda handler for changing own password (self-service)
  * Any authenticated user: POST /auth/change-password
  *
- * Requires the Cognito access token (not ID token) from the Authorization header.
+ * `withAuth` verifies the caller's Cognito ID token from `Authorization` (as
+ * usual) to authenticate the request. Cognito's ChangePassword API itself,
+ * however, requires the *access* token — not the ID token — so that is sent
+ * separately on `X-Access-Token` (see Auth.changePassword() on the frontend).
  */
 export const handler = withAuth(async (event: AuthenticatedEvent): Promise<APIGatewayProxyResult> => {
   try {
     const body = JSON.parse(event.body || '{}');
     const validatedData = ChangePasswordRequestSchema.parse(body);
 
-    // Extract access token from Authorization header
-    const authHeader = event.headers['Authorization'] || event.headers['authorization'] || '';
-    const accessToken = authHeader.replace(/^Bearer\s+/i, '');
+    // Extract the Cognito access token from the dedicated header.
+    const accessToken = getHeader(event.headers, 'X-Access-Token') || '';
 
     if (!accessToken) {
       return {

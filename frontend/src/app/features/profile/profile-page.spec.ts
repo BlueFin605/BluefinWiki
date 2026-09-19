@@ -4,8 +4,13 @@ import { signal, type WritableSignal } from '@angular/core';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { environment } from '../../../environments/environment';
 import { Auth } from '../../core/auth/auth';
+import { USER_POOL } from '../../core/auth/cognito-config';
+import { errorInterceptor } from '../../core/api/error-interceptor';
 import { ProfilePage } from './profile-page';
 
 interface StubUser {
@@ -298,5 +303,48 @@ describe('ProfilePage - change password form', () => {
     expect(current).toHaveValue('WrongPass1!');
     expect(next).toHaveValue('NewPass1!');
     expect(confirm).toHaveValue('NewPass1!');
+  });
+
+  it('surfaces the real server message end-to-end through Auth -> errorInterceptor -> snackbar (regression for Finding 2)', async () => {
+    // Unlike every other test in this file (which stubs Auth wholesale), this
+    // one uses the real Auth service plus the real errorInterceptor — the same
+    // precedent as board-view.spec.ts's baseProviders(), which registers
+    // errorInterceptor "so a failed PUT's error mirrors production". It flushes
+    // a realistic backend envelope (`{ error: '...' }`, per every handler in
+    // backend/src) and asserts the actual server message reaches the toast, not
+    // a generic fallback. This fails before the Finding 2 fix and passes after.
+    environment.disableAuth = true;
+    await render(ProfilePage, {
+      providers: [
+        provideNoopAnimations(),
+        provideRouter([]),
+        provideHttpClient(withInterceptors([errorInterceptor])),
+        provideHttpClientTesting(),
+        { provide: USER_POOL, useValue: { getCurrentUser: () => null } },
+      ],
+    });
+    const auth = TestBed.inject(Auth);
+    await auth.whenReady();
+    await settle();
+
+    const http = TestBed.inject(HttpTestingController);
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const { current, next, confirm, submit } = passwordFields();
+    const user = userEvent.setup();
+
+    await user.type(current, 'WrongPass1!');
+    await user.type(next, 'NewPass1!');
+    await user.type(confirm, 'NewPass1!');
+    await settle();
+    await user.click(submit);
+    await settle();
+
+    const req = http.expectOne('/api/auth/change-password');
+    req.flush({ error: 'Incorrect current password' }, { status: 400, statusText: 'Bad Request' });
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith('Incorrect current password', 'Dismiss', { duration: 4000 });
+    http.verify();
   });
 });

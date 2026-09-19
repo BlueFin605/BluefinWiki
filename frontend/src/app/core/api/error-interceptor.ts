@@ -6,11 +6,15 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) =>
   next(req).pipe(
     catchError((err: unknown) => {
       if (err instanceof HttpErrorResponse) {
-        const body = err.error as Partial<ApiError> | null;
+        // The backend's error envelope is `{ error: "..." }` everywhere (not
+        // `{ message: "..." }`), so `error` must be checked too, ahead of the
+        // generic HttpErrorResponse text, or the server's actual reason never
+        // reaches the UI.
+        const body = err.error as (Partial<ApiError> & { error?: string }) | null;
         const apiError: ApiError = {
           status: err.status,
           code: body?.code ?? 'http_error',
-          message: body?.message ?? err.message ?? 'Request failed',
+          message: body?.message ?? body?.error ?? err.message ?? 'Request failed',
           requestId: body?.requestId,
         };
         return throwError(() => apiError);

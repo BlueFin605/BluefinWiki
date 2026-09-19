@@ -245,6 +245,28 @@ describe('Auth.changePassword', () => {
     http.verify();
   });
 
+  it('sends the Cognito access token on X-Access-Token, not the Authorization header', async () => {
+    // Cognito's ChangePassword API requires the access token; the shared
+    // authInterceptor always puts the ID token on Authorization, so this call
+    // needs its own header carrying the access token. disableAuth=true seeds
+    // both ID and access tokens to 'mock-jwt-token' on bootstrap.
+    TestBed.configureTestingModule({
+      providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],
+    });
+    const auth = TestBed.inject(Auth);
+    await auth.whenReady();
+    const http = TestBed.inject(HttpTestingController);
+
+    const promise = auth.changePassword('OldPass1!', 'NewPass1!');
+    const req = http.expectOne('/api/auth/change-password');
+    expect(req.request.headers.get('X-Access-Token')).toBe(auth.getAccessToken());
+    expect(req.request.headers.get('X-Access-Token')).toBe('mock-jwt-token');
+    req.flush({ message: 'Password changed' });
+
+    await expect(promise).resolves.toBeUndefined();
+    http.verify();
+  });
+
   it('rejects on failure (e.g. wrong current password) and does not touch auth.user()', async () => {
     TestBed.configureTestingModule({
       providers: [...httpProviders(), { provide: USER_POOL, useValue: fakeUserPool() }],

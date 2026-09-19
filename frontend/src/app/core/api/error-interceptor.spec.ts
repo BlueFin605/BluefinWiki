@@ -49,4 +49,20 @@ describe('errorInterceptor', () => {
     });
     httpMock.expectOne('/api/x').flush('not found', { status: 404, statusText: 'Not Found' });
   });
+
+  it('surfaces the server message from the real backend envelope shape { error: "..." }', (done) => {
+    // Every backend handler responds with `{ error: "..." }`, not `{ message: "..." }`
+    // (126 occurrences across backend/src). Without falling back to `body.error`, the
+    // interceptor produces the generic HttpErrorResponse text instead of this.
+    http.get('/api/x').subscribe({
+      error: (err: ApiError) => {
+        expect(err.message).toBe('Incorrect current password');
+        expect(err.status).toBe(400);
+        done();
+      },
+    });
+    httpMock
+      .expectOne('/api/x')
+      .flush({ error: 'Incorrect current password' }, { status: 400, statusText: 'Bad Request' });
+  });
 });

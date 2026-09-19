@@ -771,7 +771,7 @@ namespace Infrastructure.Stacks
                 {
                     AllowOrigins = Cors.ALL_ORIGINS, // Will be restricted in production
                     AllowMethods = Cors.ALL_METHODS,
-                    AllowHeaders = new[] { "Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key", "X-Amz-Security-Token" },
+                    AllowHeaders = new[] { "Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key", "X-Amz-Security-Token", "X-Access-Token" },
                     AllowCredentials = true
                 }
             });
