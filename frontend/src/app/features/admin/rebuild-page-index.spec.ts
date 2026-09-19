@@ -90,7 +90,6 @@ describe('RebuildPageIndex', () => {
   it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
     await render(RebuildPageIndex, { providers: providers() });
     expect(screen.getByRole('heading', { level: 1, name: /rebuild page index/i })).toBeInTheDocument();
-    const back = screen.getByRole('link', { name: /back to pages/i });
-    expect(back.getAttribute('href')).toBe('/pages');
+    expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
   });
 });

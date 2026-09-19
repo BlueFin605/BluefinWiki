@@ -1,28 +1,28 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AdminTasks, type RebuildResult } from './admin-tasks';
+import { AdminBackHeader } from '../../shared/components/admin-back-header';
 
 @Component({
   selector: 'wiki-rebuild-page-index',
   standalone: true,
   imports: [
     CommonModule,
-    RouterLink,
     MatButtonModule,
     MatCardModule,
     MatProgressSpinnerModule,
+    AdminBackHeader,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
-      <!-- TODO(8.1): replace with the shared admin back-header -->
-      <a routerLink="/pages" class="back-link">Back to pages</a>
-      <h1>Rebuild Page Index</h1>
+      <header class="page-header">
+        <wiki-admin-back-header title="Rebuild Page Index" />
+      </header>
       <mat-card class="card">
         <p>
           The page index maps each page GUID to its S3 location. Rebuilding walks
@@ -78,8 +78,7 @@ import { AdminTasks, type RebuildResult } from './admin-tasks';
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 800px; margin: 0 auto; }
-      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
-      .back-link:hover { text-decoration: underline; }
+      .page-header { display: flex; align-items: center; margin-bottom: 1rem; }
       .card { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
       .state { display: flex; align-items: center; gap: 0.75rem; color: #6b7280; }
       .result h2 { color: #2e7d32; margin: 0 0 0.5rem; }

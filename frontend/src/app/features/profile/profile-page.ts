@@ -1,21 +1,28 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { Auth } from '../../core/auth/auth';
+import { AdminBackHeader } from '../../shared/components/admin-back-header';
 
 @Component({
   selector: 'wiki-profile-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatIconModule],
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatCardModule,
+    MatIconModule,
+    AdminBackHeader,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
-      <!-- TODO(8.1): replace with the shared admin back-header -->
-      <a routerLink="/pages" class="back-link">Back to pages</a>
-      <h1>Profile</h1>
+      <header class="page-header">
+        <wiki-admin-back-header title="Profile" />
+      </header>
       @if (user(); as u) {
         <mat-card class="card">
           <div class="head">
@@ -42,8 +49,7 @@ import { Auth } from '../../core/auth/auth';
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 640px; margin: 0 auto; }
-      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
-      .back-link:hover { text-decoration: underline; }
+      .page-header { display: flex; align-items: center; margin-bottom: 1rem; }
       .card { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
       .head { display: flex; align-items: center; gap: 1rem; }
       .avatar { width: 3.5rem; height: 3.5rem; border-radius: 50%; background: #e3f2fd; color: #1976d2; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 600; }

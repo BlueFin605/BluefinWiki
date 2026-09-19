@@ -119,7 +119,6 @@ describe('InvitationManagement', () => {
     http.expectOne('/api/admin/invitations').flush({ invitations: [] });
     await settle();
     expect(screen.getByRole('heading', { level: 1, name: /invitations/i })).toBeInTheDocument();
-    const back = screen.getByRole('link', { name: /back to pages/i });
-    expect(back.getAttribute('href')).toBe('/pages');
+    expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
   });
 });

@@ -7,7 +7,6 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -26,6 +25,7 @@ import {
   type UserEditDialogData,
   type UserEditDialogResult,
 } from './user-edit-dialog';
+import { AdminBackHeader } from '../../shared/components/admin-back-header';
 
 @Component({
   selector: 'wiki-user-management',
@@ -33,21 +33,19 @@ import {
   imports: [
     CommonModule,
     FormsModule,
-    RouterLink,
     MatButtonModule,
     MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
     MatTableModule,
+    AdminBackHeader,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
-      <!-- TODO(8.1): replace with the shared admin back-header -->
-      <a routerLink="/pages" class="back-link">Back to pages</a>
       <header class="page-header">
-        <h1>Members</h1>
+        <wiki-admin-back-header title="Members" />
         <span class="count">({{ filtered().length }})</span>
       </header>
 
@@ -161,9 +159,7 @@ import {
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 1100px; margin: 0 auto; }
-      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
-      .back-link:hover { text-decoration: underline; }
-      .page-header { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 1rem; }
+      .page-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
       .count { color: #6b7280; }
       .search { width: 100%; max-width: 320px; }
       .user-table { width: 100%; background: #fff; }

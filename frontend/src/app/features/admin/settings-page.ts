@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { Auth } from '../../core/auth/auth';
+import { AdminBackHeader } from '../../shared/components/admin-back-header';
 
 interface SettingsTile {
   title: string;
@@ -54,13 +55,13 @@ const TILES: SettingsTile[] = [
 @Component({
   selector: 'wiki-settings-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule],
+  imports: [CommonModule, RouterLink, MatCardModule, MatIconModule, AdminBackHeader],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="page">
-      <!-- TODO(8.1): replace with the shared admin back-header -->
-      <a routerLink="/pages" class="back-link">Back to pages</a>
-      <h1>Settings</h1>
+      <header class="page-header">
+        <wiki-admin-back-header title="Settings" />
+      </header>
       <div class="grid">
         @for (tile of visibleTiles(); track tile.link) {
           <a [routerLink]="tile.link" class="tile" [attr.aria-label]="tile.title">
@@ -82,8 +83,7 @@ const TILES: SettingsTile[] = [
     `
       :host { display: block; }
       .page { padding: 1.5rem; max-width: 900px; margin: 0 auto; }
-      .back-link { display: inline-block; margin-bottom: 0.75rem; color: #1976d2; text-decoration: none; font-size: 0.875rem; }
-      .back-link:hover { text-decoration: underline; }
+      .page-header { display: flex; align-items: center; margin-bottom: 1rem; }
       .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
       .tile { text-decoration: none; color: inherit; display: block; }
       .tile mat-card { padding: 1rem; transition: background 0.15s; }

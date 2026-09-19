@@ -205,7 +205,6 @@ describe('PageTypesAdmin', () => {
     http.expectOne('/api/page-types').flush({ pageTypes: [] });
     await settle();
     expect(screen.getByRole('heading', { level: 1, name: /page types/i })).toBeInTheDocument();
-    const back = screen.getByRole('link', { name: /back to pages/i });
-    expect(back.getAttribute('href')).toBe('/pages');
+    expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
   });
 });

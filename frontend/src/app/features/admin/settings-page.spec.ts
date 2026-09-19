@@ -56,7 +56,6 @@ describe('SettingsPage', () => {
   it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
     await render(SettingsPage, { providers: providers('Admin') });
     expect(screen.getByRole('heading', { level: 1, name: /settings/i })).toBeInTheDocument();
-    const back = screen.getByRole('link', { name: /back to pages/i });
-    expect(back.getAttribute('href')).toBe('/pages');
+    expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
   });
 });
