@@ -35,6 +35,7 @@ function authStub(over: {
   user?: StubUser | null;
   signOut?: jest.Mock;
   updateProfile?: jest.Mock;
+  changePassword?: jest.Mock;
 }): Partial<Auth> & { userSignal: WritableSignal<StubUser | null> } {
   const initial = over.user === undefined ? defaultStubUser() : over.user;
   const userSignal = signal<StubUser | null>(initial);
@@ -44,10 +45,12 @@ function authStub(over: {
       const current = userSignal();
       if (current) userSignal.set({ ...current, displayName });
     });
+  const changePassword = over.changePassword ?? jest.fn().mockResolvedValue(undefined);
   return {
     user: userSignal,
     signOut: over.signOut ?? jest.fn(),
     updateProfile,
+    changePassword,
     userSignal,
   };
 }
@@ -194,5 +197,106 @@ describe('ProfilePage - display name form', () => {
     expect(openSpy).toHaveBeenCalledWith('Failed to fetch', 'Dismiss', { duration: 4000 });
     expect(input).toHaveValue('Taken Name');
     expect(stub.userSignal()?.displayName).toBe('Me');
+  });
+});
+
+describe('ProfilePage - change password form', () => {
+  function passwordFields() {
+    return {
+      current: screen.getByLabelText(/current password/i),
+      next: screen.getByLabelText(/^new password$/i),
+      confirm: screen.getByLabelText(/confirm password/i),
+      submit: screen.getByRole('button', { name: /change password/i }),
+    };
+  }
+
+  it('disables submit until all three fields are non-empty', async () => {
+    const stub = authStub({});
+    await render(ProfilePage, { providers: providers(stub) });
+    const { current, next, confirm, submit } = passwordFields();
+    const user = userEvent.setup();
+
+    expect(submit).toBeDisabled();
+
+    await user.type(current, 'OldPass1!');
+    await settle();
+    expect(submit).toBeDisabled();
+
+    await user.type(next, 'NewPass1!');
+    await settle();
+    expect(submit).toBeDisabled();
+
+    await user.type(confirm, 'NewPass1!');
+    await settle();
+    expect(submit).toBeEnabled();
+  });
+
+  it('shows an inline mismatch message and blocks submit when New != Confirm', async () => {
+    const changePassword = jest.fn().mockResolvedValue(undefined);
+    const stub = authStub({ changePassword });
+    await render(ProfilePage, { providers: providers(stub) });
+    const { current, next, confirm, submit } = passwordFields();
+    const user = userEvent.setup();
+
+    await user.type(current, 'OldPass1!');
+    await user.type(next, 'NewPass1!');
+    await user.type(confirm, 'Different1!');
+    await settle();
+
+    expect(screen.getByText(/new passwords do not match/i)).toBeInTheDocument();
+    // Blocked: the submit button itself is disabled while mismatched, so no
+    // click can reach it and Auth.changePassword is never invoked.
+    expect(submit).toBeDisabled();
+    expect(changePassword).not.toHaveBeenCalled();
+  });
+
+  it('submits current/new password, shows a success toast, and clears all three fields', async () => {
+    const changePassword = jest.fn().mockResolvedValue(undefined);
+    const stub = authStub({ changePassword });
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const { current, next, confirm, submit } = passwordFields();
+    const user = userEvent.setup();
+
+    await user.type(current, 'OldPass1!');
+    await user.type(next, 'NewPass1!');
+    await user.type(confirm, 'NewPass1!');
+    await settle();
+    await user.click(submit);
+    await settle();
+
+    expect(changePassword).toHaveBeenCalledWith('OldPass1!', 'NewPass1!');
+    expect(openSpy).toHaveBeenCalledWith('Password changed.', 'Dismiss', { duration: 4000 });
+    expect(current).toHaveValue('');
+    expect(next).toHaveValue('');
+    expect(confirm).toHaveValue('');
+  });
+
+  it('shows the server error message on failure and retains the typed values', async () => {
+    const changePassword = jest.fn().mockRejectedValue({
+      status: 400,
+      code: 'validation_error',
+      message: 'Incorrect current password',
+      requestId: 'req-456',
+    });
+    const stub = authStub({ changePassword });
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const { current, next, confirm, submit } = passwordFields();
+    const user = userEvent.setup();
+
+    await user.type(current, 'WrongPass1!');
+    await user.type(next, 'NewPass1!');
+    await user.type(confirm, 'NewPass1!');
+    await settle();
+    await user.click(submit);
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith('Incorrect current password', 'Dismiss', { duration: 4000 });
+    expect(current).toHaveValue('WrongPass1!');
+    expect(next).toHaveValue('NewPass1!');
+    expect(confirm).toHaveValue('NewPass1!');
   });
 });

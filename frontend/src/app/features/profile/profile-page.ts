@@ -67,6 +67,56 @@ import { AdminBackHeader } from '../../shared/components/admin-back-header';
             </button>
           </div>
         </mat-card>
+
+        <mat-card class="card password-card">
+          <h2 class="section-title">Change Password</h2>
+          <div class="password-fields">
+            <mat-form-field appearance="outline">
+              <mat-label>Current Password</mat-label>
+              <input
+                matInput
+                type="password"
+                autocomplete="current-password"
+                [ngModel]="currentPasswordDraft()"
+                (ngModelChange)="currentPasswordDraft.set($event)"
+              />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>New Password</mat-label>
+              <input
+                matInput
+                type="password"
+                autocomplete="new-password"
+                [ngModel]="newPasswordDraft()"
+                (ngModelChange)="newPasswordDraft.set($event)"
+              />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Confirm Password</mat-label>
+              <input
+                matInput
+                type="password"
+                autocomplete="new-password"
+                [ngModel]="confirmPasswordDraft()"
+                (ngModelChange)="confirmPasswordDraft.set($event)"
+              />
+            </mat-form-field>
+          </div>
+          @if (passwordMismatch()) {
+            <p class="mismatch">New passwords do not match</p>
+          }
+          <div class="actions">
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              [disabled]="!canSubmitPassword() || passwordSaving()"
+              (click)="onChangePassword()"
+            >
+              Change Password
+            </button>
+          </div>
+        </mat-card>
       } @else {
         <p class="state">Not signed in.</p>
       }
@@ -87,6 +137,10 @@ import { AdminBackHeader } from '../../shared/components/admin-back-header';
       .role { color: #1976d2; margin: 0.25rem 0 0; font-size: 0.875rem; font-weight: 500; }
       .actions { display: flex; justify-content: flex-start; }
       .state { padding: 1rem; color: #6b7280; }
+      .password-card { gap: 1rem; }
+      .section-title { margin: 0; font-size: 1rem; font-weight: 600; }
+      .password-fields { display: flex; flex-direction: column; gap: 0.25rem; }
+      .mismatch { color: #d32f2f; margin: 0; font-size: 0.875rem; }
     `,
   ],
 })
@@ -145,6 +199,50 @@ export class ProfilePage {
       });
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  protected readonly currentPasswordDraft = signal('');
+  protected readonly newPasswordDraft = signal('');
+  protected readonly confirmPasswordDraft = signal('');
+  protected readonly passwordSaving = signal(false);
+
+  protected readonly passwordMismatch = computed(() => {
+    const next = this.newPasswordDraft();
+    const confirm = this.confirmPasswordDraft();
+    return next.length > 0 && confirm.length > 0 && next !== confirm;
+  });
+
+  protected readonly canSubmitPassword = computed(() => {
+    return (
+      this.currentPasswordDraft().length > 0 &&
+      this.newPasswordDraft().length > 0 &&
+      this.confirmPasswordDraft().length > 0 &&
+      !this.passwordMismatch()
+    );
+  });
+
+  onChangePassword(): void {
+    void this.changePassword();
+  }
+
+  private async changePassword(): Promise<void> {
+    if (!this.canSubmitPassword() || this.passwordSaving()) return;
+    const current = this.currentPasswordDraft();
+    const next = this.newPasswordDraft();
+    this.passwordSaving.set(true);
+    try {
+      await this.auth.changePassword(current, next);
+      this.snack.open('Password changed.', 'Dismiss', { duration: 4000 });
+      this.currentPasswordDraft.set('');
+      this.newPasswordDraft.set('');
+      this.confirmPasswordDraft.set('');
+    } catch (err) {
+      this.snack.open(this.toMessage(err, 'Failed to change password.'), 'Dismiss', {
+        duration: 4000,
+      });
+    } finally {
+      this.passwordSaving.set(false);
     }
   }
 
