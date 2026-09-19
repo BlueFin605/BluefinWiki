@@ -815,8 +815,14 @@ export class PagesView {
     // D7 sibling). The branch is decided at open time from the live breakpoint.
     // The `fullscreen-dialog` panel-class style is global (src/styles.scss) —
     // a component's scoped styles never reach the CDK overlay container.
+    // Both branches need an explicit maxWidth: Angular Material's M3 dialog
+    // theme ships its own `max-width: 560px` default (_m3-dialog.scss), which
+    // silently wins over `width` alone -- the mobile branch already knew this
+    // (maxWidth: '100vw'); the desktop one didn't, so it rendered at 560px
+    // instead of the documented 640px until a manual walkthrough measured the
+    // actual box (Playwright suite, item 28).
     const config: MatDialogConfig<void> = this.bp.isDesktop()
-      ? { width: '640px', panelClass: 'wiki-search-dialog-panel' }
+      ? { width: '640px', maxWidth: '640px', panelClass: 'wiki-search-dialog-panel' }
       : {
           width: '100vw',
           maxWidth: '100vw',
