@@ -50,10 +50,9 @@ import { AiSidebar } from '../ai/ai-sidebar';
   template: `
     <div class="pages-shell">
       <mat-toolbar color="primary" class="topbar">
-        @if (!bp.isDesktop()) {
+        @if (!bp.isDesktop() && !aiOpen()) {
           <button
             mat-icon-button
-            class="nav-toggle"
             aria-label="Open navigation"
             (click)="onOpenTreeDrawer()"
           >
@@ -229,6 +228,23 @@ import { AiSidebar } from '../ai/ai-sidebar';
             (closed)="aiOpen.set(false)"
           />
         </div>
+        <!--
+          A second "Open navigation" control, hoisted as a sibling of
+          .ai-overlay for the same reason .ai-overlay itself is hoisted (see
+          the comment above and the .hamburger-toggle-floating rule): the
+          .topbar copy is covered whenever the overlay is open, with no other
+          reachable trigger for D9/I3's "opening the drawer closes the AI
+          overlay". Mutually exclusive with .topbar's own copy (gated on
+          !aiOpen() there), so exactly one exists in the accessibility tree.
+        -->
+        <button
+          mat-icon-button
+          class="hamburger-toggle-floating"
+          aria-label="Open navigation"
+          (click)="onOpenTreeDrawer()"
+        >
+          <mat-icon>menu</mat-icon>
+        </button>
       }
 
       @if (renameTarget(); as target) {
@@ -251,16 +267,32 @@ import { AiSidebar } from '../ai/ai-sidebar';
       Below 1024 the AI overlay's z-index: 3 (see the .ai-overlay comment
       further down) deliberately sits above .topbar's z-index: 2, so the
       overlay's own header controls are reachable (review finding C1). Side
-      effect: .nav-toggle (the hamburger) is then covered too, leaving no way
-      to open the tree drawer — and therefore no way to trigger D9/I3's
-      "opening the drawer closes the AI overlay" — while the overlay is open.
-      Pin just this one control above the overlay so that path stays reachable;
-      the rest of .topbar (search, new page, AI toggle, user menu) is
-      unaffected and stays covered as before.
+      effect: the hamburger is covered too, leaving no way to open the tree
+      drawer -- and therefore no way to trigger D9/I3's "opening the drawer
+      closes the AI overlay" -- while the overlay is open.
+
+      A z-index on the hamburger button alone cannot fix this: .topbar is a
+      flex item with its own z-index, which per the flexbox spec establishes
+      a stacking context for that item regardless of position, and any
+      z-index a descendant sets is scoped inside it -- it can never outrank
+      a sibling of .topbar (.ai-overlay) no matter how high (first attempt at
+      this fix, confirmed wrong empirically via elementFromPoint). Escaping
+      requires the same technique C1 used for the overlay itself: a second,
+      functionally-identical button hoisted to be a direct sibling of
+      .ai-overlay (.hamburger-toggle-floating below), gated on aiOpen() the
+      opposite way from .topbar's own copy so exactly one "Open navigation"
+      control exists in the accessibility tree at a time.
     */
-    .nav-toggle {
-      position: relative;
+    .hamburger-toggle-floating {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding-left: 4px;
       z-index: 4;
+      color: #fff;
     }
 
     /*
