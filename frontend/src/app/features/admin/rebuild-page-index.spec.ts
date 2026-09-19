@@ -26,11 +26,37 @@ function providers() {
 }
 
 describe('RebuildPageIndex', () => {
-  it('clicking Rebuild calls POST /api/admin/rebuild-page-index', async () => {
+  it('clicking "Rebuild now" reveals an inline confirm block without calling the endpoint', async () => {
     const { fixture } = await render(RebuildPageIndex, { providers: providers() });
     const http = TestBed.inject(HttpTestingController);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /rebuild now/i }));
+    fixture.detectChanges();
+    expect(screen.getByText(/scan the entire pages bucket/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /yes, rebuild/i })).toBeInTheDocument();
+    http.expectNone('/api/admin/rebuild-page-index');
+  });
+
+  it('cancelling the confirm block aborts the rebuild', async () => {
+    const { fixture } = await render(RebuildPageIndex, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /rebuild now/i }));
+    fixture.detectChanges();
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    fixture.detectChanges();
+    expect(screen.queryByText(/scan the entire pages bucket/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /rebuild now/i })).toBeInTheDocument();
+    http.expectNone('/api/admin/rebuild-page-index');
+  });
+
+  it('confirming ("Yes, rebuild") calls POST /api/admin/rebuild-page-index', async () => {
+    const { fixture } = await render(RebuildPageIndex, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /rebuild now/i }));
+    fixture.detectChanges();
+    await user.click(screen.getByRole('button', { name: /yes, rebuild/i }));
     await settle();
     fixture.detectChanges();
     const post = http.expectOne('/api/admin/rebuild-page-index');
@@ -47,11 +73,13 @@ describe('RebuildPageIndex', () => {
     await settle();
   });
 
-  it('displays the result after a successful rebuild', async () => {
+  it('displays the result after a successful rebuild, including a collapsible orphan-GUID list', async () => {
     const { fixture } = await render(RebuildPageIndex, { providers: providers() });
     const http = TestBed.inject(HttpTestingController);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /rebuild now/i }));
+    fixture.detectChanges();
+    await user.click(screen.getByRole('button', { name: /yes, rebuild/i }));
     await settle();
     fixture.detectChanges();
     const post = http.expectOne('/api/admin/rebuild-page-index');
@@ -62,13 +90,16 @@ describe('RebuildPageIndex', () => {
       errors: ['oops'],
       durationMs: 5000,
       deletedOrphans: 2,
-      orphanGuids: ['x'],
+      orphanGuids: ['guid-1', 'guid-2'],
     } satisfies RebuildResult);
     await settle();
     fixture.detectChanges();
     expect(screen.getByRole('heading', { name: /rebuild complete/i })).toBeInTheDocument();
     expect(screen.getByText('Pages discovered').nextElementSibling?.textContent).toContain('42');
     expect(screen.getByText('Rows written').nextElementSibling?.textContent).toContain('41');
+    expect(screen.getByText(/2 deleted orphan guid/i)).toBeInTheDocument();
+    expect(screen.getByText('guid-1')).toBeInTheDocument();
+    expect(screen.getByText('guid-2')).toBeInTheDocument();
   });
 
   it('shows an error snackbar when the rebuild fails', async () => {
@@ -78,6 +109,8 @@ describe('RebuildPageIndex', () => {
     const openSpy = jest.spyOn(snack, 'open');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /rebuild now/i }));
+    fixture.detectChanges();
+    await user.click(screen.getByRole('button', { name: /yes, rebuild/i }));
     await settle();
     fixture.detectChanges();
     const post = http.expectOne('/api/admin/rebuild-page-index');

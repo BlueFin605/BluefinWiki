@@ -38,6 +38,27 @@ import { AdminBackHeader } from '../../shared/components/admin-back-header';
             <mat-progress-spinner diameter="24" mode="indeterminate" />
             <span>Rebuild in progress — please don't close this page.</span>
           </div>
+        } @else if (confirming()) {
+          <div class="confirm">
+            <p>
+              This will scan the entire pages bucket and overwrite every row in
+              the page index, then delete any orphan rows. It may take several
+              minutes. Continue?
+            </p>
+            <div class="confirm-actions">
+              <button mat-button type="button" (click)="onCancelConfirm()">
+                Cancel
+              </button>
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="onConfirmRebuild()"
+              >
+                Yes, rebuild
+              </button>
+            </div>
+          </div>
         } @else {
           <button
             mat-flat-button
@@ -69,6 +90,16 @@ import { AdminBackHeader } from '../../shared/components/admin-back-header';
                 </ul>
               </details>
             }
+            @if (r.orphanGuids.length > 0) {
+              <details>
+                <summary>{{ r.orphanGuids.length }} deleted orphan GUID(s)</summary>
+                <ul>
+                  @for (g of r.orphanGuids; track g) {
+                    <li>{{ g }}</li>
+                  }
+                </ul>
+              </details>
+            }
           </section>
         }
       </mat-card>
@@ -81,6 +112,8 @@ import { AdminBackHeader } from '../../shared/components/admin-back-header';
       .page-header { display: flex; align-items: center; margin-bottom: 1rem; }
       .card { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
       .state { display: flex; align-items: center; gap: 0.75rem; color: #6b7280; }
+      .confirm { display: flex; flex-direction: column; gap: 0.75rem; }
+      .confirm-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
       .result h2 { color: #2e7d32; margin: 0 0 0.5rem; }
       .result dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 1rem; }
       .result dt { color: #6b7280; }
@@ -92,9 +125,19 @@ export class RebuildPageIndex {
   private readonly snack = inject(MatSnackBar);
 
   protected readonly running = signal(false);
+  protected readonly confirming = signal(false);
   protected readonly result = signal<RebuildResult | null>(null);
 
   onRebuild(): void {
+    this.confirming.set(true);
+  }
+
+  onCancelConfirm(): void {
+    this.confirming.set(false);
+  }
+
+  onConfirmRebuild(): void {
+    this.confirming.set(false);
     void this.run();
   }
 
