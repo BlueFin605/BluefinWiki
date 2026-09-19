@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -53,13 +53,22 @@ export interface InvitationCreateResult {
           min="1"
           max="30"
           [ngModel]="expiryDays()"
-          (ngModelChange)="expiryDays.set($event)"
+          (ngModelChange)="onExpiryDaysChange($event)"
         />
       </mat-form-field>
+      @if (expiryDaysError(); as err) {
+        <p class="error">{{ err }}</p>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" (click)="cancel()">Cancel</button>
-      <button mat-flat-button color="primary" type="button" (click)="confirm()">
+      <button
+        mat-flat-button
+        color="primary"
+        type="button"
+        [disabled]="!canSubmit()"
+        (click)="confirm()"
+      >
         Create
       </button>
     </mat-dialog-actions>
@@ -68,6 +77,7 @@ export interface InvitationCreateResult {
     `
       :host { display: block; min-width: 320px; }
       .full { width: 100%; }
+      .error { color: #b91c1c; margin: 0.5rem 0 0; font-size: 0.875rem; }
     `,
   ],
 })
@@ -77,19 +87,32 @@ export class InvitationCreateDialog {
 
   protected readonly email = signal('');
   protected readonly role = signal<Role>('Standard');
-  protected readonly expiryDays = signal(7);
+  protected readonly expiryDays = signal<number | null>(7);
+
+  protected readonly canSubmit = computed(() => {
+    const v = this.expiryDays();
+    return v !== null && v >= 1 && v <= 30;
+  });
+
+  protected readonly expiryDaysError = computed<string | null>(() =>
+    this.canSubmit() ? null : 'Enter a number of days between 1 and 30.',
+  );
+
+  onExpiryDaysChange(value: number | null): void {
+    this.expiryDays.set(value);
+  }
 
   cancel(): void {
     this.dialogRef.close(null);
   }
 
   confirm(): void {
+    if (!this.canSubmit()) return;
     const trimmedEmail = this.email().trim();
-    const expiry = Number(this.expiryDays()) || 7;
     this.dialogRef.close({
       ...(trimmedEmail ? { email: trimmedEmail } : {}),
       role: this.role(),
-      expiryDays: expiry,
+      expiryDays: this.expiryDays() as number,
     });
   }
 }

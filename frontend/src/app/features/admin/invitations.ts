@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, type Signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map } from 'rxjs';
 import { InvalidationBus, invitationsListTag } from '../../core/api/invalidation';
@@ -34,14 +34,26 @@ export class Invitations {
   private readonly http = inject(HttpClient);
   private readonly bus = inject(InvalidationBus);
 
-  /** Keys on `invitations:list`; both mutations below bump that one tag. */
-  invitationsResource() {
+  /**
+   * Reactive invitations-list resource. `status` is a signal so a filter
+   * pill can switch the request without recreating the resource; `''`
+   * fetches every status (no `?status=` param). Keys on `invitations:list`;
+   * both mutations below bump that one tag.
+   */
+  invitationsResource(status: Signal<Invitation['status'] | ''>) {
     return rxResource({
-      params: () => this.bus.version(invitationsListTag()),
-      stream: () =>
-        this.http
-          .get<{ invitations: Invitation[] }>('/api/admin/invitations')
-          .pipe(map((r) => r.invitations ?? [])),
+      params: () => ({
+        status: status(),
+        v: this.bus.version(invitationsListTag()),
+      }),
+      stream: ({ params }) => {
+        const query = params.status
+          ? `?status=${encodeURIComponent(params.status)}`
+          : '';
+        return this.http
+          .get<{ invitations: Invitation[] }>(`/api/admin/invitations${query}`)
+          .pipe(map((r) => r.invitations ?? []));
+      },
     });
   }
 

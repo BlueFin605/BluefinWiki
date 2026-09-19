@@ -121,4 +121,59 @@ describe('InvitationManagement', () => {
     expect(screen.getByRole('heading', { level: 1, name: /invitations/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
   });
+
+  it('selecting a status pill re-queries with ?status=, and All sends no status', async () => {
+    const { fixture } = await render(InvitationManagement, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/admin/invitations').flush({ invitations: [] });
+    await settle();
+    fixture.detectChanges();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('radio', { name: /^pending$/i }));
+    await settle();
+
+    http.expectOne('/api/admin/invitations?status=pending').flush({
+      invitations: [invite({ inviteCode: 'PND', status: 'pending' })],
+    });
+    await settle();
+    expect(screen.getByText('PND')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /^all$/i }));
+    await settle();
+    http.expectOne('/api/admin/invitations').flush({ invitations: [] });
+    await settle();
+  });
+
+  it('shows a dismissible banner with the created code after a successful create', async () => {
+    const { fixture } = await render(InvitationManagement, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/admin/invitations').flush({ invitations: [] });
+    await settle();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /create invitation/i }));
+    await settle();
+    fixture.detectChanges();
+
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^create$/i }));
+    await flushDialog();
+
+    const post = http.expectOne('/api/admin/invitations');
+    post.flush(invite({ inviteCode: 'NEWCODE' }));
+    await settle();
+    http.expectOne('/api/admin/invitations').flush({
+      invitations: [invite({ inviteCode: 'NEWCODE' })],
+    });
+    await settle();
+
+    expect(screen.getByText(/invitation created:\s*NEWCODE/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /dismiss/i }));
+    await settle();
+    expect(screen.queryByText(/invitation created/i)).not.toBeInTheDocument();
+  });
 });

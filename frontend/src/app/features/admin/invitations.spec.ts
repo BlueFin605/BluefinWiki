@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -40,7 +41,7 @@ describe('Invitations service', () => {
   afterEach(() => http.verify());
 
   it('invitationsResource GETs /api/admin/invitations and unwraps array', async () => {
-    const resource = TestBed.runInInjectionContext(() => invitations.invitationsResource());
+    const resource = TestBed.runInInjectionContext(() => invitations.invitationsResource(signal('')));
     await settle();
     const req = http.expectOne('/api/admin/invitations');
     expect(req.request.method).toBe('GET');
@@ -53,7 +54,7 @@ describe('Invitations service', () => {
   });
 
   it('createInvitation POSTs to /api/admin/invitations and bumps version', async () => {
-    const resource = TestBed.runInInjectionContext(() => invitations.invitationsResource());
+    const resource = TestBed.runInInjectionContext(() => invitations.invitationsResource(signal('')));
     await settle();
     http.expectOne('/api/admin/invitations').flush({ invitations: [] });
     await settle();
@@ -90,7 +91,7 @@ describe('Invitations service', () => {
   });
 
   it('revokeInvitation re-requests invitationsResource via the invalidation bus', async () => {
-    const resource = TestBed.runInInjectionContext(() => invitations.invitationsResource());
+    const resource = TestBed.runInInjectionContext(() => invitations.invitationsResource(signal('')));
     await settle();
     http.expectOne('/api/admin/invitations').flush({
       invitations: [invite({ inviteCode: 'inv-r', status: 'pending' })],
