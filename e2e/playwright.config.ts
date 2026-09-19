@@ -8,10 +8,10 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
+    ...devices['Desktop Chrome'],
     baseURL: 'http://localhost:5173',
     viewport: { width: 1440, height: 900 },
     trace: 'retain-on-failure',
-    ...devices['Desktop Chrome'],
   },
   projects: [{ name: 'chromium' }],
 });
