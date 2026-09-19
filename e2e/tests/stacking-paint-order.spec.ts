@@ -117,11 +117,20 @@ test.describe('Stacking / paint order (Phase 1b matrix items 1-6)', () => {
    * The hamburger ("Open navigation") stayed genuinely unreachable while
    * `.ai-overlay` was open — the overlay's z-index: 3 covers all of
    * `.topbar` (z-index: 2), including this button, with no keyboard
-   * alternative (unlike search's Ctrl/Cmd+K). Fixed in `pages-view.ts`
-   * (commit 01fec56): `.nav-toggle` on this button pins it to z-index: 4,
-   * above the overlay, without affecting the rest of `.topbar` or the
-   * overlay's own header (the original C1 fix). This test is otherwise
-   * unmodified from the brief.
+   * alternative (unlike search's Ctrl/Cmd+K). A first fix attempt (commit
+   * 01fec56, a `.nav-toggle` class pinning just this button to z-index: 4)
+   * did not work: `.topbar` is a flex item with its own non-auto z-index,
+   * which per the flexbox spec makes it establish a stacking context
+   * regardless of `position: static` — any z-index a descendant sets is
+   * capped inside that context and can never outrank the sibling
+   * `.ai-overlay` context, confirmed wrong via `elementFromPoint`. The real
+   * fix (commit 2e09f76) uses the same technique the original C1 fix used
+   * for the overlay itself: a second, functionally-identical "Open
+   * navigation" button hoisted to be a direct sibling of `.ai-overlay`
+   * (`.hamburger-toggle-floating`), mutually exclusive with `.topbar`'s own
+   * copy — each gated on the opposite side of `aiOpen()`, so exactly one
+   * "Open navigation" control exists in the accessibility tree at a time.
+   * This test is otherwise unmodified from the brief.
    */
   test('item 5 (D9/I3): opening the tree drawer while the AI overlay is open closes the overlay', async ({
     page,
