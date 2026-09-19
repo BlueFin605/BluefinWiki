@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Auth } from '../../core/auth/auth';
+import { isApiError } from '../../core/api/api.types';
 import { AdminBackHeader } from '../../shared/components/admin-back-header';
 
 @Component({
@@ -148,6 +149,11 @@ export class ProfilePage {
   }
 
   private toMessage(err: unknown, fallback: string): string {
+    // The registered errorInterceptor turns every HttpErrorResponse into a plain ApiError
+    // object (not an Error instance) before it reaches here, so that's the shape a real
+    // 400/500 from PUT /api/auth/profile actually arrives in. `instanceof Error` still
+    // covers rejections that never pass through the interceptor (e.g. a thrown JS error).
+    if (isApiError(err)) return err.message;
     if (err instanceof Error) return err.message;
     return fallback;
   }

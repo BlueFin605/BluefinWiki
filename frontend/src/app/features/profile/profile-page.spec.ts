@@ -148,8 +148,16 @@ describe('ProfilePage - display name form', () => {
     expect(stub.userSignal()?.displayName).toBe('New Name');
   });
 
-  it('shows the server error message on failure and keeps the entered value', async () => {
-    const updateProfile = jest.fn().mockRejectedValue(new Error('Display name already taken'));
+  it('shows the server error message on failure (ApiError-shaped rejection from the interceptor chain) and keeps the entered value', async () => {
+    // This mirrors what Auth.updateProfile() actually rejects with in production: the
+    // errorInterceptor turns every HttpErrorResponse into a plain ApiError object, not an
+    // Error instance. See frontend/src/app/core/api/error-interceptor.ts.
+    const updateProfile = jest.fn().mockRejectedValue({
+      status: 400,
+      code: 'validation_error',
+      message: 'Display name already taken',
+      requestId: 'req-123',
+    });
     const stub = authStub({ updateProfile });
     await render(ProfilePage, { providers: providers(stub) });
     const snack = TestBed.inject(MatSnackBar);
@@ -164,6 +172,26 @@ describe('ProfilePage - display name form', () => {
     await settle();
 
     expect(openSpy).toHaveBeenCalledWith('Display name already taken', 'Dismiss', { duration: 4000 });
+    expect(input).toHaveValue('Taken Name');
+    expect(stub.userSignal()?.displayName).toBe('Me');
+  });
+
+  it('shows the error message on failure (plain Error rejection, e.g. a network failure before the interceptor runs) and keeps the entered value', async () => {
+    const updateProfile = jest.fn().mockRejectedValue(new Error('Failed to fetch'));
+    const stub = authStub({ updateProfile });
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const input = screen.getByLabelText(/display name/i);
+    const user = userEvent.setup();
+
+    await user.clear(input);
+    await user.type(input, 'Taken Name');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith('Failed to fetch', 'Dismiss', { duration: 4000 });
     expect(input).toHaveValue('Taken Name');
     expect(stub.userSignal()?.displayName).toBe('Me');
   });
