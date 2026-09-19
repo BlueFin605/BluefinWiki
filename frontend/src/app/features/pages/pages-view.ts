@@ -53,6 +53,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
         @if (!bp.isDesktop()) {
           <button
             mat-icon-button
+            class="nav-toggle"
             aria-label="Open navigation"
             (click)="onOpenTreeDrawer()"
           >
@@ -245,6 +246,22 @@ import { AiSidebar } from '../ai/ai-sidebar';
     .topbar { z-index: 2; }
     .title { font-weight: 600; }
     .spacer { flex: 1; }
+
+    /*
+      Below 1024 the AI overlay's z-index: 3 (see the .ai-overlay comment
+      further down) deliberately sits above .topbar's z-index: 2, so the
+      overlay's own header controls are reachable (review finding C1). Side
+      effect: .nav-toggle (the hamburger) is then covered too, leaving no way
+      to open the tree drawer — and therefore no way to trigger D9/I3's
+      "opening the drawer closes the AI overlay" — while the overlay is open.
+      Pin just this one control above the overlay so that path stays reachable;
+      the rest of .topbar (search, new page, AI toggle, user menu) is
+      unaffected and stays covered as before.
+    */
+    .nav-toggle {
+      position: relative;
+      z-index: 4;
+    }
 
     /*
       The hoisted sidenav container. It gets no height inside the column flex
