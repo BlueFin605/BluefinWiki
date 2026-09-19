@@ -63,7 +63,10 @@ import { AdminBackHeader } from '../../shared/components/admin-back-header';
       @if (resource.isLoading()) {
         <p class="state">Loading members...</p>
       } @else if (resource.error()) {
-        <p class="state error">Failed to load members.</p>
+        <p class="state error">
+          Failed to load members.
+          <button type="button" (click)="resource.reload()">Retry</button>
+        </p>
       } @else {
         <table mat-table [dataSource]="filtered()" class="user-table">
           <ng-container matColumnDef="displayName">
@@ -103,6 +106,7 @@ import { AdminBackHeader } from '../../shared/components/admin-back-header';
                 mat-stroked-button
                 type="button"
                 [attr.aria-label]="'Edit ' + u.displayName"
+                [disabled]="u.status === 'deleted'"
                 (click)="onEdit(u)"
               >
                 Edit

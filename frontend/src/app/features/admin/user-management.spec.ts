@@ -150,4 +150,44 @@ describe('UserManagement', () => {
     expect(screen.getByRole('heading', { level: 1, name: /members/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
   });
+
+  it('disables Edit for a deleted user but keeps it enabled for others', async () => {
+    await render(UserManagement, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/admin/users').flush({
+      users: [
+        userRec({ userId: 'a', displayName: 'Alice', email: 'alice@x.com', status: 'active' }),
+        userRec({ userId: 'b', displayName: 'Bob', email: 'bob@x.com', status: 'deleted' }),
+      ],
+    });
+    await settle();
+
+    expect(screen.getByRole('button', { name: /edit alice/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /edit bob/i })).toBeDisabled();
+  });
+
+  it('load failure shows a Retry that reloads the members resource', async () => {
+    await render(UserManagement, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http
+      .expectOne('/api/admin/users')
+      .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+
+    expect(screen.getByText(/failed to load members/i)).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /retry/i });
+
+    const user = userEvent.setup();
+    await user.click(retry);
+    await settle();
+
+    http.expectOne('/api/admin/users').flush({
+      users: [userRec({ userId: 'a', displayName: 'Alice', email: 'alice@x.com' })],
+    });
+    await settle();
+
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
 });
