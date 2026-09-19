@@ -39,9 +39,9 @@ parallel-safe after 1b.1.
 Code complete at `a886bdb` (9 steps + whole-branch review + fix wave). 92 suites
 / 814 tests green, `npm run lint` + `tsc --noEmit -p tsconfig.app.json` clean.
 Ticked items below are jsdom / Testing-Library verified. The **manual matrix is
-still owed** — jsdom has no layout engine, so every physical-rendering item
-(`[m]` below) needs a real-browser pass; the 32-item checklist is in
-`.superpowers/sdd/phase-1b-review.md`.
+replaced by an automated Playwright suite** — rather than a live manual walkthrough,
+the responsive layer's 32-item visual verification checklist is now covered by
+automated real-browser tests; see the updated item below.
 
 - [x] Every step's acceptance criteria met; `npm test` + `npm run lint` green
       (whole-branch review passed *with fixes* — 1 Critical (mobile AI overlay
