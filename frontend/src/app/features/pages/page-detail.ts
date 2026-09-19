@@ -376,7 +376,20 @@ export function resolveSaveStatus(state: {
   `,
   styles: [`
     .page-detail { display: flex; flex-direction: column; height: 100%; }
-    .bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+    /*
+      flex-wrap: wrap (manual browser-QA finding, Playwright suite item 21):
+      at phone widths the row's non-title content alone (mode-toggle +
+      refresh + inspector-toggle + save-status pill + Save button) already
+      exceeds the viewport, even with a zero-width title. .mode-toggle's own
+      overflow: hidden (Material's default) strips its flexbox automatic
+      minimum size, so without flex-shrink: 0 below it -- not any of its
+      siblings, none of which have that problem -- was the item the flex
+      algorithm crushed to invisible/unclickable. Wrapping instead of
+      crushing keeps every control reachable; it costs a second line on
+      narrow viewports rather than a hidden one.
+    */
+    .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+    .mode-toggle { flex-shrink: 0; }
     .title { font-weight: 600; }
     .view-toggle { margin-left: 0.5rem; }
     .spacer { flex: 1; }
