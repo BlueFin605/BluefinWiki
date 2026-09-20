@@ -25,13 +25,19 @@ do them together or in sequence.
 
 ## Phase exit criteria
 
-- [ ] All step acceptance criteria met; `npm test` + `npm run lint` green.
-- [ ] Manual: every admin screen + `/settings` + `/profile` has a back
-      affordance to `/pages`.
-- [ ] Manual: Profile can change the display name (persists, toast,
-      `refreshUser`) and change the password.
-- [ ] Manual: Members — Edit is disabled for `deleted` users; the load error
-      has a Retry.
-- [ ] Manual: Invitations — status filter pills work; a created invitation
-      shows its code; `expiryDays` is validated 1–30 (default 7).
-- [ ] Manual: Rebuild page index asks for confirmation before running.
+- [x] All step acceptance criteria met; `npm test` + `npm run lint` green.
+- [x] Manual: every admin screen + `/settings` + `/profile` has a back
+      affordance to `/pages`. Automated in `e2e/tests/admin-back-nav.spec.ts`.
+- [x] Manual: Profile can change the display name (persists, toast,
+      `refreshUser`) and change the password. Automated in
+      `e2e/tests/profile-forms.spec.ts` — the display-name half covers a real
+      save+persist round trip; the change-password half is automated as a
+      request-shape/regression check, not a real Cognito success path — local
+      LocalStack has no Cognito service.
+- [x] Manual: Members — Edit is disabled for `deleted` users; the load error
+      has a Retry. Automated in `e2e/tests/members-admin.spec.ts`.
+- [x] Manual: Invitations — status filter pills work; a created invitation
+      shows its code; `expiryDays` is validated 1–30 (default 7). Automated
+      in `e2e/tests/invitations-admin.spec.ts`.
+- [x] Manual: Rebuild page index asks for confirmation before running.
+      Automated in `e2e/tests/rebuild-index-confirm.spec.ts`.
