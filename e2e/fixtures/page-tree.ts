@@ -1,7 +1,11 @@
 import { test as base, expect } from '@playwright/test';
+import { API_BASE_URL, AUTH_HEADER } from './api';
 
-const API_BASE_URL = 'http://localhost:3000';
-const AUTH_HEADER = { Authorization: 'Bearer mock-jwt-token' };
+/** Minimal local shape — mirrors the backend's page-property contract without importing the Angular app. */
+export interface PageProperty {
+  type: 'string' | 'number' | 'date' | 'tags';
+  value: string | number | string[];
+}
 
 export interface PageFixtureTree {
   runId: string;
@@ -70,7 +74,12 @@ This is the final section, marking the end of the document for scroll testing.
 export async function createPage(
   request: import('@playwright/test').APIRequestContext,
   title: string,
-  opts: { parentGuid?: string | null; content?: string } = {},
+  opts: {
+    parentGuid?: string | null;
+    content?: string;
+    pageType?: string;
+    properties?: Record<string, PageProperty>;
+  } = {},
 ): Promise<string> {
   const res = await request.post(`${API_BASE_URL}/pages`, {
     headers: AUTH_HEADER,
@@ -78,6 +87,8 @@ export async function createPage(
       title,
       content: opts.content ?? `# ${title}`,
       parentGuid: opts.parentGuid ?? null,
+      ...(opts.pageType ? { pageType: opts.pageType } : {}),
+      ...(opts.properties ? { properties: opts.properties } : {}),
     },
   });
   if (!res.ok()) {
@@ -85,6 +96,20 @@ export async function createPage(
   }
   const body = (await res.json()) as { guid: string };
   return body.guid;
+}
+
+export async function updatePage(
+  request: import('@playwright/test').APIRequestContext,
+  guid: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const res = await request.put(`${API_BASE_URL}/pages/${guid}`, {
+    headers: AUTH_HEADER,
+    data,
+  });
+  if (!res.ok()) {
+    throw new Error(`Failed to update page "${guid}": ${res.status()} ${await res.text()}`);
+  }
 }
 
 export async function deletePageRecursive(

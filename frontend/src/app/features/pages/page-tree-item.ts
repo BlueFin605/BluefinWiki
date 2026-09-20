@@ -1,5 +1,5 @@
 import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkSiblingDropAllowed, checkTypeConstraints } from './check-type-constraints';
 import { TreeDragState } from './tree-drag-state';
@@ -87,7 +87,7 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
         (menuEvent)="onMenuEvent($event)"
       />
 
-      @if (expanded() && children.value(); as kids) {
+      @if (expanded() && displayedChildren(); as kids) {
         @for (child of kids; track child.guid) {
           <wiki-page-tree-item
             [page]="child"
@@ -262,6 +262,28 @@ export class PageTreeItem {
   );
   // Children resource — lazy-fetched only when expanded.
   readonly children = this.pages.childrenResource(this.childrenGuid);
+
+  /**
+   * `children`, RETAINED across an invalidation-driven reload. `children`
+   * keys on the coarse `children:any` tag (invalidation.ts) — ANY
+   * tree-visible edit ANYWHERE (a rename, a status/type change, a reorder…)
+   * bumps it, and Angular's `resource()` clears `value()`/`status()` back to
+   * `'loading'` with no retained-value API. Reading `children.value()`
+   * directly in the template therefore blanked this row's child list for the
+   * duration of every such reload — even one triggered by an unrelated
+   * page's edit — unmounting every descendant `wiki-page-tree-item` and
+   * resetting each one's own local `expanded` signal. Same fix as
+   * `page-tree.ts`'s `displayedRoot` and `page-detail.ts`'s
+   * `eligibilityChildren`, one level down.
+   *
+   * `value()` throws on an errored resource (including the deliberate
+   * `SKIP_CHILDREN_FETCH` "error" while collapsed) — only read it once
+   * resolved.
+   */
+  protected readonly displayedChildren = linkedSignal<PageSummary[] | undefined, PageSummary[] | undefined>({
+    source: () => (this.children.status() === 'resolved' ? this.children.value() : undefined),
+    computation: (value, previous) => value ?? previous?.value,
+  });
 
   readonly indent = computed(() => this.level() * 16 + 8);
   readonly isActive = computed(() => this.activeGuid() === this.page().guid);

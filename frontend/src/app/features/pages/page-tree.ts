@@ -1,5 +1,5 @@
 import { CdkDropList, CdkDropListGroup, type CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { Pages } from './pages';
 import { checkSiblingDropAllowed } from './check-type-constraints';
 import { PageTreeItem } from './page-tree-item';
@@ -12,14 +12,14 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeExpandTarget
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div cdkDropListGroup class="page-tree" role="tree" aria-label="Page tree">
-      @if (rootChildren.isLoading()) {
+      @if (showInitialLoading()) {
         <div class="state">Loading pages...</div>
-      } @else if (rootChildren.error()) {
+      } @else if (rootChildren.error() && !displayedRoot()) {
         <div class="state error">Failed to load pages.</div>
-      } @else if ((rootChildren.value() ?? []).length === 0) {
+      } @else if ((displayedRoot() ?? []).length === 0) {
         <div class="state empty">No pages yet.</div>
       } @else {
-        @for (page of rootChildren.value() ?? []; track page.guid) {
+        @for (page of displayedRoot() ?? []; track page.guid) {
           <wiki-page-tree-item
             [page]="page"
             [level]="0"
@@ -91,6 +91,33 @@ export class PageTree {
   readonly dropRequested = output<TreeDropRequest>();
 
   readonly rootChildren = this.pages.childrenResource(this.rootSignal);
+
+  /**
+   * `rootChildren`, RETAINED across an invalidation-driven reload.
+   * `rootChildren` keys on the coarse `children:any` tag (invalidation.ts) —
+   * ANY tree-visible edit ANYWHERE (a rename, a status/type change, a
+   * reorder…) bumps it, and Angular's `resource()` clears `value()`/
+   * `status()` back to `'loading'` with no retained-value API. Reading
+   * `rootChildren.value()` directly in the template therefore replaced the
+   * WHOLE tree with the "Loading pages..." placeholder on every such edit,
+   * destroying every `wiki-page-tree-item` at every depth and resetting each
+   * row's own local `expanded` signal — collapsing the entire tree for
+   * anyone who had it open, for an edit anywhere in the wiki. Same fix as
+   * `page-tree-item.ts`'s `displayedChildren` and `page-detail.ts`'s
+   * `eligibilityChildren` ("keep painting the last-good data through a
+   * reload", also `BoardView.showInitialLoading`'s rule).
+   *
+   * `value()` throws on an errored resource — only read it once resolved.
+   */
+  protected readonly displayedRoot = linkedSignal<PageSummary[] | undefined, PageSummary[] | undefined>({
+    source: () => (this.rootChildren.status() === 'resolved' ? this.rootChildren.value() : undefined),
+    computation: (value, previous) => value ?? previous?.value,
+  });
+
+  /** Only a genuine first load (nothing ever retained yet) shows the placeholder. */
+  protected readonly showInitialLoading = computed(
+    () => this.rootChildren.isLoading() && this.displayedRoot() === undefined,
+  );
 
   /**
    * Reparent a dragged page to the tree root. The zone has no
