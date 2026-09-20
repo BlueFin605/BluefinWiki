@@ -377,16 +377,18 @@ export function resolveSaveStatus(state: {
   styles: [`
     .page-detail { display: flex; flex-direction: column; height: 100%; }
     /*
-      flex-wrap: wrap (manual browser-QA finding, Playwright suite item 21):
-      at phone widths the row's non-title content alone (mode-toggle +
-      refresh + inspector-toggle + save-status pill + Save button) already
-      exceeds the viewport, even with a zero-width title. .mode-toggle's own
-      overflow: hidden (Material's default) strips its flexbox automatic
-      minimum size, so without flex-shrink: 0 below it -- not any of its
-      siblings, none of which have that problem -- was the item the flex
-      algorithm crushed to invisible/unclickable. Wrapping instead of
-      crushing keeps every control reachable; it costs a second line on
-      narrow viewports rather than a hidden one.
+      flex-wrap: wrap (Playwright suite finding, item 16/21 in
+      editor-toolbar.spec.ts): at phone widths the row's non-title content
+      alone (mode-toggle + refresh + inspector-toggle + save-status pill +
+      Save button) already exceeds the viewport, even with a zero-width
+      title. .mode-toggle's own overflow: hidden (Material's default) strips
+      its flexbox automatic minimum size, so it was the only item with no
+      content-protected flex minimum -- unlike its siblings, which all have
+      one (fixed-size icon buttons, a nowrap pill, a min-width Save button) --
+      and the flex algorithm crushed it to invisible/unclickable instead of
+      shrinking anything else. Wrapping instead of crushing keeps every
+      control reachable; it costs a second line on narrow viewports rather
+      than a hidden one.
     */
     .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
     .mode-toggle { flex-shrink: 0; }

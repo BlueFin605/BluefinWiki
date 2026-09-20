@@ -58,7 +58,6 @@ test.describe('TOC (Phase 1b matrix items 23-25) and breadcrumbs (item 26)', () 
     // component under test (table-of-contents.ts) is untouched.
     const targetHeading = page.getByRole('heading', { name: 'Architecture', exact: true });
     await targetHeading.evaluate((el) => el.scrollIntoView({ block: 'start' }));
-    await page.waitForTimeout(300); // IntersectionObserver settle
     // The `active` class lands on the <li>; the <a> itself carries
     // aria-current="location" (table-of-contents.ts:84-93) — assert via the
     // accessible attribute rather than the presentational class.
