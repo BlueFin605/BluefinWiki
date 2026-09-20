@@ -61,14 +61,16 @@ import { AiSidebar } from '../ai/ai-sidebar';
         }
         <span class="title">BluefinWiki</span>
         <span class="spacer"></span>
-        <button
-          mat-icon-button
-          aria-label="Search"
-          matTooltip="Search (Ctrl/Cmd+K)"
-          (click)="openSearch()"
-        >
-          <mat-icon>search</mat-icon>
-        </button>
+        @if (bp.isDesktop() || !aiOpen()) {
+          <button
+            mat-icon-button
+            aria-label="Search"
+            matTooltip="Search (Ctrl/Cmd+K)"
+            (click)="openSearch()"
+          >
+            <mat-icon>search</mat-icon>
+          </button>
+        }
         <button mat-button (click)="onNewPage()">
           New page
         </button>
@@ -245,6 +247,25 @@ import { AiSidebar } from '../ai/ai-sidebar';
         >
           <mat-icon>menu</mat-icon>
         </button>
+        <!--
+          Same reachability gap, same fix, for Search (whole-branch review
+          finding I6): below 1024 the Search button in .topbar is covered by
+          the overlay too, and unlike the hamburger it had no reachable
+          trigger at all on a touch device (the Ctrl/Cmd+K shortcut this test
+          suite used to route around it assumes a keyboard, which phone-width
+          touch users don't have). Positioned beside the floating hamburger
+          rather than on the right, which would collide with
+          wiki-ai-sidebar's own "New chat" / "Close" buttons -- exactly the
+          controls C1 fixed to keep reachable.
+        -->
+        <button
+          mat-icon-button
+          class="search-toggle-floating"
+          aria-label="Search"
+          (click)="openSearch()"
+        >
+          <mat-icon>search</mat-icon>
+        </button>
       }
 
       @if (renameTarget(); as target) {
@@ -291,6 +312,19 @@ import { AiSidebar } from '../ai/ai-sidebar';
       display: flex;
       align-items: center;
       padding-left: 4px;
+      z-index: 4;
+      color: #fff;
+    }
+    /* Same fixed strip as .hamburger-toggle-floating, one button-width to its
+       right so the two don't overlap (I6). Both sit left of centre, clear of
+       wiki-ai-sidebar's own left-aligned title and right-aligned buttons. */
+    .search-toggle-floating {
+      position: fixed;
+      top: 0;
+      left: 48px;
+      height: 64px;
+      display: flex;
+      align-items: center;
       z-index: 4;
       color: #fff;
     }
