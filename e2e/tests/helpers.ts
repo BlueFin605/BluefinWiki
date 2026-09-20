@@ -61,3 +61,28 @@ export async function routeFailure(
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }),
   );
 }
+
+export async function dragToRowZone(
+  page: Page,
+  source: Locator,
+  targetRow: Locator,
+  zone: 'before' | 'after' | 'onto',
+): Promise<void> {
+  const s = await source.boundingBox();
+  const t = await targetRow.boundingBox();
+  if (!s || !t) throw new Error('dragToRowZone: source or target has no bounding box');
+
+  const targetY =
+    zone === 'before' ? t.y + t.height * 0.1 : zone === 'after' ? t.y + t.height * 0.9 : t.y + t.height * 0.5;
+  const targetX = t.x + t.width / 2;
+
+  await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(s.x + s.width / 2 + 10, s.y + s.height / 2 + 5, { steps: 5 });
+  await page.waitForTimeout(100);
+  // Single committed move to the pre-computed target point — no re-read of
+  // targetRow's box after this point (see doc comment above).
+  await page.mouse.move(targetX, targetY, { steps: 15 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+}
