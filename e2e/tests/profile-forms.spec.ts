@@ -14,7 +14,7 @@ test.describe('Profile page', () => {
     await expect(page.getByText('Profile updated.')).toBeVisible();
   });
 
-  test('change-password sends the access token via X-Access-Token (regression: fe4b1f9)', async ({ page }) => {
+  test('change-password sends a non-empty X-Access-Token header (partial regression guard: fe4b1f9)', async ({ page }) => {
     await page.goto('/profile');
 
     let capturedHeader: string | undefined;
@@ -34,6 +34,12 @@ test.describe('Profile page', () => {
     await submit.click();
 
     await expect(page.getByText('Password changed.')).toBeVisible();
+    // NOTE: in disableAuth mode ID_TOKEN_KEY and ACCESS_TOKEN_KEY are both
+    // seeded with the identical literal 'mock-jwt-token' (see auth.ts's
+    // bootstrap()), so this assertion cannot distinguish an ID token from an
+    // access token — it only proves the header exists and is non-empty. It
+    // guards against the header being dropped entirely, not against the
+    // fe4b1f9 bug (right header, wrong token value) being reintroduced.
     expect(capturedHeader, 'X-Access-Token header must be present and non-empty').toBeTruthy();
 
     // Fields clear on success.

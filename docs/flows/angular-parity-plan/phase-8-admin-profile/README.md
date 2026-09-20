@@ -30,10 +30,16 @@ do them together or in sequence.
       affordance to `/pages`. Automated in `e2e/tests/admin-back-nav.spec.ts`.
 - [x] Manual: Profile can change the display name (persists, toast,
       `refreshUser`) and change the password. Automated in
-      `e2e/tests/profile-forms.spec.ts` — the display-name half covers a real
-      save+persist round trip; the change-password half is automated as a
-      request-shape/regression check, not a real Cognito success path — local
-      LocalStack has no Cognito service.
+      `e2e/tests/profile-forms.spec.ts` — the display-name half covers only
+      the save + `'Profile updated.'` toast, not persistence across a reload;
+      reload-persistence is a known, separate bug (`extractUser()` in
+      `frontend/src/app/core/auth/auth.ts` re-derives `displayName` from a
+      stale Cognito ID-token claim on every bootstrap, not from the persisted
+      profile, so a saved change doesn't survive a reload today — see commit
+      `57bb19e`), not something this test covers or implies. The
+      change-password half is automated as a request-shape/regression check,
+      not a real Cognito success path — local LocalStack has no Cognito
+      service.
 - [x] Manual: Members — Edit is disabled for `deleted` users; the load error
       has a Retry. Automated in `e2e/tests/members-admin.spec.ts`.
 - [x] Manual: Invitations — status filter pills work; a created invitation

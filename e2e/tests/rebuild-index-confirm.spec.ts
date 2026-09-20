@@ -1,5 +1,18 @@
 import { test, expect } from '@playwright/test';
 
+// HAZARD: the "confirming runs the rebuild..." test below triggers
+// backend/src/storage/rebuild-page-index.ts, which snapshots the live page
+// set at the start of the run and, at the end, deletes every DynamoDB
+// page-index row whose guid isn't in that snapshot (treating it as an
+// orphan). Playwright's config runs fullyParallel with multiple workers, so
+// pages created by other specs running concurrently during this test's
+// up-to-110s window can be swept as "orphans" — self-healed on next lookup
+// via a full-bucket S3 scan, but this adds load and is a plausible (not
+// confirmed) cause of the toc-breadcrumbs and property-inheritance specs
+// each flaking once across two full-suite runs during this plan's Task 6
+// verification. Left as a documented hazard rather than a config change
+// (e.g. a serial project) — see docs/flows/angular-parity-plan/README.md's
+// Phase 8 status-board row for the tracked follow-up.
 test.describe('Rebuild page index', () => {
   test('requires confirmation before running; cancel makes no request', async ({ page }) => {
     let requestFired = false;
