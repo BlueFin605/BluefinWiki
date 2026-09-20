@@ -80,9 +80,13 @@ test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 
     // ever dragged above. `.inspector-divider` has its own drag handler
     // (`onInspectorResize` -> `Layout.inspectorWidth`, pages-view.ts) and its
     // own persistence path — mirror the same drag + reload proof for it.
-    if (!(await isDrawerOpen(inspector(page)))) {
-      await toggleInspector(page);
-    }
+    // The reload above already persisted inspectorVisible: true (opened via
+    // toggleInspector at the top of this test), so it reopens on its own
+    // once `[opened]="inspectorOpened()"`'s guid/metadata resolve. A
+    // check-then-toggle here would race that async gate and could read
+    // "closed" before it settles, flipping the persisted state back off
+    // (whole-branch review finding N1).
+    await expect(inspector(page)).toHaveClass(/mat-drawer-opened/);
     const inspectorWidthBeforeDrag = (await inspector(page).boundingBox())!.width;
 
     // Under this suite's concurrent workers, a single incremental drag
@@ -111,9 +115,7 @@ test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 
     expect(Math.abs(inspectorWidthAfterDrag - inspectorWidthBeforeDrag)).toBeGreaterThan(20);
 
     await page.reload();
-    if (!(await isDrawerOpen(inspector(page)))) {
-      await toggleInspector(page);
-    }
+    await expect(inspector(page)).toHaveClass(/mat-drawer-opened/);
     const inspectorWidthAfterReload = (await inspector(page).boundingBox())!.width;
     expect(inspectorWidthAfterReload).toBeCloseTo(inspectorWidthAfterDrag, 0);
 
