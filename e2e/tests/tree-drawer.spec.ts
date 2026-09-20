@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/page-tree';
-import { openTreeDrawer } from './helpers';
+import { openTreeDrawer, toggleInspector, sidebar, inspector } from './helpers';
 
 test.describe('Tree drawer (Phase 1b matrix items 12-15)', () => {
   test('item 12/29: the tree drawer fills the full height of its container on desktop', async ({
@@ -9,7 +9,7 @@ test.describe('Tree drawer (Phase 1b matrix items 12-15)', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/pages/${pageTree.rootGuid}`);
 
-    const sidenavBox = await page.locator('mat-sidenav.sidebar').boundingBox();
+    const sidenavBox = await sidebar(page).boundingBox();
     const containerBox = await page.locator('mat-sidenav-container.body').boundingBox();
 
     expect(sidenavBox).not.toBeNull();
@@ -21,6 +21,16 @@ test.describe('Tree drawer (Phase 1b matrix items 12-15)', () => {
     // collapsing the drawer to its content's height (~74px) instead of the
     // container's full height (~650px+).
     expect(sidenavBox!.height).toBeGreaterThan(containerBox!.height - 2);
+
+    // Whole-branch review finding I1: the same `position: relative` fix
+    // (commit 8fa0f97) was applied to BOTH `.body .sidebar` above AND
+    // `.body .inspector` in `pages-view.ts` — reintroducing it on the
+    // inspector rule alone previously flipped no test in this suite. Mirror
+    // the sidebar assertion against the desktop inspector to close that gap.
+    await toggleInspector(page);
+    const inspectorBox = await inspector(page).boundingBox();
+    expect(inspectorBox).not.toBeNull();
+    expect(inspectorBox!.height).toBeGreaterThan(containerBox!.height - 2);
   });
 
   test('item 12: hamburger only appears below 1024 and opens the drawer at min(85vw, 320px)', async ({
@@ -35,7 +45,7 @@ test.describe('Tree drawer (Phase 1b matrix items 12-15)', () => {
     await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
     await openTreeDrawer(page);
 
-    const sidenav = page.locator('mat-sidenav.sidebar');
+    const sidenav = sidebar(page);
     await expect(sidenav).toHaveClass(/mat-drawer-opened/);
     const box = await sidenav.boundingBox();
     expect(box!.width).toBeLessThanOrEqual(320);
@@ -58,7 +68,7 @@ test.describe('Tree drawer (Phase 1b matrix items 12-15)', () => {
       .getByRole('button', { name: 'Expand' })
       .click();
     await page.getByRole('tree').getByText(`${pageTree.runId} Child`).click();
-    await expect(page.locator('mat-sidenav.sidebar')).not.toHaveClass(/mat-drawer-opened/);
+    await expect(sidebar(page)).not.toHaveClass(/mat-drawer-opened/);
 
     await openTreeDrawer(page);
     // `.mat-drawer-backdrop` spans the full container (same top-left corner as
@@ -69,7 +79,7 @@ test.describe('Tree drawer (Phase 1b matrix items 12-15)', () => {
     const backdrop = page.locator('.mat-drawer-backdrop');
     const backdropBox = await backdrop.boundingBox();
     await backdrop.click({ position: { x: (backdropBox?.width ?? 360) - 5, y: 5 } });
-    await expect(page.locator('mat-sidenav.sidebar')).not.toHaveClass(/mat-drawer-opened/);
+    await expect(sidebar(page)).not.toHaveClass(/mat-drawer-opened/);
   });
 
   test('item 14: desktop→mobile→desktop flip re-pins the tree with no backdrop', async ({
@@ -78,13 +88,13 @@ test.describe('Tree drawer (Phase 1b matrix items 12-15)', () => {
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/pages/${pageTree.rootGuid}`);
-    await expect(page.locator('mat-sidenav.sidebar')).toHaveClass(/mat-drawer-side/);
+    await expect(sidebar(page)).toHaveClass(/mat-drawer-side/);
 
     await page.setViewportSize({ width: 360, height: 640 });
-    await expect(page.locator('mat-sidenav.sidebar')).not.toHaveClass(/mat-drawer-side/);
+    await expect(sidebar(page)).not.toHaveClass(/mat-drawer-side/);
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(page.locator('mat-sidenav.sidebar')).toHaveClass(/mat-drawer-side/);
+    await expect(sidebar(page)).toHaveClass(/mat-drawer-side/);
     await expect(page.locator('.mat-drawer-backdrop')).toHaveCount(0);
   });
 

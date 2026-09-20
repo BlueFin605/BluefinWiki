@@ -1,27 +1,5 @@
 import { test, expect } from '../fixtures/page-tree';
-import { openAiOverlay, openTreeDrawer, toggleInspector } from './helpers';
-
-/**
- * Item 6 only: below 1024, `.ai-overlay` is deliberately raised above
- * `.topbar` (pages-view.ts, z-index 3 vs 2 — the documented fix for review
- * C1's own bug, where the overlay's own header used to sit *behind* the
- * toolbar). A side effect: the toolbar's "Search" button is now itself fully
- * covered by the overlay while it's open, so a real click on it can never
- * land — this is not a transient animation timing issue (confirmed via a
- * scripted Playwright probe: the click keeps failing the same way
- * indefinitely once the overlay has settled). The product already ships a
- * second, real way to reach search from anywhere regardless of what's on
- * top — the global Ctrl/Cmd+K listener (`pages-view.ts` `onWindowKeydown`),
- * which is exactly why the search CDK overlay was engineered to render above
- * `.ai-overlay` in the first place (per the same z-index comment: "the
- * search CDK overlay ... rendered outside .pages-shell entirely"). Using it
- * here — instead of the shared `openSearch` helper's click — exercises the
- * real, reachable trigger for this specific scenario without touching the
- * assertions below.
- */
-async function openSearchViaShortcut(page: import('@playwright/test').Page): Promise<void> {
-  await page.keyboard.press('Control+k');
-}
+import { openAiOverlay, openTreeDrawer, toggleInspector, sidebar, inspector } from './helpers';
 
 test.describe('Stacking / paint order (Phase 1b matrix items 1-6)', () => {
   test('item 1: mobile AI overlay header (New chat, Close) is visible and clickable, not hidden behind the app toolbar', async ({
@@ -65,7 +43,7 @@ test.describe('Stacking / paint order (Phase 1b matrix items 1-6)', () => {
     await expect(page.locator('wiki-markdown-toolbar')).toHaveClass(/bottom-pinned/);
 
     await toggleInspector(page);
-    const sheet = page.locator('mat-sidenav.inspector');
+    const sheet = inspector(page);
     await expect(sheet).toHaveClass(/mat-drawer-opened/);
 
     const toolbarBox = await page.locator('wiki-markdown-toolbar').boundingBox();
@@ -105,11 +83,11 @@ test.describe('Stacking / paint order (Phase 1b matrix items 1-6)', () => {
     await page.goto(`/pages/${pageTree.rootGuid}/edit`);
 
     await toggleInspector(page);
-    await expect(page.locator('mat-sidenav.inspector')).toHaveClass(/mat-drawer-opened/);
+    await expect(inspector(page)).toHaveClass(/mat-drawer-opened/);
 
     await openTreeDrawer(page);
-    await expect(page.locator('mat-sidenav.sidebar')).toHaveClass(/mat-drawer-opened/);
-    await expect(page.locator('mat-sidenav.inspector')).not.toHaveClass(/mat-drawer-opened/);
+    await expect(sidebar(page)).toHaveClass(/mat-drawer-opened/);
+    await expect(inspector(page)).not.toHaveClass(/mat-drawer-opened/);
     await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toHaveCount(1);
   });
 
@@ -143,7 +121,7 @@ test.describe('Stacking / paint order (Phase 1b matrix items 1-6)', () => {
     await expect(page.locator('.ai-overlay')).toBeVisible();
 
     await openTreeDrawer(page);
-    await expect(page.locator('mat-sidenav.sidebar')).toHaveClass(/mat-drawer-opened/);
+    await expect(sidebar(page)).toHaveClass(/mat-drawer-opened/);
     await expect(page.locator('.ai-overlay')).toHaveCount(0);
   });
 
@@ -152,7 +130,17 @@ test.describe('Stacking / paint order (Phase 1b matrix items 1-6)', () => {
     await page.goto(`/pages/${pageTree.rootGuid}`);
 
     await openAiOverlay(page);
-    await openSearchViaShortcut(page);
+    // Whole-branch review finding I6 (fixed in commit 655fcc0): Search is now
+    // genuinely reachable via a hoisted floating button while the mobile AI
+    // overlay is open — the same technique as the hamburger (item 5). Its
+    // `aria-label` is "Search", same as the toolbar's own copy; the two are
+    // mutually exclusive by `@if (!bp.isDesktop() && aiOpen())` in
+    // `pages-view.ts`, so only one exists in the DOM at a time and this
+    // resolves to whichever copy is currently rendered. A real click
+    // succeeding (not the old Ctrl/Cmd+K workaround this test used to route
+    // around the reachability bug) proves genuine reachability, matching how
+    // item 5 already tests the analogous hamburger case with a real click.
+    await page.getByRole('button', { name: 'Search' }).click();
 
     await expect(page.getByRole('dialog', { name: 'Search wiki' })).toBeVisible();
     // A real click succeeding proves the dialog's own close control is on top

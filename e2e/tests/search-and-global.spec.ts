@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/page-tree';
-import { openSearch, openAiOverlay, openTreeDrawer, toggleInspector } from './helpers';
+import { openSearch, openAiOverlay, openTreeDrawer, toggleInspector, sidebar, inspector, isDrawerOpen } from './helpers';
 
 test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 27-32)', () => {
   test('item 27: below 1024 the search dialog is full-bleed 100vw x 100vh with square corners', async ({
@@ -22,9 +22,11 @@ test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 
     await page.goto(`/pages/${pageTree.rootGuid}`);
     await openSearch(page);
     const pane = page.locator('.cdk-overlay-pane').filter({ has: page.getByRole('dialog', { name: 'Search wiki' }) });
-    // Wait for the dialog's enter animation (scale transform) to finish
-    // before measuring — grabbing boundingBox() immediately after open can
-    // catch it mid-transition and read a narrower, partially-animated width.
+    // `toBeVisible()` only confirms a non-zero box + `visibility` — it does
+    // not itself wait out a CSS enter-transition. In practice this dialog's
+    // width is set synchronously (no scale/width transform on open), so a
+    // `boundingBox()` read straight after is stable; re-add a real transition
+    // wait here if that ever changes.
     await expect(pane).toBeVisible();
     const box = await pane.boundingBox();
     expect(box!.width).toBeCloseTo(640, 0);
@@ -38,17 +40,17 @@ test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/pages/${pageTree.rootGuid}`);
 
-    await expect(page.locator('mat-sidenav.sidebar')).toHaveCSS('border-top-right-radius', '0px');
-    if (!(await page.locator('mat-sidenav.inspector').evaluate((el) => el.classList.contains('mat-drawer-opened')))) {
+    await expect(sidebar(page)).toHaveCSS('border-top-right-radius', '0px');
+    if (!(await isDrawerOpen(inspector(page)))) {
       await toggleInspector(page);
     }
-    await expect(page.locator('mat-sidenav.inspector')).toHaveCSS('border-top-left-radius', '0px');
+    await expect(inspector(page)).toHaveCSS('border-top-left-radius', '0px');
 
     // Capture the width *before* dragging so the persistence check below
     // can't pass trivially (e.g. a no-op drag leaving the width unchanged
     // both before and after reload would still satisfy a plain
     // widthAfterReload ≈ widthAfterDrag comparison).
-    const widthBeforeDrag = (await page.locator('mat-sidenav.sidebar').boundingBox())!.width;
+    const widthBeforeDrag = (await sidebar(page).boundingBox())!.width;
 
     const divider = page.locator('.tree-divider [role="separator"]');
     const box = await divider.boundingBox();
@@ -66,12 +68,54 @@ test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 
     }
     await page.mouse.up();
 
-    const widthAfterDrag = (await page.locator('mat-sidenav.sidebar').boundingBox())!.width;
+    const widthAfterDrag = (await sidebar(page).boundingBox())!.width;
     expect(Math.abs(widthAfterDrag - widthBeforeDrag)).toBeGreaterThan(20);
 
     await page.reload();
-    const widthAfterReload = (await page.locator('mat-sidenav.sidebar').boundingBox())!.width;
+    const widthAfterReload = (await sidebar(page).boundingBox())!.width;
     expect(widthAfterReload).toBeCloseTo(widthAfterDrag, 0);
+
+    // Whole-branch review finding I2: this test's own name claims "both
+    // resize dividers persist across a reload", but only the tree-divider was
+    // ever dragged above. `.inspector-divider` has its own drag handler
+    // (`onInspectorResize` -> `Layout.inspectorWidth`, pages-view.ts) and its
+    // own persistence path — mirror the same drag + reload proof for it.
+    if (!(await isDrawerOpen(inspector(page)))) {
+      await toggleInspector(page);
+    }
+    const inspectorWidthBeforeDrag = (await inspector(page).boundingBox())!.width;
+
+    // Under this suite's concurrent workers, a single incremental drag
+    // sequence can occasionally land on 0 registered movement (the same
+    // CDK-drag-needs-real-pointer-cadence sensitivity the tree-divider drag
+    // above already works around) — retry the gesture itself, not the whole
+    // test, if the first pass didn't produce a real resize.
+    let inspectorWidthAfterDrag = inspectorWidthBeforeDrag;
+    for (let attempt = 0; attempt < 3 && Math.abs(inspectorWidthAfterDrag - inspectorWidthBeforeDrag) <= 20; attempt++) {
+      const inspectorDivider = page.locator('.inspector-divider [role="separator"]');
+      const inspectorBox = await inspectorDivider.boundingBox();
+      const inspectorStartX = inspectorBox!.x + inspectorBox!.width / 2;
+      const inspectorStartY = inspectorBox!.y + inspectorBox!.height / 2;
+      await page.mouse.move(inspectorStartX, inspectorStartY);
+      await page.mouse.down();
+      // The inspector is right-anchored (`onInspectorResize`: width = the
+      // shell's right edge minus the pointer's X), so dragging its LEFT-edge
+      // divider further LEFT grows it — the mirror image of the tree-divider's
+      // drag-right-to-grow direction above.
+      for (let i = 1; i <= 10; i++) {
+        await page.mouse.move(inspectorStartX - i * 6, inspectorStartY, { steps: 2 });
+      }
+      await page.mouse.up();
+      inspectorWidthAfterDrag = (await inspector(page).boundingBox())!.width;
+    }
+    expect(Math.abs(inspectorWidthAfterDrag - inspectorWidthBeforeDrag)).toBeGreaterThan(20);
+
+    await page.reload();
+    if (!(await isDrawerOpen(inspector(page)))) {
+      await toggleInspector(page);
+    }
+    const inspectorWidthAfterReload = (await inspector(page).boundingBox())!.width;
+    expect(inspectorWidthAfterReload).toBeCloseTo(inspectorWidthAfterDrag, 0);
 
     await expect(page.locator('.ai-pane')).toHaveCount(0);
     await openAiOverlay(page);
@@ -131,7 +175,7 @@ test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto(`/pages/${pageTree.rootGuid}`);
     await openTreeDrawer(page);
-    await expect(page.locator('mat-sidenav.sidebar')).toHaveClass(/mat-drawer-opened/);
+    await expect(sidebar(page)).toHaveClass(/mat-drawer-opened/);
 
     await page.setViewportSize({ width: 640, height: 360 });
     await page.setViewportSize({ width: 360, height: 640 });
@@ -143,9 +187,7 @@ test.describe('Search, desktop parity, and global chrome (Phase 1b matrix items 
     // Either the drawer is still cleanly open, or cleanly closed — never a
     // dangling shown backdrop with no drawer to match it.
     const backdropShown = (await page.locator('.mat-drawer-backdrop.mat-drawer-shown').count()) > 0;
-    const drawerOpen = await page
-      .locator('mat-sidenav.sidebar')
-      .evaluate((el) => el.classList.contains('mat-drawer-opened'));
+    const drawerOpen = await isDrawerOpen(sidebar(page));
     expect(backdropShown).toBe(drawerOpen);
   });
 });

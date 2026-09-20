@@ -37,6 +37,30 @@ test.describe('Editor bar + markdown toolbar (Phase 1b matrix items 16-22)', () 
     await expect(mobileToggle.getByRole('radio', { name: 'Split' })).toBeHidden();
     await expect(mobileToggle.getByRole('radio', { name: 'Edit' })).toBeVisible();
     await expect(mobileToggle.getByRole('radio', { name: 'Preview' })).toBeVisible();
+
+    // Whole-branch review finding I4: `toBeVisible()` only checks a non-zero
+    // bounding box + `visibility` — it does NOT account for ancestor
+    // `overflow: hidden` clipping, so it would still report these radios
+    // "visible" even while `.mode-toggle` is crushed to near-zero width by
+    // its flex parent (the exact bug fixed in commit 0124587, page-detail.ts
+    // `.bar`/`.mode-toggle`). Assert the toggle group's OWN rendered width is
+    // meaningfully non-zero to make this coverage deliberate rather than
+    // incidental.
+    const modeToggleBox = await mobileToggle.boundingBox();
+    expect(modeToggleBox!.width).toBeGreaterThan(80);
+
+    // Roll-up item 4 (upgraded by the whole-branch reviewer): prove the mode
+    // actually snapped to 'edit', not just that some buttons are visible —
+    // `.editor-surface` no longer carries `.split` once Split -> Edit has
+    // happened (via the resize-to-mobile snap above, which forces Split back
+    // to Edit; see page-detail.ts's editorMode() clamp).
+    await expect(page.locator('.editor-surface')).not.toHaveClass(/split/);
+
+    // Clicking Edit explicitly (the other route into 'edit' mode) proves the
+    // same thing when the mode change is user-driven rather than a resize
+    // side effect.
+    await mobileToggle.getByRole('radio', { name: 'Edit' }).click();
+    await expect(page.locator('.editor-surface')).not.toHaveClass(/split/);
   });
 
   /**
@@ -66,7 +90,6 @@ test.describe('Editor bar + markdown toolbar (Phase 1b matrix items 16-22)', () 
     const boxBeforeScroll = await toolbar.boundingBox();
 
     await scroller.evaluate((el) => el.scrollBy(0, 500));
-    await page.mouse.wheel(0, 500);
 
     const scrollTopAfter = await scroller.evaluate((el) => el.scrollTop);
     const boxAfterScroll = await toolbar.boundingBox();
