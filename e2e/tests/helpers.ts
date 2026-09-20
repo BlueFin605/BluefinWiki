@@ -50,3 +50,14 @@ export function inspector(page: Page): Locator {
 export async function isDrawerOpen(locator: Locator): Promise<boolean> {
   return locator.evaluate((el) => el.classList.contains('mat-drawer-opened'));
 }
+
+export async function routeFailure(
+  page: Page,
+  urlPattern: string | RegExp,
+  status: number,
+  body: unknown = { message: 'Simulated failure' },
+): Promise<void> {
+  await page.route(urlPattern, (route) =>
+    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }),
+  );
+}
