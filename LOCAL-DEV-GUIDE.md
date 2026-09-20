@@ -156,7 +156,14 @@ npm run test:integration
 # All tests
 cd backend
 npm run test:all
+
+# End-to-end tests (Playwright, against the already-running dev stack)
+cd e2e
+npx playwright test
 ```
+
+See [`e2e/README.md`](e2e/README.md) for the E2E suite's prerequisites and
+how to run a single spec file.
 
 ### Debugging
 
