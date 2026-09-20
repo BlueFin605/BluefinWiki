@@ -493,10 +493,14 @@ export class PageTreeItem {
     if (zone === 'onto') {
       // Reparent: dragged becomes a child of target (unchanged pre-2.1 path).
       // Step 2.2: re-run the type-constraint check `enterPredicate` applied on
-      // hover — the drop must not slip an illegal child past the backstop.
+      // hover — a silent backstop so the drop can't slip an illegal child past
+      // it. In practice a real pointer-driven drag never reaches here with
+      // warnings: CDK's `enterPredicate` already refused entry into a
+      // disallowed target, so the live hover feedback (`.drop-invalid` +
+      // inline warning, see `onRowDragOver`/`dropWarnings` above) is what the
+      // user actually sees; this guard only guards a synthetic/test-only path.
       const warnings = checkTypeConstraints(dragged, target, this.pageTypesMap());
       if (warnings.length > 0) {
-        window.alert('Cannot move here:\n' + warnings.join('\n'));
         return;
       }
       await this.pages.movePage(dragged.guid, { newParentGuid: target.guid });

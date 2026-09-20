@@ -34,8 +34,11 @@ Parallel-safe groups: {2.3, 2.5, 2.8} independent; {2.1 → 2.2} sequential;
 - [ ] Manual: drag a sibling above/below another → order persists after reload.
       (Automated: covered by jsdom tests incl. the nested-forwarding fix;
       **mouse-only** — touch drag-drop is a known residual gap, see below.)
-- [ ] Manual: drag a page onto a disallowed parent type → amber warning +
-      blocked drop + explanatory alert.
+- [ ] Manual: drag a page onto a disallowed parent type → amber warning shown
+      during hover, drop silently blocked (no alert — the post-drop dialog
+      was unreachable via any real pointer-driven drag and was removed as
+      dead code; the hover-time amber highlight + inline warning is the real
+      blocking UX).
 - [ ] Manual: `→`/`←` expand/collapse tree rows; creating a child expands the
       parent.
 - [ ] Manual: rename a page → the field is pre-filled with its real title.

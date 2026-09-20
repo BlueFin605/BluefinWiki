@@ -562,18 +562,15 @@ describe('PageTreeItem', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.drop-invalid')).toBeNull();
   });
 
-  it('an onto drop into a disallowed target alerts the reasons and does NOT call movePage', async () => {
+  it('an onto drop into a disallowed target is silently blocked and does NOT call movePage', async () => {
     const { item } = await renderTypedTarget();
     const moveSpy = jest.spyOn(TestBed.inject(Pages), 'movePage').mockResolvedValue(undefined);
-    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => undefined);
 
     item.onListEntered();
     item.onRowDragOver(dragOverEvent(50, 0, 100)); // onto
     await item.onDrop(dropEvent({ guid: 'moving', pageType: 'blocked-type' }, { guid: 'target', pageType: 'folder' }));
 
     expect(moveSpy).not.toHaveBeenCalled();
-    expect(alertSpy).toHaveBeenCalledWith('Cannot move here:\nFolder does not allow Blocked as a child');
-    alertSpy.mockRestore();
   });
 
   // ---- Final review #2: the enterPredicate is zone-aware ------------------
