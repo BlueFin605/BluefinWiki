@@ -771,14 +771,20 @@ export class PagesView {
     const newParentGuid = req.targetParentGuid;
 
     // Step 2.2: a cross-parent before/after drop re-runs the type-constraint
-    // check the tree's `enterPredicate` applied on hover, so the drop cannot
-    // slip an illegal child past the backstop. A same-parent reorder never
-    // changes the parent, so it is exempt. The check's "target" is the parent
-    // the moving page would join, so it goes through the shared
-    // `checkSiblingDropAllowed` — the same helper the row's `enterPredicate`,
-    // its `.drop-invalid` hover warning and the root drop zone use. Only the
-    // parent's `.pageType` matters, so `req.targetParentType` is all it needs —
-    // no extra fetch.
+    // check the tree's `enterPredicate` applied on hover — a silent backstop
+    // so the drop can't slip an illegal child past it. A same-parent reorder
+    // never changes the parent, so it is exempt. In practice a real
+    // pointer-driven drag never reaches here with warnings: `page-tree-item`'s
+    // `enterPredicate` is zone-aware and already refused entry into a
+    // disallowed target for `before`/`after` exactly as it does for `onto`, so
+    // `dropRequested` (which is what calls `onTreeDrop`) never fires for an
+    // illegal cross-parent move — the live hover feedback (`.drop-invalid` +
+    // inline warning) is what the user actually sees; this guard only guards a
+    // synthetic/test-only path. The check's "target" is the parent the moving
+    // page would join, so it goes through the shared `checkSiblingDropAllowed`
+    // — the same helper the row's `enterPredicate`, its `.drop-invalid` hover
+    // warning and the root drop zone use. Only the parent's `.pageType`
+    // matters, so `req.targetParentType` is all it needs — no extra fetch.
     if (newParentGuid !== req.movingParentGuid) {
       const warnings = checkSiblingDropAllowed(
         req.movingPage,
@@ -786,7 +792,6 @@ export class PagesView {
         this.pageTypesMap(),
       );
       if (warnings.length > 0) {
-        window.alert('Cannot move here:\n' + warnings.join('\n'));
         return;
       }
     }

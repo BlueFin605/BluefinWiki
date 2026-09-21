@@ -1583,7 +1583,7 @@ describe('PagesView', () => {
     return { ...result, http };
   }
 
-  it('cross-parent drop onto a type-disallowed parent alerts the reasons and does NOT move or reorder', async () => {
+  it('a cross-parent before/after drop into a type-disallowed parent is silently blocked and does NOT move or reorder', async () => {
     const { fixture, http } = await renderShellWithTypes();
     const pages = TestBed.inject(Pages);
     const fetchSpy = jest.spyOn(pages, 'fetchChildren').mockResolvedValue([]);
@@ -1599,7 +1599,13 @@ describe('PagesView', () => {
     });
     await settle();
 
-    expect(alertSpy).toHaveBeenCalledWith('Cannot move here:\nFolder does not allow TV Show as a child');
+    // Step 2.2 review (I2): this on-drop re-check is a silent backstop — a real
+    // pointer-driven drag never reaches it with warnings, since `page-tree-item`'s
+    // zone-aware `enterPredicate` already refuses entry into a disallowed target
+    // for `before`/`after` exactly as it does for `onto`, so `dropRequested` never
+    // fires here in practice. No alert; what matters is that the move/reorder is
+    // still blocked.
+    expect(alertSpy).not.toHaveBeenCalled();
     expect(moveSpy).not.toHaveBeenCalled();
     expect(reorderSpy).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
