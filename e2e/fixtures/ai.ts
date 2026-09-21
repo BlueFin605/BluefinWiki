@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { openAiOverlay } from '../tests/helpers';
 
 /**
  * Stubs Chrome's on-device Prompt API (`LanguageModel`), which isn't
@@ -59,4 +60,23 @@ export async function getPromptCalls(page: Page): Promise<string[]> {
   return page.evaluate(
     () => (window as unknown as { __promptCalls: string[] }).__promptCalls ?? [],
   );
+}
+
+/**
+ * Opens the AI overlay and sends a single message -- the `open -> fill
+ * "Message" -> Enter` sequence every Phase 7 AI sidebar e2e spec needs to
+ * kick off a turn. Reuses `openAiOverlay` (`../tests/helpers`) rather than
+ * hand-rolling the "Open AI assistant" click a second time.
+ *
+ * Only for the FIRST send of a test, where opening the sidebar and sending
+ * are back-to-back -- a test that sends a second message into an
+ * already-open sidebar (e.g. `ai-autoscroll.spec.ts`'s second turn), or that
+ * needs to do something else (like attach an instruction) between opening
+ * and sending, calls `openAiOverlay` and/or the fill+Enter steps directly
+ * instead (finding 3, phase-7 final review).
+ */
+export async function sendAiMessage(page: Page, text: string): Promise<void> {
+  await openAiOverlay(page);
+  await page.getByRole('textbox', { name: 'Message' }).fill(text);
+  await page.keyboard.press('Enter');
 }

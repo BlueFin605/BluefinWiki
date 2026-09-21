@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/page-tree';
-import { installLanguageModelStub } from '../fixtures/ai';
+import { installLanguageModelStub, sendAiMessage } from '../fixtures/ai';
 import { API_BASE_URL, AUTH_HEADER } from '../fixtures/api';
 
 test.describe('AI action runner', () => {
@@ -39,9 +39,7 @@ test.describe('AI action runner', () => {
     });
 
     await page.goto(`/pages/${pageTree.rootGuid}`);
-    await page.getByRole('button', { name: 'Open AI assistant' }).click();
-    await page.getByRole('textbox', { name: 'Message' }).fill('Create a page for me');
-    await page.keyboard.press('Enter');
+    await sendAiMessage(page, 'Create a page for me');
 
     const preview = page.getByRole('region', { name: 'Proposed AI action' });
     await expect(preview).toBeVisible();

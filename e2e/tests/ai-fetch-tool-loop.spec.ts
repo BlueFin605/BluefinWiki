@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/page-tree';
-import { installLanguageModelStub } from '../fixtures/ai';
+import { installLanguageModelStub, sendAiMessage } from '../fixtures/ai';
 
 /**
  * Covers the Phase 7 AI sidebar exit criterion: a `fetch_url` action proposed
@@ -50,9 +50,7 @@ test.describe('AI fetch_url tool loop', () => {
     ]);
 
     await page.goto(`/pages/${pageTree.rootGuid}`);
-    await page.getByRole('button', { name: 'Open AI assistant' }).click();
-    await page.getByRole('textbox', { name: 'Message' }).fill('What does example.com/widgets say?');
-    await page.keyboard.press('Enter');
+    await sendAiMessage(page, 'What does example.com/widgets say?');
 
     // Grey tool row appears automatically -- no Apply click, no user action.
     await expect(page.locator('.msg.tool .tool-row')).toBeVisible({ timeout: 10_000 });
@@ -110,9 +108,7 @@ test.describe('AI fetch_url tool loop', () => {
     ]);
 
     await page.goto(`/pages/${pageTree.rootGuid}`);
-    await page.getByRole('button', { name: 'Open AI assistant' }).click();
-    await page.getByRole('textbox', { name: 'Message' }).fill('Check several pages for me');
-    await page.keyboard.press('Enter');
+    await sendAiMessage(page, 'Check several pages for me');
 
     const toolRows = page.locator('.msg.tool .tool-row');
     await expect(toolRows).toHaveCount(3, { timeout: 15_000 });
