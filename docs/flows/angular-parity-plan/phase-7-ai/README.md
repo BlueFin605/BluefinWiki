@@ -26,13 +26,18 @@ and independent.
 
 ## Phase exit criteria
 
-- [ ] All step acceptance criteria met; `npm test` + `npm run lint` green.
-- [ ] Manual: propose a `create_page` action → Apply actually creates the page,
+- [x] All step acceptance criteria met; `npm test` + `npm run lint` green.
+- [x] Manual: propose a `create_page` action → Apply actually creates the page,
       the message shows applying → applied, GUIDs in the card render as titles.
-- [ ] Manual: ask something that needs a URL fetch → `fetch_url` runs
+- [x] Manual: ask something that needs a URL fetch → `fetch_url` runs
       automatically (≤3/turn), a grey tool row appears, the model continues with
       the result.
-- [ ] Manual: attach an instruction → its content is in the session; the picker
+- [x] Manual: attach an instruction → its content is in the session; the picker
       locks it "In context" until New chat; "Create" makes a child under
       "AI Instructions" and opens its editor.
-- [ ] Manual: the transcript auto-scrolls to the newest message.
+- [x] Manual: the transcript auto-scrolls to the newest message.
+
+All four items above are covered by real-browser Playwright specs
+(`e2e/tests/{ai-apply-action,ai-fetch-tool-loop,ai-instructions,ai-autoscroll}.spec.ts`,
+7 tests total, all passing) with zero production code changes required —
+see `docs/superpowers/plans/2026-09-20-phase-7-ai-e2e.md`.
