@@ -42,3 +42,17 @@ Parallel-safe: {5.1, 5.2, 5.5, 5.6} independent; {5.3 → 5.4} sequential;
       (boardable) types.
 - [ ] Manual: the Card Summary dialog edits title + properties, saves, and
       "Open full editor" opens a new tab.
+
+## Known debt
+
+- **Item 2 (>200-card pagination) e2e coverage deferred.** `e2e/tests/board-pagination.spec.ts`
+  exists (spec written and both selectors verified against the real DOM) but is `test.skip`'d.
+  Fixture creation (201 pages under one parent) cannot finish in bounded time: every page
+  creation calls `storagePlugin.listChildren(parentGuid)` to compute `sortOrder`, and
+  `S3StoragePlugin.listChildren` does a sequential per-child S3 round-trip — making bulk
+  creation under one parent O(n²). Measured: a single, zero-concurrency `POST /pages` at 150
+  existing siblings took 9.2s. Not fixable from the e2e side (batching/timeout tuning). User
+  chose to defer (2026-09-21) rather than fix the backend as part of this e2e plan. Real fix
+  belongs in `backend/src/pages/pages-create.ts`'s sortOrder computation and/or
+  `S3StoragePlugin.listChildren`'s per-child scan — see the skipped test's own comment for
+  full detail.
