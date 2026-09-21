@@ -126,7 +126,7 @@ const CHASE_ITERATIONS = 25;
 const CHASE_EASE_FACTOR = 0.3;
 /** Wait between chase steps, giving Angular/CDK time to process the move and re-render the sort preview. */
 const CHASE_STEP_WAIT_MS = 20;
-/** Fraction of the target row's height that marks its `before` zone (top 10%, mirrors `page-tree-item.ts`'s `zoneFromClientY`). */
+/** Aim point inside the target row's `before` zone (top 10% of its height) — a point well within `page-tree-item.ts`'s `zoneFromClientY` `before` band (`ratio < 0.25`), not the band's own boundary. */
 const BEFORE_ZONE_FRACTION = 0.1;
 
 /**

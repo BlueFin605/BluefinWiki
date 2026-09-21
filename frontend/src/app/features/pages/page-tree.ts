@@ -124,8 +124,14 @@ export class PageTree {
    * `cdkDropListEnterPredicate` (there is no row to compute a zone against), so
    * the type check happens here, on drop: the root is a "no parent" target, which
    * `checkSiblingDropAllowed` models with a `null` parent page type. A page whose
-   * type demands a specific parent (`allowAnyParent: false`) is refused with the
-   * same alert-and-abort the `onto` and cross-parent drop paths use.
+   * type demands a specific parent (`allowAnyParent: false`) is refused with an
+   * alert-and-abort here — unlike the `onto` and cross-parent drop paths (whose
+   * own alerts were removed as dead code: their `cdkDropListEnterPredicate`
+   * rejects entry before a real drag ever reaches this check, so they now abort
+   * silently, relying on the hover-time `.drop-invalid` warning instead). This
+   * root zone has no such predicate, so its alert is the only one still reachable
+   * by a real pointer-driven drop. See `docs/flows/angular-parity-plan/phase-2-tree-crud/step-2.2-tree-dnd-type-constraints-ui.md`'s
+   * amendment note for the full history.
    */
   async onRootDrop(event: CdkDragDrop<null>): Promise<void> {
     const dragged = event.item.data as PageSummary | undefined;

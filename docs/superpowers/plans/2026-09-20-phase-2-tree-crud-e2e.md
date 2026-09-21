@@ -134,6 +134,21 @@ amber class + `window.alert('Cannot move here:\n' + warnings)` + no PUT
 fired. Requires a type hierarchy set up via `page-types.ts`'s fixtures with
 `allowChildTypes` deliberately NOT including the dragged page's type.
 
+> **Amendment (2026-09-21):** the `window.alert(...)` above was found
+> unreachable via any real pointer-driven drag — Angular CDK's
+> `enterPredicate` rejects entry into a disallowed target's drop list before
+> `onDrop`/`onTreeDrop` ever run against it, for `onto` and cross-parent
+> `before`/`after` alike. Both alert call sites (`page-tree-item.ts`'s `onto`
+> path, `pages-view.ts`'s cross-parent path) were removed as dead code with
+> the human user's authorization; the underlying type-constraint checks are
+> kept as silent backstops. The `.drop-invalid` hover warning is the real,
+> working blocking UX and is what Task 2's and this amendment's e2e coverage
+> actually asserts. `page-tree.ts`'s root-drop-zone alert is a different,
+> genuinely reachable path (no `enterPredicate` gates it) and was left
+> unchanged. See
+> `docs/flows/angular-parity-plan/phase-2-tree-crud/step-2.2-tree-dnd-type-constraints-ui.md`'s
+> own amendment note for the full investigation.
+
 - [ ] **Step 1: Write the reorder test (item 1)**
 
 ```ts
