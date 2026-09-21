@@ -422,6 +422,15 @@ import { AiSidebar } from '../ai/ai-sidebar';
       display: flex;
       flex-direction: column;
     }
+    /*
+      Without flex: 1 + min-height: 0, wiki-ai-sidebar's containing block has
+      no definite height, so its own "height: 100%" can never resolve and the
+      transcript's overflow-y: auto never actually needs to scroll -- content
+      just grows the host and gets clipped by .ai-pane's overflow: hidden
+      instead. min-height: 0 overrides the flex item's default min-height:
+      auto, which would otherwise let the host grow to its content anyway.
+    */
+    .ai-pane wiki-ai-sidebar { flex: 1; min-height: 0; }
 
     /*
       Below 1024 the AI sidebar is a full-width fixed overlay above the content
@@ -445,6 +454,8 @@ import { AiSidebar } from '../ai/ai-sidebar';
       display: flex;
       flex-direction: column;
     }
+    /* Same missing-bounded-height issue as .ai-pane above -- see its comment. */
+    .ai-overlay wiki-ai-sidebar { flex: 1; min-height: 0; }
   `],
 })
 export class PagesView {
