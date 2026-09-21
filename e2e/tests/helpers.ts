@@ -182,3 +182,31 @@ export async function dragBeforeAdjacentSibling(page: Page, source: Locator, tar
   await page.waitForTimeout(100);
   await page.mouse.up();
 }
+
+export async function dragCardToColumn(
+  page: Page,
+  card: Locator,
+  column: Locator,
+  position: 'start' | 'end' | number = 'end',
+): Promise<void> {
+  const cardBox = await card.boundingBox();
+  const cardsContainer = column.locator('.cards');
+  const containerBox = await cardsContainer.boundingBox();
+  if (!cardBox || !containerBox) throw new Error('dragCardToColumn: missing bounding box');
+
+  const targetX = containerBox.x + containerBox.width / 2;
+  const targetY =
+    position === 'start'
+      ? containerBox.y + 10
+      : position === 'end'
+        ? containerBox.y + containerBox.height - 10
+        : containerBox.y + (position as number); // caller-supplied pixel offset for between-card drops
+
+  await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(cardBox.x + cardBox.width / 2 + 10, cardBox.y + cardBox.height / 2 + 5, { steps: 5 });
+  await page.waitForTimeout(100);
+  await page.mouse.move(targetX, targetY, { steps: 15 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+}
