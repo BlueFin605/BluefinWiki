@@ -17,6 +17,24 @@ warning, no tooltip, no `alert` explaining why. On-drop reparent does not
 re-check constraints. React shows: amber indicator + warning triangle + tooltip
 listing reasons + `dropEffect='none'` + `alert("Cannot move here: …")` on drop.
 
+> **Amendment (2026-09-21):** the on-drop `window.alert(...)` specified below
+> (Target behaviour's third bullet, and acceptance criterion 2) was found
+> unreachable via any real pointer-driven drag: `page-tree-item.ts`'s
+> `cdkDropListEnterPredicate` is zone-aware and already refuses entry into a
+> disallowed target for the `onto`, `before`, and `after` zones alike, so
+> `onDrop` (and `pages-view.onTreeDrop`, which handles the cross-parent
+> before/after case) can never actually be reached with warnings from a real
+> drag — only the hover-time `.drop-invalid` highlight + inline warning
+> (already specified above) is real, user-reachable UX. Both alerts were
+> removed as dead code, with the underlying `checkTypeConstraints` /
+> `checkSiblingDropAllowed` guard kept as a silent backstop. See
+> `docs/superpowers/plans/2026-09-20-phase-2-tree-crud-e2e.md` (task 2b and
+> the whole-branch fix wave's finding I2) for the investigation and the human
+> decision to remove the alert rather than fix its reachability. The root
+> drop zone (`page-tree.ts`'s `onRootDrop`) has no row to compute a zone
+> against, so it has no `enterPredicate` to reject entry — its own alert is
+> genuinely reachable and was NOT touched.
+
 ## Target behaviour
 
 - With the real map (step 1.1), `checkTypeConstraints(moving, target, map)`
@@ -27,6 +45,8 @@ listing reasons + `dropEffect='none'` + `alert("Cannot move here: …")` on drop
   - cursor / `dropEffect` reflects "not allowed".
 - On an attempted drop into a disallowed target: block the mutation and show
   `alert("Cannot move here:\n" + reasons.join("\n"))` (match React's copy).
+  **(Amended 2026-09-21 — see note above: this alert was dead code and has
+  been removed; the mutation is still blocked, silently.)**
 - **Re-check on drop**, not only on enter — the `onto` (reparent) path and the
   cross-parent before/after path both re-run `checkTypeConstraints` before
   calling `movePage`.
@@ -58,6 +78,9 @@ verify), `features/pages/page-tree-item.ts` (drag-over visuals + tooltip),
 
 - [ ] Disallowed targets show amber + warning triangle + reasons during drag.
 - [ ] Dropping on a disallowed target is blocked and `alert`s the reasons.
+      **(Amended 2026-09-21 — see amendment note above: the `alert` was
+      unreachable dead code and was removed; "is blocked" still holds,
+      silently — no dialog.)**
 - [ ] Constraints are re-checked on drop for both reparent and cross-parent
       reorder.
 - [ ] Tests cover allowed + disallowed, drag-over + drop.
