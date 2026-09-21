@@ -31,30 +31,38 @@ Parallel-safe groups: {2.3, 2.5, 2.8} independent; {2.1 → 2.2} sequential;
 - [x] All step acceptance criteria met; `npm test` + `npm run lint` green.
       (96 suites / 950 tests, lint + `npm run build` AOT clean, whole-branch
       review + fix-wave re-review both passed — see `.superpowers/sdd/progress.md`.)
-- [ ] Manual: drag a sibling above/below another → order persists after reload.
+- [x] Manual: drag a sibling above/below another → order persists after reload.
       (Automated: covered by jsdom tests incl. the nested-forwarding fix;
       **mouse-only** — touch drag-drop is a known residual gap, see below.)
-- [ ] Manual: drag a page onto a disallowed parent type → amber warning shown
+      Automated (real browser) in `e2e/tests/tree-drag-reorder.spec.ts`.
+- [x] Manual: drag a page onto a disallowed parent type → amber warning shown
       during hover, drop silently blocked (no alert — the post-drop dialog
       was unreachable via any real pointer-driven drag and was removed as
       dead code; the hover-time amber highlight + inline warning is the real
-      blocking UX).
-- [ ] Manual: `→`/`←` expand/collapse tree rows; creating a child expands the
-      parent.
-- [ ] Manual: rename a page → the field is pre-filled with its real title.
-- [ ] Manual: create a child under a typed parent → only allowed types offered,
+      blocking UX). Automated in `e2e/tests/tree-drag-reorder.spec.ts`.
+- [x] Manual: `→`/`←` expand/collapse tree rows; creating a child expands the
+      parent. Automated in `e2e/tests/tree-keyboard-nav.spec.ts`.
+- [x] Manual: rename a page → the field is pre-filled with its real title.
+      Already covered by the pre-existing `e2e/tests/page-rename.spec.ts`
+      (predates this plan; no new task was needed for this item).
+- [x] Manual: create a child under a typed parent → only allowed types offered,
       auto-selected when exactly one; new page opens in edit mode with
-      `# Title` boilerplate; parent expands.
-- [ ] Manual: create from a broken link → source markdown is rewritten to the
-      new GUID; "save the page" hint shown.
-- [ ] Manual: delete a page with children → `ConfirmDialog` with child-aware
-      copy; server error surfaced on failure.
+      `# Title` boilerplate; parent expands. Automated in
+      `e2e/tests/tree-create-scoped.spec.ts`.
+- [x] Manual: create from a broken link → source markdown is rewritten to the
+      new GUID; "save the page" hint shown. Automated in
+      `e2e/tests/broken-link-create.spec.ts`.
+- [x] Manual: delete a page with children → `ConfirmDialog` with child-aware
+      copy; server error surfaced on failure. Automated in
+      `e2e/tests/tree-delete-confirm.spec.ts`.
 
 **Status (2026-09-13): code-complete.** All 8 steps implemented + task-reviewed
 (spec ✅ each) + a whole-branch review (1 Critical + 5 Important found, all
 fixed in a follow-up wave, re-reviewed clean — **ready to merge: yes**). The
-manual walkthrough above (real browser, all 7 rows) is **still owed**, same as
-Phase 1b's responsive matrix — jsdom cannot verify actual pointer/CDK behavior.
+manual walkthrough's 7 rows are now covered by an automated Playwright suite —
+see `docs/superpowers/plans/2026-09-20-phase-2-tree-crud-e2e.md` for the design
+and how it was built — rather than a live manual walkthrough, same approach
+Phase 1b's responsive matrix used.
 
 **Known gap carried forward:** touch drag-drop still can't reach the
 before/after (positional-reorder) zones — CDK v21 gives a touch pointer
