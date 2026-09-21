@@ -1,6 +1,6 @@
 import { test, expect, createPage } from '../fixtures/page-tree';
 import { createPageType, deletePageType, allowChildTypes } from '../fixtures/page-types';
-import { toggleInspector, inspector, isDrawerOpen } from './helpers';
+import { toggleInspector, inspector } from './helpers';
 
 test.describe('Property inheritance on page creation', () => {
   test('creating a child page under a typed parent copies the parent\'s matching property values', async ({
@@ -56,9 +56,14 @@ test.describe('Property inheritance on page creation', () => {
 
       // Persists — this isn't just the modal's optimistic local state.
       await page.reload();
-      // The inspector's open/closed state itself persists across reload —
-      // only toggle it if it came back closed.
-      if (!(await isDrawerOpen(inspector(page)))) await toggleInspector(page);
+      // The inspector's open/closed state persists across reload
+      // (`inspectorVisible: true`, set by the toggleInspector() above) and
+      // reopens on its own once the page's guid/metadata resolve — a
+      // check-then-toggle here would race that async gate: reading "closed"
+      // before it settles and clicking would flip the persisted state back
+      // off just as it resolves open (search-and-global.spec.ts Finding N1).
+      // Wait for it to settle open instead of toggling.
+      await expect(inspector(page)).toHaveClass(/mat-drawer-opened/);
       await expect(page.getByLabel('priority', { exact: true })).toHaveValue('High');
     } finally {
       await deletePageType(request, typeGuid);
