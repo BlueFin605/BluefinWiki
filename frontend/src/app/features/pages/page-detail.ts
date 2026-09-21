@@ -1350,7 +1350,13 @@ export class PageDetail {
   async openBoardSettings(): Promise<void> {
     const page = this.resource.value();
     if (!page) return;
-    const pageTypesList = this.pageTypes.pageTypesResource().value() ?? [];
+    // Reuse the field-level resource (constructed in an injection context at
+    // class-init time), not `this.pageTypes.pageTypesResource()` called fresh
+    // here -- `rxResource()` calls `inject()` internally, and invoking the
+    // factory again from this click-handler method (outside any injection
+    // context) threw NG0203 and silently swallowed the dialog open (Task 6
+    // investigation, e2e/tests/board-settings-types.spec.ts).
+    const pageTypesList = this.pageTypesResource.value() ?? [];
     const data: BoardSettingsPanelData = {
       config: page.boardConfig ?? null,
       pageTypes: pageTypesList,
