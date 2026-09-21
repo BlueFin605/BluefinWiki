@@ -1,14 +1,21 @@
-import { test, expect } from '../fixtures/page-tree';
+import { test, expect, createPage } from '../fixtures/page-tree';
 
 test.describe('Renaming a page', () => {
   test('renaming the open page updates the tree row immediately and persists after reload', async ({
     page,
     pageTree,
+    request,
   }) => {
-    await page.goto(`/pages/${pageTree.childGuid}`);
+    // A dedicated page, not the shared `pageTree.childGuid` — this test
+    // permanently renames whatever page it targets, and `childGuid` is a
+    // worker-scoped fixture other spec files in this worker rely on for its
+    // original, stable title (toc-breadcrumbs.spec.ts's item 26 matches it
+    // with `exact: true` and broke when this test renamed it in place).
+    const oldName = `E2E-${pageTree.runId} Rename Target`;
+    const newName = `E2E-${pageTree.runId} Rename Target Renamed`;
+    const targetGuid = await createPage(request, oldName, { parentGuid: pageTree.rootGuid });
 
-    const oldName = `E2E-${pageTree.runId} Child`;
-    const newName = `E2E-${pageTree.runId} Child Renamed`;
+    await page.goto(`/pages/${targetGuid}`);
 
     // The tree does not auto-expand ancestors of the active page (by design) —
     // expand Root to reveal Child.
