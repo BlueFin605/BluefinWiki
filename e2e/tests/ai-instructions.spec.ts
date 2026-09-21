@@ -137,20 +137,27 @@ test.describe('AI instruction attachment', () => {
     // picker first (and doing so would leave its CDK overlay panel covering
     // this row, intercepting the click below).
     const newTitle = `E2E-${pageTree.runId} Created Instruction`;
-    // `instruction-picker.ts`'s create input has
-    // placeholder="New instruction title…" (aria-label "New instruction title").
-    await page.getByPlaceholder(/new instruction title/i).fill(newTitle);
-    // Button text toggles "Create" / "Creating…" -- anchor to avoid matching
-    // the in-flight label.
-    await page.getByRole('button', { name: /^create$/i }).click();
+    let newGuid: string | undefined;
 
-    await page.waitForURL(/\/pages\/.+\/edit/);
-    await expect(page.locator('wiki-markdown-toolbar')).toBeVisible();
+    try {
+      // `instruction-picker.ts`'s create input has
+      // placeholder="New instruction title…" (aria-label "New instruction title").
+      await page.getByPlaceholder(/new instruction title/i).fill(newTitle);
+      // Button text toggles "Create" / "Creating…" -- anchor to avoid matching
+      // the in-flight label.
+      await page.getByRole('button', { name: /^create$/i }).click();
 
-    const match = page.url().match(/\/pages\/([^/]+)\/edit/);
-    const newGuid = match?.[1];
-    if (newGuid) {
-      await deletePageRecursive(request, newGuid);
+      await page.waitForURL(/\/pages\/.+\/edit/);
+
+      const match = page.url().match(/\/pages\/([^/]+)\/edit/);
+      newGuid = match?.[1];
+      expect(newGuid).toBeTruthy();
+
+      await expect(page.locator('wiki-markdown-toolbar')).toBeVisible();
+    } finally {
+      if (newGuid) {
+        await deletePageRecursive(request, newGuid);
+      }
     }
   });
 });
