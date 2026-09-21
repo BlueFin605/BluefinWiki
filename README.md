@@ -203,6 +203,25 @@ cdk bootstrap                       # First time only
 cdk deploy --all
 ```
 
+# E2E Tests
+
+1. Start the Aspire dev stack first (the suite doesn't auto-start it) — frontend on :5173, backend on :3000. From the BluefinWiki root:
+```bash
+.\start-aspire.ps1
+(see LOCAL-DEV-GUIDE.md if you need details)
+```
+
+2. Run the tests from BluefinWiki\e2e:
+```bash
+cd BluefinWiki\e2e
+npm install                      # first time only
+npx playwright install chromium  # first time only
+npx playwright test              # full suite
+npx playwright test tree-drawer.spec.ts   # just one file
+```
+
+The suite hits the already-running dev stack directly at http://localhost:5173 and manages its own fixture data via the backend API — that's why the dev stack has to be up beforehand.
+
 ## Documentation
 
 | Document | Purpose |
