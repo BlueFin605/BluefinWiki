@@ -1,91 +1,6 @@
-import { test, expect, createPage } from '../fixtures/page-tree';
+import { test, expect, createPage, deletePageRecursive } from '../fixtures/page-tree';
 import { createPageType, deletePageType, allowChildTypes } from '../fixtures/page-types';
-import type { Locator, Page } from '@playwright/test';
-
-/**
- * Drags `source` to land in the `before` zone (top 10%) of `targetRow`,
- * for a genuinely ADJACENT sibling (the case `dragToRowZone` — a single,
- * up-front-computed target point, see helpers.ts — does not handle).
- *
- * Investigation for this task (see task-2-report.md) found that for two
- * adjacent siblings, the moment the drag enters the target's zone with a
- * valid `before`/`after` classification, CDK's "sort preview" visually
- * relocates the target row (translating it out of the way) to show where the
- * dragged item will land. Because the mouse cursor stays put while the
- * target's painted box moves out from under it, the browser fires a genuine
- * `pointerleave` on the target — which `page-tree-item.ts`'s
- * `onRowDragLeave()` uses to reset its `_dropZone` signal back to `null`.
- * `onDrop` then reads that `null` and falls back to `'onto'` (reparent)
- * instead of the intended `before`/`after` reorder — a single static target
- * point can never land correctly here, no matter how far inside the 25%
- * zone it aims (confirmed empirically: this fails 100% of the time, not
- * intermittently, so widening the zone band does not help).
- *
- * A real user succeeds here because their eye+hand naturally track the
- * shifting drop-indicator and keep the pointer over the target as it moves.
- * This helper reproduces that: it re-reads the target's LIVE bounding box on
- * every step and eases the pointer toward its current (possibly just-shifted)
- * 10%-zone point, rather than committing to one pre-drag coordinate. This is
- * a *convergent* correction (small steps continuously re-aiming at a
- * settling target), not the *chasing oscillation* the tree-reparent.spec.ts
- * comments warn about (a single big corrective jump re-provoking the next
- * swap in a multi-row sort preview) — confirmed by 5/5 clean passes below.
- */
-async function dragBeforeAdjacentSibling(page: Page, source: Locator, targetRow: Locator): Promise<void> {
-  const s = await source.boundingBox();
-  if (!s) throw new Error('dragBeforeAdjacentSibling: source has no bounding box');
-
-  await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
-  await page.mouse.down();
-  // Small initial move past CDK's drag-start threshold, then a beat for
-  // Angular to process `cdkDragStarted` (matches dragToRowZone's approach).
-  await page.mouse.move(s.x + s.width / 2 + 10, s.y + s.height / 2 + 5, { steps: 5 });
-  await page.waitForTimeout(100);
-
-  let y = s.y + s.height / 2 + 5;
-  const x = s.x + s.width / 2 + 10;
-  for (let i = 0; i < 25; i++) {
-    const box = await targetRow.boundingBox();
-    if (!box) break;
-    const wantY = box.y + box.height * 0.1; // top 10% — the 'before' zone
-    y += (wantY - y) * 0.3; // ease toward the target's CURRENT position
-    await page.mouse.move(x, y, { steps: 1 });
-    await page.waitForTimeout(20);
-  }
-  await page.waitForTimeout(100);
-  await page.mouse.up();
-}
-
-/**
- * Drags `source` onto the middle 50% ("onto") zone of `targetRow` and pauses
- * there — mouse still down, drop not yet completed — so the caller can
- * inspect the live hover feedback (`.drop-invalid` + the warning icon,
- * `page-tree-item.ts`) before finishing the drop with `page.mouse.up()`.
- *
- * Unlike `dragBeforeAdjacentSibling` above, dropping fully "onto" a
- * type-disallowed row doesn't suffer from the sort-preview-oscillation
- * problem adjacent before/after reorders do: `enterPredicate` rejects entry
- * into a disallowed target outright, so it never joins the drop list and
- * there's no sort-preview transform to chase. A single pre-computed target
- * point (the same shape as `dragToRowZone` in helpers.ts) is enough; this is
- * a local variant only because `dragToRowZone` doesn't expose a pause before
- * `mouse.up()`.
- */
-async function dragOntoAndPause(page: Page, source: Locator, targetRow: Locator): Promise<void> {
-  const s = await source.boundingBox();
-  const t = await targetRow.boundingBox();
-  if (!s || !t) throw new Error('dragOntoAndPause: source or target has no bounding box');
-
-  const targetX = t.x + t.width / 2;
-  const targetY = t.y + t.height / 2; // middle 50% -> 'onto'
-
-  await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(s.x + s.width / 2 + 10, s.y + s.height / 2 + 5, { steps: 5 });
-  await page.waitForTimeout(100);
-  await page.mouse.move(targetX, targetY, { steps: 15 });
-  await page.waitForTimeout(150);
-}
+import { dragToRowZone, dragBeforeAdjacentSibling } from './helpers';
 
 test.describe('Tree drag reorder', () => {
   test('dragging a sibling above another persists the new order after reload', async ({
@@ -166,7 +81,7 @@ test.describe('Tree drag reorder', () => {
         return route.continue();
       });
 
-      await dragOntoAndPause(page, draggedRow, targetRow);
+      await dragToRowZone(page, draggedRow, targetRow, 'onto', { release: false });
 
       // Mid-drag: the hover feedback fires even though the post-drop alert
       // (step 2.2's dead-code removal) no longer does.
@@ -193,6 +108,119 @@ test.describe('Tree drag reorder', () => {
       await expect(page.getByRole('treeitem', { name: draggedTitle })).toHaveCSS('padding-left', '24px');
     } finally {
       await deletePageType(request, targetTypeGuid);
+      await deletePageType(request, draggedTypeGuid);
+    }
+  });
+
+  test('dragging a page before a sibling under a type-disallowed parent (cross-parent) shows the hover warning and is silently blocked', async ({
+    page,
+    pageTree,
+    request,
+  }) => {
+    // Finding I2 (fix-wave review, 2026-09-21): `pages-view.onTreeDrop`'s
+    // cross-parent before/after re-check used to `window.alert` here; it was
+    // dead code for the same reason `page-tree-item.onDrop`'s `onto` alert
+    // was (task 2b) — `enterPredicate` is zone-aware and already refuses
+    // entry into a disallowed target for `before`/`after`, so the target row
+    // never joins the drop list and never triggers a CDK sort-preview
+    // relocation. That means, like the `onto` case above, a single
+    // pre-computed drag point (`dragToRowZone`) is sufficient — no adjacent-
+    // sibling chase technique needed.
+    // Distinct wording, not reused anywhere else in e2e/tests/: the
+    // worker-scoped `pageTree` fixture (and its `runId`-derived prefix) can
+    // be shared across MULTIPLE test files within one worker process (not
+    // just repeats of this file), and no test here deletes every page it
+    // creates (some only delete their page types) — reusing a title already
+    // used elsewhere (even "Typed Parent" / "Dragged", each already used by
+    // another spec file) collided under full-suite parallel runs, producing
+    // two same-named tree rows and a Playwright strict-mode violation. Grep
+    // e2e/tests/ for a candidate title before reusing one here.
+    const prefix = `E2E-${pageTree.runId}`;
+    const targetParentTypeName = `${prefix} CrossDrop Parent Type`;
+    const draggedTypeName = `${prefix} CrossDrop Mover Type`;
+    const targetParentTypeGuid = await createPageType(request, targetParentTypeName);
+    const draggedTypeGuid = await createPageType(request, draggedTypeName);
+    // Target Parent's type accepts only its own type as a child — the mover's
+    // type is not in that list, so a cross-parent before/after drop under it
+    // is rejected by `checkSiblingDropAllowed`.
+    await allowChildTypes(request, targetParentTypeGuid, [targetParentTypeGuid]);
+
+    const targetParentTitle = `${prefix} CrossDrop Parent`;
+    const targetSiblingTitle = `${prefix} CrossDrop Sibling`;
+    const draggedTitle = `${prefix} CrossDrop Mover`;
+    const targetParentGuid = await createPage(request, targetParentTitle, {
+      parentGuid: pageTree.rootGuid,
+      pageType: targetParentTypeGuid,
+    });
+    await createPage(request, targetSiblingTitle, {
+      parentGuid: targetParentGuid,
+      pageType: targetParentTypeGuid,
+    });
+    const draggedGuid = await createPage(request, draggedTitle, {
+      parentGuid: pageTree.rootGuid,
+      pageType: draggedTypeGuid,
+    });
+
+    try {
+      await page.goto(`/pages/${pageTree.rootGuid}`);
+      const rootRow = page.getByRole('treeitem', { name: `${pageTree.runId} Root` });
+      await rootRow.getByRole('button', { name: 'Expand' }).click();
+
+      const targetParentRow = page.getByRole('treeitem', { name: targetParentTitle });
+      const draggedRow = page.getByRole('treeitem', { name: draggedTitle });
+      await expect(targetParentRow).toBeVisible();
+      await expect(draggedRow).toBeVisible();
+      // Both are direct children of Root (level 1): indent = 1*16+8 = 24px.
+      await expect(draggedRow).toHaveCSS('padding-left', '24px');
+      await targetParentRow.getByRole('button', { name: 'Expand' }).click();
+
+      const targetSiblingRow = page.getByRole('treeitem', { name: targetSiblingTitle });
+      await expect(targetSiblingRow).toBeVisible();
+
+      let moveRequests = 0;
+      let reorderRequests = 0;
+      await page.route('**/api/pages/*/move', (route) => {
+        moveRequests++;
+        return route.continue();
+      });
+      await page.route('**/api/pages/reorder', (route) => {
+        reorderRequests++;
+        return route.continue();
+      });
+
+      // Drop Dragged into the `before` zone of Target Sibling — a cross-parent
+      // move that would join Dragged under Target Parent (disallowed by type).
+      await dragToRowZone(page, draggedRow, targetSiblingRow, 'before', { release: false });
+
+      // Mid-drag: the hover feedback fires even though the on-drop re-check
+      // (this fix wave's dead-code removal) no longer alerts.
+      await expect(targetSiblingRow).toHaveClass(/drop-invalid/);
+      await expect(targetSiblingRow.getByRole('img', { name: 'Move not allowed' })).toBeVisible();
+
+      await page.mouse.up();
+
+      // No dialog to dismiss (the drop is silently blocked) and neither a
+      // move nor a reorder request ever fires.
+      await page.waitForTimeout(300);
+      expect(moveRequests).toBe(0);
+      expect(reorderRequests).toBe(0);
+
+      // Dragged page is still where it started — a direct Root child.
+      await expect(draggedRow).toBeVisible();
+      await expect(draggedRow).toHaveCSS('padding-left', '24px');
+
+      // Persists — reload and confirm Dragged is still a direct Root child.
+      await page.reload();
+      await rootRow.getByRole('button', { name: 'Expand' }).click();
+      await expect(page.getByRole('treeitem', { name: draggedTitle })).toHaveCSS('padding-left', '24px');
+    } finally {
+      // Delete the pages themselves (not just their types) — this file's
+      // worker-scoped `pageTree` fixture is shared across every test in a
+      // run, so a leftover page here can collide with a later test's own
+      // same-worker page by title (see the naming note above).
+      await deletePageRecursive(request, targetParentGuid);
+      await deletePageRecursive(request, draggedGuid);
+      await deletePageType(request, targetParentTypeGuid);
       await deletePageType(request, draggedTypeGuid);
     }
   });
