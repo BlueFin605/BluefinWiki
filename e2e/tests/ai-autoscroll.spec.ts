@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/page-tree';
-import { installLanguageModelStub } from '../fixtures/ai';
+import { installLanguageModelStub, sendAiMessage } from '../fixtures/ai';
 
 /**
  * Covers the Phase 7 AI sidebar exit criterion for transcript auto-scroll.
@@ -31,12 +31,16 @@ test.describe('AI transcript auto-scroll', () => {
     await installLanguageModelStub(page, [JSON.stringify({ message: longReply })]);
 
     await page.goto(`/pages/${pageTree.rootGuid}`);
-    await page.getByRole('button', { name: 'Open AI assistant' }).click();
-    await page.getByRole('textbox', { name: 'Message' }).fill('Give me a long answer');
-    await page.keyboard.press('Enter');
+    await sendAiMessage(page, 'Give me a long answer');
 
     const log = page.getByRole('log', { name: 'Conversation' });
     await expect(page.getByText(longReply.slice(0, 20))).toBeVisible();
+
+    // Precondition: the transcript must actually overflow its container, or
+    // the scroll-position assertion below (`distance < 5`) would pass
+    // vacuously at `0 - 0 = 0` even if the auto-scroll guard never fired.
+    // 64 matches the near-bottom threshold constant (`ai-sidebar.ts:227`).
+    expect(await log.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(64);
 
     // The browser clamps `scrollTop = scrollHeight` to the true max scroll
     // position, so once the guard fires this distance should land at (or
@@ -55,9 +59,7 @@ test.describe('AI transcript auto-scroll', () => {
     ]);
 
     await page.goto(`/pages/${pageTree.rootGuid}`);
-    await page.getByRole('button', { name: 'Open AI assistant' }).click();
-    await page.getByRole('textbox', { name: 'Message' }).fill('one');
-    await page.keyboard.press('Enter');
+    await sendAiMessage(page, 'one');
     await expect(page.getByText('first reply')).toBeVisible();
 
     const log = page.getByRole('log', { name: 'Conversation' });
@@ -71,6 +73,11 @@ test.describe('AI transcript auto-scroll', () => {
     await page.getByRole('textbox', { name: 'Message' }).fill('two');
     await page.keyboard.press('Enter');
     await expect(page.getByText('second reply')).toBeVisible();
+
+    // Precondition: without real overflow, `scrollTop = 0` above is a no-op
+    // and this test's whole purpose -- proving the guard SUPPRESSED a
+    // scroll -- would pass vacuously even if the guard never ran at all.
+    expect(await log.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(64);
 
     const scrollTop = await log.evaluate((el) => el.scrollTop);
     expect(scrollTop).toBeLessThan(50); // stayed near the top, wasn't yanked to bottom
