@@ -33,13 +33,26 @@ test.describe('Board positional reorder (boardOrder)', () => {
       const column = page.locator('wiki-board-column', { hasText: 'To Do' });
       await expect(column.getByRole('button', { name: titleC })).toBeVisible();
 
+      // Assert the initial rendered order (A, B, C) before dragging, so a
+      // future geometry regression fails loudly here instead of silently
+      // computing the drop offset against the wrong drop target below.
+      const initialOrder = await column.getByRole('button').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
+      expect(initialOrder.indexOf(titleA)).toBeLessThan(initialOrder.indexOf(titleB));
+      expect(initialOrder.indexOf(titleB)).toBeLessThan(initialOrder.indexOf(titleC));
+
       // Move Card C to land between A and B (initial order: A, B, C).
       const cardC = column.getByRole('button', { name: titleC });
       const cardB = column.getByRole('button', { name: titleB });
       const cardBBox = await cardB.boundingBox();
-      const columnBox = await column.boundingBox();
-      if (!cardBBox || !columnBox) throw new Error('missing bounding box');
-      await dragCardToColumn(page, cardC, column, cardBBox.y - columnBox.y - 5); // just above Card B
+      // dragCardToColumn applies its numeric offset as `containerBox.y +
+      // position`, where containerBox is `column.locator('.cards')` — the
+      // inner cards container, NOT the column host. Measure from that same
+      // element here so "just above Card B" matches the helper's real
+      // geometry (the column host also includes the ~35-40px `.header` above
+      // `.cards`, which would otherwise land the offset too low).
+      const cardsBox = await column.locator('.cards').boundingBox();
+      if (!cardBBox || !cardsBox) throw new Error('missing bounding box');
+      await dragCardToColumn(page, cardC, column, cardBBox.y - cardsBox.y - 5); // just above Card B
 
       const orderAfterDrag = await column.getByRole('button').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
       expect(orderAfterDrag.indexOf(titleC)).toBeLessThan(orderAfterDrag.indexOf(titleB));

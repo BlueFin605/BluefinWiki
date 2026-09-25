@@ -49,7 +49,14 @@ test.describe('Board eligibility without explicit config', () => {
 
     try {
       await page.goto(`/pages/${parentGuid}`);
+      // `goto` resolves on `load`, well before boardEligible() (which depends
+      // on the async children probe + page-types fetch) has settled — assert
+      // absence only AFTER the page has genuinely rendered, by anchoring on
+      // its own title (same pattern as page-rename.spec.ts), so the toggle
+      // has had a real chance to appear before we check it hasn't.
+      await expect(page.locator('.page-detail .bar .title')).toHaveText(`${prefix} Not Eligible Parent`);
       await expect(page.getByRole('radio', { name: 'Board' })).toHaveCount(0);
+      await expect(page.locator('wiki-board-column')).toHaveCount(0);
     } finally {
       await deletePageType(request, typeGuid);
     }
