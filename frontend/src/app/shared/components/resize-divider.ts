@@ -1,13 +1,17 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output, viewChild } from '@angular/core';
 import { CdkDrag, type CdkDragMove } from '@angular/cdk/drag-drop';
 
 /**
  * A draggable divider built on CDK `cdkDrag`. Emits a stream of pixel
  * positions (clientX for vertical orientation, clientY for horizontal).
  *
- * The `cdkDragFreeDragPosition` binding is pinned to {0,0} so the divider
- * never physically moves — parents handle the visual resize by binding the
- * `resize` output to a width/height signal.
+ * The divider never physically moves — parents handle the visual resize by
+ * binding the `resize` output to a width/height signal. `cdkDragFreeDragPosition`
+ * only re-applies on a *changed* input reference, so binding it to a constant
+ * `zero` object pins the position on init but never again: CDK's own drag
+ * transform is left in place after the pointer is released. `reset()` is
+ * called explicitly on `cdkDragEnded` to clear that transform so the divider
+ * doesn't drift out from under the pointer on the next drag.
  */
 @Component({
   selector: 'wiki-resize-divider',
@@ -23,6 +27,7 @@ import { CdkDrag, type CdkDragMove } from '@angular/cdk/drag-drop';
       [cdkDragLockAxis]="orientation() === 'vertical' ? 'x' : 'y'"
       [cdkDragFreeDragPosition]="zero"
       (cdkDragMoved)="onMove($event)"
+      (cdkDragEnded)="onDragEnded()"
       role="separator"
       [attr.aria-orientation]="orientation()"
     ></div>
@@ -39,6 +44,8 @@ export class ResizeDivider {
   readonly orientation = input<'horizontal' | 'vertical'>('vertical');
   readonly resized = output<number>();
 
+  private readonly drag = viewChild.required(CdkDrag);
+
   protected readonly zero = { x: 0, y: 0 } as const;
 
   onMove(event: CdkDragMove): void {
@@ -47,5 +54,9 @@ export class ResizeDivider {
         ? event.pointerPosition.x
         : event.pointerPosition.y;
     this.resized.emit(px);
+  }
+
+  onDragEnded(): void {
+    this.drag().reset();
   }
 }

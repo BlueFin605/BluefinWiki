@@ -1,5 +1,6 @@
 import { render } from '@testing-library/angular';
-import type { CdkDragMove } from '@angular/cdk/drag-drop';
+import { By } from '@angular/platform-browser';
+import { CdkDrag, type CdkDragMove } from '@angular/cdk/drag-drop';
 import { ResizeDivider } from './resize-divider';
 
 function fakeMoveEvent(x: number, y: number): CdkDragMove {
@@ -37,6 +38,18 @@ describe('ResizeDivider', () => {
     fixture.componentInstance.resized.subscribe((px) => events.push(px));
     fixture.componentInstance.onMove(fakeMoveEvent(99, 320));
     expect(events).toEqual([320]);
+  });
+
+  it('resets the CDK drag transform on drag end, so the divider does not drift after repeated drags', async () => {
+    const { fixture } = await render(ResizeDivider);
+    const dragDebugEl = fixture.debugElement.query(By.directive(CdkDrag));
+    const dragInstance = dragDebugEl.injector.get(CdkDrag);
+    const resetSpy = jest.spyOn(dragInstance, 'reset');
+
+    fixture.componentInstance.onMove(fakeMoveEvent(250, 99));
+    dragDebugEl.triggerEventHandler('cdkDragEnded', {});
+
+    expect(resetSpy).toHaveBeenCalled();
   });
 
   it('applies the horizontal class when orientation=horizontal', async () => {
