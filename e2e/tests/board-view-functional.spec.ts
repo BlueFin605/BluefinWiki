@@ -73,4 +73,52 @@ test.describe('Board view', () => {
       await deletePageType(request, typeGuid);
     }
   });
+
+  test('Card Summary: Save is disabled until a field is dirty, and "Open full editor" opens the page in a new tab', async ({
+    page,
+    pageTree,
+    request,
+  }) => {
+    const prefix = `E2E-${pageTree.runId}`;
+    const typeGuid = await createPageType(request, `${prefix} Summary Extra Type`, {
+      properties: [
+        { name: 'state', type: 'string', required: false },
+        { name: 'notes', type: 'string', required: false },
+      ],
+    });
+    const parentGuid = await createPage(request, `${prefix} Summary Extra Parent`, { parentGuid: pageTree.rootGuid });
+    await updatePage(request, parentGuid, { boardConfig: { targetTypeGuid: typeGuid, defaultView: 'board' } });
+    const cardTitle = `${prefix} Summary Extra Card`;
+    const cardGuid = await createPage(request, cardTitle, {
+      parentGuid,
+      pageType: typeGuid,
+      properties: { state: { type: 'string', value: 'To Do' }, notes: { type: 'string', value: 'original' } },
+    });
+
+    try {
+      await page.goto(`/pages/${parentGuid}`);
+      const column = page.locator('wiki-board-column', { hasText: 'To Do' });
+      await column.getByRole('button', { name: cardTitle }).click();
+
+      const dialog = page.getByRole('dialog').filter({ hasText: cardTitle });
+      const saveBtn = dialog.getByRole('button', { name: 'Save' });
+      await expect(saveBtn).toBeDisabled();
+
+      await dialog.getByLabel('notes').fill('updated notes');
+      await expect(saveBtn).toBeEnabled();
+      await saveBtn.click();
+      await expect(dialog).toBeHidden();
+
+      // Re-open and open the full editor.
+      await column.getByRole('button', { name: cardTitle }).click();
+      const [newPage] = await Promise.all([
+        page.context().waitForEvent('page'),
+        page.getByRole('dialog').filter({ hasText: cardTitle }).getByRole('button', { name: 'Open full editor' }).click(),
+      ]);
+      await newPage.waitForLoadState();
+      expect(newPage.url()).toContain(`/pages/${cardGuid}`);
+    } finally {
+      await deletePageType(request, typeGuid);
+    }
+  });
 });

@@ -29,19 +29,28 @@ Parallel-safe: {5.1, 5.2, 5.5, 5.6} independent; {5.3 → 5.4} sequential;
 
 ## Phase exit criteria
 
-- [ ] All step acceptance criteria met; `npm test` + `npm run lint` green.
-- [ ] Manual: a page whose children carry a `state` property is board-eligible
-      even without `boardConfig.targetTypeGuid`.
+- [x] All step acceptance criteria met; `npm test` + `npm run lint` green.
+- [x] Manual: a page whose children carry a `state` property is board-eligible
+      even without `boardConfig.targetTypeGuid`. Automated:
+      `e2e/tests/board-eligibility.spec.ts` (2 tests, passing).
 - [ ] Manual: a board with >200 cards shows "Load more cards" and loads the
-      next page.
-- [ ] Manual: dragging a card between columns moves it immediately; a failed
-      `PUT` rolls it back with a toast.
-- [ ] Manual: dropping a card at a position within/into a column persists the
-      order (`boardOrder`) and survives reload.
-- [ ] Manual: Board Settings "Show pages of type" lists only state-bearing
-      (boardable) types.
-- [ ] Manual: the Card Summary dialog edits title + properties, saves, and
-      "Open full editor" opens a new tab.
+      next page. **Not automated — see "Known debt" below**
+      (`e2e/tests/board-pagination.spec.ts` written but `test.skip`'d).
+- [x] Manual: dragging a card between columns moves it immediately; a failed
+      `PUT` rolls it back with a toast. Automated:
+      `e2e/tests/board-drag-columns.spec.ts` (2 tests, passing).
+- [x] Manual: dropping a card at a position within/into a column persists the
+      order (`boardOrder`) and survives reload. Automated:
+      `e2e/tests/board-drag-reorder.spec.ts` (1 test, passing).
+- [x] Manual: Board Settings "Show pages of type" lists only state-bearing
+      (boardable) types. Automated:
+      `e2e/tests/board-settings-types.spec.ts` (2 tests, passing).
+- [x] Manual: the Card Summary dialog edits title + properties, saves, and
+      "Open full editor" opens a new tab. Automated: extends the existing
+      `e2e/tests/board-view-functional.spec.ts` (2 tests, passing) rather
+      than a wholly new spec — it already covered title/state edit + save +
+      live column move; this phase's close-out added Save-disabled-until-dirty
+      and "Open full editor" opens a new tab at the right URL.
 
 ## Known debt
 
@@ -56,3 +65,17 @@ Parallel-safe: {5.1, 5.2, 5.5, 5.6} independent; {5.3 → 5.4} sequential;
   belongs in `backend/src/pages/pages-create.ts`'s sortOrder computation and/or
   `S3StoragePlugin.listChildren`'s per-child scan — see the skipped test's own comment for
   full detail.
+
+- **Confirmed cross-file flake in `board-settings-types.spec.ts`'s "no boardable types at
+  all" test, under the default full-suite run.** Task 6's report already flagged this as a
+  theoretical residual risk (`boardableTypes()` filters the entire backend's page-type list,
+  which is genuinely global across every e2e spec file); this task's full-suite regression
+  check (`cd e2e && npx playwright test`, default `fullyParallel: true` / 3 workers)
+  reproduced it twice in a row — `board-settings-types.spec.ts:53` failed both times because
+  another worker (e.g. `board-view-functional.spec.ts`, `board-eligibility.spec.ts`) held a
+  live state-bearing page type at the same moment. Confirmed as a pure scheduling race, not a
+  broken test or a product bug: `board-settings-types.spec.ts` run alone is 2/2 reliably, and
+  a `PW_WORKERS=1` full-suite run let it pass (a different, unrelated pre-existing flake in
+  `tree-drag-reorder.spec.ts` showed up instead). Fixing this needs either backend-side
+  scoping of `boardableTypes()` or a suite-level serialization decision — both out of this
+  task's scope; left as documented debt per Task 6's own concerns section.
