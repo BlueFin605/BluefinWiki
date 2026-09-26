@@ -104,8 +104,20 @@ import { AiSidebar } from '../ai/ai-sidebar';
         tree drawer, the inspector and the backdrop/scroll-lock. It needs an
         explicit box in the column flex (flex: 1; min-height: 0) — it does not
         inherit a height inside .pages-shell.
+
+        autosize is required for the tree/inspector resize dividers to work
+        (bug fix): a side mat-drawer is always position: absolute, so
+        mat-sidenav-content's margin-left/right is driven entirely by JS
+        (MatDrawerContainer.updateContentMargins reading the drawer's live
+        offsetWidth), not CSS flow. Without autosize, that recalculation only
+        runs on open/close animation, a dir change, or a window resize — never
+        while an already-open drawer's own width changes via
+        [style.width.px]='treeWidth()' mid-drag. Widening the tree just grew it
+        past the stale margin and it covered the content instead of squeezing
+        it. autosize turns on MatDrawerContainer's debounced ngDoCheck poll,
+        which keeps the margin in sync with the live width during a drag.
       -->
-      <mat-sidenav-container class="body" #body>
+      <mat-sidenav-container class="body" #body autosize>
         <mat-sidenav
           position="start"
           class="sidebar"
