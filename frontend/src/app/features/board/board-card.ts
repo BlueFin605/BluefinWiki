@@ -4,6 +4,12 @@ import type { PageChildDetail, PageTypeDefinition } from '../pages/page.types';
 
 const MAX_DISPLAY_PROPERTIES = 3;
 
+// Mouse drags start immediately; touch needs a hold so a swipe over a card
+// scrolls the board column instead of picking the card up (CDK cancels the
+// drag start if the pointer travels past its own move threshold before this
+// elapses, so a genuine swipe still scrolls even within the delay window).
+const DRAG_START_DELAY = { touch: 300, mouse: 0 };
+
 interface DisplayProperty {
   name: string;
   value: string;
@@ -22,6 +28,7 @@ interface DisplayProperty {
     <div
       class="board-card"
       cdkDrag
+      [cdkDragStartDelay]="dragStartDelay"
       [cdkDragData]="card()"
       role="button"
       tabindex="0"
@@ -74,6 +81,8 @@ interface DisplayProperty {
   `],
 })
 export class BoardCard {
+  protected readonly dragStartDelay = DRAG_START_DELAY;
+
   readonly card = input.required<PageChildDetail>();
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
   readonly swapTitles = input<boolean>(false);
