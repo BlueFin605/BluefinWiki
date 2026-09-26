@@ -1611,21 +1611,6 @@ namespace Infrastructure.Stacks
                 Description = "Update own display name"
             });
 
-            var authChangePasswordFunction = new LambdaFunction(this, "AuthChangePasswordFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-auth-change-password",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/auth-change-password.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Change own password"
-            });
-
             // =============================================================================
             // API Gateway Routes - /pages
             // =============================================================================
@@ -1974,7 +1959,7 @@ namespace Infrastructure.Stacks
             });
 
             // =============================================================================
-            // API Gateway Routes - /auth/profile and /auth/change-password
+            // API Gateway Routes - /auth/profile
             // =============================================================================
 
             var authResource = Api.Root.AddResource("auth");
@@ -1994,14 +1979,6 @@ namespace Infrastructure.Stacks
             // PUT /auth/profile - Update own profile
             var authProfileResource = authResource.AddResource("profile");
             authProfileResource.AddMethod("PUT", new LambdaIntegration(authProfileUpdateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /auth/change-password - Change own password
-            var authChangePasswordResource = authResource.AddResource("change-password");
-            authChangePasswordResource.AddMethod("POST", new LambdaIntegration(authChangePasswordFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer

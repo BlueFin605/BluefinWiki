@@ -100,7 +100,25 @@ import type { PageProperty } from '../pages/page.types';
     </mat-tab-group>
   `,
   styles: [`
-    :host { display: block; height: 100%; }
+    /*
+      Old-site visual parity (2026-09-26 design doc): the previous React
+      inspector used a small underline-style tab bar (~12-13px labels, 2px
+      indicator) rather than Material's default larger filled/ripple tab
+      header. Token overrides only -- same mat-tab-group, no markup change.
+    */
+    :host {
+      display: block;
+      height: 100%;
+      --mat-tab-label-text-size: 12px;
+      --mat-tab-label-text-weight: 500;
+      --mat-tab-active-label-text-color: #155dfc;
+      --mat-tab-active-indicator-color: #155dfc;
+      --mat-tab-active-hover-indicator-color: #155dfc;
+      --mat-tab-active-focus-indicator-color: #155dfc;
+      --mat-tab-inactive-label-text-color: #6a7282;
+      --mat-tab-active-ripple-color: transparent;
+      --mat-tab-inactive-ripple-color: transparent;
+    }
   `],
 })
 export class InspectorPanel {

@@ -49,7 +49,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="pages-shell">
-      <mat-toolbar color="primary" class="topbar">
+      <mat-toolbar class="topbar">
         @if (!bp.isDesktop() && !aiOpen()) {
           <button
             mat-icon-button
@@ -279,9 +279,20 @@ import { AiSidebar } from '../ai/ai-sidebar';
     </div>
   `,
   styles: [`
-    .pages-shell { display: flex; flex-direction: column; height: 100vh; }
-    .topbar { z-index: 2; }
-    .title { font-weight: 600; }
+    /*
+      Old-site visual parity (2026-09-26 design doc): the previous React app's
+      canvas was a light gray (#f9fafb) with white sidebar/inspector panels
+      and toolbar sitting on top, rather than a solid Material-primary band.
+      Purely cosmetic -- .topbar keeps its z-index/structural role untouched.
+    */
+    .pages-shell { display: flex; flex-direction: column; height: 100vh; background: #f9fafb; }
+    .topbar {
+      z-index: 2;
+      background: #ffffff;
+      color: #374151;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .title { font-weight: 600; color: #101828; }
     .spacer { flex: 1; }
 
     /*
@@ -345,7 +356,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
     /* Ancestor-qualified so these beat Angular Material's own .mat-drawer rules
        regardless of stylesheet order (equal specificity otherwise). */
     .body .sidebar {
-      background: #f9fafb;
+      background: #ffffff;
       /* Desktop width comes from [style.width.px]; this is the mobile drawer. */
       width: min(85vw, 320px);
       /* .tree-divider positions against this element via Material's own
@@ -410,7 +421,7 @@ import { AiSidebar } from '../ai/ai-sidebar';
     }
 
     /* main + optional desktop .ai-pane sit side by side inside the content. */
-    .body .content { display: flex; }
+    .body .content { display: flex; background: #f9fafb; }
     .main { flex: 1; min-width: 0; overflow: auto; }
 
     .ai-pane {

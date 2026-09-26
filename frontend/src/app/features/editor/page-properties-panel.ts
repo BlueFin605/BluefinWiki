@@ -64,7 +64,7 @@ const DEBOUNCE_MS = 200;
       -->
       <div class="title-block">
         @if (editing()) {
-          <mat-form-field appearance="fill" class="full">
+          <mat-form-field appearance="outline" class="full">
             <mat-label>Title</mat-label>
             <input
               #titleInput
@@ -106,7 +106,7 @@ const DEBOUNCE_MS = 200;
         (tagsChange)="tags.set($event)"
       />
 
-      <mat-form-field appearance="fill" class="full">
+      <mat-form-field appearance="outline" class="full">
         <mat-label>Status</mat-label>
         <mat-select
           [disabled]="readOnly()"
@@ -130,7 +130,7 @@ const DEBOUNCE_MS = 200;
         leaves properties untouched.
       -->
       @if (allTypes().length) {
-        <mat-form-field appearance="fill" class="full">
+        <mat-form-field appearance="outline" class="full">
           <mat-label>Page type</mat-label>
           <mat-select
             [disabled]="readOnly()"

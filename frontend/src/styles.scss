@@ -15,8 +15,8 @@ html {
         primary: mat.$azure-palette,
         tertiary: mat.$blue-palette,
       ),
-      typography: Roboto,
-      density: 0,
+      typography: 'Inter, system-ui, Avenir, Helvetica, Arial, sans-serif',
+      density: -2,
     )
   );
 }

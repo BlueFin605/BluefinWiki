@@ -50,7 +50,6 @@ import { handler as adminUsersSuspend } from './auth/admin-users-suspend.js';
 import { handler as adminUsersActivate } from './auth/admin-users-activate.js';
 import { handler as adminUsersDelete } from './auth/admin-users-delete.js';
 import { handler as authProfileUpdate } from './auth/auth-profile-update.js';
-import { handler as authChangePassword } from './auth/auth-change-password.js';
 import { handler as searchQuery } from './search/search-query.js';
 import { handler as proxyFetchUrl } from './proxy/fetch-url.js';
 import { handler as imdbShowDetails } from './proxy/imdb-show-details.js';
@@ -243,7 +242,6 @@ app.delete('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAtta
 app.post('/auth/register', wrapLambdaHandler(authRegister));
 app.get('/auth/me', wrapLambdaHandler(authMe));
 app.put('/auth/profile', wrapLambdaHandler(authProfileUpdate));
-app.post('/auth/change-password', wrapLambdaHandler(authChangePassword));
 
 // ============================================================================
 // API Routes - Admin
@@ -588,7 +586,6 @@ async function startServer() {
   console.log('   POST   /auth/register');
   console.log('   GET    /auth/me');
   console.log('   PUT    /auth/profile');
-  console.log('   POST   /auth/change-password');
   console.log('   GET    /admin/users');
   console.log('   GET    /admin/users/:userId');
   console.log('   PUT    /admin/users/:userId');

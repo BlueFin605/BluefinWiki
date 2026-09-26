@@ -118,25 +118,6 @@ export class Auth {
     this.refreshUser(res.displayName);
   }
 
-  /**
-   * POSTs a password change request. Does not touch `_user` — a password
-   * change doesn't change the cached AuthUser, so nothing to refresh.
-   *
-   * Cognito's ChangePassword API requires the *access* token, not the ID
-   * token that `authInterceptor` puts on `Authorization` for every other
-   * call. Rather than change that shared interceptor, the access token is
-   * sent on a purpose-specific header for this one call only.
-   */
-  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    await firstValueFrom(
-      this.http.post(
-        '/api/auth/change-password',
-        { currentPassword, newPassword },
-        { headers: { 'X-Access-Token': this.getAccessToken() ?? '' } },
-      ),
-    );
-  }
-
   /** Patches the cached user with a freshly known displayName (e.g. after updateProfile()). */
   refreshUser(displayName: string): void {
     const current = this._user();

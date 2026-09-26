@@ -226,7 +226,7 @@ export function resolveSaveStatus(state: {
         }
 
         @if (mode() === 'edit' || dirty()) {
-          <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
+          <button mat-flat-button class="save-btn" (click)="save()" [disabled]="saving()">
             Save
           </button>
         }
@@ -395,9 +395,24 @@ export function resolveSaveStatus(state: {
     .title { font-weight: 600; }
     .view-toggle { margin-left: 0.5rem; }
     .spacer { flex: 1; }
-    .save-status { font-size: 0.8125rem; color: #6b7280; white-space: nowrap; }
-    .save-status[data-status='unsaved'] { color: #b45309; }
-    .save-status[data-status='saved'] { color: #15803d; }
+    /*
+      Old-site visual parity (2026-09-26 design doc): the previous React app
+      rendered this as a colored pill (padding/radius/border), not plain
+      colored text.
+    */
+    .save-status {
+      font-size: 0.875rem; white-space: nowrap;
+      padding: 0.375rem 0.75rem; border-radius: 4px; border: 1.5px solid transparent;
+      color: #6a7282; background: #f3f4f6; border-color: #e5e7eb;
+    }
+    .save-status[data-status='unsaved'] { color: #b45309; background: #fef3c7; border-color: #f59e0b; }
+    .save-status[data-status='saved'] { color: #008235; background: #dbfce7; border-color: #22c55e; }
+    .save-btn {
+      --mdc-filled-button-container-color: #155dfc;
+      --mdc-filled-button-label-text-color: #ffffff;
+      --mdc-filled-button-container-shape: 4px;
+      --mat-filled-button-disabled-container-color: rgba(0, 0, 0, 0.08);
+    }
     .save-failed {
       display: flex; align-items: center; gap: 0.5rem;
       margin: 0.5rem 1rem; padding: 0.25rem 0.25rem 0.25rem 0.75rem;

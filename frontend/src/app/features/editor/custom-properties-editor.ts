@@ -85,7 +85,7 @@ import type {
                   />
                 </div>
               } @else {
-                <mat-form-field appearance="fill" class="full">
+                <mat-form-field appearance="outline" class="full">
                   <mat-label>{{ row.name }}</mat-label>
                   @if (row.prop.type === 'number') {
                     <input
@@ -130,7 +130,7 @@ import type {
 
           @if (editable()) {
             <div class="add-form">
-              <mat-form-field appearance="fill" class="grow">
+              <mat-form-field appearance="outline" class="grow">
                 <mat-label>New property name</mat-label>
                 <input
                   matInput
@@ -142,7 +142,7 @@ import type {
                 />
               </mat-form-field>
 
-              <mat-form-field appearance="fill">
+              <mat-form-field appearance="outline">
                 <mat-label>New property type</mat-label>
                 <mat-select [ngModel]="newType()" (ngModelChange)="newType.set($event)">
                   <mat-option value="string">Text</mat-option>
