@@ -413,6 +413,20 @@ describe('PageDetail', () => {
     await settle();
     fixture.detectChanges();
     expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
+
+    // The View/Edit toggle, Refresh, the info/inspector button, save status
+    // and Save all act on this page's own content — none of them apply while
+    // the Board view is showing a Kanban of its children instead.
+    expect(screen.queryByRole('radio', { name: /^view$/i })).toBeNull();
+    expect(screen.queryByRole('radio', { name: /^edit$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /refresh/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /toggle inspector|page info/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
+
+    // Switching back to Content brings them all back.
+    await userEvent.click(screen.getByRole('radio', { name: /^content$/i }));
+    expect(screen.getByRole('radio', { name: /^view$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /toggle inspector|page info/i })).toBeInTheDocument();
   });
 
   it('falls back to content when defaultView is board but the page is no longer eligible', async () => {

@@ -166,69 +166,77 @@ export function resolveSaveStatus(state: {
 
         <span class="spacer"></span>
 
-        @if (mode() === 'edit') {
-          <mat-button-toggle-group
-            class="mode-toggle"
-            [value]="editorMode()"
-            (change)="onEditorModeToggle($event.value)"
-            aria-label="Editor view mode"
-          >
-            <mat-button-toggle value="edit">Edit</mat-button-toggle>
-            @if (bp.isDesktop()) {
-              <mat-button-toggle value="split">Split</mat-button-toggle>
-            }
-            <mat-button-toggle value="preview">Preview</mat-button-toggle>
-          </mat-button-toggle-group>
-        } @else {
-          <mat-button-toggle-group
-            class="mode-toggle"
-            [value]="mode()"
-            (change)="onModeToggle($event.value)"
-            aria-label="Edit mode"
-          >
-            <mat-button-toggle value="view">View</mat-button-toggle>
-            <mat-button-toggle value="edit">Edit</mat-button-toggle>
-          </mat-button-toggle-group>
-        }
+        <!--
+          These controls (View/Edit, Refresh, the info/inspector button, save
+          status, Save) all act on this page's own content — meaningless while
+          the Board view is showing a Kanban of its children instead, so they
+          disappear together whenever viewMode() is 'board'.
+        -->
+        @if (viewMode() !== 'board') {
+          @if (mode() === 'edit') {
+            <mat-button-toggle-group
+              class="mode-toggle"
+              [value]="editorMode()"
+              (change)="onEditorModeToggle($event.value)"
+              aria-label="Editor view mode"
+            >
+              <mat-button-toggle value="edit">Edit</mat-button-toggle>
+              @if (bp.isDesktop()) {
+                <mat-button-toggle value="split">Split</mat-button-toggle>
+              }
+              <mat-button-toggle value="preview">Preview</mat-button-toggle>
+            </mat-button-toggle-group>
+          } @else {
+            <mat-button-toggle-group
+              class="mode-toggle"
+              [value]="mode()"
+              (change)="onModeToggle($event.value)"
+              aria-label="Edit mode"
+            >
+              <mat-button-toggle value="view">View</mat-button-toggle>
+              <mat-button-toggle value="edit">Edit</mat-button-toggle>
+            </mat-button-toggle-group>
+          }
 
-        @if (resource.hasValue()) {
+          @if (resource.hasValue()) {
+            <button
+              mat-icon-button
+              type="button"
+              aria-label="Refresh"
+              title="Discard local changes and reload from the server"
+              [disabled]="isRefreshing()"
+              (click)="refresh()"
+            >
+              <mat-icon>refresh</mat-icon>
+            </button>
+          }
+
+          <!--
+            Editor-bar inspector control (step 1b.5). Same info icon and the same
+            toggleInspector() action in both breakpoints; only the label adapts —
+            desktop is the persisted side-panel "Toggle inspector"; below 1024 it
+            opens the bottom sheet, so it reads as a plain "Page info" button.
+          -->
           <button
             mat-icon-button
             type="button"
-            aria-label="Refresh"
-            title="Discard local changes and reload from the server"
-            [disabled]="isRefreshing()"
-            (click)="refresh()"
+            [attr.aria-label]="bp.isDesktop() ? 'Toggle inspector' : 'Page info'"
+            (click)="pageContext.toggleInspector()"
           >
-            <mat-icon>refresh</mat-icon>
+            <mat-icon>info</mat-icon>
           </button>
-        }
 
-        <!--
-          Editor-bar inspector control (step 1b.5). Same info icon and the same
-          toggleInspector() action in both breakpoints; only the label adapts —
-          desktop is the persisted side-panel "Toggle inspector"; below 1024 it
-          opens the bottom sheet, so it reads as a plain "Page info" button.
-        -->
-        <button
-          mat-icon-button
-          type="button"
-          [attr.aria-label]="bp.isDesktop() ? 'Toggle inspector' : 'Page info'"
-          (click)="pageContext.toggleInspector()"
-        >
-          <mat-icon>info</mat-icon>
-        </button>
+          @if (resource.hasValue()) {
+            <span class="save-status" [attr.data-status]="saveStatus()" aria-live="polite">
+              {{ saveStatusLabel() }}
+            </span>
+          }
 
-        @if (resource.hasValue()) {
-          <span class="save-status" [attr.data-status]="saveStatus()" aria-live="polite">
-            {{ saveStatusLabel() }}
-          </span>
-        }
-
-        @if (mode() === 'edit' || dirty()) {
-          <button mat-flat-button class="save-btn" (click)="save()" [disabled]="saving()">
-            Save
-          </button>
+          @if (mode() === 'edit' || dirty()) {
+            <button mat-flat-button class="save-btn" (click)="save()" [disabled]="saving()">
+              Save
+            </button>
+          }
         }
       </header>
 
