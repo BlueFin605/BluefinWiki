@@ -370,6 +370,70 @@ describe('NewPageModal', () => {
     expect(stub.calls).toEqual(['g-new']);
   });
 
+  it('omits an unset number/date property from the create request instead of sending an empty string', async () => {
+    const stub = dialogRefStub<string | null>();
+    await render(NewPageModal, {
+      providers: [
+        provideAnimationsAsync(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: MAT_DIALOG_DATA,
+          useValue: {
+            parentGuid: 'show-1',
+            parentPageType: 'pt-tv-show',
+            // The parent (TV Show) has no "episodes" property at all, so
+            // mergeSchema can't inherit a value for it — it falls to the
+            // schema's no-default seed.
+            parentProperties: { state: { type: 'string', value: 'Watching' } },
+          },
+        },
+        { provide: MatDialogRef, useValue: stub.ref },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const ptReq = http.expectOne('/api/page-types/pt-tv-show/allowed-children');
+    ptReq.flush({
+      allowedChildTypes: [
+        {
+          guid: 'pt-season',
+          name: 'Season',
+          icon: 'note',
+          properties: [
+            { name: 'state', type: 'string', required: true, defaultValue: 'Unwatched' },
+            { name: 'episodes', type: 'number', required: false },
+          ],
+          allowedChildTypes: [],
+          allowWikiPageChildren: false,
+          allowedParentTypes: [],
+          allowAnyParent: false,
+          createdBy: '',
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
+      allowWikiPageChildren: false,
+    });
+    await settle();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/title/i), 'Season 1');
+    await user.click(screen.getByRole('button', { name: /create/i }));
+
+    const req = http.expectOne('/api/pages');
+    const body = req.request.body as {
+      properties?: Record<string, { type: string; value: unknown }>;
+    };
+    expect(body.properties).toEqual({ state: { type: 'string', value: 'Watching' } });
+    expect(body.properties).not.toHaveProperty('episodes');
+    req.flush({
+      guid: 'g-new', title: 'Season 1', content: '', folderId: 'show-1', tags: [], status: 'draft',
+      createdBy: 'u', modifiedBy: 'u', createdAt: '', modifiedAt: '',
+    });
+    await settle();
+    expect(stub.calls).toEqual(['g-new']);
+  });
+
   it('shows the allowed-child-types in the dropdown when present', async () => {
     const { ref } = dialogRefStub();
     const rendered = await render(NewPageModal, {

@@ -16,6 +16,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { Pages } from './pages';
 import { PageTypes, SKIP_PAGE_TYPE_FETCH } from '../page-types/page-types';
 import { buildInheritedProperties } from './build-inherited-properties';
+import { withoutUnsetTypedProps } from './merge-schema';
 import type { CreatePageRequest, PageProperty } from './page.types';
 
 export interface NewPageModalData {
@@ -201,7 +202,11 @@ export class NewPageModal {
       ...(this.description() ? { description: this.description() } : {}),
       ...(this.pageType() ? { pageType: this.pageType() ?? undefined } : {}),
       ...(selectedType
-        ? { properties: buildInheritedProperties(selectedType.properties, this.data.parentProperties) }
+        ? {
+            properties: withoutUnsetTypedProps(
+              buildInheritedProperties(selectedType.properties, this.data.parentProperties),
+            ),
+          }
         : {}),
     };
     try {

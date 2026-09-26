@@ -46,7 +46,7 @@ const MAX_SUGGESTIONS = 5;
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <mat-form-field appearance="fill" class="full">
+    <mat-form-field appearance="outline" class="full">
       <mat-label>{{ label() }}</mat-label>
       <mat-chip-grid #chipGrid [disabled]="readOnly()" [attr.aria-label]="label()">
         @for (tag of tags(); track tag) {

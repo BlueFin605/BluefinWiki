@@ -5,7 +5,7 @@ import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { CustomPropertiesEditor } from '../editor/custom-properties-editor';
-import { mergeSchema } from '../pages/merge-schema';
+import { mergeSchema, withoutUnsetTypedProps } from '../pages/merge-schema';
 import { Pages } from '../pages/pages';
 import type { PageChildDetail, PageProperty, PageTypeDefinition } from '../pages/page.types';
 
@@ -37,38 +37,6 @@ function propertiesEqual(
     const bv = b[key];
     return bv !== undefined && a[key].type === bv.type && valueEqual(a[key].value, bv.value);
   });
-}
-
-/**
- * Drop `number` / `date` fields that are still unset before the properties
- * go out in a `PUT` body.
- *
- * `mergeSchema` seeds a schema field that has no `defaultValue` as `''` for
- * everything except `tags`. The backend's `PagePropertySchema.refine()`
- * (`backend/src/pages/pages-update.ts`) requires `typeof value === 'number'`
- * for `type: 'number'` and a `YYYY-MM-DD` match for `type: 'date'`, so
- * `{ type: 'number', value: '' }` is rejected with an opaque
- * "Property value does not match its declared type" 400 — which used to fire
- * on something as ordinary as renaming a card whose type declares an
- * optional number/date field the card never filled in.
- *
- * Omitting the entry is the correct wire representation of "unset": the
- * backend replaces the properties map wholesale (it does not merge
- * field-by-field), and its type validation for a missing required field is
- * advisory-only (a logged warning, not a rejection).
- *
- * Scoped to this dialog deliberately — `mergeSchema`'s `''` seed is shared
- * with the inspector's save path (a pre-existing Phase 4 defect), and fixing
- * it at the source is a separate, wider change.
- */
-function withoutUnsetTypedProps(
-  props: Record<string, PageProperty>,
-): Record<string, PageProperty> {
-  return Object.fromEntries(
-    Object.entries(props).filter(
-      ([, prop]) => !((prop.type === 'number' || prop.type === 'date') && prop.value === ''),
-    ),
-  );
 }
 
 /**

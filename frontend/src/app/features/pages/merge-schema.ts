@@ -69,3 +69,33 @@ function schemaDefault(fieldDef: PageTypeProperty): PageProperty['value'] {
 function cloneValue(value: PageProperty['value']): PageProperty['value'] {
   return Array.isArray(value) ? [...value] : value;
 }
+
+/**
+ * Drop `number` / `date` fields that are still at `mergeSchema`'s no-default
+ * seed before a property set goes out over the wire (a create `POST` or an
+ * update `PUT`).
+ *
+ * `mergeSchema`'s `schemaDefault` seeds a schema field with no `defaultValue`
+ * as `''` for everything except `tags` — a placeholder so every schema field
+ * has a UI-editable entry. But the backend's `PagePropertySchema.refine()`
+ * (`backend/src/pages/pages-create.ts` / `pages-update.ts`) requires
+ * `typeof value === 'number'` for `type: 'number'` and a `YYYY-MM-DD` match
+ * for `type: 'date'`, so `{ type: 'number', value: '' }` is rejected with an
+ * opaque "Property value does not match its declared type" 400 — surfaced
+ * nested under `details.properties.<name>._errors` in the response, easy to
+ * miss without reading the full JSON.
+ *
+ * Omitting the entry is the correct wire representation of "unset": create
+ * and update both replace/set the properties map wholesale rather than
+ * merging field-by-field, and a missing *required* field only produces an
+ * advisory warning (logged, not rejected) — see `page-type-validation.ts`.
+ */
+export function withoutUnsetTypedProps(
+  props: Record<string, PageProperty>,
+): Record<string, PageProperty> {
+  return Object.fromEntries(
+    Object.entries(props).filter(
+      ([, prop]) => !((prop.type === 'number' || prop.type === 'date') && prop.value === ''),
+    ),
+  );
+}

@@ -5,6 +5,7 @@ export interface PageTypePropertyInput {
   name: string;
   type: 'string' | 'number' | 'date' | 'tags';
   required: boolean;
+  defaultValue?: string | number | string[];
 }
 
 export async function createPageType(
