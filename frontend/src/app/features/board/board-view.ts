@@ -35,7 +35,7 @@ interface BoardPageResponse {
 /** Base page size the board asks for. */
 const PAGE_SIZE = 200;
 /** Backend page-size ceiling (`backend/src/pages/pages-list-children.ts`). */
-const MAX_LIMIT = 500;
+const MAX_LIMIT = 1000;
 
 /**
  * Kanban Board view. Loads the children of `parentGuid` with their

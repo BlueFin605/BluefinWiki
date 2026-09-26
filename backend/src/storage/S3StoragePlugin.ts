@@ -45,6 +45,12 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 import { BaseStoragePlugin } from './BaseStoragePlugin.js';
+import { mapWithConcurrency } from './concurrency.js';
+
+/** Bounded fan-out for per-child S3 calls in listChildren — high enough to
+ * turn O(n) sequential round-trips into a handful of parallel batches,
+ * comfortably under the AWS SDK's default HTTP connection pool size. */
+const LIST_CHILDREN_CONCURRENCY = 16;
 
 /**
  * Page index interface — allows injection of the DynamoDB page index
@@ -969,6 +975,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       if (parentGuid === null) {
         // List root-level pages (folders at bucket root)
         // In new structure: {guid}/{guid}.md
+        const rootGuids: string[] = [];
         let continuationToken: string | undefined = undefined;
 
         do {
@@ -985,35 +992,41 @@ export class S3StoragePlugin extends BaseStoragePlugin {
             for (const prefix of response.CommonPrefixes) {
               if (prefix.Prefix) {
                 // Extract GUID from folder name (remove trailing /)
-                const guid = prefix.Prefix.replace(/\/$/, '');
-                try {
-                  const page = await this.loadPage(guid);
-                  // Only include pages that are actually root pages (folderId is null or empty)
-                  if (!page.folderId || page.folderId === '') {
-                    children.push({
-                      guid: page.guid,
-                      title: page.title,
-                      parentGuid: null,
-                      status: page.status === 'deleted' ? 'archived' : page.status,
-                      ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
-                      ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
-                      createdBy: page.createdBy,
-                      modifiedAt: page.modifiedAt,
-                      modifiedBy: page.modifiedBy,
-                      hasChildren: await this.hasChildrenDirect(guid),
-                      ...(page.pageType ? { pageType: page.pageType } : {}),
-                    });
-                  }
-                } catch (err) {
-                  // Skip pages that can't be loaded
-                  console.warn(`Failed to load page ${guid}:`, err);
-                }
+                rootGuids.push(prefix.Prefix.replace(/\/$/, ''));
               }
             }
           }
 
           continuationToken = response.NextContinuationToken;
         } while (continuationToken);
+
+        const rootResults = await mapWithConcurrency(rootGuids, LIST_CHILDREN_CONCURRENCY, async (guid): Promise<PageSummary | null> => {
+          try {
+            const page = await this.loadPage(guid);
+            // Only include pages that are actually root pages (folderId is null or empty)
+            if (page.folderId && page.folderId !== '') return null;
+            return {
+              guid: page.guid,
+              title: page.title,
+              parentGuid: null,
+              status: page.status === 'deleted' ? 'archived' : page.status,
+              ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
+              ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
+              createdBy: page.createdBy,
+              modifiedAt: page.modifiedAt,
+              modifiedBy: page.modifiedBy,
+              hasChildren: await this.hasChildrenDirect(guid),
+              ...(page.pageType ? { pageType: page.pageType } : {}),
+              ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
+            };
+          } catch (err) {
+            // Skip pages that can't be loaded
+            console.warn(`Failed to load page ${guid}:`, err);
+            return null;
+          }
+        });
+
+        children.push(...rootResults.filter((r): r is PageSummary => r !== null));
       } else {
         // List children in the parent's folder
         // In new structure: need to find where parent is located first
@@ -1027,7 +1040,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         }
 
         console.log(`[listChildren] Parent: ${parentGuid}, ParentFolder: ${parentFolder}`);
-        
+
+        const childGuids: string[] = [];
         let continuationToken: string | undefined = undefined;
 
         do {
@@ -1051,36 +1065,42 @@ export class S3StoragePlugin extends BaseStoragePlugin {
                 // Format: {ancestor-path}/{parentGuid}/{childGuid}/
                 const pathParts = childPrefix.Prefix.split('/');
                 const guid = pathParts[pathParts.length - 2]; // Second to last part (before trailing /)
-                
-                console.log(`[listChildren] Processing child prefix: ${childPrefix.Prefix}, extracted guid: ${guid}, parentGuid: ${parentGuid}`);
-                
+
                 // Skip the parent's own guid folder (the .md file is in its own folder)
                 if (guid === parentGuid) continue;
 
-                try {
-                  const page = await this.loadPage(guid);
-                  children.push({
-                    guid: page.guid,
-                    title: page.title,
-                    parentGuid: parentGuid,
-                    status: page.status === 'deleted' ? 'archived' : page.status,
-                    ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
-                    ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
-                    createdBy: page.createdBy,
-                    modifiedAt: page.modifiedAt,
-                    modifiedBy: page.modifiedBy,
-                    hasChildren: await this.hasChildrenDirect(guid),
-                    ...(page.pageType ? { pageType: page.pageType } : {}),
-                  });
-                } catch (err) {
-                  console.warn(`Failed to load page ${guid}:`, err);
-                }
+                childGuids.push(guid);
               }
             }
           }
 
           continuationToken = response.NextContinuationToken;
         } while (continuationToken);
+
+        const childResults = await mapWithConcurrency(childGuids, LIST_CHILDREN_CONCURRENCY, async (guid): Promise<PageSummary | null> => {
+          try {
+            const page = await this.loadPage(guid);
+            return {
+              guid: page.guid,
+              title: page.title,
+              parentGuid: parentGuid,
+              status: page.status === 'deleted' ? 'archived' : page.status,
+              ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
+              ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
+              createdBy: page.createdBy,
+              modifiedAt: page.modifiedAt,
+              modifiedBy: page.modifiedBy,
+              hasChildren: await this.hasChildrenDirect(guid),
+              ...(page.pageType ? { pageType: page.pageType } : {}),
+              ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
+            };
+          } catch (err) {
+            console.warn(`Failed to load page ${guid}:`, err);
+            return null;
+          }
+        });
+
+        children.push(...childResults.filter((r): r is PageSummary => r !== null));
       }
 
       // Sort by sortOrder (ascending), then by title for ties/unordered pages
