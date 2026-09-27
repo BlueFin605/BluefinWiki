@@ -1,8 +1,9 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext, UserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
-import { PageChildDetail, PageSummary, PageContent } from '../types/index.js';
+import { PageChildDetail, PageSummary } from '../types/index.js';
 import { StoragePlugin } from '../storage/StoragePlugin.js';
+import { mapWithConcurrency } from '../storage/concurrency.js';
 
 /**
  * Filter out draft pages unless the user is the author or an admin.
@@ -16,9 +17,10 @@ function filterDrafts<T extends PageSummary>(pages: T[], user: UserContext): T[]
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_DEPTH = 10;
 const MAX_PARALLEL_CHILD_LISTS = 8;
-const MAX_PARALLEL_PAGE_LOADS = 16;
 const DEFAULT_LIMIT = 200;
-const MAX_LIMIT = 500;
+// Bounded by Lambda's ~6MB response payload cap, not by fetch cost — listChildren
+// now fetches children concurrently, so a bigger page is cheap on the backend.
+const MAX_LIMIT = 1000;
 
 function parseLimit(value: string | undefined): number {
   const parsed = Number.parseInt(value || '', 10);
@@ -42,30 +44,6 @@ function decodeCursor(cursor: string | undefined): number {
   } catch {
     throw new Error('Invalid cursor format');
   }
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  if (items.length === 0) return [];
-
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  const worker = async () => {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
-    }
-  };
-
-  const workerCount = Math.max(1, Math.min(limit, items.length));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
 }
 
 /**
@@ -134,28 +112,12 @@ async function collectDescendantsByType(
       }
     }
 
-    const levelResults = await mapWithConcurrency(
-      matches,
-      MAX_PARALLEL_PAGE_LOADS,
-      async ({ child, parentTitle: immediateParentTitle }): Promise<PageChildDetail> => {
-        try {
-          const fullPage: PageContent = await storagePlugin.loadPage(child.guid);
-          return {
-            ...child,
-            ...(fullPage.pageType ? { pageType: fullPage.pageType } : {}),
-            ...(fullPage.properties && Object.keys(fullPage.properties).length > 0
-              ? { properties: fullPage.properties }
-              : {}),
-            parentTitle: immediateParentTitle,
-          };
-        } catch {
-          return {
-            ...child,
-            parentTitle: immediateParentTitle,
-          };
-        }
-      },
-    );
+    // listChildren already returns pageType/properties on each summary, so
+    // no second per-match loadPage() is needed here.
+    const levelResults: PageChildDetail[] = matches.map(({ child, parentTitle: immediateParentTitle }) => ({
+      ...child,
+      parentTitle: immediateParentTitle,
+    }));
 
     results.push(...levelResults);
   }
@@ -168,29 +130,16 @@ async function collectDescendantsByType(
 }
 
 /**
- * Enrich a list of direct children with pageType and properties.
+ * Strip the `properties` field for callers that didn't ask for it —
+ * listChildren() always populates it when available, but the response
+ * contract only includes it when `include=properties` is set.
  */
-async function enrichChildrenWithProperties(
-  storagePlugin: StoragePlugin,
-  children: PageSummary[],
-): Promise<PageChildDetail[]> {
-  return Promise.all(
-    children.map(async (child) => {
-      try {
-        const fullPage = await storagePlugin.loadPage(child.guid);
-        const detail: PageChildDetail = {
-          ...child,
-          ...(fullPage.pageType ? { pageType: fullPage.pageType } : {}),
-          ...(fullPage.properties && Object.keys(fullPage.properties).length > 0
-            ? { properties: fullPage.properties }
-            : {}),
-        };
-        return detail;
-      } catch {
-        return child as PageChildDetail;
-      }
-    })
-  );
+function withoutProperties(children: PageSummary[]): PageSummary[] {
+  return children.map((child) => {
+    const copy = { ...child };
+    delete copy.properties;
+    return copy;
+  });
 }
 
 /**
@@ -203,7 +152,7 @@ async function enrichChildrenWithProperties(
  * - include=properties — enrich each child with pageType and properties
  * - type={typeGuid} — filter to descendants matching this page type (requires include=properties)
  * - depth={1-10} — how many levels deep to search (default 1, requires type)
- * - limit={1-500} — page size (default 200)
+ * - limit={1-1000} — page size (default 200)
  * - cursor={opaque} — pagination cursor from previous response
  */
 export const handler = withAuth(async (
@@ -292,15 +241,13 @@ export const handler = withAuth(async (
       responseChildren = pagedResult.children;
       hasMore = pagedResult.hasMore;
     } else {
-      // Standard: list direct children
+      // Standard: list direct children. listChildren() already fetches each
+      // child's full content internally, so pageType/properties are already
+      // populated — no second per-child loadPage() needed here.
       const allChildren = await storagePlugin.listChildren(parentGuid);
       const children = filterDrafts(allChildren.filter(child => child.status !== 'archived'), user);
 
-      if (includeProperties) {
-        responseChildren = await enrichChildrenWithProperties(storagePlugin, children);
-      } else {
-        responseChildren = children;
-      }
+      responseChildren = includeProperties ? children : withoutProperties(children);
 
       const pagedChildren = responseChildren.slice(offset, offset + limit + 1);
       hasMore = pagedChildren.length > limit;

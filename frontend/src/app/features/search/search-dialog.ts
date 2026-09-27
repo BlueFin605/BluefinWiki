@@ -1,0 +1,908 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterRenderEffect,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged, filter, switchMap } from 'rxjs';
+import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { MatDialogRef } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { RATE_LIMIT_MESSAGE, RateLimitExceededError, Search, hasMoreResults } from './search';
+import { moveSelection } from './move-selection';
+import { addRecent, readRecentSearches, removeRecent, writeRecentSearches } from './recent-searches';
+import { highlight, type HighlightSegment } from './highlight';
+import type { SearchPageSize, WikiSearchQuery, WikiSearchResult } from './search.types';
+
+/** Up to this many tags are shown per result row (matches React parity). */
+const MAX_TAGS = 3;
+
+type ScopeValue = 'all' | 'titles' | 'content';
+
+const PAGE_SIZES: readonly SearchPageSize[] = [10, 25, 50];
+
+const DEFAULT_PAGE_SIZE: SearchPageSize = 10;
+
+interface SearchState {
+  status: 'idle' | 'loading' | 'resolved' | 'error';
+  results: readonly WikiSearchResult[];
+  totalResults: number;
+  executionTimeMs: number;
+  error: string | null;
+  /**
+   * The (trimmed) query text that actually produced `results` — captured in
+   * `run()` at dispatch time, not read live off the input box. Highlighting
+   * (step 6.5) must key off *this*, not `rawQuery()`: the previous result
+   * set stays rendered while a new search is `loading` (see `resultsOpen`'s
+   * doc comment) and while debouncing, so `rawQuery()` can race ahead of
+   * what's actually on screen — reading it directly would make the
+   * highlighted terms on still-stale rows flicker/relocate/disappear on
+   * every keystroke, based on characters that have nothing to do with why
+   * that row matched.
+   */
+  query: string;
+  /**
+   * The scope/page-size that actually produced `results` — captured in
+   * `run()` at dispatch time, exactly like `query` above (see its doc
+   * comment). `onLoadMore()` reads these three fields together off the
+   * *displayed* snapshot rather than the live `scope()`/`pageSize()`
+   * signals, so a "Load more" dispatch always describes what's on screen —
+   * never a mix of an old page-one result set and whatever the controls have
+   * moved on to since (see `onLoadMore`'s doc comment for the reachable
+   * sequence this prevents).
+   */
+  scope: ScopeValue;
+  pageSize: SearchPageSize;
+}
+
+const IDLE_STATE: SearchState = {
+  status: 'idle',
+  results: [],
+  totalResults: 0,
+  executionTimeMs: 0,
+  error: null,
+  query: '',
+  scope: 'all',
+  pageSize: DEFAULT_PAGE_SIZE,
+};
+
+const DEBOUNCE_MS = 200;
+
+@Component({
+  selector: 'wiki-search-dialog',
+  standalone: true,
+  imports: [
+    FormsModule,
+    MatIconModule,
+    MatButtonModule,
+    MatButtonToggleModule,
+    MatProgressSpinnerModule,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="search-dialog" role="dialog" aria-label="Search wiki">
+      <span class="sr-only" aria-live="polite">{{ liveMessage() }}</span>
+      <div class="input-row">
+        <mat-icon aria-hidden="true">search</mat-icon>
+        <input
+          type="text"
+          [(ngModel)]="rawQuery"
+          (ngModelChange)="onQueryChange($event)"
+          (keydown)="onKeydown($event)"
+          placeholder="Search wiki..."
+          aria-label="Search wiki"
+          role="combobox"
+          aria-controls="search-results-listbox"
+          [attr.aria-expanded]="resultsOpen()"
+          [attr.aria-activedescendant]="activeDescendant()"
+          maxlength="500"
+          #searchInput
+        />
+        @if (state().status === 'loading') {
+          <mat-spinner diameter="18" aria-label="Searching" />
+        }
+        <button
+          mat-icon-button
+          aria-label="Close search"
+          (click)="onClose()"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <div class="scope-row">
+        <mat-button-toggle-group
+          [value]="scope()"
+          (change)="onScopeChange($any($event.value))"
+          aria-label="Search scope"
+        >
+          <mat-button-toggle value="all">All</mat-button-toggle>
+          <mat-button-toggle value="titles">Titles</mat-button-toggle>
+          <mat-button-toggle value="content">Content</mat-button-toggle>
+        </mat-button-toggle-group>
+
+        <mat-button-toggle-group
+          class="page-size-group"
+          [value]="pageSize()"
+          (change)="onPageSizeChange($any($event.value))"
+          aria-label="Results per page"
+        >
+          @for (size of pageSizes; track size) {
+            <mat-button-toggle [value]="size">{{ size }}</mat-button-toggle>
+          }
+        </mat-button-toggle-group>
+      </div>
+
+      <div
+        id="search-results-listbox"
+        class="results"
+        role="listbox"
+        aria-label="Search results"
+        #resultsList
+      >
+        @if (rateLimited() && rawQuery().trim().length > 0) {
+          <p class="error">{{ rateLimitMessage }}</p>
+        }
+        @if (rawQuery().trim().length === 0) {
+          @if (recentSearches().length > 0) {
+            <div class="recent-searches">
+              <div class="recent-header">
+                <span>Recent searches</span>
+                <button type="button" class="clear-all-btn" (click)="onClearRecent()">
+                  Clear all
+                </button>
+              </div>
+              @for (term of recentSearches(); track term) {
+                <div class="recent-item">
+                  <button
+                    type="button"
+                    class="recent-term"
+                    (click)="onSelectRecent(term)"
+                  >
+                    <mat-icon aria-hidden="true">history</mat-icon>
+                    {{ term }}
+                  </button>
+                  <button
+                    type="button"
+                    class="recent-remove"
+                    [attr.aria-label]="'Remove recent search ' + term"
+                    (click)="onRemoveRecent(term)"
+                  >
+                    <mat-icon aria-hidden="true">close</mat-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="hint">Start typing to search...</p>
+          }
+        } @else if (state().status === 'error') {
+          <p class="error">{{ state().error }}</p>
+        } @else if (state().status === 'resolved' && state().results.length === 0) {
+          <p class="hint">No results for "{{ state().query }}".</p>
+        } @else {
+          @for (result of state().results; track result.pageId; let i = $index) {
+            <button
+              type="button"
+              class="result"
+              [class.selected]="i === selectedIndex()"
+              role="option"
+              [id]="'search-result-' + i"
+              [attr.aria-label]="result.title"
+              [attr.aria-selected]="i === selectedIndex()"
+              (click)="onSelect(result)"
+              (mouseenter)="selectedIndex.set(i)"
+            >
+              <div class="title">
+                @for (seg of highlightSegments(result.title); track $index) {
+                  @if (seg.match) {<mark>{{ seg.text }}</mark>} @else {<ng-container>{{ seg.text }}</ng-container>}
+                }
+              </div>
+              <div class="path">{{ result.path }}</div>
+              @if (result.snippet) {
+                <div class="snippet snippet-clamp">
+                  @for (seg of highlightSegments(result.snippet); track $index) {
+                    @if (seg.match) {<mark>{{ seg.text }}</mark>} @else {<ng-container>{{ seg.text }}</ng-container>}
+                  }
+                </div>
+              }
+              @if (result.tags.length > 0) {
+                <div class="tags">
+                  @for (tag of visibleTags(result.tags); track tag) {
+                    <span class="tag">{{ tag }}</span>
+                  }
+                </div>
+              }
+            </button>
+          }
+          @if (hasMore()) {
+            <div class="load-more-row">
+              <button
+                type="button"
+                class="load-more-btn"
+                #loadMoreBtn
+                [disabled]="loadingMore()"
+                (click)="onLoadMore()"
+              >
+                {{
+                  loadingMore()
+                    ? 'Loading…'
+                    : 'Load more results (' + state().results.length + ' of ' + state().totalResults + ')'
+                }}
+              </button>
+            </div>
+          } @else if (state().results.length > 0) {
+            <div class="footer">
+              {{ state().totalResults }} result(s) in {{ state().executionTimeMs }}ms
+            </div>
+          }
+        }
+      </div>
+    </div>
+  `,
+  styles: [`
+    /* Visually hidden but still reachable by screen readers (step 6.6). No
+       existing sr-only utility class was found elsewhere in the app to reuse. */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .search-dialog {
+      display: flex;
+      flex-direction: column;
+      min-width: 480px;
+      max-width: 640px;
+      max-height: 70vh;
+    }
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .input-row input {
+      flex: 1;
+      border: 0;
+      outline: none;
+      font-size: 1rem;
+      background: transparent;
+    }
+    .scope-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .page-size-group {
+      font-size: 0.75rem;
+    }
+    .results {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.25rem 0;
+      min-height: 120px;
+    }
+    .hint, .error {
+      padding: 1rem;
+      color: #6b7280;
+      text-align: center;
+      font-size: 0.875rem;
+    }
+    .error { color: #b91c1c; }
+    .recent-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .clear-all-btn {
+      border: 0;
+      background: none;
+      color: #2563eb;
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0;
+    }
+    .recent-item {
+      display: flex;
+      align-items: center;
+    }
+    .recent-term {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-align: left;
+      border: 0;
+      background: none;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: #111827;
+    }
+    .recent-term:hover, .recent-term:focus-visible {
+      background: #f3f4f6;
+    }
+    .recent-term mat-icon {
+      color: #9ca3af;
+      font-size: 1.125rem;
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+    .recent-remove {
+      border: 0;
+      background: none;
+      cursor: pointer;
+      padding: 0.25rem 0.75rem;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+    }
+    .recent-remove:hover, .recent-remove:focus-visible {
+      color: #4b5563;
+    }
+    .recent-remove mat-icon {
+      font-size: 1.125rem;
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+    .result {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: none;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+    .result:hover, .result:focus-visible, .result.selected {
+      background: #f3f4f6;
+    }
+    .title { font-weight: 500; color: #111827; }
+    .title mark, .snippet mark {
+      background: #fef08a;
+      color: inherit;
+      border-radius: 0.125rem;
+    }
+    .path { font-size: 0.75rem; color: #6b7280; margin-top: 0.125rem; }
+    .snippet { font-size: 0.875rem; color: #4b5563; margin-top: 0.25rem; }
+    .snippet-clamp {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.375rem;
+    }
+    .tag {
+      font-size: 0.6875rem;
+      color: #4b5563;
+      background: #f3f4f6;
+      border-radius: 0.75rem;
+      padding: 0.0625rem 0.5rem;
+    }
+    .footer {
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: #9ca3af;
+      border-top: 1px solid #e5e7eb;
+    }
+    .load-more-row {
+      display: flex;
+      justify-content: center;
+      padding: 0.5rem 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .load-more-btn {
+      padding: 0.375rem 1rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      background: #fff;
+      font-size: 0.8125rem;
+      cursor: pointer;
+    }
+    .load-more-btn:disabled {
+      cursor: default;
+      opacity: 0.7;
+    }
+  `],
+})
+export class SearchDialog {
+  private readonly searchService = inject(Search);
+  private readonly router = inject(Router);
+  private readonly dialogRef = inject(MatDialogRef<SearchDialog, string | null>);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly pageSizes = PAGE_SIZES;
+
+  protected readonly rawQuery = signal('');
+  protected readonly scope = signal<ScopeValue>('all');
+  protected readonly pageSize = signal<SearchPageSize>(DEFAULT_PAGE_SIZE);
+  protected readonly state = signal<SearchState>(IDLE_STATE);
+
+  /** True while an imperative "Load more" fetch (appending a page) is in flight. */
+  protected readonly loadingMore = signal(false);
+
+  /**
+   * True while `Search`'s client-side rate limiter (step 6.3) is suppressing
+   * dispatched requests — read directly from the service, which is the
+   * single choke point both the debounced query pipeline and "Load more"
+   * dispatch through, so this covers both. Drives the "Too many searches"
+   * message in the template; hidden while the query box is empty.
+   */
+  protected readonly rateLimited = this.searchService.rateLimited;
+
+  /** Shared with `RateLimitExceededError` so the two copies can't drift. */
+  protected readonly rateLimitMessage = RATE_LIMIT_MESSAGE;
+
+  /** `-1` when nothing is highlighted. Moved by {@link moveSelection}, hover, and Enter/Ctrl+Enter. */
+  protected readonly selectedIndex = signal(-1);
+
+  /**
+   * Persisted recent-search terms (step 6.4), most-recent-first. Seeded from
+   * `localStorage` at construction; every mutation below writes straight
+   * back out via {@link writeRecentSearches} so this signal and storage
+   * never drift. Rendered in place of the "Start typing..." hint while the
+   * query box is empty (see the template) — the hint still shows when it's
+   * empty too (nothing recent to offer yet).
+   */
+  protected readonly recentSearches = signal<string[]>(readRecentSearches());
+
+  /**
+   * Bumped every time the debounce/switchMap pipeline below lands a fresh
+   * page one (a new query, scope change, or page-size change — anything that
+   * legitimately restarts pagination from scratch). `onLoadMore()` captures
+   * this before its request goes out and discards the response if it no
+   * longer matches when the response arrives: the switchMap pipeline cancels
+   * a *stale page-one* request for us at the RxJS level, but "Load more" is
+   * a separate imperative fetch outside that pipeline, so a slow append for
+   * an old query could otherwise land after — and clobber — a newer reset
+   * (e.g. the user kept typing while "Load more" was still in flight).
+   */
+  private readonly generation = signal(0);
+
+  // Read via a computed (not `state().results` directly) so effects below only
+  // re-run when the results *array reference* actually changes — e.g. not on
+  // every idle → loading → resolved status flip for the same result set.
+  private readonly results = computed(() => this.state().results);
+
+  /** True once more results exist beyond what's currently loaded (accumulated). */
+  protected readonly hasMore = computed(
+    () => this.state().status === 'resolved' && hasMoreResults(this.state()),
+  );
+
+  protected readonly activeDescendant = computed(() => {
+    const i = this.selectedIndex();
+    return i >= 0 ? `search-result-${i}` : null;
+  });
+
+  /**
+   * Whether the results listbox currently has selectable options — drives
+   * `aria-expanded`. Keyed only off `results.length`, not `status`: while a
+   * new search is `loading`, the previous result set's rows are still
+   * rendered (see the template), so the listbox stays "expanded" until that
+   * changes.
+   */
+  protected readonly resultsOpen = computed(() => this.results().length > 0);
+
+  /**
+   * Screen-reader announcement for the current search state (step 6.6):
+   * "Searching…" / "{N} results found" / "No results" / the error message /
+   * empty. Reads `state()` directly rather than `rawQuery()` —
+   * `state.status` only flips away from `idle` once the debounce/switchMap
+   * pipeline below (`trigger` → `debounceTime(DEBOUNCE_MS)` → `switchMap` →
+   * `run()`) actually dispatches, so this is already debounced against rapid
+   * typing without any further delay of its own. The "Searching…" message
+   * still shows the moment a request is genuinely in flight: `run()` sets
+   * `status: 'loading'` synchronously, before awaiting the fetch, so there's
+   * no *additional* lag layered on top of the pipeline's existing debounce.
+   * The `error` case echoes `state().error` — the same text already shown
+   * visually in the `<p class="error">` banner in the template — so a screen
+   * reader user hears the failure too, rather than the region silently going
+   * quiet after a "Searching…" that never resolves into anything spoken.
+   * Empty only on `idle` (blank query — nothing to announce yet).
+   *
+   * Checked first, ahead of `state().status`: a suppressed (rate-limited)
+   * dispatch never changes `status` at all — `run()` returns `null` for it
+   * and reverts `state` to exactly what it was (see `run`'s catch), so
+   * `state` is byte-identical before and after and a `status`-only switch
+   * would announce nothing, even though the visible "Too many searches..."
+   * banner (driven by the same `rateLimited()` condition below, matching the
+   * template's own `@if`) has appeared. Mirroring that condition here — not
+   * reading `state` for it — keeps the live region and the banner from ever
+   * being able to drift apart.
+   */
+  protected readonly liveMessage = computed(() => {
+    if (this.rateLimited() && this.rawQuery().trim().length > 0) {
+      return this.rateLimitMessage;
+    }
+    const s = this.state();
+    switch (s.status) {
+      case 'loading':
+        return 'Searching…';
+      case 'resolved':
+        return s.totalResults > 0 ? `${s.totalResults} results found` : 'No results';
+      case 'error':
+        return s.error ?? '';
+      default:
+        return '';
+    }
+  });
+
+  // Combine raw + scope + pageSize into a tuple so a scope or page-size
+  // change also re-issues the search (always from offset 0 — see `run`).
+  private readonly trigger = computed(() => ({
+    text: this.rawQuery(),
+    scope: this.scope(),
+    pageSize: this.pageSize(),
+  }));
+
+  // Debounced + de-duped stream that fans out to the search service.
+  private readonly debounced = toSignal(
+    toObservable(this.trigger).pipe(
+      debounceTime(DEBOUNCE_MS),
+      distinctUntilChanged(
+        (a, b) => a.text === b.text && a.scope === b.scope && a.pageSize === b.pageSize,
+      ),
+      switchMap((trig) => this.run(trig.text, trig.scope, trig.pageSize)),
+      // `run()` returns `null` for a rate-limited (suppressed) dispatch —
+      // drop it here rather than letting it re-enter the pipeline. A
+      // suppressed dispatch is a genuine no-op (see `run`'s catch, which
+      // reverts `state` directly and synchronously), so it must never reach
+      // `toSignal`/the constructor's `effect()` below: that effect bumps
+      // `generation` on every emission it sees, by *reference*, regardless
+      // of content — and once `onLoadMore()` has appended a page (which
+      // mutates `state` directly, bypassing this pipeline entirely), the
+      // `before` reference `run()` would otherwise push back through here is
+      // no longer reference-equal to whatever `toSignal` last cached, so it
+      // would read as a "real" change and spuriously reset the selection.
+      // Filtering the no-op out here sidesteps that reference-equality trap
+      // altogether instead of depending on it.
+      filter((result): result is SearchState => result !== null),
+    ),
+    { initialValue: IDLE_STATE },
+  );
+
+  private readonly loadMoreBtnEl = viewChild('loadMoreBtn', { read: ElementRef });
+  private readonly resultsListEl = viewChild('resultsList', { read: ElementRef });
+  private loadMoreObserver: IntersectionObserver | null = null;
+
+  constructor() {
+    // Pipe debounced() into state() so the OnPush template re-reads cleanly.
+    // This is the ONLY place `state` is replaced wholesale with a fresh page
+    // one, so it's also the right place to bump `generation` (see its doc
+    // comment) — `onLoadMore()`'s in-place append below deliberately does
+    // NOT touch `generation`.
+    effect(() => {
+      this.state.set(this.debounced());
+      this.generation.update((g) => g + 1);
+    });
+
+    // Reset the highlighted row whenever a genuinely new result set arrives
+    // (including going back to empty) — a stale index from the previous
+    // query must never carry over. Keyed off `generation`, not `results()`:
+    // an appended "Load more" page also changes the `results` array
+    // reference but must NOT reset the user's current selection.
+    effect(() => {
+      this.generation();
+      this.selectedIndex.set(-1);
+    });
+
+    // Keep the highlighted row visible as selection moves via keyboard/hover.
+    afterRenderEffect(() => {
+      const results = this.results();
+      const i = this.selectedIndex();
+      if (i < 0 || i >= results.length) return;
+      const el = document.getElementById(`search-result-${i}`);
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+
+    // Wire/re-wire an IntersectionObserver on the "Load more" control so it
+    // auto-fires when scrolled near the bottom of the results list, in
+    // addition to being clickable. Re-runs whenever the control mounts,
+    // unmounts (hasMore flips), or the scroll container changes.
+    afterRenderEffect(() => this.syncLoadMoreObserver());
+    this.destroyRef.onDestroy(() => this.teardownLoadMoreObserver());
+  }
+
+  protected onQueryChange(value: string): void {
+    this.rawQuery.set(value);
+    if (!value.trim()) {
+      // Bypasses the debounce/switchMap pipeline entirely (there's nothing
+      // to search), so it must also bump `generation` itself here — the
+      // pipeline effect that normally does this won't run for another
+      // DEBOUNCE_MS, and the selection-reset effect is keyed off
+      // `generation`, not `results()`. Without this, `selectedIndex` (and
+      // `aria-activedescendant`) would keep pointing at a row that just
+      // vanished from the DOM until the debounce eventually fires.
+      this.state.set(IDLE_STATE);
+      this.generation.update((g) => g + 1);
+    }
+  }
+
+  protected onScopeChange(value: ScopeValue): void {
+    this.scope.set(value);
+  }
+
+  /** Page-size selector change — re-runs the search from the start (offset 0). */
+  protected onPageSizeChange(value: SearchPageSize): void {
+    this.pageSize.set(value);
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    const key = event.key;
+    const results = this.results();
+    if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
+      if (results.length === 0) return;
+      event.preventDefault();
+      this.selectedIndex.set(moveSelection(this.selectedIndex(), key, results.length));
+      return;
+    }
+    if (key === 'Enter') {
+      const selected = results[this.selectedIndex()];
+      if (!selected) return;
+      event.preventDefault();
+      if (event.ctrlKey || event.metaKey) {
+        // Open in a new tab; the dialog and its result list stay open so the
+        // user can keep browsing (matches React). Still a genuine selection
+        // of this result — record it the same as a plain click/Enter would.
+        this.recordRecentForSelection();
+        window.open('/pages/' + selected.pageId, '_blank');
+        return;
+      }
+      void this.onSelect(selected);
+    }
+  }
+
+  protected async onSelect(result: WikiSearchResult): Promise<void> {
+    // Recorded on selection, not on every keystroke (step 6.4) — the term
+    // that actually produced a result the user picked, not merely typed.
+    this.recordRecentForSelection();
+    await this.router.navigate(['/pages', result.pageId]);
+    this.dialogRef.close(result.pageId);
+  }
+
+  protected onClose(): void {
+    this.dialogRef.close(null);
+  }
+
+  /** Clicking a recent-search term re-runs it, same as typing it. */
+  protected onSelectRecent(term: string): void {
+    this.onQueryChange(term);
+  }
+
+  /** Removes just this one recent-search entry (the row's "×" control). */
+  protected onRemoveRecent(term: string): void {
+    this.persistRecent(removeRecent(this.recentSearches(), term));
+  }
+
+  /** "Clear all" — empties the recent-searches list. */
+  protected onClearRecent(): void {
+    this.persistRecent([]);
+  }
+
+  /** Records `term` as the most-recent search (deduped + capped — see `addRecent`). */
+  private recordRecent(term: string): void {
+    this.persistRecent(addRecent(this.recentSearches(), term));
+  }
+
+  /**
+   * Records a recent-search entry for a genuine result selection (click,
+   * Enter, or Ctrl/Cmd+Enter). Reads `state().query` — the term that
+   * actually produced the *displayed* result being picked — not the live
+   * `rawQuery()` input: a still-rendered result set stays selectable while
+   * the user keeps typing past it (same staleness `SearchState.query`'s doc
+   * comment describes for highlighting), so recording the live input could
+   * attribute the selection to a term that never actually ran. Falls back to
+   * `rawQuery()` only for the (unreachable in practice, since a selectable
+   * result implies a resolved `state().query`) case where it's empty.
+   */
+  private recordRecentForSelection(): void {
+    this.recordRecent(this.state().query || this.rawQuery());
+  }
+
+  /** Single choke point for a recent-searches mutation: updates the signal and persists it. */
+  private persistRecent(next: string[]): void {
+    this.recentSearches.set(next);
+    writeRecentSearches(next);
+  }
+
+  /**
+   * Fetches the next page (offset = however many results are already
+   * accumulated) and appends it — clicked explicitly, or auto-fired by the
+   * IntersectionObserver in {@link syncLoadMoreObserver}. Guarded by
+   * `loadingMore`/`hasMore` so a double click or an overlapping IO callback
+   * can't fire a second overlapping request, and by `generation` so a
+   * response that outlives a newer reset is discarded (see its doc comment).
+   *
+   * Dispatches with `before.query`/`before.scope`/`before.pageSize` — the
+   * *displayed* snapshot — never the live `rawQuery()`/`scope()`/`pageSize()`
+   * signals. Those only agree with what's on screen while the debounced
+   * pipeline is settled; mid-debounce (or under real network latency) they
+   * can diverge, e.g. the user has 10-of-42 results for "cat" showing, types
+   * "s" within the 200ms debounce window, and clicks/scrolls to "Load more"
+   * before the new search has even dispatched. Reading the live signals here
+   * would send `q=cats&offset=10` and append page 2 of "cats" onto page 1 of
+   * "cat" — a genuinely mixed-query result list (and a potential duplicate
+   * `@for` track key, since the two pages can overlap). The early-return
+   * guard below detects that divergence *before* dispatching and simply
+   * declines to fetch — the debounce/switchMap pipeline will pick up the
+   * live values and reset from scratch on its own shortly after anyway.
+   *
+   * Merges the response into `this.state.update(cur => ...)` — the CURRENT
+   * state at response time — not the captured `before` snapshot: `before` is
+   * only used to build the request. Merging into `before` would clobber any
+   * `status` change a concurrent dispatch had made in the meantime (e.g.
+   * reverting a fresh 'loading' back to 'resolved' and silently killing its
+   * spinner) with stale data from this snapshot.
+   */
+  protected async onLoadMore(): Promise<void> {
+    if (this.loadingMore() || !this.hasMore()) return;
+    const before = this.state();
+    if (
+      !before.query ||
+      before.query !== this.rawQuery().trim() ||
+      before.scope !== this.scope() ||
+      before.pageSize !== this.pageSize()
+    ) {
+      return;
+    }
+
+    const token = this.generation();
+    this.loadingMore.set(true);
+    try {
+      const res = await this.searchService.search(
+        this.buildQuery(before.query, before.scope, before.pageSize, before.results.length),
+      );
+      if (this.generation() !== token) return;
+      this.state.update((cur) => ({
+        ...cur,
+        results: [...cur.results, ...res.results],
+        totalResults: res.totalResults,
+        executionTimeMs: res.executionTimeMs,
+      }));
+    } catch {
+      // Leave the already-loaded results on screen; the "Load more" button
+      // stays put (hasMore is unchanged) so the user can simply retry.
+    } finally {
+      this.loadingMore.set(false);
+    }
+  }
+
+  /** Re-wires the "Load more" auto-scroll observer against the current DOM. */
+  private syncLoadMoreObserver(): void {
+    this.teardownLoadMoreObserver();
+    if (typeof IntersectionObserver === 'undefined') return;
+    const btn = this.loadMoreBtnEl()?.nativeElement as HTMLElement | undefined;
+    if (!btn) return;
+    const root = (this.resultsListEl()?.nativeElement as HTMLElement | undefined) ?? null;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void this.onLoadMore();
+      },
+      { root, threshold: 0 },
+    );
+    observer.observe(btn);
+    this.loadMoreObserver = observer;
+  }
+
+  private teardownLoadMoreObserver(): void {
+    this.loadMoreObserver?.disconnect();
+    this.loadMoreObserver = null;
+  }
+
+  /**
+   * Splits `text` into `{ text, match }` segments around the query that
+   * produced the *currently-displayed* results (step 6.5) for the template
+   * to render with `@for` + `<mark>` — see {@link highlight}. Deliberately
+   * reads `this.state().query`, NOT the live `rawQuery()` signal: see
+   * `SearchState.query`'s doc comment for why highlighting off the input
+   * box directly is wrong here (it would flicker/relocate on every
+   * keystroke against still-stale, already-rendered rows). Called straight
+   * from the template rather than a `computed()`: it's per-row (keyed on
+   * `text`, not on any single signal), and cheap pure string work over
+   * whatever's currently rendered.
+   */
+  protected highlightSegments(text: string): HighlightSegment[] {
+    return highlight(text, this.state().query);
+  }
+
+  /** At most {@link MAX_TAGS} tags per result row (matches React parity). */
+  protected visibleTags(tags: readonly string[]): readonly string[] {
+    return tags.slice(0, MAX_TAGS);
+  }
+
+  /** Single place `run()` and `onLoadMore()` build a `WikiSearchQuery` — kept in sync by construction. */
+  private buildQuery(
+    text: string,
+    scope: ScopeValue,
+    pageSize: SearchPageSize,
+    offset: number,
+  ): WikiSearchQuery {
+    return { text, scope, limit: pageSize, offset };
+  }
+
+  /**
+   * Returns `null` (rather than a `SearchState`) for a suppressed
+   * (rate-limited) dispatch — the `debounced` pipeline above filters that
+   * out before it reaches `toSignal`, so it can never masquerade as a "real"
+   * state transition. See the `filter` call above for why that matters.
+   */
+  private async run(
+    text: string,
+    scope: ScopeValue,
+    pageSize: SearchPageSize,
+  ): Promise<SearchState | null> {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return IDLE_STATE;
+    }
+    const before = this.state();
+    this.state.set({ ...before, status: 'loading' });
+    try {
+      const res = await this.searchService.search(this.buildQuery(trimmed, scope, pageSize, 0));
+      return {
+        status: 'resolved',
+        results: res.results,
+        totalResults: res.totalResults,
+        executionTimeMs: res.executionTimeMs,
+        error: null,
+        query: trimmed,
+        scope,
+        pageSize,
+      };
+    } catch (err) {
+      if (err instanceof RateLimitExceededError) {
+        // Suppressed dispatch: revert the 'loading' flip above directly and
+        // synchronously, and leave whatever was previously on screen alone.
+        // Deliberately does NOT flow back through the debounced/toSignal
+        // pipeline (return null, filtered out above) — nothing actually
+        // changed, so it must not be able to bump `generation` or reset the
+        // selection. The `rateLimited` signal (read straight off `Search`)
+        // drives the banner instead of a generic error state.
+        this.state.set(before);
+        return null;
+      }
+      return {
+        status: 'error',
+        results: [],
+        totalResults: 0,
+        executionTimeMs: 0,
+        error: err instanceof Error ? err.message : 'Search failed',
+        query: trimmed,
+        scope,
+        pageSize,
+      };
+    }
+  }
+}

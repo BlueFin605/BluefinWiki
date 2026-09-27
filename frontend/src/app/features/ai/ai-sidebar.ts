@@ -1,0 +1,362 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+  type OnInit,
+  type ElementRef,
+  afterRenderEffect,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { Ai, type AiAvailability } from './ai';
+import { AiContextLoader } from './ai-context-loader';
+import { AiInstructions } from './ai-instructions';
+import { ChatMessage } from './chat-message';
+import { ContextMeter } from './context-meter';
+import { ActionPreview } from './action-preview';
+import { InstructionPicker } from './instruction-picker';
+import { UnavailableState } from './unavailable-state';
+
+@Component({
+  selector: 'wiki-ai-sidebar',
+  standalone: true,
+  imports: [
+    FormsModule,
+    MatToolbarModule,
+    MatButtonModule,
+    MatIconModule,
+    ChatMessage,
+    ContextMeter,
+    ActionPreview,
+    InstructionPicker,
+    UnavailableState,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="ai-sidebar" role="complementary" aria-label="AI assistant">
+      <mat-toolbar color="primary" class="header">
+        <span class="title">AI assistant</span>
+        <span class="spacer"></span>
+        <button
+          mat-icon-button
+          type="button"
+          aria-label="New chat"
+          [disabled]="ai.messages().length === 0"
+          (click)="onNewChat()"
+        >
+          <mat-icon>refresh</mat-icon>
+        </button>
+        <button
+          mat-icon-button
+          type="button"
+          aria-label="Close AI assistant"
+          (click)="closed.emit()"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </mat-toolbar>
+
+      @if (availability() === null) {
+        <p class="checking">Checking availability...</p>
+      } @else if (!canChat()) {
+        <wiki-ai-unavailable-state [availability]="availability()!" />
+      } @else {
+        <wiki-context-meter
+          [usage]="ai.inputUsage()"
+          [quota]="ai.inputQuota()"
+        />
+        <wiki-instruction-picker [loadedGuids]="ai.loadedInstructionIds()" />
+
+        <div class="messages" role="log" aria-label="Conversation" #messagesContainer>
+          @if (ai.messages().length === 0) {
+            <p class="hint">
+              Ask me about the wiki — I can summarise pages, propose new pages,
+              edit existing ones, or move pages around. Every change is shown
+              as a preview you confirm.
+            </p>
+          }
+          @for (m of ai.messages(); track m.id) {
+            <wiki-chat-message [message]="m" />
+          }
+          @if (ai.streaming()) {
+            <div class="thinking">Thinking...</div>
+          }
+        </div>
+
+        <wiki-action-preview />
+
+        <form class="input-row" (submit)="onSubmit($event)">
+          <textarea
+            [ngModel]="draft()"
+            (ngModelChange)="draft.set($event)"
+            name="ai-input"
+            placeholder="Ask the wiki..."
+            rows="2"
+            [disabled]="ai.streaming()"
+            (keydown.enter)="onEnterKey($event)"
+            aria-label="Message"
+          ></textarea>
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            [disabled]="!canSend()"
+          >
+            Send
+          </button>
+        </form>
+      }
+    </div>
+  `,
+  styles: [`
+    .ai-sidebar {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: white;
+    }
+    .header { display: flex; align-items: center; }
+    .title { font-weight: 600; }
+    .spacer { flex: 1; }
+    .checking, .hint {
+      padding: 1rem;
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem 1rem;
+    }
+    .thinking {
+      font-size: 0.75rem;
+      color: #6b7280;
+      padding: 0.5rem 0;
+    }
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+      border-top: 1px solid #e5e7eb;
+      padding: 0.75rem;
+    }
+    textarea {
+      flex: 1;
+      resize: none;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      padding: 0.5rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+    }
+    textarea:disabled { background: #f9fafb; color: #9ca3af; }
+  `],
+})
+export class AiSidebar implements OnInit {
+  protected readonly ai = inject(Ai);
+  private readonly contextLoader = inject(AiContextLoader);
+  private readonly aiInstructions = inject(AiInstructions);
+
+  readonly currentPageGuid = input<string | null>(null);
+  readonly closed = output<void>();
+
+  private readonly picker = viewChild(InstructionPicker);
+  private readonly messagesContainer = viewChild<ElementRef<HTMLDivElement>>('messagesContainer');
+
+  protected readonly availability = signal<AiAvailability | null>(null);
+  protected readonly draft = signal('');
+
+  protected readonly canChat = computed(() => {
+    const a = this.availability();
+    return a === 'available' || a === 'downloadable';
+  });
+
+  protected readonly canSend = computed(
+    () => !this.ai.streaming() && this.draft().trim().length > 0,
+  );
+
+  /**
+   * Auto-scroll to bottom when messages are added or streaming state changes.
+   *
+   * By the time ANY `afterRenderEffect` phase runs — `earlyRead` included —
+   * Angular's change detection has already written this render's new
+   * message(s) into the DOM (CD's own template writes always complete
+   * before the `afterRenderEffect` phase sequence runs; verified against
+   * this repo's `@angular/core` 21.2.14 build). So `container.scrollHeight`
+   * is never readable in its pre-append state from inside this effect —
+   * `earlyRead` sees the exact same grown value `mixedReadWrite` would.
+   * Instead, `previousMessagesScrollHeight` remembers the scrollHeight from
+   * the END of the previous run (i.e. before the CURRENT run's append).
+   * `scrollTop` and `clientHeight` are unaffected by appending content below
+   * the viewport, so reading them at either phase is safe and always
+   * reflects the same value the pre-append DOM had.
+   *
+   * `earlyRead` (read-only) computes "was near bottom" from that
+   * pre-append height and returns a freshly-allocated object each run —
+   * never a bare boolean — so `mixedReadWrite` (which reads the DOM to
+   * capture the new scrollHeight and writes scrollTop) is guaranteed to
+   * re-run on every append, even across a run of messages where the
+   * decision itself keeps coming out `true`. Angular only re-runs a later
+   * phase when the earlier phase's returned value fails an equality check;
+   * a repeated primitive would pass that check and silently freeze the
+   * cache after the first message.
+   */
+  constructor() {
+    let previousMessagesScrollHeight = 0;
+
+    afterRenderEffect({
+      earlyRead: () => {
+        // Read to register this effect's reactive dependencies.
+        void this.ai.messages();
+        void this.ai.streaming();
+
+        const container = this.messagesContainer()?.nativeElement;
+        if (!container) return { wasNearBottom: false };
+
+        // Only auto-scroll if the user was within 64px of the bottom
+        // before this render's content was inserted.
+        const distanceFromBottom =
+          previousMessagesScrollHeight - container.scrollTop - container.clientHeight;
+        return { wasNearBottom: distanceFromBottom < 64 };
+      },
+      mixedReadWrite: (guard) => {
+        const container = this.messagesContainer()?.nativeElement;
+        if (!container) return;
+
+        if (guard().wasNearBottom) {
+          // User was near the bottom, scroll to the very bottom.
+          container.scrollTop = container.scrollHeight;
+        }
+        // If the user had scrolled up to read history, don't force-scroll.
+
+        // Capture this render's (now grown) height for the next run's guard.
+        previousMessagesScrollHeight = container.scrollHeight;
+      },
+    });
+  }
+
+  ngOnInit(): void {
+    void this.refreshAvailability();
+  }
+
+  protected async refreshAvailability(): Promise<void> {
+    this.availability.set(await this.ai.isAvailable());
+  }
+
+  protected onEnterKey(event: Event): void {
+    const ke = event as KeyboardEvent;
+    if (!ke.shiftKey) {
+      event.preventDefault();
+      void this.doSend();
+    }
+  }
+
+  protected onSubmit(event: Event): void {
+    event.preventDefault();
+    void this.doSend();
+  }
+
+  protected onNewChat(): void {
+    void this.ai.reset();
+  }
+
+  private async doSend(): Promise<void> {
+    if (!this.canSend()) return;
+    const text = this.draft().trim();
+    this.draft.set('');
+    try {
+      const { instructionContext, succeededGuids } = await this.loadSelectedInstructions();
+      const ragContext = await this.contextLoader.buildRagContext({
+        currentPageGuid: this.currentPageGuid(),
+        userMessage: text,
+      });
+      await this.ai.sendMessage(text, ragContext || undefined, instructionContext);
+      // Only lock an instruction in once the SEND meant to inject it has
+      // actually succeeded (Finding 3, phase-7 final review) — marking it
+      // loaded right after the content fetch (the prior behavior) locked it
+      // even when this `sendMessage` call itself went on to fail (network
+      // error, model unavailable, etc.), stranding the instruction as
+      // "loaded" despite the model never having seen it, with no way to
+      // retry short of "New chat" (`toInject`'s filter below only retries
+      // GUIDs NOT already in `loadedInstructionIds()`).
+      if (succeededGuids.length > 0) {
+        this.ai.markInstructionsLoaded(succeededGuids);
+      }
+    } catch (err) {
+      this.ai.appendSystemMessage(
+        `AI error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Fetch content for any newly-selected (not yet loaded) instructions and
+   * fold it into one context block, porting React's `buildInstructionsBlock`.
+   *
+   * Returns the GUIDs whose `getInstructionContent` fetch succeeded
+   * alongside the built context — it does NOT mark them loaded on `Ai`
+   * itself. Locking an instruction in the picker means "injected", not
+   * merely "fetched": the caller (`doSend`) marks `succeededGuids` loaded
+   * only after the `ai.sendMessage(...)` call that was meant to inject them
+   * has itself resolved without throwing (Finding 3, phase-7 final review) —
+   * a content fetch can succeed while the send that carries it still fails.
+   *
+   * A per-GUID fetch failure is reported to the user via
+   * `Ai.appendSystemMessage` (the same convention used for fetch-tool errors
+   * elsewhere in `Ai`) and the GUID stays selected-but-unlocked, so
+   * `toInject`'s "not yet loaded" filter naturally retries it on the next
+   * send. All fetches run concurrently via `Promise.allSettled` so one
+   * failure never blocks or discards a sibling success in the same batch.
+   */
+  private async loadSelectedInstructions(): Promise<{
+    instructionContext?: string;
+    succeededGuids: string[];
+  }> {
+    const selected = this.picker()?.getSelected() ?? [];
+    const loaded = this.ai.loadedInstructionIds();
+    const toInject = selected.filter((guid) => !loaded.includes(guid));
+    if (toInject.length === 0) return { succeededGuids: [] };
+
+    const results = await Promise.allSettled(
+      toInject.map((guid) => this.aiInstructions.getInstructionContent(guid)),
+    );
+
+    const succeededGuids: string[] = [];
+    const sections: string[] = [];
+    results.forEach((result, i) => {
+      const guid = toInject[i];
+      if (result.status === 'fulfilled') {
+        succeededGuids.push(guid);
+        sections.push(`## ${result.value.title}\n${result.value.content.trim()}`);
+      } else {
+        console.warn(`Failed to load AI instruction ${guid}:`, result.reason);
+        const label = this.instructionLabel(guid);
+        this.ai.appendSystemMessage(
+          `Couldn't load instruction "${label}" — it was not added to this chat. It will be retried on your next message.`,
+        );
+      }
+    });
+
+    if (sections.length === 0) return { succeededGuids };
+
+    return {
+      instructionContext: `[Active instructions]\nThe user has attached the following instructions to this chat. Follow them for this and subsequent turns.\n\n${sections.join('\n\n')}`,
+      succeededGuids,
+    };
+  }
+
+  /** Best-effort title lookup for an instruction GUID, for error messages. */
+  private instructionLabel(guid: string): string {
+    const match = this.picker()
+      ?.instructions()
+      .find((instruction) => instruction.guid === guid);
+    return match?.title ?? guid;
+  }
+}

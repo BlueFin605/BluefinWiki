@@ -78,6 +78,7 @@ const DYNAMODB_TABLES = {
   userPreferences: 'bluefinwiki-user-preferences-local',
   pageIndex: 'bluefinwiki-page-index-local',
   tags: 'bluefinwiki-tags-local',
+  pageTypes: 'bluefinwiki-page-types-local',
 };
 
 /**

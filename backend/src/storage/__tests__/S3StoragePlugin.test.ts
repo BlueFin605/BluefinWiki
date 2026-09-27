@@ -604,6 +604,91 @@ Content`;
 
       expect(children).toEqual([]);
     });
+
+    it('should fetch children concurrently instead of one at a time', async () => {
+      // Uses a resolving page-index stub (instead of the default no-op one)
+      // so findPageFolder short-circuits at step 1 and never triggers
+      // repairIndex's own background loadPage() — that fire-and-forget path
+      // would otherwise add incidental concurrency unrelated to what this
+      // test is checking.
+      const guids = Array.from({ length: 10 }, () => uuidv4());
+      const indexedPlugin = new S3StoragePlugin({
+        bucketName: TEST_BUCKET,
+        region: TEST_REGION,
+        pageIndex: {
+          getPageKey: async (guid: string) => `${guid}/`,
+          putPageKey: async () => {},
+          deletePageKey: async () => {},
+          deletePageKeys: async () => {},
+        },
+      });
+      (indexedPlugin as any).s3Client = s3Mock as any;
+
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+        if (!input.Prefix) {
+          // Root listing
+          return { CommonPrefixes: guids.map((g) => ({ Prefix: `${g}/` })) };
+        }
+        // hasChildrenDirect checks
+        return { CommonPrefixes: [] };
+      });
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      s3Mock.on(GetObjectCommand).callsFake(async (input: any) => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        inFlight--;
+
+        const guid = input.Key.split('/')[0];
+        const markdown = `---\ntitle: "Page ${guid}"\nguid: "${guid}"\nfolderId: ""\nstatus: "published"\ncreatedBy: "user-123"\nmodifiedBy: "user-123"\ncreatedAt: "2026-02-10T12:00:00Z"\nmodifiedAt: "2026-02-10T12:00:00Z"\n---\n\nContent`;
+        return { Body: createMockStream(markdown)() } as any;
+      });
+
+      const children = await indexedPlugin.listChildren(null);
+
+      expect(children.length).toBe(10);
+      expect(maxInFlight).toBeGreaterThan(1);
+    });
+
+    it('should include page properties on each child summary', async () => {
+      const guid = uuidv4();
+      const markdown = `---
+title: "With Properties"
+guid: "${guid}"
+folderId: ""
+status: "published"
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+pageType: "type-guid-1"
+properties:
+  state:
+    type: string
+    value: "In Progress"
+---
+
+Content`;
+
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+        if (!input.Prefix) {
+          return { CommonPrefixes: [{ Prefix: `${guid}/` }] };
+        }
+        return { CommonPrefixes: [] };
+      });
+      s3Mock.on(HeadObjectCommand).resolves({ ContentLength: 100, LastModified: new Date() });
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(markdown)() } as any);
+
+      const children = await plugin.listChildren(null);
+
+      expect(children).toHaveLength(1);
+      expect(children[0].pageType).toBe('type-guid-1');
+      expect(children[0].properties).toEqual({
+        state: { type: 'string', value: 'In Progress' },
+      });
+    });
   });
 
   describe('movePage', () => {

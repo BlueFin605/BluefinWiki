@@ -116,6 +116,18 @@ VITE_COGNITO_ENDPOINT=http://localhost:9229
 VITE_LOCALSTACK_ENDPOINT=http://localhost:4566
 ```
 
+## Frontend auth modes
+
+The Angular frontend has exactly two auth modes:
+
+- **Local dev** — `environment.ts` ships `disableAuth: true`. A mock admin user
+  is signed in automatically; no Cognito calls are made. This is the only
+  supported way to run the frontend locally.
+- **Deployed envs** — real Cognito Hosted-UI (authorization-code flow). Set the
+  `NG_APP_COGNITO_*` vars at build time via `scripts/build-env.mjs`.
+
+There is no local username/password path and no `cognito-local` integration.
+
 ## Development Workflow
 
 ### Making Changes
@@ -144,7 +156,14 @@ npm run test:integration
 # All tests
 cd backend
 npm run test:all
+
+# End-to-end tests (Playwright, against the already-running dev stack)
+cd e2e
+npx playwright test
 ```
+
+See [`e2e/README.md`](e2e/README.md) for the E2E suite's prerequisites and
+how to run a single spec file.
 
 ### Debugging
 

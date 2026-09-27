@@ -27,7 +27,6 @@ var backend = builder.AddJavaScriptApp("backend", "../../backend", "dev")
     .WaitFor(localstack)
     .WaitFor(cognitoLocal)
     .WithEnvironment("NODE_ENV", "development")
-    .WithEnvironment("PORT", "3000")
     .WithEnvironment("AWS_REGION", "us-east-1")
     .WithEnvironment("AWS_ACCESS_KEY_ID", "test")
     .WithEnvironment("AWS_SECRET_ACCESS_KEY", "test")
@@ -49,17 +48,13 @@ var backend = builder.AddJavaScriptApp("backend", "../../backend", "dev")
     .WithHttpEndpoint(port: 3000, env: "PORT")
     .WithExternalHttpEndpoints();
 
-// Frontend (Vite/React)
-var frontend = builder.AddViteApp("frontend", "../../frontend")
+// Angular frontend (Phase 8 cutover). Aspire.Hosting.JavaScript 13.x exposes
+// AddJavaScriptApp for npm-script-driven Node apps (not AddNpmApp); the
+// "start" script in frontend/package.json runs `ng serve`.
+var frontend = builder.AddJavaScriptApp("frontend", "../../frontend", "start")
     .WithEnvironment("NODE_ENV", "development")
-    .WithEnvironment("VITE_DISABLE_AUTH", "true")
-    .WithEnvironment("VITE_API_BASE_URL", "http://localhost:3000")
-    .WithEnvironment("VITE_ALLOW_LOCAL_API_IN_PROD", "true")
-    .WithEnvironment("VITE_AWS_REGION", "us-east-1")
-    .WithEnvironment("VITE_COGNITO_USER_POOL_ID", "local_abc123")
-    .WithEnvironment("VITE_COGNITO_CLIENT_ID", "local-client-id")
-    .WithEnvironment("VITE_COGNITO_ENDPOINT", "http://localhost:9229")
-    .WithEnvironment("VITE_LOCALSTACK_ENDPOINT", "http://localhost:4566")
+    .WithEnvironment("NG_APP_API_BASE_URL", "http://localhost:3000")
+    .WithHttpEndpoint(port: 5173, env: "PORT")
     .WithExternalHttpEndpoints();
 
 var app = builder.Build();

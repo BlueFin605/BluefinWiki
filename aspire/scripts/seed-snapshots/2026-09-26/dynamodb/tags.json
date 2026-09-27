@@ -1,0 +1,23 @@
+[
+  {
+    "createdAt": "2026-09-26T21:51:52.787Z",
+    "tag": "netflix",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 2,
+    "scope": "genre"
+  },
+  {
+    "createdAt": "2026-09-26T21:51:52.787Z",
+    "tag": "dsfd",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 2,
+    "scope": "service"
+  },
+  {
+    "createdAt": "2026-09-26T21:51:52.787Z",
+    "tag": "sdafsafd",
+    "createdBy": "local-dev-user-id",
+    "usageCount": 2,
+    "scope": "rating"
+  }
+]

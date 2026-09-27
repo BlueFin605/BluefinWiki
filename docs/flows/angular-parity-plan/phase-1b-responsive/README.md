@@ -1,0 +1,54 @@
+# Phase 1b — Responsive / mobile layer
+
+**Goal:** give the Angular app the mobile layout it entirely lacks (F4) — a
+breakpoint service, a tree drawer + mobile top bar, a bottom-sheet inspector,
+mobile editor/toolbar behaviour, breadcrumb collapse, a mobile TOC bar, and
+full-width AI / full-screen search.
+
+**Design:** [`DESIGN.md`](DESIGN.md) — read it first. Decisions D1–D8 there are
+binding.
+
+**Sequencing:** runs **after Phases 3 and 4** (decision D8) — the inspector
+hoist (1b.3) and editor-bar rework (1b.6) refactor `page-detail`, so they land
+after Split view (3.1) and the Phase 4 inspector work. The mobile-tagged
+acceptance criteria in Phases 3 / 4 / 6 are ticked here.
+
+**Depends on:** Phase 1 (`Layout` clamps + dividers from step 1.3), Phase 3,
+Phase 4. Consumes the `compact` inputs added in steps 3.4 and 3.10, and the
+`TODO(1.5)` placeholder in step 3.5.
+
+## Steps
+
+| # | Step | Impact | Depends on |
+|---|---|---|---|
+| 1b.1 | [Breakpoint service](step-1b.1-breakpoint-service.md) | 🔴 | — |
+| 1b.2 | [Remove global app toolbar](step-1b.2-remove-global-toolbar.md) | ⚪→do (F12) | — |
+| 1b.3 | [PageContext + hoist inspector](step-1b.3-pagecontext-hoist-inspector.md) | 🔴 | 1b.1, Phase 4 |
+| 1b.4 | [Shell container + tree drawer + hamburger](step-1b.4-shell-container-tree-drawer.md) | 🔴 | 1b.1, 1b.3 |
+| 1b.5 | [Inspector responsive (side ↔ sheet)](step-1b.5-inspector-responsive.md) | 🔴 | 1b.3, 1b.4 |
+| 1b.6 | [Editor bar + toolbar responsive](step-1b.6-editor-bar-toolbar-responsive.md) | 🔴 | 1b.1, 3.1, 3.4 |
+| 1b.7 | [Breadcrumb mobile collapse](step-1b.7-breadcrumb-mobile-collapse.md) | 🟠 | 1b.1, 3.5 |
+| 1b.8 | [TOC mobile bar](step-1b.8-toc-mobile-bar.md) | 🔴 | 1b.1, 3.10 |
+| 1b.9 | [AI overlay + search full-screen](step-1b.9-ai-overlay-search-fullscreen.md) | 🟠 | 1b.1 |
+
+**Order:** 1b.1 first. 1b.2 anytime. 1b.3 → then 1b.4 → then 1b.5. 1b.6–1b.9
+parallel-safe after 1b.1.
+
+## Phase exit criteria
+
+Code complete at `a886bdb` (9 steps + whole-branch review + fix wave). 92 suites
+/ 814 tests green, `npm run lint` + `tsc --noEmit -p tsconfig.app.json` clean.
+Ticked items below are jsdom / Testing-Library verified. The **manual matrix is
+replaced by an automated Playwright suite** — rather than a live manual walkthrough,
+the responsive layer's 32-item visual verification checklist is now covered by
+automated real-browser tests; see the updated item below.
+
+- [x] Every step's acceptance criteria met; `npm test` + `npm run lint` green
+      (whole-branch review passed *with fixes* — 1 Critical (mobile AI overlay
+      was painted under the app toolbar) + 3 Important fixed in `a886bdb`).
+- [x] Manual matrix replaced by an automated Playwright suite: `e2e/tests/{stacking-paint-order,inspector-sheet,tree-drawer,editor-toolbar,toc-breadcrumbs,search-and-global}.spec.ts` (34 tests, all passing). See `docs/superpowers/specs/2026-09-19-phase-1b-playwright-e2e-design.md` for the design and `docs/superpowers/plans/2026-09-19-phase-1b-playwright-e2e.md` for how it was built. Run with `cd e2e && npx playwright test` against a running Aspire stack.
+- [x] The global `app.html` toolbar is gone; admin/settings/profile have an
+      interim `<h1>` + "Back to pages" + `TODO(8.1)`; `/callback` chrome-less;
+      `/403` `/404` standalone.
+- [x] Parent `README.md` status board + `phase-1-foundations/step-1.5` point
+      here (1.5 already did; status board updated at Phase 1b completion).

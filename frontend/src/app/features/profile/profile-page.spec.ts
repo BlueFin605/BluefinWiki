@@ -1,0 +1,199 @@
+import { render, screen } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
+import { signal, type WritableSignal } from '@angular/core';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter, Router } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { Auth } from '../../core/auth/auth';
+import { ProfilePage } from './profile-page';
+
+interface StubUser {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: 'Admin' | 'Standard';
+  emailVerified: boolean;
+}
+
+function defaultStubUser(): StubUser {
+  return {
+    userId: 'u',
+    email: 'me@x.com',
+    displayName: 'Me',
+    role: 'Standard',
+    emailVerified: true,
+  };
+}
+
+/**
+ * Auth stub whose `user` is a real signal so `updateProfile` mocks can patch
+ * it, mirroring how the real Auth.refreshUser() updates auth.user() after a
+ * successful PUT. `userSignal` is exposed for assertions.
+ */
+function authStub(over: {
+  user?: StubUser | null;
+  signOut?: jest.Mock;
+  updateProfile?: jest.Mock;
+}): Partial<Auth> & { userSignal: WritableSignal<StubUser | null> } {
+  const initial = over.user === undefined ? defaultStubUser() : over.user;
+  const userSignal = signal<StubUser | null>(initial);
+  const updateProfile =
+    over.updateProfile ??
+    jest.fn((displayName: string) => {
+      const current = userSignal();
+      if (current) userSignal.set({ ...current, displayName });
+    });
+  return {
+    user: userSignal,
+    signOut: over.signOut ?? jest.fn(),
+    updateProfile,
+    userSignal,
+  };
+}
+
+function providers(stub: Partial<Auth>) {
+  return [
+    provideNoopAnimations(),
+    provideRouter([]),
+    { provide: Auth, useValue: stub },
+  ];
+}
+
+async function settle(): Promise<void> {
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  TestBed.tick();
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+}
+
+describe('ProfilePage', () => {
+  it('renders the current user info', async () => {
+    const stub = authStub({});
+    await render(ProfilePage, { providers: providers(stub) });
+    expect(screen.getByLabelText(/display name/i)).toHaveValue('Me');
+    expect(screen.getByText('me@x.com')).toBeInTheDocument();
+    expect(screen.getByText('Standard')).toBeInTheDocument();
+  });
+
+  it('shows a "not signed in" message when user is null', async () => {
+    const stub = authStub({ user: null });
+    await render(ProfilePage, { providers: providers(stub) });
+    expect(screen.getByText(/not signed in/i)).toBeInTheDocument();
+  });
+
+  it('sign-out button calls auth.signOut and navigates to root', async () => {
+    const signOut = jest.fn();
+    const stub = authStub({ signOut });
+    await render(ProfilePage, { providers: providers(stub) });
+    const router = TestBed.inject(Router);
+    const navSpy = jest.spyOn(router, 'navigate');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /sign out/i }));
+    await settle();
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(navSpy).toHaveBeenCalledWith(['/']);
+  });
+
+  it('keeps a visible title and a back-to-pages affordance (global toolbar removed)', async () => {
+    await render(ProfilePage, { providers: providers(authStub({})) });
+    expect(screen.getByRole('heading', { level: 1, name: /profile/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
+  });
+});
+
+describe('ProfilePage - display name form', () => {
+  it('disables Save when the name is blank/whitespace or unchanged, enables it when changed', async () => {
+    const stub = authStub({});
+    await render(ProfilePage, { providers: providers(stub) });
+    const input = screen.getByLabelText(/display name/i);
+    const save = screen.getByRole('button', { name: /^save$/i });
+    const user = userEvent.setup();
+
+    // Unchanged (still "Me").
+    expect(save).toBeDisabled();
+
+    // Blank.
+    await user.clear(input);
+    await settle();
+    expect(save).toBeDisabled();
+
+    // Whitespace only.
+    await user.type(input, '   ');
+    await settle();
+    expect(save).toBeDisabled();
+
+    // Changed to a real value.
+    await user.clear(input);
+    await user.type(input, 'New Name');
+    await settle();
+    expect(save).toBeEnabled();
+  });
+
+  it('Save PUTs the new name via Auth.updateProfile, shows a success toast, and auth.user() updates', async () => {
+    const stub = authStub({});
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const input = screen.getByLabelText(/display name/i);
+    const user = userEvent.setup();
+
+    await user.clear(input);
+    await user.type(input, 'New Name');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await settle();
+
+    expect(stub.updateProfile).toHaveBeenCalledWith('New Name');
+    expect(openSpy).toHaveBeenCalledWith('Profile updated.', 'Dismiss', { duration: 4000 });
+    expect(stub.userSignal()?.displayName).toBe('New Name');
+  });
+
+  it('shows the server error message on failure (ApiError-shaped rejection from the interceptor chain) and keeps the entered value', async () => {
+    // This mirrors what Auth.updateProfile() actually rejects with in production: the
+    // errorInterceptor turns every HttpErrorResponse into a plain ApiError object, not an
+    // Error instance. See frontend/src/app/core/api/error-interceptor.ts.
+    const updateProfile = jest.fn().mockRejectedValue({
+      status: 400,
+      code: 'validation_error',
+      message: 'Display name already taken',
+      requestId: 'req-123',
+    });
+    const stub = authStub({ updateProfile });
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const input = screen.getByLabelText(/display name/i);
+    const user = userEvent.setup();
+
+    await user.clear(input);
+    await user.type(input, 'Taken Name');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith('Display name already taken', 'Dismiss', { duration: 4000 });
+    expect(input).toHaveValue('Taken Name');
+    expect(stub.userSignal()?.displayName).toBe('Me');
+  });
+
+  it('shows the error message on failure (plain Error rejection, e.g. a network failure before the interceptor runs) and keeps the entered value', async () => {
+    const updateProfile = jest.fn().mockRejectedValue(new Error('Failed to fetch'));
+    const stub = authStub({ updateProfile });
+    await render(ProfilePage, { providers: providers(stub) });
+    const snack = TestBed.inject(MatSnackBar);
+    const openSpy = jest.spyOn(snack, 'open');
+    const input = screen.getByLabelText(/display name/i);
+    const user = userEvent.setup();
+
+    await user.clear(input);
+    await user.type(input, 'Taken Name');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await settle();
+
+    expect(openSpy).toHaveBeenCalledWith('Failed to fetch', 'Dismiss', { duration: 4000 });
+    expect(input).toHaveValue('Taken Name');
+    expect(stub.userSignal()?.displayName).toBe('Me');
+  });
+});
+

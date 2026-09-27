@@ -180,7 +180,7 @@ function withCorsHeaders(
     headers: {
       ...response.headers,
       'Access-Control-Allow-Origin': allowOrigin,
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Access-Token',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
       'Vary': 'Origin',
     },
