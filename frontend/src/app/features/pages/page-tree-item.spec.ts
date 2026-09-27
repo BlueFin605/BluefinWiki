@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { CdkDrag } from '@angular/cdk/drag-drop';
 import { PageTreeItem } from './page-tree-item';
 import { Pages } from './pages';
 import { TreeDragState } from './tree-drag-state';
@@ -34,6 +36,19 @@ describe('PageTreeItem', () => {
       inputs: { page: summary({ title: 'Hello' }), level: 0, activeGuid: null, pageTypesMap: {} },
     });
     expect(screen.getByText('Hello')).toBeInTheDocument();
+  });
+
+  // Mobile: touching a row and immediately swiping must scroll the tree, not
+  // pick the row up for a reorder — CDK cancels a pending drag if the pointer
+  // travels past its own move threshold before this delay elapses, so a
+  // genuine swipe still scrolls even within the window. Mouse drags (desktop)
+  // keep starting immediately.
+  it('requires a touch hold before a row drag starts, so a swipe scrolls instead (mouse drags stay immediate)', async () => {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ title: 'Hello' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    const drag = fixture.debugElement.query(By.directive(CdkDrag)).injector.get(CdkDrag);
+    expect(drag.dragStartDelay).toEqual({ touch: 300, mouse: 0 });
   });
 
   describe('row icon (step 2.4)', () => {

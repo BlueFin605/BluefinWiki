@@ -7,6 +7,13 @@ import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
 import { rowIcon } from './row-icon';
 import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget } from './page.types';
 
+// Mouse drags start immediately; touch needs a hold so a swipe over a row
+// scrolls the tree instead of picking the row up (CDK cancels the drag start
+// if the pointer travels past its own move threshold before this elapses, so
+// a genuine swipe still scrolls even within the delay window). Same fix as
+// board-card.ts's DRAG_START_DELAY, for the same reason.
+const DRAG_START_DELAY = { touch: 300, mouse: 0 };
+
 @Component({
   selector: 'wiki-page-tree-item',
   standalone: true,
@@ -31,6 +38,7 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, Tr
           [class.drop-invalid]="dropWarnings().length > 0"
           [style.padding-left.px]="indent()"
           cdkDrag
+          [cdkDragStartDelay]="dragStartDelay"
           [cdkDragData]="page()"
           (cdkDragStarted)="dragState.start(page())"
           (cdkDragEnded)="dragState.end()"
@@ -170,6 +178,7 @@ export class PageTreeItem {
    * the template can call `dragState.start/end` from the row's cdkDrag hooks.
    */
   protected readonly dragState = inject(TreeDragState);
+  protected readonly dragStartDelay = DRAG_START_DELAY;
 
   readonly page = input.required<PageSummary>();
   readonly level = input.required<number>();
