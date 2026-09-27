@@ -1,4 +1,4 @@
-import { CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
+import { CDK_DRAG_CONFIG, CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkSiblingDropAllowed, checkTypeConstraints } from './check-type-constraints';
@@ -8,23 +8,32 @@ import { rowIcon } from './row-icon';
 import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget } from './page.types';
 
 // Mouse drags start immediately; touch needs a hold so a swipe over a row
-// scrolls the tree instead of picking the row up (CDK cancels the drag start
-// if the pointer travels past its own move threshold before this elapses, so
-// a genuine swipe still scrolls even within the delay window). Same fix as
-// board-card.ts's DRAG_START_DELAY, for the same reason.
-const DRAG_START_DELAY = { touch: 300, mouse: 0 };
+// scrolls the tree instead of picking the row up. CDK's own cancel check only
+// compares total pointer displacement (from touchdown) against
+// `dragStartThreshold` — a *slow* scroll swipe can take longer than the delay
+// to cross that distance, so the delay elapses first and the very next tiny
+// movement is read as a drag pickup mid-scroll (the tree then only "scrolls"
+// via CDK's slow drop-list auto-scroll). A longer delay plus a much larger
+// threshold — scoped to this component so it doesn't touch the kanban
+// board's mouse-only cards — gives a slow scroll enough room to cross the
+// threshold *before* the delay elapses, so it still cancels back to native
+// scroll. Same fix as board-card.ts's DRAG_START_DELAY, for the same reason.
+const DRAG_START_DELAY = { touch: 450, mouse: 0 };
+const TOUCH_DRAG_THRESHOLD = 24;
 
 @Component({
   selector: 'wiki-page-tree-item',
   standalone: true,
   imports: [CdkDrag, CdkDropList, PageContextMenu],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [{ provide: CDK_DRAG_CONFIG, useValue: { dragStartThreshold: TOUCH_DRAG_THRESHOLD, pointerDirectionChangeThreshold: 5 } }],
   template: `
     <div class="page-tree-node">
       <div
         cdkDropList
         [cdkDropListData]="page()"
         [cdkDropListEnterPredicate]="enterPredicate"
+        [cdkDropListAutoScrollStep]="6"
         (cdkDropListEntered)="onListEntered()"
         (cdkDropListExited)="clearDropZone()"
         (cdkDropListDropped)="onDrop($event)"
