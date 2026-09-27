@@ -13,7 +13,6 @@ This guide explains how to set up and use DynamoDB tables for local development 
 ### 1. Start Aspire (which starts LocalStack)
 
 ```powershell
-cd c:\Users\mitch\Development\Projects\SpecKit\projects\BlueFinWiki
 dotnet run --project aspire/BlueFinWiki.AppHost
 ```
 
@@ -31,7 +30,7 @@ npm install
 npm run init-db
 ```
 
-This creates all 8 DynamoDB tables in LocalStack with the correct schema.
+This creates all 11 DynamoDB tables in LocalStack with the correct schema.
 
 ### 3. Seed Test Data
 
@@ -58,19 +57,22 @@ aws dynamodb list-tables --endpoint-url http://localhost:4566 --region us-east-1
 
 Query users:
 ```powershell
-aws dynamodb scan --table-name bluefinwiki-users-local --endpoint-url http://localhost:4566 --region us-east-1
+aws dynamodb scan --table-name bluefinwiki-user-profiles-local --endpoint-url http://localhost:4566 --region us-east-1
 ```
 
 ## Tables Created
 
-1. **bluefinwiki-users-local** - User accounts and authentication
+1. **bluefinwiki-user-profiles-local** - User accounts and authentication
 2. **bluefinwiki-invitations-local** - Registration invite codes
 3. **bluefinwiki-page-links-local** - Wiki link relationships (backlinks)
-4. **bluefinwiki-attachments-local** - File attachment metadata
-5. **bluefinwiki-comments-local** - Page comments and discussions
-6. **bluefinwiki-activity-log-local** - Audit trail and user activity
-7. **bluefinwiki-user-preferences-local** - User settings and customizations
-8. **bluefinwiki-site-config-local** - Global wiki configuration
+4. **bluefinwiki-activity-log-local** - Audit trail and user activity
+5. **bluefinwiki-page-index-local** - Search/listing index over pages
+6. **bluefinwiki-tags-local** - Tag registry
+7. **bluefinwiki-page-types-local** - Page-type schema definitions
+8. **bluefinwiki-attachments-local** - File attachment metadata (local-only, no production equivalent yet)
+9. **bluefinwiki-comments-local** - Page comments and discussions (local-only, no production equivalent yet)
+10. **bluefinwiki-user-preferences-local** - User settings and customizations (local-only, no production equivalent yet)
+11. **bluefinwiki-site-config-local** - Global wiki configuration (local-only, no production equivalent yet)
 
 ## Reset Database
 
@@ -104,7 +106,7 @@ const userId = uuidv4();
 const passwordHash = await bcrypt.hash('password123', 10);
 
 await docClient.send(new PutCommand({
-  TableName: 'bluefinwiki-users-local',
+  TableName: 'bluefinwiki-user-profiles-local',
   Item: {
     userId,
     email: 'test@example.com',
@@ -124,7 +126,7 @@ await docClient.send(new PutCommand({
 const { QueryCommand } = require('@aws-sdk/lib-dynamodb');
 
 const result = await docClient.send(new QueryCommand({
-  TableName: 'bluefinwiki-users-local',
+  TableName: 'bluefinwiki-user-profiles-local',
   IndexName: 'email-index',
   KeyConditionExpression: 'email = :email',
   ExpressionAttributeValues: {
@@ -167,24 +169,14 @@ npm run seed
 ### Connection refused
 
 - Ensure LocalStack port 4566 is not blocked by firewall
-- Check Aspire Dashboard at http://localhost:15265 for service status
+- Check Aspire Dashboard at http://localhost:15888 for service status
 - Verify LocalStack container is running
 
 ## Production Deployment
 
 For production (AWS DynamoDB):
 
-1. Tables are created via AWS CDK in `infrastructure/src/Infrastructure/Stacks/DatabaseStack.cs`
-2. Run `cdk deploy DatabaseStack` to create tables
-3. Tables use environment-specific names: `bluefinwiki-users-dev`, `bluefinwiki-users-prod`
+1. Tables are created via AWS CDK in `infrastructure/src/Infrastructure/Stacks/UnifiedStack.cs` (only 7 of the 11 local tables have a production equivalent — see the local-only note in "Tables Created" above)
+2. `cdk deploy` (see `../DEPLOY-AWS.md`) creates the whole stack, tables included
+3. Tables use environment-specific names, e.g. `bluefinwiki-user-profiles-production`
 4. No seed data in production (create admin via registration)
-
-## Next Steps
-
-- See [DATABASE-SCHEMA.md](../DATABASE-SCHEMA.md) for detailed schema documentation
-- See [TECHNICAL-PLAN.md](../TECHNICAL-PLAN.md) for overall architecture
-- See [TASKS.md](../TASKS.md) for implementation progress
-
----
-
-**Questions?** Check the main README or ask in the team chat.

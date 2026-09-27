@@ -25,7 +25,7 @@ This will start:
 
 ## Aspire Dashboard
 
-Once running, access the Aspire Dashboard at: http://localhost:15000
+Once running, access the Aspire Dashboard at: http://localhost:15888
 
 The dashboard provides:
 - Real-time service status and logs
@@ -66,9 +66,9 @@ The dashboard provides:
 
 ## Requirements
 
-- .NET 8.0 SDK or later
+- .NET 10.0 SDK or later
 - Docker Desktop (for LocalStack and MailHog containers)
-- Node.js 18+ (for backend and frontend)
+- Node.js 20+ (for backend and frontend)
 
 ## Seed Data Management
 
@@ -103,7 +103,7 @@ All environment variables are automatically configured by Aspire:
 - `COGNITO_USER_POOL_ID`: Local test user pool ID
 - `COGNITO_CLIENT_ID`: Local test client ID
 - `SMTP_HOST` and `SMTP_PORT`: Point to MailHog
-- `VITE_API_URL`: Points to backend API
+- `NG_APP_API_BASE_URL`: Points to backend API
 
 **Note**: See [COGNITO-INTEGRATION.md](../COGNITO-INTEGRATION.md) for details on creating local test users.
 
@@ -112,7 +112,7 @@ All environment variables are automatically configured by Aspire:
 If services fail to start:
 
 1. Ensure Docker Desktop is running
-2. Check that ports 3000, 4566, 5173, 8025, 9229, and 15000 are available
+2. Check that ports 3000, 4566, 5173, 8025, 9229, and 15888 are available
 3. Review logs in the Aspire Dashboard
 4. Try `dotnet clean` and rebuild
 5. For Cognito Local issues, delete `./cognito-local-data` and restart

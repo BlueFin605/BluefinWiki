@@ -27,7 +27,7 @@ The terminal will show URLs. Typically:
 
 ## 📋 Prerequisites
 
-- ✅ .NET 8.0 SDK
+- ✅ .NET 10.0 SDK
 - ✅ Node.js 18+
 - ✅ Docker Desktop (must be running)
 
@@ -127,10 +127,7 @@ Stop the other service or change ports in `aspire/BlueFinWiki.AppHost/Program.cs
 
 ## 📖 Documentation
 
-- **Detailed Setup**: [ASPIRE-SETUP.md](ASPIRE-SETUP.md)
 - **Local Dev Guide**: [aspire/ASPIRE-LOCAL-DEV.md](aspire/ASPIRE-LOCAL-DEV.md)
-- **Implementation Details**: [TASK-1.2-IMPLEMENTATION.md](TASK-1.2-IMPLEMENTATION.md)
-- **Task List**: [TASKS.md](TASKS.md)
 
 ---
 

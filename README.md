@@ -98,7 +98,7 @@ BlueFinWiki is a monorepo with four packages:
 
 ```
 bluefinwiki/
-├── frontend/         React 18 + TypeScript + Vite + Tailwind CSS
+├── frontend/         Angular 21 + TypeScript + Angular Material
 ├── backend/          AWS Lambda functions (Node.js 20, TypeScript)
 ├── infrastructure/   AWS CDK (C#) — Infrastructure as Code
 └── aspire/           Microsoft Aspire for local dev orchestration
@@ -109,7 +109,7 @@ bluefinwiki/
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
 │  CloudFront │────▶│  S3 (static) │     │   API Gateway    │
-│    (CDN)    │     │  React SPA   │     │   REST API       │
+│    (CDN)    │     │  Angular SPA │     │   REST API       │
 └─────────────┘     └──────────────┘     └────────┬────────┘
                                                    │
                                           ┌────────▼────────┐
@@ -123,7 +123,7 @@ bluefinwiki/
                                     └─────────┘ └─────┘ └─────────┘
 ```
 
-- **Frontend**: React SPA served via CloudFront CDN
+- **Frontend**: Angular SPA served via CloudFront CDN
 - **Backend**: Lambda functions behind API Gateway — each endpoint is a separate handler
 - **Storage**: S3 for page content (Markdown + YAML frontmatter), DynamoDB for metadata, indexes, page types, tags, user profiles, invitations, and activity logs
 - **Auth**: AWS Cognito with invite-only registration and optional Google login

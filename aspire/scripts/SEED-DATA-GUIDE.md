@@ -275,5 +275,4 @@ AWS_SECRET_ACCESS_KEY=test
 ## See Also
 
 - [LOCAL-DATABASE-SETUP.md](../LOCAL-DATABASE-SETUP.md) - Full setup guide
-- [DATABASE-SCHEMA.md](../../DATABASE-SCHEMA.md) - Schema documentation
 - [ASPIRE-LOCAL-DEV.md](../ASPIRE-LOCAL-DEV.md) - Aspire development guide

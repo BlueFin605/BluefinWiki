@@ -2,6 +2,13 @@
 
 This document describes the local Cognito development setup using cognito-local.
 
+> **Frontend note**: the Angular frontend does not use this locally — it runs
+> with `disableAuth: true` (mock admin user, no Cognito calls at all; see
+> `LOCAL-DEV-GUIDE.md` at the repo root). The `cognito-local` container and
+> everything below are still useful for testing the *backend* Lambda auth
+> handlers and JWT verification directly (via AWS SDK/API calls), just not
+> through a live frontend login form anymore.
+
 ## Overview
 
 For local development, we use [cognito-local](https://github.com/jagregory/cognito-local), a community-maintained mock of AWS Cognito User Pools. This allows testing authentication flows without connecting to AWS.
@@ -138,7 +145,7 @@ X-Amz-Target: AWSCognitoIdentityProviderService.AdminSetUserPassword
 {
   "UserPoolId": "local_user_pool_id",
   "Username": "admin@bluefinwiki.local",
-  "Password": "AdminPass123!",
+  "Password": "Test123!",
   "Permanent": true
 }
 ```
@@ -171,7 +178,7 @@ X-Amz-Target: AWSCognitoIdentityProviderService.AdminSetUserPassword
 {
   "UserPoolId": "local_user_pool_id",
   "Username": "user@bluefinwiki.local",
-  "Password": "UserPass123!",
+  "Password": "Test123!",
   "Permanent": true
 }
 ```
@@ -213,7 +220,7 @@ const command = new InitiateAuthCommand({
   ClientId: 'local_client_id',
   AuthParameters: {
     USERNAME: 'admin@bluefinwiki.local',
-    PASSWORD: 'AdminPass123!',
+    PASSWORD: 'Test123!',
   },
 });
 
@@ -223,11 +230,10 @@ console.log('Access Token:', response.AuthenticationResult?.AccessToken);
 
 ### Using Frontend
 
-1. Start Aspire: `dotnet run --project aspire/BlueFinWiki.AppHost`
-2. Navigate to: http://localhost:5173
-3. Login with test credentials:
-   - Admin: `admin@bluefinwiki.local` / `AdminPass123!`
-   - User: `user@bluefinwiki.local` / `UserPass123!`
+Not applicable locally anymore — the frontend runs with `disableAuth: true`
+and never calls cognito-local (see the note at the top of this doc and
+`LOCAL-DEV-GUIDE.md`). Use the AWS SDK approach above, or call the backend
+API directly, to exercise cognito-local-backed auth.
 
 ## Email Testing
 

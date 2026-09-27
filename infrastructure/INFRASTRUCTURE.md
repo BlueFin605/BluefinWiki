@@ -8,7 +8,7 @@ This directory contains the AWS CDK C# infrastructure code for BlueFinWiki. The 
 
 ## Prerequisites
 
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
 - [AWS CDK CLI](https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html): `npm install -g aws-cdk`
 - [AWS CLI](https://aws.amazon.com/cli/) configured with credentials
 - AWS Account with appropriate permissions
@@ -38,15 +38,20 @@ S3 buckets for application data:
 - **Exports Bucket**: Generated PDFs and HTML exports (7-day auto-cleanup)
 
 ### Database Resources
-DynamoDB tables for metadata and user data:
-- **Users**: Authentication and user profiles (GSI: email-index)
+DynamoDB tables actually created by the CDK stack (`UnifiedStack.cs`):
+- **User Profiles**: Authentication and user profiles
 - **Invitations**: Invite codes with TTL
 - **Page Links**: Internal wiki links and backlinks (GSI: targetGuid-index)
-- **Attachments**: File metadata (GSI: pageGuid-index)
-- **Comments**: Page discussions (GSI: pageGuid-createdAt-index)
 - **Activity Log**: Audit trail with TTL
-- **User Preferences**: Dashboard customization, favorites
-- **Site Config**: Global wiki settings
+- **Page Index**: Search/listing index over pages
+- **Tags**: Tag registry
+- **Page Types**: Page-type schema definitions
+
+Local dev (`aspire/scripts/init-dynamodb.js`) also provisions
+`attachments`, `comments`, `user-preferences`, and `site-config` tables
+that have no production CDK equivalent yet — those features aren't wired
+to DynamoDB in production. Don't assume they exist when working against
+the deployed stack.
 
 ### Auth Resources (Cognito)
 AWS Cognito for authentication:
@@ -225,8 +230,6 @@ After deployment, the unified stack exports these resource identifiers:
 
 - [AWS CDK C# Documentation](https://docs.aws.amazon.com/cdk/v2/guide/work-with-cdk-csharp.html)
 - [AWS CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/)
-- [BlueFinWiki Technical Plan](../TECHNICAL-PLAN.md)
-- [BlueFinWiki Tasks](../TASKS.md)
 
 ---
 

@@ -37,7 +37,7 @@ LocalStack is a fully functional local AWS cloud stack that emulates AWS service
 
 Ensure you have the following installed:
 
-1. **.NET SDK 8.0+** (for Aspire)
+1. **.NET SDK 10.0+** (for Aspire)
    ```powershell
    dotnet --version  # Should be 8.0 or higher
    ```

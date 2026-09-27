@@ -11,7 +11,7 @@ This directory contains the .NET Aspire orchestration for local development of B
 
 ## Prerequisites
 
-- .NET 8.0 SDK or later
+- .NET 10.0 SDK or later
 - Docker Desktop (for LocalStack and MailHog containers)
 - Node.js 18+ and npm
 

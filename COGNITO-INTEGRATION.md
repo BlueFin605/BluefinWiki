@@ -18,7 +18,7 @@ BlueFinWiki uses **AWS Cognito User Pools** for authentication and authorization
 ```
 ┌─────────────┐
 │   Frontend  │
-│  (React)    │
+│  (Angular)  │
 └──────┬──────┘
        │ 1. signIn(email, password)
        ↓
@@ -257,6 +257,13 @@ Partition Key: inviteCode (STRING) - 8-character alphanumeric
 ---
 
 ## Local Development Setup
+
+> **Current state**: the Angular frontend no longer talks to cognito-local
+> locally — it runs with `disableAuth: true` (mock admin user, no Cognito
+> calls). See `LOCAL-DEV-GUIDE.md` at the repo root. `cognito-local` below
+> is still used for testing the backend auth handlers directly (see
+> `aspire/LOCAL-COGNITO-SETUP.md`); the frontend env vars in this section
+> are no longer wired up to a live login form.
 
 ### Cognito Local Container
 

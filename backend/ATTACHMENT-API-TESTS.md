@@ -206,7 +206,5 @@ These tests can be added to GitHub Actions to verify attachments work in each de
 
 ## References
 
-- Specification: [6-page-attachments.md](../6-page-attachments.md)
 - API Implementation: [Local Server Routes](../local-server.ts#L198-L205)
 - Storage Plugin: [S3StoragePlugin.ts](../storage/S3StoragePlugin.ts)
-- Task Status: [TASKS.md - Week 7: Page Attachments](../../TASKS.md#week-7-page-attachments)

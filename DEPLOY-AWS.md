@@ -9,7 +9,7 @@ Get your own family wiki running on AWS. This guide walks you through provisioni
 | Tool | Purpose | Install |
 |------|---------|---------|
 | [Node.js 20+](https://nodejs.org/) | Build backend and frontend | `nvm install 20` or download |
-| [.NET 8.0 SDK](https://dotnet.microsoft.com/download) | CDK infrastructure (C#) | Download from Microsoft |
+| [.NET 10.0 SDK](https://dotnet.microsoft.com/download) | CDK infrastructure (C#) | Download from Microsoft |
 | [AWS CDK CLI](https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html) | Deploy infrastructure | `npm install -g aws-cdk` |
 | [AWS CLI](https://aws.amazon.com/cli/) | AWS access and post-deploy commands | Download from AWS |
 
@@ -117,7 +117,7 @@ cdk deploy --context prefix=familywiki --context environment=dev --all
 
 CDK creates a single CloudFormation stack (`BlueFinWiki-{environment}`) containing:
 
-- **S3**: Pages bucket (Markdown content + attachments), frontend bucket (React SPA)
+- **S3**: Pages bucket (Markdown content + attachments), frontend bucket (Angular SPA)
 - **DynamoDB**: 7 tables — user profiles, invitations, page links, activity log, page index, tags, page types
 - **Lambda**: Node.js 20 handlers for all API endpoints
 - **API Gateway**: REST API routing to Lambda

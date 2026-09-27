@@ -4,53 +4,22 @@ Scripts for setting up and managing DynamoDB tables in the local development env
 
 ## Available Scripts
 
-### `npm run init-db`
-Creates all DynamoDB tables in LocalStack with the correct schema.
+- `npm run init-db` — creates all DynamoDB tables in LocalStack (see below).
+- `npm run seed` — populates tables with test data (admin/standard users,
+  invite codes, site config). See `SEED-DATA-GUIDE.md` for full detail
+  including test credentials and snapshot import/export.
+- `npm run setup-cognito` — creates the local Cognito user pool/client and
+  test users in cognito-local.
+- `npm run setup` — runs `init-db && seed && setup-cognito` in sequence.
+- `npm run export-seed` / `npm run import-seed` — snapshot the current
+  LocalStack data or restore from a snapshot. See `SEED-DATA-GUIDE.md`.
+- `npm run seed-kanban` — seeds Kanban-specific sample data (page types, board).
 
-**Tables created:**
-- bluefinwiki-users-local (with email-index GSI)
-- bluefinwiki-invitations-local (with TTL)
-- bluefinwiki-page-links-local (with targetGuid-index GSI)
-- bluefinwiki-attachments-local (with pageGuid-index GSI)
-- bluefinwiki-comments-local (with pageGuid-createdAt-index GSI)
-- bluefinwiki-activity-log-local (with TTL)
-- bluefinwiki-user-preferences-local
-- bluefinwiki-site-config-local
-
-**Usage:**
-```bash
-npm run init-db
-```
-
-### `npm run seed`
-Populates tables with test data for local development.
-
-**Data created:**
-- 2 test users (admin and standard)
-- 2 invitation codes
-- Site configuration
-- User preferences
-
-**Test Credentials:**
-- Admin: `admin@bluefinwiki.local` / `Test123!`
-- User: `user@bluefinwiki.local` / `Test123!`
-
-**Invite Codes:**
-- `WELCOME1` → newuser1@bluefinwiki.local
-- `WELCOME2` → newuser2@bluefinwiki.local
-
-**Usage:**
-```bash
-npm run seed
-```
-
-### `npm run setup`
-Runs both init-db and seed in sequence (convenience command).
-
-**Usage:**
-```bash
-npm run setup
-```
+**Tables created by `init-db`** (see `init-dynamodb.js` for schema/GSIs):
+`bluefinwiki-user-profiles-local`, `-invitations-local`, `-page-links-local`,
+`-attachments-local`, `-comments-local`, `-activity-log-local`,
+`-user-preferences-local`, `-page-index-local`, `-tags-local`,
+`-site-config-local`, `-page-types-local`.
 
 ## Prerequisites
 
@@ -58,15 +27,9 @@ npm run setup
    ```bash
    dotnet run --project ../BlueFinWiki.AppHost
    ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+2. Install dependencies: `npm install`
 
 ## Environment Variables
-
-Scripts use these environment variables (defaults shown):
 
 ```bash
 AWS_ENDPOINT=http://localhost:4566
@@ -77,24 +40,17 @@ AWS_SECRET_ACCESS_KEY=test
 
 ## Troubleshooting
 
-**Error: "Failed to connect to LocalStack"**
-- Ensure Aspire is running
-- Check LocalStack health: `curl http://localhost:4566/_localstack/health`
+**Error: "Failed to connect to LocalStack"** — ensure Aspire is running; check
+`curl http://localhost:4566/_localstack/health`.
 
-**Error: "ResourceNotFoundException"**
-- Run `npm run init-db` before `npm run seed`
+**Error: "ResourceNotFoundException"** — run `npm run init-db` before `npm run seed`.
 
-**Tables already exist**
-- The init-db script checks for existing tables and skips them
-- To start fresh, delete the localstack-data directory and restart Aspire
-
-## Files
-
-- **init-dynamodb.js** - Creates DynamoDB tables
-- **seed-data.js** - Inserts test data
-- **package.json** - Dependencies and scripts
+**Tables already exist** — `init-db` checks for existing tables and skips
+them; to start fresh, delete the localstack-data directory and restart Aspire.
 
 ## See Also
 
-- [LOCAL-DATABASE-SETUP.md](../LOCAL-DATABASE-SETUP.md) - Full setup guide
-- [DATABASE-SCHEMA.md](../../DATABASE-SCHEMA.md) - Schema documentation
+- [SEED-DATA-GUIDE.md](SEED-DATA-GUIDE.md) — full seed-data reference (test
+  credentials, invite codes, snapshot import/export) — this is the
+  authoritative doc for what gets seeded.
+- [LOCAL-DATABASE-SETUP.md](../LOCAL-DATABASE-SETUP.md) — full local DB setup guide.
