@@ -4,7 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { CdkDrag } from '@angular/cdk/drag-drop';
+import { CDK_DRAG_CONFIG, CdkDrag } from '@angular/cdk/drag-drop';
 import { PageTreeItem } from './page-tree-item';
 import { Pages } from './pages';
 import { TreeDragState } from './tree-drag-state';
@@ -48,7 +48,20 @@ describe('PageTreeItem', () => {
       inputs: { page: summary({ title: 'Hello' }), level: 0, activeGuid: null, pageTypesMap: {} },
     });
     const drag = fixture.debugElement.query(By.directive(CdkDrag)).injector.get(CdkDrag);
-    expect(drag.dragStartDelay).toEqual({ touch: 300, mouse: 0 });
+    expect(drag.dragStartDelay).toEqual({ touch: 450, mouse: 0 });
+  });
+
+  // A *slow* scroll swipe can take longer than the delay to cross a tiny move
+  // threshold, so by the time it does, the delay has already elapsed and CDK
+  // reads the next pixel of movement as a drag pickup instead of a scroll.
+  // The larger threshold (scoped to this component, not the kanban board)
+  // gives a slow scroll enough room to cross it before the delay elapses.
+  it('raises the drag-start move threshold so a slow scroll cancels back to native scroll', async () => {
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ title: 'Hello' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    const config = fixture.debugElement.query(By.directive(CdkDrag)).injector.get(CDK_DRAG_CONFIG);
+    expect(config?.dragStartThreshold).toBeGreaterThan(5);
   });
 
   describe('row icon (step 2.4)', () => {
