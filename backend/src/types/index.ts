@@ -156,6 +156,7 @@ export interface PageSummary {
   hasChildren: boolean;
   pageType?: string; // Page type GUID — included for type-aware UI (tree icons, board detection)
   properties?: Record<string, PageProperty>; // Populated by listChildren, which already loads full page content — avoids a second loadPage() per child to enrich board/type views
+  tags?: string[]; // Populated by listChildren when non-empty, for the same reason (kanban tag filters)
 }
 
 /** Extended child summary returned when ?include=properties is set on list-children */

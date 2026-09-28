@@ -1466,4 +1466,40 @@ Test content`;
       });
     });
   });
+
+  describe('listChildren summaries', () => {
+    function page(guid: string, tags: string[]): PageContent {
+      return {
+        guid,
+        title: `Page ${guid}`,
+        content: '',
+        folderId: 'parent',
+        tags,
+        status: 'published',
+        createdBy: 'user-123',
+        modifiedBy: 'user-123',
+        createdAt: '2026-09-29T00:00:00Z',
+        modifiedAt: '2026-09-29T00:00:00Z',
+      };
+    }
+
+    it('includes tags only for tagged pages', async () => {
+      const tagged = uuidv4();
+      const untagged = uuidv4();
+      const p = plugin as any;
+      vi.spyOn(p, 'findPageFolder').mockResolvedValue('parent/');
+      vi.spyOn(p, 'hasChildrenDirect').mockResolvedValue(false);
+      vi.spyOn(p, 'loadPage').mockImplementation(async (guid: unknown) =>
+        guid === tagged ? page(tagged, ['dean']) : page(untagged, []),
+      );
+      s3Mock.on(ListObjectsV2Command).resolves({
+        CommonPrefixes: [{ Prefix: `parent/${tagged}/` }, { Prefix: `parent/${untagged}/` }],
+      });
+
+      const children = await plugin.listChildren('parent');
+
+      expect(children.find((c) => c.guid === tagged)?.tags).toEqual(['dean']);
+      expect(children.find((c) => c.guid === untagged)).not.toHaveProperty('tags');
+    });
+  });
 });

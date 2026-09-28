@@ -1031,6 +1031,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
               hasChildren: await this.hasChildrenDirect(guid),
               ...(page.pageType ? { pageType: page.pageType } : {}),
               ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
+              ...(page.tags?.length ? { tags: page.tags } : {}),
             };
           } catch (err) {
             // Skip pages that can't be loaded
@@ -1106,6 +1107,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
               hasChildren: await this.hasChildrenDirect(guid),
               ...(page.pageType ? { pageType: page.pageType } : {}),
               ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
+              ...(page.tags?.length ? { tags: page.tags } : {}),
             };
           } catch (err) {
             console.warn(`Failed to load page ${guid}:`, err);
