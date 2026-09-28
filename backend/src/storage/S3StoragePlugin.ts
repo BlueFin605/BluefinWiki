@@ -86,6 +86,7 @@ import {
   AttachmentUploadInput,
   AttachmentUploadResult,
   AttachmentMetadata,
+  Comment,
 } from '../types/index.js';
 
 interface S3StorageConfig {
@@ -786,6 +787,18 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           Key: folderToFileKey(folder, guid),
         });
         await this.s3Client.send(deleteCommand);
+
+        // Best-effort: delete the comments sidecar too, if one exists. Not
+        // fatal if this fails or the sidecar never existed (NoSuchKey/absent
+        // DeleteObject is a no-op) — don't fail the page delete over it.
+        try {
+          await this.s3Client.send(new DeleteObjectCommand({
+            Bucket: this.bucketName,
+            Key: `${folder}${guid}.comments.json`,
+          }));
+        } catch (cleanupErr: unknown) {
+          console.warn('Failed to delete comments sidecar for page:', guid, cleanupErr);
+        }
 
         // Clean up index for deleted page
         this.pageIndex.deletePageKey(guid);
@@ -1535,6 +1548,118 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       throw this.createError(
         `Failed to load attachment metadata: ${error.message}`,
         'ATTACHMENT_METADATA_LOAD_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Build the S3 key for a page's comments sidecar.
+   * Path: {parent-guid}/{pageGuid}/{pageGuid}.comments.json (same folder as the .md file)
+   */
+  private async buildCommentsKey(pageGuid: string): Promise<string> {
+    const folder = await this.findPageFolder(pageGuid);
+    if (!folder) {
+      throw this.createError(`Page not found: ${pageGuid}`, 'PAGE_NOT_FOUND', 404);
+    }
+    return `${folder}${pageGuid}.comments.json`;
+  }
+
+  /**
+   * Get a page's comments sidecar and its S3 ETag (for a conditional write
+   * back via {@link saveComments}). A missing sidecar is not an error — it
+   * just means the page has no comments yet.
+   */
+  async getComments(pageGuid: string): Promise<{ comments: Comment[]; etag: string | null }> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      const key = await this.buildCommentsKey(pageGuid);
+
+      try {
+        const response = await this.s3Client.send(new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        }));
+        const raw = await this.readBodyAsString(response.Body);
+        const parsed = JSON.parse(raw) as { comments: Comment[] };
+        return { comments: parsed.comments ?? [], etag: response.ETag ?? null };
+      } catch (err: unknown) {
+        const error = err as { name?: string };
+        if (error.name === 'NoSuchKey') {
+          return { comments: [], etag: null };
+        }
+        throw err;
+      }
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND'].includes(error.code)) {
+        throw err;
+      }
+      throw this.createError(
+        `Failed to load comments: ${error.message}`,
+        'COMMENTS_LOAD_FAILED',
+        500
+      );
+    }
+  }
+
+  /**
+   * Replace a page's comments sidecar, conditioned on the ETag last read via
+   * {@link getComments}. On a concurrent write (the sidecar changed since
+   * `expectedEtag` was read), S3 rejects the PUT with a precondition failure,
+   * which is surfaced as a 'COMMENTS_CONFLICT' error for the caller to
+   * re-read and retry — see `comments-service.ts`'s `withCommentsUpdate`.
+   */
+  async saveComments(pageGuid: string, comments: Comment[], expectedEtag: string | null): Promise<{ etag: string }> {
+    try {
+      if (!this.validateGuid(pageGuid)) {
+        throw this.createError('Invalid GUID format', 'INVALID_GUID', 400);
+      }
+
+      const key = await this.buildCommentsKey(pageGuid);
+
+      try {
+        const response = await this.s3Client.send(new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+          Body: JSON.stringify({ comments }),
+          ContentType: 'application/json',
+          // No prior read (expectedEtag null) asserts the sidecar doesn't exist yet;
+          // otherwise the write is conditioned on the sidecar being unchanged since read.
+          ...(expectedEtag ? { IfMatch: expectedEtag } : { IfNoneMatch: '*' }),
+        }));
+
+        if (!response.ETag) {
+          throw this.createError(
+            'S3 did not return an ETag for the comments write',
+            'COMMENTS_SAVE_FAILED',
+            500
+          );
+        }
+
+        return { etag: response.ETag };
+      } catch (err: unknown) {
+        const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+        if (error.name === 'PreconditionFailed' || error.$metadata?.httpStatusCode === 412) {
+          throw this.createError(
+            'Comments were modified concurrently',
+            'COMMENTS_CONFLICT',
+            409
+          );
+        }
+        throw err;
+      }
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string };
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'COMMENTS_CONFLICT'].includes(error.code)) {
+        throw err;
+      }
+      throw this.createError(
+        `Failed to save comments: ${error.message}`,
+        'COMMENTS_SAVE_FAILED',
         500
       );
     }

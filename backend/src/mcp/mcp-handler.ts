@@ -5,8 +5,9 @@
  * Provides read/write access to wiki pages via Streamable HTTP protocol.
  *
  * Secured by API Gateway API key — no Cognito auth.
- * Nine tools: list_pages, get_page, search_pages, list_page_types, get_backlinks,
- * create_page, update_page, delete_page, move_page.
+ * Thirteen tools: list_pages, get_page, search_pages, list_page_types, get_backlinks,
+ * create_page, update_page, delete_page, move_page, list_comments, add_comment,
+ * update_comment, delete_comment.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -25,6 +26,10 @@ import { updatePage, UpdatePageInput } from './tools/update-page.js';
 import { createPage, CreatePageInput } from './tools/create-page.js';
 import { deletePage, DeletePageInput } from './tools/delete-page.js';
 import { movePage, MovePageInput } from './tools/move-page.js';
+import { listComments, ListCommentsInput } from './tools/list-comments.js';
+import { addComment, AddCommentInput } from './tools/add-comment.js';
+import { updateComment, UpdateCommentInput } from './tools/update-comment.js';
+import { deleteComment, DeleteCommentInput } from './tools/delete-comment.js';
 
 const TOOLS = [
   {
@@ -206,6 +211,82 @@ const TOOLS = [
       required: ['pageGuid', 'newParentGuid'],
     },
   },
+  {
+    name: 'list_comments',
+    description: 'List all comments (and replies) on a wiki page. Returns a flat array — group by parentId to reconstruct threads (null parentId = top-level comment). Soft-deleted comments are included with an empty body.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pageGuid: {
+          type: 'string',
+          description: 'The GUID of the page (from the "guid" field in page frontmatter)',
+        },
+      },
+      required: ['pageGuid'],
+    },
+  },
+  {
+    name: 'add_comment',
+    description: 'Post a comment on a wiki page, or a reply to an existing top-level comment (pass parentId). Only one level of nesting is allowed — replying to a reply is rejected. Comments are authored as "mcp-client".',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pageGuid: {
+          type: 'string',
+          description: 'The GUID of the page to comment on',
+        },
+        body: {
+          type: 'string',
+          description: 'Comment text',
+        },
+        parentId: {
+          type: 'string',
+          description: 'GUID of the top-level comment this is a reply to. Omit for a top-level comment.',
+        },
+      },
+      required: ['pageGuid', 'body'],
+    },
+  },
+  {
+    name: 'update_comment',
+    description: 'Edit a comment\'s body. Only succeeds for comments this MCP client itself created (authored as "mcp-client") — never a human\'s comment.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pageGuid: {
+          type: 'string',
+          description: 'The GUID of the page the comment is on',
+        },
+        commentId: {
+          type: 'string',
+          description: 'The GUID of the comment to edit (from list_comments)',
+        },
+        body: {
+          type: 'string',
+          description: 'New comment text',
+        },
+      },
+      required: ['pageGuid', 'commentId', 'body'],
+    },
+  },
+  {
+    name: 'delete_comment',
+    description: 'Delete a comment. Only succeeds for comments this MCP client itself created (authored as "mcp-client") — never a human\'s comment. A comment with replies is soft-deleted (body blanked, thread structure preserved); a comment with no replies is removed outright.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pageGuid: {
+          type: 'string',
+          description: 'The GUID of the page the comment is on',
+        },
+        commentId: {
+          type: 'string',
+          description: 'The GUID of the comment to delete (from list_comments)',
+        },
+      },
+      required: ['pageGuid', 'commentId'],
+    },
+  },
 ];
 
 /**
@@ -260,6 +341,22 @@ function createServer(): Server {
         }
         case 'move_page': {
           const result = await movePage(args as unknown as MovePageInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'list_comments': {
+          const result = await listComments(args as unknown as ListCommentsInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'add_comment': {
+          const result = await addComment(args as unknown as AddCommentInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'update_comment': {
+          const result = await updateComment(args as unknown as UpdateCommentInput);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+        case 'delete_comment': {
+          const result = await deleteComment(args as unknown as DeleteCommentInput);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
         default:

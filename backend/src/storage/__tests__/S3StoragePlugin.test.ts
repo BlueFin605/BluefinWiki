@@ -248,7 +248,13 @@ Child content`;
 
       await plugin.deletePage(guid, false);
 
-      expect(s3Mock.commandCalls(DeleteObjectCommand).length).toBe(1);
+      // The page's .md file, plus a best-effort delete of its comments
+      // sidecar (a no-op if one never existed).
+      const deleteCalls = s3Mock.commandCalls(DeleteObjectCommand);
+      expect(deleteCalls.length).toBe(2);
+      const deletedKeys = deleteCalls.map((call) => call.args[0].input.Key);
+      expect(deletedKeys).toContain(`${guid}/${guid}.md`);
+      expect(deletedKeys).toContain(`${guid}/${guid}.comments.json`);
     });
 
     it('should throw error if page has children and recursive=false', async () => {

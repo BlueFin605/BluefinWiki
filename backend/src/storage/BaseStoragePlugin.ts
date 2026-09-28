@@ -16,6 +16,7 @@ import {
   AttachmentUploadInput,
   AttachmentUploadResult,
   AttachmentMetadata,
+  Comment,
 } from '../types/index.js';
 
 export abstract class BaseStoragePlugin implements StoragePlugin {
@@ -312,6 +313,10 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
   abstract headAttachment(pageGuid: string, attachmentKey: string): Promise<{ contentLength: number; contentType: string | undefined } | null>;
 
   abstract deleteAttachmentByKey(attachmentKey: string): Promise<void>;
+
+  abstract getComments(pageGuid: string): Promise<{ comments: Comment[]; etag: string | null }>;
+
+  abstract saveComments(pageGuid: string, comments: Comment[], expectedEtag: string | null): Promise<{ etag: string }>;
 
   abstract healthCheck(): Promise<boolean>;
 

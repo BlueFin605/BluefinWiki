@@ -47,6 +47,7 @@ async function renderInspector(
   extraInputs: Record<string, unknown> = {},
   backlinkCount = 0,
   opts: { noopAnimations?: boolean } = {},
+  commentCount = 0,
 ) {
   const result = await render(InspectorPanel, {
     inputs: { pageGuid: 'g1', metadata: meta(), pageAuthorId: 'u', ...extraInputs },
@@ -60,23 +61,27 @@ async function renderInspector(
   });
   const http = TestBed.inject(HttpTestingController);
   // Each tab kicks off its own fetch when shown; the Properties tab fetches
-  // page types eagerly on mount. The backlinks resource is also eager (the
-  // panel needs its count for the tab badge).
+  // page types eagerly on mount. The backlinks and comments resources are
+  // also eager (the panel needs their counts for the tab badges).
   http.expectOne('/api/page-types').flush({ pageTypes: [] });
   http.expectOne('/api/tags?scope=_page').flush({ tags: [], scope: '_page' });
   http
     .expectOne('/api/pages/g1/backlinks')
     .flush({ guid: 'g1', backlinks: [], count: backlinkCount });
+  http
+    .expectOne('/api/pages/g1/comments')
+    .flush({ comments: Array.from({ length: commentCount }, (_, i) => ({ id: `c${i}` })) });
   await settle();
   return { ...result, http };
 }
 
 describe('InspectorPanel', () => {
-  it('renders three tab labels', async () => {
+  it('renders four tab labels', async () => {
     await renderInspector();
     expect(screen.getByRole('tab', { name: /properties/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /attachments/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /linked/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /comments/i })).toBeInTheDocument();
   });
 
   it('switching to attachments tab loads the attachments resource', async () => {
@@ -164,6 +169,35 @@ describe('InspectorPanel', () => {
     fixture.detectChanges();
     // The LinkedPagesPanel inside the tab has its own resource.
     http.expectOne('/api/pages/g1/backlinks').flush({ guid: 'g1', backlinks: [], count: 0 });
+  });
+
+  it('shows the comment count as a badge on the Comments tab when non-zero', async () => {
+    await renderInspector({}, 0, {}, 2);
+    const tab = screen.getByRole('tab', { name: /comments/i });
+    const badge = tab.querySelector('.mat-badge');
+    expect(badge).not.toBeNull();
+    expect(badge!.classList.contains('mat-badge-hidden')).toBe(false);
+    expect(tab.querySelector('.mat-badge-content')?.textContent?.trim()).toBe('2');
+    expect(tab).toHaveAccessibleName('Comments, 2 comments');
+  });
+
+  it('hides the Comments tab badge when there are no comments (zero state)', async () => {
+    await renderInspector({}, 0, {}, 0);
+    const tab = screen.getByRole('tab', { name: /comments/i });
+    const badge = tab.querySelector('.mat-badge');
+    expect(badge).not.toBeNull();
+    expect(badge!.classList.contains('mat-badge-hidden')).toBe(true);
+    expect(tab).toHaveAccessibleName('Comments');
+  });
+
+  it('switching to comments tab causes its own comments panel to mount + refetch', async () => {
+    const { http, fixture } = await renderInspector({}, 0, { noopAnimations: true });
+    fixture.componentInstance['selectedTab'].set(3);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    // The CommentsPanel inside the tab has its own resource.
+    http.expectOne('/api/pages/g1/comments').flush({ comments: [] });
   });
 
   it('forwards the properties panel titleH1Sync output to the host', async () => {

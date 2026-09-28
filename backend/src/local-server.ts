@@ -36,6 +36,10 @@ import {
   pagesAttachmentsDelete,
   pagesAttachmentsPresign,
   pagesAttachmentsConfirm,
+  pagesCommentsList,
+  pagesCommentsCreate,
+  pagesCommentsUpdate,
+  pagesCommentsDelete,
 } from './pages/index.js';
 import { handler as linksResolve } from './pages/links-resolve.js';
 import { handler as authRegister } from './auth/auth-register.js';
@@ -234,6 +238,10 @@ app.post(
 app.get('/pages/:pageGuid/attachments', wrapLambdaHandler(pagesAttachmentsList));
 app.get('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDownload));
 app.delete('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDelete));
+app.get('/pages/:pageGuid/comments', wrapLambdaHandler(pagesCommentsList));
+app.post('/pages/:pageGuid/comments', wrapLambdaHandler(pagesCommentsCreate));
+app.put('/pages/:pageGuid/comments/:commentId', wrapLambdaHandler(pagesCommentsUpdate));
+app.delete('/pages/:pageGuid/comments/:commentId', wrapLambdaHandler(pagesCommentsDelete));
 
 // ============================================================================
 // API Routes - Authentication

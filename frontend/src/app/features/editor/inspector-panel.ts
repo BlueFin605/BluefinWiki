@@ -16,6 +16,8 @@ import { CustomPropertiesEditor } from './custom-properties-editor';
 import { LinkedPagesPanel } from '../pages/linked-pages-panel';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { AttachmentManager } from '../attachments/attachment-manager';
+import { CommentsPanel } from '../comments/comments-panel';
+import { Comments } from '../comments/comments';
 import type { PageMetadata } from '../pages/drafts';
 import type { PageProperty } from '../pages/page.types';
 
@@ -30,6 +32,7 @@ import type { PageProperty } from '../pages/page.types';
     LinkedPagesPanel,
     AttachmentUploader,
     AttachmentManager,
+    CommentsPanel,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Tab bodies use `*matTabContent` + `preserveContent` (lazy-once), NOT a
@@ -97,6 +100,25 @@ import type { PageProperty } from '../pages/page.types';
           <wiki-linked-pages-panel [pageGuid]="pageGuid()" />
         </ng-template>
       </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <span
+            [matBadge]="commentCount()"
+            [matBadgeHidden]="commentCount() === 0"
+            [attr.aria-label]="
+              commentCount() > 0
+                ? 'Comments, ' + commentCount() + ' comments'
+                : null
+            "
+            matBadgeOverlap="false"
+            matBadgeSize="small"
+          >Comments</span>
+        </ng-template>
+        <ng-template matTabContent>
+          <wiki-comments-panel [pageGuid]="pageGuid()" />
+        </ng-template>
+      </mat-tab>
     </mat-tab-group>
   `,
   styles: [`
@@ -124,6 +146,7 @@ import type { PageProperty } from '../pages/page.types';
 export class InspectorPanel {
   private readonly pages = inject(Pages);
   private readonly pageTypes = inject(PageTypes);
+  private readonly comments = inject(Comments);
 
   readonly pageGuid = input.required<string>();
   readonly metadata = input.required<PageMetadata>();
@@ -171,6 +194,14 @@ export class InspectorPanel {
   protected readonly backlinkCount = computed(() => {
     if (this.backlinksResource.status() !== 'resolved') return 0;
     return this.backlinksResource.value()?.count ?? 0;
+  });
+
+  // Comments count just to drive the tab badge; CommentsPanel re-creates its
+  // own resource internally (same pattern as backlinks above).
+  private readonly commentsResource = this.comments.listResource(this.guidSignal);
+  protected readonly commentCount = computed(() => {
+    if (this.commentsResource.status() !== 'resolved') return 0;
+    return this.commentsResource.value()?.length ?? 0;
   });
 
   protected onPropertiesChange(properties: Record<string, PageProperty>): void {

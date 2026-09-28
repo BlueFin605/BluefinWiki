@@ -1249,7 +1249,67 @@ namespace Infrastructure.Stacks
                 LogRetention = lambdaProps.LogRetention,
                 Description = "Delete page attachment"
             });
-            
+
+            var pagesCommentsListFunction = new LambdaFunction(this, "PagesCommentsListFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-list",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-comments-list.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "List comments on a page"
+            });
+
+            var pagesCommentsCreateFunction = new LambdaFunction(this, "PagesCommentsCreateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-create",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-comments-create.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Create a comment or reply on a page"
+            });
+
+            var pagesCommentsUpdateFunction = new LambdaFunction(this, "PagesCommentsUpdateFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-update",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-comments-update.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Edit your own comment on a page"
+            });
+
+            var pagesCommentsDeleteFunction = new LambdaFunction(this, "PagesCommentsDeleteFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-delete",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/pages-comments-delete.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Delete your own comment (or any comment, as Admin)"
+            });
+
             var tagsListFunction = new LambdaFunction(this, "TagsListFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-tags-list",
@@ -1793,7 +1853,37 @@ namespace Infrastructure.Stacks
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
             });
-            
+
+            // GET /pages/{guid}/comments - List comments on a page
+            var commentsResource = pageGuidResource.AddResource("comments");
+            commentsResource.AddMethod("GET", new LambdaIntegration(pagesCommentsListFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /pages/{guid}/comments - Create a comment or reply
+            commentsResource.AddMethod("POST", new LambdaIntegration(pagesCommentsCreateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // PUT /pages/{guid}/comments/{commentId} - Edit your own comment
+            var commentIdResource = commentsResource.AddResource("{commentId}");
+            commentIdResource.AddMethod("PUT", new LambdaIntegration(pagesCommentsUpdateFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // DELETE /pages/{guid}/comments/{commentId} - Delete your own comment (or any, as Admin)
+            commentIdResource.AddMethod("DELETE", new LambdaIntegration(pagesCommentsDeleteFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
             // =============================================================================
             // API Gateway Routes - /tags
             // =============================================================================

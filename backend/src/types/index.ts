@@ -193,6 +193,22 @@ export interface AttachmentMetadata {
   checksum?: string;
 }
 
+/**
+ * A single comment (or reply) on a page. Stored in a per-page sidecar JSON
+ * object (`{guid}.comments.json`), never in the page's own frontmatter — see
+ * `docs/superpowers/specs/2026-09-28-page-comments-design.md`.
+ */
+export interface Comment {
+  id: string; // UUID v4
+  parentId: string | null; // null = top-level comment; set = a reply to a top-level comment
+  authorId: string; // Cognito sub, or "mcp-client" for MCP-authored comments
+  authorName: string; // Display name snapshotted at post time
+  body: string; // Blanked (empty string) once deletedAt is set
+  createdAt: string; // ISO 8601
+  editedAt: string | null; // ISO 8601, set on edit
+  deletedAt: string | null; // ISO 8601, set on soft-delete (comment had replies)
+}
+
 export interface StoragePluginConfig {
   type: 's3' | 'github' | 'local';
   [key: string]: string | number | boolean | undefined; // Plugin-specific config

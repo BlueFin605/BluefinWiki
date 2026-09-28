@@ -21,4 +21,8 @@ export { handler as pagesAttachmentsList } from './pages-attachments-list.js';
 export { handler as pagesAttachmentsDelete } from './pages-attachments-delete.js';
 export { handler as pagesAttachmentsPresign } from './pages-attachments-presign.js';
 export { handler as pagesAttachmentsConfirm } from './pages-attachments-confirm.js';
+export { handler as pagesCommentsList } from './pages-comments-list.js';
+export { handler as pagesCommentsCreate } from './pages-comments-create.js';
+export { handler as pagesCommentsUpdate } from './pages-comments-update.js';
+export { handler as pagesCommentsDelete } from './pages-comments-delete.js';
 

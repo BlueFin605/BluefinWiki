@@ -85,6 +85,9 @@
  * Attachments (`features/attachments/attachments.ts`):
  *   - `attachments:<pageGuid>`   — a page's attachment list (`listResource`)
  *
+ * Comments (`features/comments/comments.ts`):
+ *   - `comments:<pageGuid>`      — a page's comment list (`listResource`)
+ *
  * Admin:
  *   - `users:list`               — `features/admin/users.ts` `usersResource`
  *   - `invitations:list`         — `features/admin/invitations.ts` `invitationsResource`
@@ -189,6 +192,8 @@ export const allowedChildrenTag = (guid: string): string =>
 export const pageTagsListTag = (): string => 'page-tags:list';
 
 export const attachmentsTag = (pageGuid: string): string => `attachments:${pageGuid}`;
+
+export const commentsTag = (pageGuid: string): string => `comments:${pageGuid}`;
 
 export const usersListTag = (): string => 'users:list';
 

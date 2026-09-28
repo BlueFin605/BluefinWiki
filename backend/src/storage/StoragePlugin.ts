@@ -20,6 +20,7 @@ import {
   AttachmentUploadInput,
   AttachmentUploadResult,
   AttachmentMetadata,
+  Comment,
 } from '../types/index.js';
 
 export interface StoragePlugin {
@@ -162,6 +163,31 @@ export interface StoragePlugin {
    * @param attachmentKey - Full S3 key of the attachment
    */
   deleteAttachmentByKey(attachmentKey: string): Promise<void>;
+
+  /**
+   * Get a page's comments sidecar (`{guid}.comments.json`), along with the
+   * S3 ETag of that object so a caller can do a conditional write back.
+   *
+   * @param pageGuid - Page GUID
+   * @returns The comment list (empty if no sidecar exists yet) and the
+   *   object's current ETag (null if the sidecar doesn't exist yet)
+   * @throws StoragePluginError if the page itself doesn't exist
+   */
+  getComments(pageGuid: string): Promise<{ comments: Comment[]; etag: string | null }>;
+
+  /**
+   * Replace a page's comments sidecar, conditioned on the ETag last read via
+   * {@link getComments}. Pass `expectedEtag: null` only when creating the
+   * sidecar for the first time (no prior read).
+   *
+   * @param pageGuid - Page GUID
+   * @param comments - The full, updated comment list to write
+   * @param expectedEtag - ETag from the read this write is based on
+   * @returns The new ETag after a successful write
+   * @throws StoragePluginError with code 'COMMENTS_CONFLICT' if the sidecar
+   *   changed since expectedEtag was read (caller should re-read and retry)
+   */
+  saveComments(pageGuid: string, comments: Comment[], expectedEtag: string | null): Promise<{ etag: string }>;
 
   /**
    * Get ancestors of a page (for breadcrumbs)
