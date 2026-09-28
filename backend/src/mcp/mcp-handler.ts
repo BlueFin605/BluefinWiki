@@ -5,9 +5,9 @@
  * Provides read/write access to wiki pages via Streamable HTTP protocol.
  *
  * Secured by API Gateway API key — no Cognito auth.
- * Thirteen tools: list_pages, get_page, search_pages, list_page_types, get_backlinks,
+ * Tools: list_pages, get_page, search_pages, list_page_types, get_backlinks,
  * create_page, update_page, delete_page, move_page, list_comments, add_comment,
- * update_comment, delete_comment.
+ * update_comment, delete_comment, plus the kanban_* tools (see tools/kanban/).
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -30,6 +30,7 @@ import { listComments, ListCommentsInput } from './tools/list-comments.js';
 import { addComment, AddCommentInput } from './tools/add-comment.js';
 import { updateComment, UpdateCommentInput } from './tools/update-comment.js';
 import { deleteComment, DeleteCommentInput } from './tools/delete-comment.js';
+import { KANBAN_TOOLS, callKanbanTool } from './tools/kanban/index.js';
 
 const TOOLS = [
   {
@@ -287,10 +288,11 @@ const TOOLS = [
       required: ['pageGuid', 'commentId'],
     },
   },
+  ...KANBAN_TOOLS,
 ];
 
 /**
- * Create and configure an MCP server with all five tools registered.
+ * Create and configure an MCP server with all tools registered.
  */
 function createServer(): Server {
   const server = new Server(
@@ -359,11 +361,14 @@ function createServer(): Server {
           const result = await deleteComment(args as unknown as DeleteCommentInput);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
-        default:
+        default: {
+          const text = await callKanbanTool(name, (args ?? {}) as Record<string, unknown>);
+          if (text !== undefined) return { content: [{ type: 'text', text }] };
           return {
             content: [{ type: 'text', text: `Unknown tool: ${name}` }],
             isError: true,
           };
+        }
       }
     } catch (err: unknown) {
       return {
