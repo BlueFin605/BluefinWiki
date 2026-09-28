@@ -57,6 +57,7 @@ import { handler as authProfileUpdate } from './auth/auth-profile-update.js';
 import { handler as searchQuery } from './search/search-query.js';
 import { handler as proxyFetchUrl } from './proxy/fetch-url.js';
 import { handler as imdbShowDetails } from './proxy/imdb-show-details.js';
+import { handler as mcpHandler } from './mcp/mcp-handler.js';
 import { handler as tagsList } from './tags/tags-list.js';
 import { handler as tagsCreate } from './tags/tags-create.js';
 import { handler as pageTypesList } from './page-types/page-types-list.js';
@@ -295,6 +296,12 @@ app.delete('/page-types/:guid', wrapLambdaHandler(pageTypesDelete));
 app.get('/search', wrapLambdaHandler(searchQuery));
 app.post('/fetch-url', wrapLambdaHandler(proxyFetchUrl));
 app.post('/imdb/show-details', wrapLambdaHandler(imdbShowDetails));
+
+// ============================================================================
+// MCP server (no API key locally — prod is guarded by an API Gateway key)
+// ============================================================================
+
+app.post('/mcp', wrapLambdaHandler(mcpHandler));
 
 // ============================================================================
 // Admin: Rebuild Page Index

@@ -17,6 +17,6 @@ Built with: Node.js 20 + TypeScript, AWS SDK v3 clients (S3, DynamoDB, Cognito, 
 
 ## Running / using this area
 
-- Local dev: normally started by Aspire (see `../aspire/SYSDOC.md`); direct invocation is `npm run dev` (port 3000, via `local-server.ts`).
+- Local dev: normally started by Aspire (see `../aspire/SYSDOC.md`); direct invocation is `npm run dev` (port 3000, via `local-server.ts`). The MCP server is at `POST http://localhost:3000/mcp` locally, with no API key (prod requires the API Gateway key).
 - Unit tests: `npm test` (Vitest). Integration tests against LocalStack: `npm run test:integration` — requires Aspire/LocalStack running first (`dotnet run --project ../aspire/BlueFinWiki.AppHost`); see `src/storage/TESTING-WITH-ASPIRE.md` for the full integration-test walkthrough and troubleshooting.
 - `npm run test:all` runs both unit and integration suites.
