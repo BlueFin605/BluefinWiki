@@ -21,6 +21,7 @@ interface Ticket {
   title: string;
   type: string;
   state: string;
+  tags: string[];
   children: Ticket[];
 }
 
@@ -29,6 +30,7 @@ export interface CreateNode {
   title: string;
   body?: string;
   state?: string;
+  tags?: string[];
   children?: CreateNode[];
 }
 
@@ -53,14 +55,28 @@ function stateOf(page: Pick<PageSummary, 'properties'>): string {
   return String(page.properties?.state?.value ?? '');
 }
 
-function line(t: { type: string; state: string; title: string; guid: string }): string {
-  return `${t.type} · ${t.state} · ${t.title} · ${t.guid}`;
+function line(t: { type: string; state: string; title: string; guid: string; tags?: string[] }): string {
+  const tags = t.tags?.length ? ` · ${t.tags.map(tag => `#${tag}`).join(' ')}` : '';
+  return `${t.type} · ${t.state} · ${t.title} · ${t.guid}${tags}`;
 }
 
 function checkState(state: string | undefined): void {
   if (state !== undefined && !(STATES as readonly string[]).includes(state)) {
     throw new Error(`unknown state "${state}"; valid: ${STATES.join('|')}`);
   }
+}
+
+/** Trim, lower-case and de-duplicate tags; rejects anything but non-empty strings. */
+function normaliseTags(tags: unknown): string[] {
+  if (tags === undefined) return [];
+  if (!Array.isArray(tags)) throw new Error('tags must be an array of strings');
+  const out: string[] = [];
+  for (const tag of tags) {
+    const t = typeof tag === 'string' ? tag.trim().toLowerCase() : '';
+    if (!t) throw new Error(`invalid tag ${JSON.stringify(tag)}; tags must be non-empty strings`);
+    if (!out.includes(t)) out.push(t);
+  }
+  return out;
 }
 
 /** Load a page and require it to be a ticket; returns the page and its type name. */
@@ -83,6 +99,7 @@ async function buildTree(deps: KanbanDeps, types: TypeInfo, page: PageSummary | 
     title: page.title,
     type: types.byGuid.get(page.pageType!)!.name,
     state: stateOf(page),
+    tags: page.tags ?? [],
     children: await Promise.all(children.map(c => buildTree(deps, types, c))),
   };
 }
@@ -150,7 +167,7 @@ export async function kanbanGet(deps: KanbanDeps, input: { guid: string }): Prom
     parentGuid = parent.folderId;
   }
 
-  const out = [line({ type, state: stateOf(page), title: page.title, guid: page.guid })];
+  const out = [line({ type, state: stateOf(page), title: page.title, guid: page.guid, tags: page.tags })];
   if (path.length) out.push(`Path: ${path.join(' › ')}`);
   out.push('', page.content.trim());
 
@@ -207,18 +224,25 @@ export async function kanbanNext(
   return kanbanGet(deps, { guid: chain[chain.length - 1].guid });
 }
 
-/** kanban_board — indented one-line-per-ticket tree, optionally filtered. */
+/**
+ * kanban_board — indented one-line-per-ticket tree, optionally filtered by
+ * state and/or tag (a ticket must pass both filters; ancestors of matches stay).
+ */
 export async function kanbanBoard(
   deps: KanbanDeps,
-  input: { initiative: string; states?: string[]; depth?: number },
+  input: { initiative: string; states?: string[]; tags?: string[]; depth?: number },
 ): Promise<string> {
   input.states?.forEach(checkState);
   const types = await loadTypes(deps);
   const root = await loadInitiative(deps, types, input.initiative);
   const maxDepth = input.depth ?? Infinity;
-  const wanted = input.states?.length ? new Set(input.states) : null;
+  const wantedStates = input.states?.length ? new Set(input.states) : null;
+  const wantedTags = input.tags?.length ? new Set(normaliseTags(input.tags)) : null;
 
-  const matches = (t: Ticket): boolean => !wanted || wanted.has(t.state) || t.children.some(matches);
+  const selfMatches = (t: Ticket): boolean =>
+    (!wantedStates || wantedStates.has(t.state)) && (!wantedTags || t.tags.some(tag => wantedTags.has(tag)));
+  const filtered = wantedStates !== null || wantedTags !== null;
+  const matches = (t: Ticket): boolean => !filtered || selfMatches(t) || t.children.some(matches);
 
   const out: string[] = [];
   function render(t: Ticket, depth: number): void {
@@ -249,6 +273,7 @@ export async function kanbanCreate(
       if (!n.title?.trim()) throw new Error('title is required');
       if (n.title.length > 200) throw new Error(`title too long: ${n.title.slice(0, 40)}…`);
       checkState(n.state);
+      n.tags = normaliseTags(n.tags);
       if (parentType.allowedChildTypes.length && !parentType.allowedChildTypes.includes(type.guid)) {
         throw new Error(`${type.name} is not allowed under ${parentType.name}`);
       }
@@ -270,6 +295,7 @@ export async function kanbanCreate(
           parentGuid,
           pageType: type.guid,
           properties: { state: { type: 'string', value: n.state ?? 'Ready' } },
+          ...(n.tags?.length ? { tags: n.tags } : {}),
         }));
       } catch (err) {
         throw new Error(`create failed at "${n.title}": ${(err as Error).message}; already created: ${created.join(', ') || 'none'}`);
@@ -284,22 +310,34 @@ export async function kanbanCreate(
 }
 
 /**
- * kanban_set_state — move a ticket, optionally commenting in the same call.
+ * kanban_set_state — move a ticket, optionally commenting and adding/removing
+ * tags in the same call (tags merge with the existing ones, never replace).
  * On Done, reports the nearest parent whose ticket children are now all Done;
  * rollup=true closes that chain upward instead (never the Initiative itself).
  */
 export async function kanbanSetState(
   deps: KanbanDeps,
-  input: { guid: string; state: string; comment?: string; rollup?: boolean },
+  input: { guid: string; state: string; comment?: string; rollup?: boolean; addTags?: string[]; removeTags?: string[] },
 ): Promise<string> {
   checkState(input.state);
+  const addTags = normaliseTags(input.addTags);
+  const removeTags = normaliseTags(input.removeTags);
   const types = await loadTypes(deps);
   const { page, type } = await loadTicket(deps, types, input.guid);
 
-  await setStateOn(deps, page.guid, input.state);
+  let tags = page.tags ?? [];
+  const tagsChanged = input.addTags !== undefined || input.removeTags !== undefined;
+  if (tagsChanged) {
+    tags = [...tags, ...addTags.filter(t => !tags.includes(t))].filter(t => !removeTags.includes(t));
+  }
+  await deps.updatePage({
+    pageGuid: page.guid,
+    properties: { state: { type: 'string', value: input.state } },
+    ...(tagsChanged ? { tags } : {}),
+  });
   if (input.comment?.trim()) await deps.addComment(page.guid, input.comment);
 
-  const out = [line({ type, state: input.state, title: page.title, guid: page.guid })];
+  const out = [line({ type, state: input.state, title: page.title, guid: page.guid, tags })];
   if (input.state !== 'Done' || type === INITIATIVE) return out.join('\n');
 
   let parentGuid = page.folderId;

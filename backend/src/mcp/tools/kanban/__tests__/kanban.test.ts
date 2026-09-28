@@ -249,3 +249,71 @@ describe('kanbanInitiatives', () => {
     expect(out.split('\n')).toContain('init3 · Shipped · Done · 0 open');
   });
 });
+
+describe('tags', () => {
+  const tagsOf = (guid: string) => wiki.pages.get(guid)!.tags;
+
+  it('kanbanCreate stores normalised tags and the board shows them after the guid', async () => {
+    const out = await kanbanCreate(wiki, {
+      parentGuid: 'story2',
+      tree: { type: 'Task', title: 'Deploy', state: 'Blocked', tags: ['Dean', ' dean ', 'ops'] },
+    });
+    expect(out).toBe('Task · Deploy · new-1');
+    expect(tagsOf('new-1')).toEqual(['dean', 'ops']);
+    const board = await kanbanBoard(wiki, { initiative: 'init' });
+    expect(board.split('\n')).toContain('      Task · Blocked · Deploy · new-1 · #dean #ops');
+  });
+
+  it('kanbanCreate rejects non-string or empty tags before writing anything', async () => {
+    await expect(
+      kanbanCreate(wiki, { parentGuid: 'story2', tree: { type: 'Task', title: 'X', tags: ['ok', ' '] } }),
+    ).rejects.toThrow(/tag/);
+    expect(wiki.pages.has('new-1')).toBe(false);
+  });
+
+  it('kanbanGet shows tags on the header line', async () => {
+    wiki.pages.get('task2')!.tags = ['dean'];
+    const out = await kanbanGet(wiki, { guid: 'task2' });
+    expect(out.split('\n')[0]).toBe('Task · Ready · Task 2 · task2 · #dean');
+  });
+
+  it('kanbanSetState merges addTags/removeTags with existing tags alongside the state change', async () => {
+    wiki.pages.get('task2')!.tags = ['x'];
+    const out = await kanbanSetState(wiki, { guid: 'task2', state: 'Blocked', addTags: ['Dean'] });
+    expect(tagsOf('task2')).toEqual(['x', 'dean']);
+    expect(wiki.stateOf('task2')).toBe('Blocked');
+    expect(out).toBe('Task · Blocked · Task 2 · task2 · #x #dean');
+
+    await kanbanSetState(wiki, { guid: 'task2', state: 'Ready', removeTags: ['x', 'missing'] });
+    expect(tagsOf('task2')).toEqual(['dean']);
+  });
+
+  it('kanbanSetState leaves tags untouched when no tag params are given', async () => {
+    wiki.pages.get('task2')!.tags = ['dean'];
+    await kanbanSetState(wiki, { guid: 'task2', state: 'Done' });
+    expect(tagsOf('task2')).toEqual(['dean']);
+  });
+
+  it('kanbanBoard filters by tag, keeping ancestors, and combines with states', async () => {
+    wiki.pages.get('task3')!.tags = ['dean'];
+    wiki.pages.get('task4')!.tags = ['dean'];
+    await wiki.updatePage({ pageGuid: 'task4', properties: { state: { type: 'string', value: 'Blocked' } } });
+
+    const dean = await kanbanBoard(wiki, { initiative: 'init', tags: ['DEAN'] });
+    expect(dean.split('\n')).toEqual([
+      'Initiative · In Progress · Home · init',
+      '  Epic · In Progress · Epic A · epicA',
+      '    Story · Ready · Story 2 · story2',
+      '      Task · Ready · Task 3 · task3 · #dean',
+      '  Epic · Ready · Epic B · epicB',
+      '    Task · Blocked · Task 4 · task4 · #dean',
+    ]);
+
+    const blockedDean = await kanbanBoard(wiki, { initiative: 'init', tags: ['dean'], states: ['Blocked'] });
+    expect(blockedDean.split('\n')).toEqual([
+      'Initiative · In Progress · Home · init',
+      '  Epic · Ready · Epic B · epicB',
+      '    Task · Blocked · Task 4 · task4 · #dean',
+    ]);
+  });
+});

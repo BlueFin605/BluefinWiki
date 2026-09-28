@@ -43,6 +43,7 @@ export function createFakeWiki(): FakeWiki {
     hasChildren: [...pages.values()].some(c => c.folderId === p.guid),
     ...(p.pageType ? { pageType: p.pageType } : {}),
     ...(p.properties ? { properties: p.properties } : {}),
+    ...(p.tags.length ? { tags: p.tags } : {}),
   });
 
   const wiki: FakeWiki = {
@@ -93,6 +94,7 @@ export function createFakeWiki(): FakeWiki {
       const type = TYPES.find(t => t.guid === input.pageType);
       wiki.add(guid, input.parentGuid ?? null, type?.name ?? null, input.properties?.state?.value as string, input.title);
       pages.get(guid)!.content = input.content ?? '';
+      pages.get(guid)!.tags = input.tags ?? [];
       return { guid };
     },
 
@@ -103,6 +105,7 @@ export function createFakeWiki(): FakeWiki {
         if (v === null) delete p.properties[k];
         else p.properties[k] = v;
       }
+      if (input.tags !== undefined) p.tags = input.tags;
     },
 
     async addComment(pageGuid, body) {
