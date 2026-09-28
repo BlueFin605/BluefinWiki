@@ -21,8 +21,11 @@ const guid = (description: string) => ({ type: 'string', description });
 export const KANBAN_TOOLS = [
   {
     name: 'kanban_initiatives',
-    description: 'Kanban: list Initiative pages as "guid · title · N open".',
-    inputSchema: { type: 'object' as const, properties: {} },
+    description: 'Kanban: list Initiatives (one per feature board) as "guid · title · state · N open". Done ones hidden unless includeDone.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: { includeDone: { type: 'boolean', description: 'Also list Done initiatives' } },
+    },
   },
   {
     name: 'kanban_next',
@@ -97,7 +100,7 @@ export async function callKanbanTool(name: string, args: Args): Promise<string |
   const deps = defaultKanbanDeps();
   switch (name) {
     case 'kanban_initiatives':
-      return kanbanInitiatives(deps);
+      return kanbanInitiatives(deps, args as { includeDone?: boolean });
     case 'kanban_next':
       return kanbanNext(deps, args as { initiative: string; claim?: boolean });
     case 'kanban_get':

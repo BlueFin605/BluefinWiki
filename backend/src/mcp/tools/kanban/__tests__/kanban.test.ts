@@ -230,13 +230,22 @@ describe('kanbanSetState', () => {
 });
 
 describe('kanbanInitiatives', () => {
-  it('lists initiatives with open ticket counts', async () => {
+  beforeEach(() => {
     wiki.add('other', null, null, undefined, 'Family');
     wiki.add('init2', 'other', 'Initiative', 'Ready', 'Nested');
-    const out = await kanbanInitiatives(wiki);
+    wiki.add('init3', null, 'Initiative', 'Done', 'Shipped');
+  });
+
+  it('lists open initiatives with state and open ticket counts, hiding Done ones', async () => {
+    const out = await kanbanInitiatives(wiki, {});
     expect(out.split('\n')).toEqual([
-      'init · Home · 7 open',
-      'init2 · Nested · 0 open',
+      'init · Home · In Progress · 7 open',
+      'init2 · Nested · Ready · 0 open',
     ]);
+  });
+
+  it('includes Done initiatives when asked', async () => {
+    const out = await kanbanInitiatives(wiki, { includeDone: true });
+    expect(out.split('\n')).toContain('init3 · Shipped · Done · 0 open');
   });
 });

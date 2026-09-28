@@ -106,8 +106,14 @@ async function setStateOn(deps: KanbanDeps, guid: string, state: string): Promis
 // Tools
 // ---------------------------------------------------------------------------
 
-/** kanban_initiatives — every Initiative in the wiki with its open-ticket count. */
-export async function kanbanInitiatives(deps: KanbanDeps): Promise<string> {
+/**
+ * kanban_initiatives — Initiatives (one per feature board) with state and
+ * open-ticket count. Done initiatives are hidden unless includeDone.
+ */
+export async function kanbanInitiatives(
+  deps: KanbanDeps,
+  input: { includeDone?: boolean } = {},
+): Promise<string> {
   const types = await loadTypes(deps);
   const found: string[] = [];
 
@@ -115,9 +121,11 @@ export async function kanbanInitiatives(deps: KanbanDeps): Promise<string> {
     for (const page of await deps.listChildren(parentGuid)) {
       if (page.status !== 'published') continue;
       if (page.pageType && types.byGuid.get(page.pageType)?.name === INITIATIVE) {
+        const state = stateOf(page);
+        if (state === 'Done' && !input.includeDone) continue;
         const tree = await buildTree(deps, types, page);
         const open = descendants(tree).filter(t => t.state !== 'Done').length;
-        found.push(`${page.guid} · ${page.title} · ${open} open`);
+        found.push(`${page.guid} · ${page.title} · ${state} · ${open} open`);
       } else if (page.hasChildren) {
         await walk(page.guid);
       }

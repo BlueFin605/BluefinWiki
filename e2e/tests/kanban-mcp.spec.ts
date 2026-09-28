@@ -63,7 +63,7 @@ test.describe('Kanban MCP tools', () => {
         boardConfig: { targetTypeGuid: types.Task, depth: 3, defaultView: 'board' },
       });
 
-      expect(await callTool(request, 'kanban_initiatives', {})).toContain(`${initiativeGuid} · ${prefix} Initiative · 0 open`);
+      expect(await callTool(request, 'kanban_initiatives', {})).toContain(`${initiativeGuid} · ${prefix} Initiative · In Progress · 0 open`);
 
       const firstTitle = `${prefix} First task`;
       const secondTitle = `${prefix} Second task`;
