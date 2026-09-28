@@ -110,6 +110,21 @@ test.describe('Kanban MCP tools', () => {
 
       // The MCP comment is on the ticket page.
       expect(await callTool(request, 'kanban_get', { guid: firstGuid })).toContain('MCP Client: commit abc123');
+
+      // Tags: a tagged ticket shows up under the board's tag filter until the tag is removed.
+      const storyGuid = guidOf(created.split('\n')[1]);
+      const deanTitle = `${prefix} Dean task`;
+      const deanGuid = guidOf(await callTool(request, 'kanban_create', {
+        parentGuid: storyGuid,
+        tree: { type: 'Task', title: deanTitle, state: 'Blocked', tags: ['Dean'] },
+      }));
+      const deanBoard = await callTool(request, 'kanban_board', { initiative: initiativeGuid, tags: ['dean'] });
+      expect(deanBoard).toContain(`Task · Blocked · ${deanTitle} · ${deanGuid} · #dean`);
+      expect(deanBoard).not.toContain(firstTitle);
+
+      expect(await callTool(request, 'kanban_set_state', { guid: deanGuid, state: 'Done', removeTags: ['dean'] }))
+        .toMatch(new RegExp(`^Task · Done · ${deanTitle} · ${deanGuid}$`, 'm'));
+      expect(await callTool(request, 'kanban_board', { initiative: initiativeGuid, tags: ['dean'] })).not.toContain(deanGuid);
     } finally {
       for (const guid of Object.values(types)) await deletePageType(request, guid);
     }
