@@ -137,7 +137,7 @@ describe('CommentsPanel', () => {
     await settle();
     fixture.detectChanges();
 
-    const textarea = screen.getByPlaceholderText(/write a comment/i) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText<HTMLTextAreaElement>(/write a comment/i);
     await userEvent.setup().type(textarea, 'A new comment');
     await userEvent.setup().click(screen.getByRole('button', { name: /^comment$/i }));
 
@@ -150,7 +150,7 @@ describe('CommentsPanel', () => {
     http.expectOne('/api/pages/p1/comments').flush({ comments: [comment({ id: 'new', body: 'A new comment' })] });
     await settle();
     fixture.detectChanges();
-    expect((screen.getByPlaceholderText(/write a comment/i) as HTMLTextAreaElement).value).toBe('');
+    expect(screen.getByPlaceholderText<HTMLTextAreaElement>(/write a comment/i).value).toBe('');
   });
 
   it('replies to a top-level comment with the parentId set', async () => {
@@ -162,7 +162,7 @@ describe('CommentsPanel', () => {
     fixture.detectChanges();
 
     await userEvent.setup().click(screen.getByRole('button', { name: /^reply$/i }));
-    const replyBox = screen.getByPlaceholderText(/write a reply/i) as HTMLTextAreaElement;
+    const replyBox = screen.getByPlaceholderText<HTMLTextAreaElement>(/write a reply/i);
     await userEvent.setup().type(replyBox, 'My reply');
     // Two "Reply" buttons now exist: the per-thread toggle, and the reply
     // box's own submit button (last in DOM order).
@@ -171,7 +171,7 @@ describe('CommentsPanel', () => {
 
     const req = http
       .match((r) => r.method === 'POST' && r.url === '/api/pages/p1/comments')
-      .find((r) => r.request.body?.parentId === 'top-1');
+      .find((r) => (r.request.body as { parentId?: string } | null)?.parentId === 'top-1');
     expect(req).toBeDefined();
     req!.flush(comment({ id: 'reply-new', parentId: 'top-1', body: 'My reply' }));
     await settle();
