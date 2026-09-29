@@ -1,5 +1,6 @@
 import { test, expect, createPage } from '../fixtures/page-tree';
 import type { Locator, Page } from '@playwright/test';
+import { dragToRowZone } from './helpers';
 
 /**
  * Drags `source` onto `target` (a stable, non-sibling drop zone — see the
@@ -22,6 +23,17 @@ async function dragOnto(page: Page, source: Locator, target: Locator): Promise<v
   await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2, { steps: 15 });
   await page.waitForTimeout(150);
   await page.mouse.up();
+}
+
+/**
+ * `padding-left` of every row matching `rows`. After a move, the root list and
+ * the old parent's list refetch independently; when the root response lands
+ * first the page briefly renders in BOTH places (~100ms), and a strict-mode
+ * `toHaveCSS` on the title locator throws on the two matches instead of
+ * retrying. Polling this list to `['8px']` waits for the tree to settle.
+ */
+async function rowIndents(rows: Locator): Promise<string[]> {
+  return rows.evaluateAll((els) => els.map((el) => getComputedStyle(el).paddingLeft));
 }
 
 test.describe('Reparenting via drag-and-drop', () => {
@@ -64,12 +76,12 @@ test.describe('Reparenting via drag-and-drop', () => {
     // since `movePage` bumps the same coarse `children:any` tag).
     await expect(rootRow).toHaveAttribute('aria-expanded', 'true');
     await expect(childRow).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByRole('treeitem', { name: movedTitle })).toHaveCount(1);
 
     // No longer nested under Child — moved out to the top level, alongside
     // Root: `indent = level * 16 + 8` (page-tree-item.ts), so a level-0 row's
     // padding-left is 8px, distinct from the level-2 nesting it started at.
-    await expect(movedRow).toHaveCSS('padding-left', '8px');
+    // Exactly one row, at the top level (see `rowIndents`).
+    await expect.poll(() => rowIndents(movedRow)).toEqual(['8px']);
 
     // Persists.
     await page.reload();
@@ -81,4 +93,60 @@ test.describe('Reparenting via drag-and-drop', () => {
       headers: { Authorization: 'Bearer mock-jwt-token' },
     });
   });
+
+  /**
+   * Regression: a before/after drop on a TOP-LEVEL row used to reparent the
+   * page UNDER that row instead of beside it. CDK inserted its drag
+   * placeholder (a full-height row clone) into the hovered row's own
+   * `cdkDropList`, shoving the row out from under a still pointer; the
+   * resulting `pointerleave` nulled the row's `_dropZone` and `onDrop` fell
+   * back to `onto`. A single committed move (`dragToRowZone`) — what a user's
+   * steady hand does — must now land beside the row, at the root.
+   */
+  for (const zone of ['before', 'after'] as const) {
+    test(`dropping a nested page in the ${zone} zone of a top-level row makes it a root page`, async ({
+      page,
+      pageTree,
+      request,
+    }) => {
+      const movedTitle = `E2E-${pageTree.runId} TopLevelDrop ${zone}`;
+      const movedGuid = await createPage(request, movedTitle, { parentGuid: pageTree.childGuid });
+
+      try {
+        await page.goto(`/pages/${pageTree.rootGuid}`);
+        const rootRow = page.getByRole('treeitem', { name: `${pageTree.runId} Root` });
+        await rootRow.getByRole('button', { name: 'Expand' }).click();
+        const childRow = page.getByRole('treeitem', { name: `${pageTree.runId} Child` });
+        await childRow.getByRole('button', { name: 'Expand' }).click();
+        const movedRow = page.getByRole('treeitem', { name: movedTitle });
+        await expect(movedRow).toBeVisible();
+
+        // A before/after drop at the root is move-then-reorder of the ROOT
+        // sibling list, which every parallel worker's fixture also creates and
+        // deletes pages in. A concurrent change between `onTreeDrop`'s sibling
+        // fetch and its reorder makes the backend 400 ("not children of the
+        // parent"), and the app's rollback then moves the page home. Stub the
+        // reorder so this test pins the reparent-to-root itself (reorder has
+        // its own coverage in tree-drag-reorder.spec.ts).
+        await page.route('**/api/pages/reorder', (route) =>
+          route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ updated: 0 }) }),
+        );
+
+        const moveRequest = page.waitForRequest(
+          (req) => req.url().includes(`/api/pages/${movedGuid}/move`) && req.method() === 'PUT',
+        );
+        await dragToRowZone(page, movedRow, rootRow, zone);
+
+        expect((await moveRequest).postDataJSON()).toEqual({ newParentGuid: null });
+        await expect.poll(() => rowIndents(movedRow)).toEqual(['8px']);
+
+        await page.reload();
+        await expect(page.getByRole('treeitem', { name: movedTitle })).toHaveCSS('padding-left', '8px');
+      } finally {
+        await request.delete(`http://localhost:3000/pages/${movedGuid}`, {
+          headers: { Authorization: 'Bearer mock-jwt-token' },
+        });
+      }
+    });
+  }
 });

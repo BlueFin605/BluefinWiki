@@ -34,6 +34,7 @@ const TOUCH_DRAG_THRESHOLD = 24;
         [cdkDropListData]="page()"
         [cdkDropListEnterPredicate]="enterPredicate"
         [cdkDropListAutoScrollStep]="6"
+        cdkDropListSortingDisabled
         (cdkDropListEntered)="onListEntered()"
         (cdkDropListExited)="clearDropZone()"
         (cdkDropListDropped)="onDrop($event)"
@@ -176,6 +177,17 @@ const TOUCH_DRAG_THRESHOLD = 24;
     .page-tree-row:hover .add-child-button { opacity: 0.7; }
     .add-child-button:hover { opacity: 1; color: #2563eb; }
     .cdk-drop-list-receiving .page-tree-row { background: #fef3c7; }
+    /* Every row is its own one-item cdkDropList, so CDK's placeholder (a
+       full-height clone of the dragged row) gets inserted beside whichever row
+       the drag enters, shoving that row out from under a still pointer. The
+       resulting pointerleave nulled _dropZone and every before/after drop
+       degraded to 'onto' — a child dragged beside a top-level row reparented
+       UNDER it instead of reaching the root. The row's own before/after/onto
+       indicators are the drop preview here, so the placeholder takes no space
+       and the list's sorting is disabled (cdkDropListSortingDisabled, above) —
+       CDK's sort would otherwise translate the row by the hidden placeholder's
+       zero-size rect. Rows stay put for the whole drag. */
+    .cdk-drag-placeholder { display: none; }
   `],
 })
 export class PageTreeItem {
