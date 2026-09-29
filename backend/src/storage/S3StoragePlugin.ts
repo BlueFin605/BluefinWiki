@@ -1093,6 +1093,11 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
         const childResults = await mapWithConcurrency(childGuids, LIST_CHILDREN_CONCURRENCY, async (guid): Promise<PageSummary | null> => {
           try {
+            // A stale prefix left under this folder by an earlier move resolves
+            // (via the page index) to the page at its real location — skip it
+            // unless the page actually lives in this folder.
+            const actualFolder = await this.findPageFolder(guid);
+            if (actualFolder !== `${parentFolder}${guid}/`) return null;
             const page = await this.loadPage(guid);
             return {
               guid: page.guid,
@@ -1229,6 +1234,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       console.log(`[movePage] Moving attachments from ${oldFolder} to new folder derived from ${newKey}`);
       const newFolder = newKey.substring(0, newKey.lastIndexOf('/') + 1);
       await this.moveAttachments(oldFolder, newFolder);
+      await this.moveCommentsSidecar(oldFolder, newFolder, guid);
 
       // Move children and all descendants recursively.
       // We pass the old/new folder paths explicitly because the page index has
@@ -1321,6 +1327,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           }));
 
           await this.moveAttachments(childOldFolder, childNewFolder);
+          await this.moveCommentsSidecar(childOldFolder, childNewFolder, childGuid);
 
           this.pageIndex.putPageKey({
             guid: childGuid,
@@ -1378,6 +1385,35 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       continuationToken = response.NextContinuationToken;
     } while (continuationToken);
+  }
+
+  /**
+   * Move a page's `{guid}.comments.json` sidecar from old to new folder.
+   *
+   * Without this the sidecar is stranded at the old path: the page's comments
+   * vanish, and the leftover object keeps the old `{guid}/` prefix alive so
+   * the old parent's listChildren still sees a folder for the moved page.
+   * A missing sidecar just means the page has no comments.
+   */
+  private async moveCommentsSidecar(oldFolder: string, newFolder: string, guid: string): Promise<void> {
+    const oldKey = `${oldFolder}${guid}.comments.json`;
+    try {
+      await this.s3Client.send(new CopyObjectCommand({
+        Bucket: this.bucketName,
+        CopySource: `${this.bucketName}/${oldKey}`,
+        Key: `${newFolder}${guid}.comments.json`,
+        MetadataDirective: 'COPY',
+      }));
+    } catch (err: unknown) {
+      const error = err as { name?: string; Code?: string };
+      if (error.name === 'NoSuchKey' || error.Code === 'NoSuchKey' || error.name === 'NotFound') return;
+      throw err;
+    }
+
+    await this.s3Client.send(new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: oldKey,
+    }));
   }
 
   /**
