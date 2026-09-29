@@ -601,6 +601,55 @@ Content`;
       expect(children[0].parentGuid).toBe(parentGuid);
     });
 
+    it('should skip a stale child prefix whose page now lives under another parent', async () => {
+      // An earlier move left an object (e.g. a comments sidecar) under
+      // {oldParent}/{movedGuid}/, so S3 still reports that prefix — but the
+      // page itself lives under {newParent}/.
+      const oldParent = uuidv4();
+      const newParent = uuidv4();
+      const movedGuid = uuidv4();
+      const realChild = uuidv4();
+      const folders: Record<string, string> = {
+        [oldParent]: `${oldParent}/`,
+        [newParent]: `${newParent}/`,
+        [movedGuid]: `${newParent}/${movedGuid}/`,
+        [realChild]: `${oldParent}/${realChild}/`,
+      };
+      const indexedPlugin = new S3StoragePlugin({
+        bucketName: TEST_BUCKET,
+        region: TEST_REGION,
+        pageIndex: {
+          getPageKey: async (guid: string) => folders[guid] ?? null,
+          putPageKey: async () => {},
+          deletePageKey: async () => {},
+          deletePageKeys: async () => {},
+        },
+      });
+      (indexedPlugin as any).s3Client = s3Mock as any;
+
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+        if (input.Prefix === `${oldParent}/` && input.Delimiter === '/') {
+          return {
+            CommonPrefixes: [
+              { Prefix: `${oldParent}/${movedGuid}/` },
+              { Prefix: `${oldParent}/${realChild}/` },
+            ],
+          };
+        }
+        return { CommonPrefixes: [] };
+      });
+      s3Mock.on(GetObjectCommand).callsFake((input: any) => {
+        const guid = input.Key.split('/').slice(-2, -1)[0];
+        const parent = guid === movedGuid ? newParent : oldParent;
+        const markdown = `---\ntitle: "Page ${guid}"\nguid: "${guid}"\nfolderId: "${parent}"\nstatus: "published"\ncreatedBy: "user-123"\nmodifiedBy: "user-123"\ncreatedAt: "2026-02-10T12:00:00Z"\nmodifiedAt: "2026-02-10T12:00:00Z"\n---\n\nContent`;
+        return { Body: createMockStream(markdown)() } as any;
+      });
+
+      const children = await indexedPlugin.listChildren(oldParent);
+
+      expect(children.map((c) => c.guid)).toEqual([realChild]);
+    });
+
     it('should return empty array if no children found', async () => {
       s3Mock.on(ListObjectsV2Command).resolves({
         Contents: [],
@@ -785,6 +834,92 @@ Content`;
       await plugin.movePage(guid, null);
 
       expect(s3Mock.commandCalls(PutObjectCommand).length).toBeGreaterThan(0);
+    });
+
+    it('should move the comments sidecar with the page and its descendants', async () => {
+      const guid = uuidv4();
+      const childGuid = uuidv4();
+      const newParentGuid = uuidv4();
+      const folders: Record<string, string> = {
+        [guid]: `${guid}/`,
+        [childGuid]: `${guid}/${childGuid}/`,
+        [newParentGuid]: `${newParentGuid}/`,
+      };
+      const indexedPlugin = new S3StoragePlugin({
+        bucketName: TEST_BUCKET,
+        region: TEST_REGION,
+        pageIndex: {
+          getPageKey: async (g: string) => folders[g] ?? null,
+          putPageKey: async () => {},
+          deletePageKey: async () => {},
+          deletePageKeys: async () => {},
+        },
+      });
+      (indexedPlugin as any).s3Client = s3Mock as any;
+
+      s3Mock.on(GetObjectCommand).callsFake((input: any) => {
+        const g = input.Key.split('/').slice(-2, -1)[0];
+        const parent = g === childGuid ? guid : '';
+        const markdown = `---\ntitle: "Page ${g}"\nguid: "${g}"\nfolderId: "${parent}"\nstatus: "published"\ncreatedBy: "user-123"\nmodifiedBy: "user-123"\ncreatedAt: "2026-02-10T12:00:00Z"\nmodifiedAt: "2026-02-10T12:00:00Z"\n---\n\nContent`;
+        return { Body: createMockStream(markdown)() } as any;
+      });
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+        if (input.Prefix === `${guid}/` && input.Delimiter === '/') {
+          return { CommonPrefixes: [{ Prefix: `${guid}/${childGuid}/` }] };
+        }
+        return { Contents: [], CommonPrefixes: [] };
+      });
+      s3Mock.on(CopyObjectCommand).resolves({});
+      s3Mock.on(DeleteObjectCommand).resolves({});
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await indexedPlugin.movePage(guid, newParentGuid);
+
+      const copies = s3Mock.commandCalls(CopyObjectCommand).map((c) => [c.args[0].input.CopySource, c.args[0].input.Key]);
+      expect(copies).toContainEqual([
+        `${TEST_BUCKET}/${guid}/${guid}.comments.json`,
+        `${newParentGuid}/${guid}/${guid}.comments.json`,
+      ]);
+      expect(copies).toContainEqual([
+        `${TEST_BUCKET}/${guid}/${childGuid}/${childGuid}.comments.json`,
+        `${newParentGuid}/${guid}/${childGuid}/${childGuid}.comments.json`,
+      ]);
+      const deletes = s3Mock.commandCalls(DeleteObjectCommand).map((c) => c.args[0].input.Key);
+      expect(deletes).toContain(`${guid}/${guid}.comments.json`);
+      expect(deletes).toContain(`${guid}/${childGuid}/${childGuid}.comments.json`);
+    });
+
+    it('should not fail the move when the page has no comments sidecar', async () => {
+      const guid = uuidv4();
+      const newParentGuid = uuidv4();
+      const folders: Record<string, string> = { [guid]: `${guid}/`, [newParentGuid]: `${newParentGuid}/` };
+      const indexedPlugin = new S3StoragePlugin({
+        bucketName: TEST_BUCKET,
+        region: TEST_REGION,
+        pageIndex: {
+          getPageKey: async (g: string) => folders[g] ?? null,
+          putPageKey: async () => {},
+          deletePageKey: async () => {},
+          deletePageKeys: async () => {},
+        },
+      });
+      (indexedPlugin as any).s3Client = s3Mock as any;
+
+      const markdown = `---\ntitle: "Page"\nguid: "${guid}"\nfolderId: ""\nstatus: "published"\ncreatedBy: "user-123"\nmodifiedBy: "user-123"\ncreatedAt: "2026-02-10T12:00:00Z"\nmodifiedAt: "2026-02-10T12:00:00Z"\n---\n\nContent`;
+      s3Mock.on(GetObjectCommand).callsFake(() => ({ Body: createMockStream(markdown)() } as any));
+      s3Mock.on(ListObjectsV2Command).resolves({ Contents: [], CommonPrefixes: [] });
+      s3Mock.on(CopyObjectCommand).callsFake((input: any) => {
+        if (input.CopySource.endsWith('.comments.json')) {
+          throw Object.assign(new Error('The specified key does not exist.'), { name: 'NoSuchKey' });
+        }
+        return {};
+      });
+      s3Mock.on(DeleteObjectCommand).resolves({});
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(indexedPlugin.movePage(guid, newParentGuid)).resolves.toBeUndefined();
+      const deletes = s3Mock.commandCalls(DeleteObjectCommand).map((c) => c.args[0].input.Key);
+      expect(deletes).not.toContain(`${guid}/${guid}.comments.json`);
     });
 
     it('should throw error on circular reference', async () => {
@@ -1487,7 +1622,9 @@ Test content`;
       const tagged = uuidv4();
       const untagged = uuidv4();
       const p = plugin as any;
-      vi.spyOn(p, 'findPageFolder').mockResolvedValue('parent/');
+      vi.spyOn(p, 'findPageFolder').mockImplementation(async (guid: unknown) =>
+        guid === 'parent' ? 'parent/' : `parent/${guid}/`,
+      );
       vi.spyOn(p, 'hasChildrenDirect').mockResolvedValue(false);
       vi.spyOn(p, 'loadPage').mockImplementation(async (guid: unknown) =>
         guid === tagged ? page(tagged, ['dean']) : page(untagged, []),
