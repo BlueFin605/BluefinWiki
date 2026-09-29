@@ -107,4 +107,29 @@ describe('BoardSettingsPanel', () => {
     const arg = call[0] as BoardConfig;
     expect(arg.columns).toEqual(['To Do', 'Review']);
   });
+
+  it('hides the parent-title toggles for a direct-children board (they would not be saved)', async () => {
+    await renderPanel({ config: { columns: ['To Do'] }, pageTypes: [pageType()] });
+    await settle();
+    expect(screen.queryByRole('switch', { name: /show parent title/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /use parent as primary/i })).not.toBeInTheDocument();
+  });
+
+  it('saves both parent-title toggles when a target type is set', async () => {
+    const dialogRef = { close: jest.fn() };
+    const stateBearing = pageType({
+      guid: 'pt-task',
+      properties: [{ name: 'state', type: 'string', required: false }],
+    });
+    const config: BoardConfig = { targetTypeGuid: 'pt-task', depth: 3 };
+    await renderPanel({ config, pageTypes: [stateBearing] }, dialogRef);
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: /show parent title/i }));
+    await user.click(screen.getByRole('switch', { name: /use parent as primary/i }));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.showParentTitle).toBe(false);
+    expect(arg.swapTitles).toBe(true);
+  });
 });

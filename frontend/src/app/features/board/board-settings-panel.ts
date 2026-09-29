@@ -168,16 +168,20 @@ const COLOR_PALETTE = [
         }
       </section>
 
-      <section class="section">
-        <mat-slide-toggle
-          [checked]="showParentTitle()"
-          (change)="showParentTitle.set($event.checked)"
-        >Show parent title on cards</mat-slide-toggle>
-        <mat-slide-toggle
-          [checked]="swapTitles()"
-          (change)="swapTitles.set($event.checked)"
-        >Use parent as primary title</mat-slide-toggle>
-      </section>
+      <!-- Only deep boards populate card.parentTitle, and onSave only persists
+           these when a target type is set — so only offer them then. -->
+      @if (targetTypeGuid()) {
+        <section class="section">
+          <mat-slide-toggle
+            [checked]="showParentTitle()"
+            (change)="showParentTitle.set($event.checked)"
+          >Show parent title on cards</mat-slide-toggle>
+          <mat-slide-toggle
+            [checked]="swapTitles()"
+            (change)="swapTitles.set($event.checked)"
+          >Use parent as primary title</mat-slide-toggle>
+        </section>
+      }
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
