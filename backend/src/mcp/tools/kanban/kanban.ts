@@ -11,10 +11,11 @@
 import { PageContent, PageSummary } from '../../../types/index.js';
 import { KanbanDeps, KanbanPageType } from './deps.js';
 
-export const STATES = ['Backlog', 'Ready', 'In Progress', 'Blocked', 'Done'] as const;
+/** `Waiting for Action` = a manual (#dean) ticket that is due now — Dean's to-do list. */
+export const STATES = ['Backlog', 'Ready', 'In Progress', 'Waiting for Action', 'Blocked', 'Done'] as const;
 const INITIATIVE = 'Initiative';
 const COMMENT_LIMIT = 5;
-const SKIP_SUBTREE = new Set(['Blocked', 'Done']);
+const SKIP_SUBTREE = new Set(['Waiting for Action', 'Blocked', 'Done']);
 
 interface Ticket {
   guid: string;
@@ -182,7 +183,7 @@ export async function kanbanGet(deps: KanbanDeps, input: { guid: string }): Prom
 
 /**
  * kanban_next — resume the first In Progress leaf, else the first Ready leaf,
- * in tree order, skipping anything under a Blocked or Done ancestor.
+ * in tree order, skipping anything under a Waiting for Action, Blocked or Done ancestor.
  * claim=true moves the picked leaf and its Ready/Backlog ancestors (not the
  * initiative) to In Progress.
  */

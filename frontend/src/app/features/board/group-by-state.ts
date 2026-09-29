@@ -8,6 +8,7 @@ const DEFAULT_COLORS: Record<string, string> = {
   'In Progress': '#3b82f6',
   Watching: '#3b82f6',
   Review: '#f59e0b',
+  'Waiting for Action': '#ef4444',
   Done: '#22c55e',
   Completed: '#22c55e',
   Archived: '#9ca3af',

@@ -64,6 +64,13 @@ describe('kanbanNext', () => {
     expect(out.split('\n')[0]).toBe('Task · Ready · Task 6 · task6');
   });
 
+  it('skips Waiting for Action leaves and subtrees (they are Dean\'s to do)', async () => {
+    await wiki.updatePage({ pageGuid: 'task2', properties: { state: { type: 'string', value: 'Waiting for Action' } } });
+    await wiki.updatePage({ pageGuid: 'story2', properties: { state: { type: 'string', value: 'Waiting for Action' } } });
+    const out = await kanbanNext(wiki, { initiative: 'init' });
+    expect(out.split('\n')[0]).toBe('Task · Ready · Task 4 · task4');
+  });
+
   it('treats a ticket whose only children are untyped pages as a leaf', async () => {
     wiki.add('note', 'task2', 'Note', undefined, 'Some notes');
     const out = await kanbanNext(wiki, { initiative: 'init' });
@@ -176,7 +183,7 @@ describe('kanbanCreate', () => {
 
   it.each([
     [{ type: 'Bogus', title: 'x' }, 'unknown ticket type "Bogus"'],
-    [{ type: 'Epic', title: 'x', state: 'Doing' }, 'unknown state "Doing"; valid: Backlog|Ready|In Progress|Blocked|Done'],
+    [{ type: 'Epic', title: 'x', state: 'Doing' }, 'unknown state "Doing"; valid: Backlog|Ready|In Progress|Waiting for Action|Blocked|Done'],
     [{ type: 'Task', title: 'x' }, 'Task is not allowed under Initiative'],
     [{ type: 'Epic', title: '' }, 'title is required'],
   ])('validates the whole tree before writing anything (%o)', async (node, message) => {
@@ -286,6 +293,14 @@ describe('tags', () => {
 
     await kanbanSetState(wiki, { guid: 'task2', state: 'Ready', removeTags: ['x', 'missing'] });
     expect(tagsOf('task2')).toEqual(['dean']);
+  });
+
+  it('kanbanSetState moves a Backlog #dean task to Waiting for Action', async () => {
+    await wiki.updatePage({ pageGuid: 'task2', properties: { state: { type: 'string', value: 'Backlog' } } });
+    wiki.pages.get('task2')!.tags = ['dean'];
+    const out = await kanbanSetState(wiki, { guid: 'task2', state: 'Waiting for Action' });
+    expect(out).toBe('Task · Waiting for Action · Task 2 · task2 · #dean');
+    expect(wiki.stateOf('task2')).toBe('Waiting for Action');
   });
 
   it('kanbanSetState leaves tags untouched when no tag params are given', async () => {

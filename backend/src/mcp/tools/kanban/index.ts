@@ -29,7 +29,7 @@ export const KANBAN_TOOLS = [
   },
   {
     name: 'kanban_next',
-    description: `Kanban: next ticket to work on in an initiative — first In Progress leaf, else first Ready leaf, in tree order, skipping Blocked/Done subtrees. Returns a ticket card. claim=true sets it (and Ready ancestors) to In Progress. States: ${STATE_LIST}.`,
+    description: `Kanban: next ticket to work on in an initiative — first In Progress leaf, else first Ready leaf, in tree order, skipping Waiting for Action/Blocked/Done subtrees. Returns a ticket card. claim=true sets it (and Ready ancestors) to In Progress. States: ${STATE_LIST}.`,
     inputSchema: {
       type: 'object' as const,
       properties: {
