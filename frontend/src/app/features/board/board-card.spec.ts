@@ -50,6 +50,21 @@ describe('BoardCard', () => {
     expect(screen.getByText('Hello card')).toBeInTheDocument();
   });
 
+  it('renders page tags as #chips', async () => {
+    await render(BoardCard, {
+      inputs: { card: card({ tags: ['dean', 'ops'] }) },
+    });
+    await settle();
+    const chips = screen.getAllByTestId('board-card-tag').map(el => el.textContent);
+    expect(chips).toEqual(['#dean', '#ops']);
+  });
+
+  it('renders no tag row when the page has no tags', async () => {
+    await render(BoardCard, { inputs: { card: card() } });
+    await settle();
+    expect(screen.queryByTestId('board-card-tag')).not.toBeInTheDocument();
+  });
+
   it('swaps primary and secondary titles when swapTitles is true', async () => {
     await render(BoardCard, {
       inputs: {

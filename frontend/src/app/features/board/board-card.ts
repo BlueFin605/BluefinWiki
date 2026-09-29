@@ -57,6 +57,13 @@ interface DisplayProperty {
           }
         </ul>
       }
+      @if (card().tags?.length) {
+        <div class="tags">
+          @for (tag of card().tags; track tag) {
+            <span class="tag" data-testid="board-card-tag">#{{ tag }}</span>
+          }
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -78,6 +85,8 @@ interface DisplayProperty {
     .props { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.125rem; }
     .props li { display: flex; gap: 0.25rem; font-size: 0.75rem; color: #6b7280; }
     .prop-name { color: #9ca3af; }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
+    .tag { font-size: 0.7rem; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 0 0.4rem; }
   `],
 })
 export class BoardCard {

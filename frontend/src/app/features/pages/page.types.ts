@@ -60,6 +60,7 @@ export interface PageSummary {
   modifiedBy: string;
   hasChildren: boolean;
   pageType?: string;
+  tags?: string[];
 }
 
 export interface PageTreeNode extends PageSummary {
