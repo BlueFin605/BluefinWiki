@@ -112,6 +112,7 @@ describe('PageContext', () => {
     ctx.guid.set('g1');
     ctx.metadata.set(makeMetadata());
     ctx.inspectorSheetOpen.set(true);
+    ctx.boardView.set(true);
     ctx.mode.set('edit');
 
     ctx.reset();
@@ -119,7 +120,13 @@ describe('PageContext', () => {
     expect(ctx.guid()).toBeNull();
     expect(ctx.metadata()).toBeNull();
     expect(ctx.inspectorSheetOpen()).toBe(false);
+    expect(ctx.boardView()).toBe(false);
     expect(ctx.mode()).toBe('view');
     expect(ctx.canInsert()).toBe(false);
+  });
+
+  it('boardView defaults to false', () => {
+    const { ctx } = setup();
+    expect(ctx.boardView()).toBe(false);
   });
 });

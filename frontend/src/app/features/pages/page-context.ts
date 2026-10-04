@@ -46,6 +46,13 @@ export class PageContext {
    */
   readonly inspectorSheetOpen: WritableSignal<boolean> = signal(false);
 
+  /**
+   * True while page-detail is rendering its Board view (a Kanban of its
+   * children) rather than its own content. The shell hides the inspector
+   * while this is set, without touching the persisted preference.
+   */
+  readonly boardView: WritableSignal<boolean> = signal(false);
+
   constructor() {
     // Breakpoint-flip cleanup (step 1b.5): crossing to desktop drops any open
     // mobile bottom sheet so it can never leave an orphaned `over` backdrop.
@@ -97,6 +104,7 @@ export class PageContext {
     this.guid.set(null);
     this.metadata.set(null);
     this.inspectorSheetOpen.set(false);
+    this.boardView.set(false);
     // `mode` is part of the "cleared on destroy" contract too — otherwise
     // `canInsert()` stays true after leaving an `/edit` route (review M1).
     this.mode.set('view');
