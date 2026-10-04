@@ -26,10 +26,12 @@ const PagePropertySchema = z.object({
 
 const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Property names must be kebab-case');
 
-const BoardConfigSchema = z.object({
+export const BoardConfigSchema = z.object({
   columns: z.array(z.string()).optional(),
   colors: z.record(z.string(), z.string()).optional(),
   targetTypeGuid: z.string().uuid().optional(),
+  targetTypeGuids: z.array(z.string().uuid()).min(1).max(50).optional(),
+  leafTypes: z.boolean().optional(),
   depth: z.number().min(1).max(10).optional(),
   showParentTitle: z.boolean().optional(),
   swapTitles: z.boolean().optional(),

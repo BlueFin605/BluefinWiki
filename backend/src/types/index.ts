@@ -94,7 +94,9 @@ export interface PageProperty {
 export interface BoardConfig {
   columns?: string[];
   colors?: Record<string, string>;
-  targetTypeGuid?: string;
+  targetTypeGuid?: string; // LEGACY — read as [targetTypeGuid]; the UI no longer writes it
+  targetTypeGuids?: string[]; // Specific page types to collect (deep board)
+  leafTypes?: boolean;        // Collect every leaf type, resolved at view time (wins over targetTypeGuids)
   depth?: number;
   showParentTitle?: boolean;
   swapTitles?: boolean;
