@@ -728,6 +728,15 @@ export class PageDetail {
     ),
   );
 
+  /**
+   * True exactly when the template renders the Board view (the non-edit
+   * branch's `viewMode() === 'board' && boardEligible()`). Published to
+   * PageContext so the shell can hide the inspector while the board shows.
+   */
+  protected readonly showingBoard = computed<boolean>(
+    () => this.mode() !== 'edit' && this.viewMode() === 'board' && this.boardEligible(),
+  );
+
   /** Whether the working copy diverges from the persisted server page. */
   protected readonly dirty = computed<boolean>(() => {
     if (this.resource.status() !== 'resolved') return false;
@@ -774,7 +783,7 @@ export class PageDetail {
   private readonly resourceStatus$ = toObservable(this.resource.status);
 
   constructor() {
-    // Publish route identity + mode to the shared PageContext so the hoisted
+    // Publish route identity, mode and whether the board is showing to the shared PageContext so the hoisted
     // inspector (rendered by `pages-view`) knows which page it is bound to and
     // whether attachment inserts are allowed. `metadata` is not pushed here —
     // it IS `pageContext.metadata`, kept current by the hydrate / refresh /
@@ -782,6 +791,7 @@ export class PageDetail {
     effect(() => {
       this.pageContext.guid.set(this.guid());
       this.pageContext.mode.set(this.mode());
+      this.pageContext.boardView.set(this.showingBoard());
     });
 
     // Route the hoisted inspector's editor-affecting outputs back into the

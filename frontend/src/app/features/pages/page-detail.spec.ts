@@ -413,6 +413,7 @@ describe('PageDetail', () => {
     await settle();
     fixture.detectChanges();
     expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
+    expect(TestBed.inject(PageContext).boardView()).toBe(true);
 
     // The View/Edit toggle, Refresh, the info/inspector button, save status
     // and Save all act on this page's own content — none of them apply while
@@ -425,6 +426,8 @@ describe('PageDetail', () => {
 
     // Switching back to Content brings them all back.
     await userEvent.click(screen.getByRole('radio', { name: /^content$/i }));
+    fixture.detectChanges();
+    expect(TestBed.inject(PageContext).boardView()).toBe(false);
     expect(screen.getByRole('radio', { name: /^view$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /toggle inspector|page info/i })).toBeInTheDocument();
   });
@@ -455,6 +458,8 @@ describe('PageDetail', () => {
     expect(screen.getByRole('heading', { name: 'Original' })).toBeInTheDocument();
     // The board view never mounted, so it never fetched its cards.
     http.expectNone((req) => req.url.includes('limit=200'));
+    // Content is what is on screen, so the inspector must not be suppressed.
+    expect(TestBed.inject(PageContext).boardView()).toBe(false);
   });
 
   it('shows the board toggle via child-state auto-eligibility with no boardConfig at all', async () => {
