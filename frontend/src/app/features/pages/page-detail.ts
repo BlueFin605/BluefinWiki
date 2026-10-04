@@ -635,11 +635,29 @@ export class PageDetail {
    */
   private readonly pageTypesEnabled = computed<boolean>(() => this.mode() === 'view');
   private readonly pageTypesResource = this.pageTypes.pageTypesResource(this.pageTypesEnabled);
-  private readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() => {
-    if (this.pageTypesResource.status() !== 'resolved') return {};
-    const list = this.pageTypesResource.value() ?? [];
-    return Object.fromEntries(list.map((t) => [t.guid, t]));
+  /**
+   * The page-type list, RETAINED across reloads — the same rule as
+   * {@link eligibilityChildren}. The board's manual Refresh (and any
+   * page-type edit) bumps `page-types:list`, putting `pageTypesResource` back
+   * into `'loading'` with its value cleared. Reading that as "no types" makes
+   * {@link boardEligible} flip `false` on a direct-children board with no
+   * `targetTypeGuid` (its eligibility needs the child's type), which unmounts
+   * the board and lets the `defaultView` effect move the user to Content.
+   * Only a fully resolved reload replaces the list. The type set is global,
+   * not per page, so unlike the probe there is no key to scope it by.
+   */
+  private readonly pageTypesList = linkedSignal<
+    readonly PageTypeDefinition[] | null,
+    readonly PageTypeDefinition[]
+  >({
+    // `value()` throws on an errored resource — only read it when resolved.
+    source: () =>
+      this.pageTypesResource.status() === 'resolved' ? (this.pageTypesResource.value() ?? []) : null,
+    computation: (resolved, previous) => resolved ?? previous?.value ?? [],
   });
+  private readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() =>
+    Object.fromEntries(this.pageTypesList().map((t) => [t.guid, t])),
+  );
 
   /**
    * Direct-children probe purely for {@link boardEligible} (step 5.1): a page

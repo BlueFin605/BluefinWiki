@@ -647,6 +647,63 @@ describe('PageDetail', () => {
     );
   });
 
+  it('stays in Board view with its cards rendered while refresh() reloads the page types', async () => {
+    const { http, fixture } = await renderDetail();
+    // Direct-children board with no targetTypeGuid: eligibility depends on
+    // the page-type list (the child's type must carry `state`), so a cleared
+    // list mid-reload would flip `boardEligible()` false.
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+
+    http.expectOne('/api/page-types').flush({ pageTypes: [stateBearingType] });
+    http.expectOne('/api/pages/g1/children?include=properties&limit=50').flush({
+      children: [stateCard('To Do')],
+      hasMore: false,
+    });
+    await settle();
+    fixture.detectChanges();
+
+    const comp = fixture.componentInstance as unknown as { viewMode: () => string };
+    await userEvent.click(screen.getByRole('radio', { name: /^board$/i }));
+    await settle();
+    fixture.detectChanges();
+
+    for (const req of http.match('/api/page-types')) req.flush({ pageTypes: [stateBearingType] });
+    http
+      .expectOne((r) => r.url.includes('/api/pages/g1/children') && r.url.includes('limit=200'))
+      .flush({ children: [stateCard('To Do')], hasMore: false });
+    await settle();
+    fixture.detectChanges();
+
+    const board = fixture.debugElement.query(By.directive(BoardView));
+    expect(board).not.toBeNull();
+    const boardView = board.componentInstance as BoardView;
+
+    boardView.refresh();
+    await settle();
+    fixture.detectChanges();
+
+    // MID-RELOAD: page types (page-detail's and the board's copies) and the
+    // cards are back in flight. The cleared page-type list must not read as
+    // "not eligible" and eject the user to Content.
+    expect(comp.viewMode()).toBe('board');
+    const midBoard = fixture.debugElement.query(By.directive(BoardView));
+    expect(midBoard?.componentInstance).toBe(boardView);
+    expect(boardView.refreshing()).toBe(true);
+    expect(within(midBoard.nativeElement as HTMLElement).getByRole('button', { name: /card/i })).toBeInTheDocument();
+
+    // ...and once everything lands, still the same board.
+    for (const req of http.match('/api/page-types')) req.flush({ pageTypes: [stateBearingType] });
+    for (const req of http.match((r) => r.url.includes('include=properties'))) {
+      req.flush({ children: [stateCard('To Do')], hasMore: false });
+    }
+    await settle();
+    fixture.detectChanges();
+    expect(comp.viewMode()).toBe('board');
+    expect(fixture.debugElement.query(By.directive(BoardView))?.componentInstance).toBe(boardView);
+    expect(boardView.refreshing()).toBe(false);
+  });
+
   it('does not fetch page types when the page is in edit mode', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     http.expectOne('/api/pages/g1').flush(serverPage);

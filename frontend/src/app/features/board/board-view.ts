@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   input,
+  linkedSignal,
   signal,
   untracked,
 } from '@angular/core';
@@ -13,6 +14,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Pages, type ChildrenWithPropertiesOptions } from '../pages/pages';
 import { PageTypes } from '../page-types/page-types';
+import { InvalidationBus, childrenTag, pageTypesListTag } from '../../core/api/invalidation';
 import { BoardColumn } from './board-column';
 import { CardSummaryDialog, type CardSummaryDialogData } from './card-summary-dialog';
 import { computeBoardOrder } from './compute-board-order';
@@ -125,6 +127,7 @@ export class BoardView {
   private readonly pageTypes = inject(PageTypes);
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
+  private readonly bus = inject(InvalidationBus);
 
   readonly parentGuid = input.required<string>();
   readonly boardConfig = input<BoardConfig | null>(null);
@@ -140,6 +143,19 @@ export class BoardView {
 
   readonly childrenResource = this.pages.childrenWithPropertiesResource(this.parentGuidSig, this.options);
   readonly pageTypesResource = this.pageTypes.pageTypesResource();
+
+  /** True while the cards are (re)loading — drives the header's Refresh-board button. */
+  readonly refreshing = computed(() => this.childrenResource.isLoading());
+
+  /**
+   * Manual "Refresh board": re-pull the cards (`children:<parent>`, which the
+   * cards resource reads) and the page types (icons / leaf-type resolution).
+   * Cards stay painted meanwhile — see `showInitialLoading` — and so do the
+   * card icons — see `pageTypesList`.
+   */
+  refresh(): void {
+    this.bus.bumpMany([childrenTag(this.parentGuid()), pageTypesListTag()]);
+  }
 
   // The resource above always fetches page one (it re-fetches on parentGuid /
   // options change and on invalidation-bus bumps). "Load more cards" pages
@@ -337,11 +353,27 @@ export class BoardView {
     this.hasMoreCards.set(value?.hasMore === true);
   }
 
-  protected readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() => {
-    if (this.pageTypesResource.status() !== 'resolved') return {};
-    const list = this.pageTypesResource.value() ?? [];
-    return Object.fromEntries(list.map((t) => [t.guid, t]));
+  /**
+   * The page-type list, RETAINED across reloads. {@link refresh} (and any
+   * page-type edit) bumps `page-types:list`, which puts `pageTypesResource`
+   * back into `'loading'` with its value cleared; reading it directly would
+   * blank every card's type icon until the reload lands. Hold the last fully
+   * resolved list instead — the same keep-last-good rule `showInitialLoading`
+   * applies to the cards. Only a resolved reload replaces it.
+   */
+  private readonly pageTypesList = linkedSignal<
+    readonly PageTypeDefinition[] | null,
+    readonly PageTypeDefinition[]
+  >({
+    // `value()` throws on an errored resource — only read it when resolved.
+    source: () =>
+      this.pageTypesResource.status() === 'resolved' ? (this.pageTypesResource.value() ?? []) : null,
+    computation: (resolved, previous) => resolved ?? previous?.value ?? [],
   });
+
+  protected readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() =>
+    Object.fromEntries(this.pageTypesList().map((t) => [t.guid, t])),
+  );
 
   protected readonly grouping = computed(() => {
     return groupByState(this.accumulated(), this.boardConfig() ?? undefined);

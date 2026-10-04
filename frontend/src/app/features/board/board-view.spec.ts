@@ -1312,4 +1312,65 @@ describe('BoardView', () => {
     expect(screen.getByRole('button', { name: /mover card/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /load more cards/i })).not.toBeInTheDocument();
   });
+
+  it('refresh() re-requests the cards and keeps the old ones visible until the reload lands', async () => {
+    const { fixture } = await render(BoardView, { providers: baseProviders(), inputs: { parentGuid: 'parent-1' } });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-1/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A', properties: { state: { type: 'string', value: 'To Do' } } })],
+      hasMore: false,
+    });
+    await settle();
+
+    const board = fixture.componentInstance;
+    board.refresh();
+    await settle();
+    expect(board.refreshing()).toBe(true);
+    expect(screen.getByRole('button', { name: /card a/i })).toBeInTheDocument();
+
+    flushPageTypes(http);
+    http.expectOne('/api/pages/parent-1/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A', properties: { state: { type: 'string', value: 'Done' } } })],
+      hasMore: false,
+    });
+    await settle();
+    expect(board.refreshing()).toBe(false);
+    expect(within(screen.getByText('Done').closest('wiki-board-column') as HTMLElement).getByRole('button', { name: /card a/i })).toBeInTheDocument();
+  });
+
+  it('keeps card type icons while refresh() reloads the page types', async () => {
+    const taskType = {
+      guid: 'pt-task', name: 'Task', icon: '🧩', properties: [], allowedChildTypes: [],
+      allowWikiPageChildren: false, allowedParentTypes: [], allowAnyParent: true,
+      createdBy: 'u', createdAt: '', updatedAt: '',
+    };
+    const { fixture } = await render(BoardView, { providers: baseProviders(), inputs: { parentGuid: 'parent-1' } });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    for (const r of http.match('/api/page-types')) r.flush({ pageTypes: [taskType] });
+    http.expectOne('/api/pages/parent-1/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A', pageType: 'pt-task', properties: { state: { type: 'string', value: 'To Do' } } })],
+      hasMore: false,
+    });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByTitle('Task')).toHaveTextContent('🧩');
+
+    fixture.componentInstance.refresh();
+    await settle();
+    fixture.detectChanges();
+    // Page types are mid-reload (resource value cleared) — the icon must not blink out.
+    expect(screen.getByTitle('Task')).toHaveTextContent('🧩');
+
+    for (const r of http.match('/api/page-types')) r.flush({ pageTypes: [taskType] });
+    http.expectOne('/api/pages/parent-1/children?include=properties&limit=200').flush({
+      children: [card({ guid: 'a', title: 'Card A', pageType: 'pt-task', properties: { state: { type: 'string', value: 'To Do' } } })],
+      hasMore: false,
+    });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByTitle('Task')).toHaveTextContent('🧩');
+  });
 });
