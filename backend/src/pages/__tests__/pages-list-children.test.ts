@@ -118,6 +118,49 @@ describe('pages-list-children', () => {
       // properties come from listChildren, not a second per-match loadPage.
       expect(mockPlugin.loadPage).toHaveBeenCalledTimes(1);
     });
+
+    const TYPE_B = '22222222-2222-4222-8222-222222222222';
+
+    it('matches any of several comma-separated types', async () => {
+      const a = makeSummary({ guid: 'a', pageType: TYPE_GUID });
+      const b = makeSummary({ guid: 'b', pageType: TYPE_B });
+      const other = makeSummary({ guid: 'o', pageType: 'other-type' });
+      (mockPlugin.listChildren as any).mockResolvedValue([a, b, other]);
+
+      const result = await handler(
+        makeEvent({ include: 'properties', type: `${TYPE_GUID},${TYPE_B}`, depth: '2' }),
+        {} as any,
+      );
+
+      const body = JSON.parse(result.body);
+      expect(body.children.map((c: any) => c.guid)).toEqual(['a', 'b']);
+    });
+
+    it('filters by type at depth 1 too (previously ignored the type)', async () => {
+      const a = makeSummary({ guid: 'a', pageType: TYPE_GUID });
+      const other = makeSummary({ guid: 'o', pageType: 'other-type' });
+      (mockPlugin.listChildren as any).mockResolvedValue([a, other]);
+
+      const result = await handler(
+        makeEvent({ include: 'properties', type: TYPE_GUID, depth: '1' }),
+        {} as any,
+      );
+
+      const body = JSON.parse(result.body);
+      expect(body.children.map((c: any) => c.guid)).toEqual(['a']);
+      expect(body.children[0].parentTitle).toBe('Parent');
+    });
+
+    it('treats an empty type list as no filter', async () => {
+      const a = makeSummary({ guid: 'a', pageType: TYPE_GUID });
+      const other = makeSummary({ guid: 'o', pageType: 'other-type' });
+      (mockPlugin.listChildren as any).mockResolvedValue([a, other]);
+
+      const result = await handler(makeEvent({ include: 'properties', type: ' , ' }), {} as any);
+
+      const body = JSON.parse(result.body);
+      expect(body.children.map((c: any) => c.guid)).toEqual(['a', 'o']);
+    });
   });
 
   describe('page size ceiling', () => {
