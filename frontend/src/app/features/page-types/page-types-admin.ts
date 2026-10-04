@@ -168,7 +168,7 @@ function formatDefault(prop: PageTypeProperty): string {
                 />
               </mat-form-field>
 
-              <mat-form-field appearance="fill" class="icon-field">
+              <mat-form-field appearance="fill" class="icon-field" subscriptSizing="dynamic">
                 <mat-label>Icon</mat-label>
                 <input
                   matInput
@@ -347,7 +347,7 @@ function formatDefault(prop: PageTypeProperty): string {
       .full { width: 100%; }
       .icon-field { width: 20rem; max-width: 100%; }
       .icon-warning { color: var(--mat-sys-error, #b3261e); }
-      .icon-suggestions { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: -0.5rem 0 1rem; }
+      .icon-suggestions { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.5rem; }
       .icon-suggestion {
         font-size: 1.25rem; line-height: 1; padding: 0.25rem 0.375rem;
         border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer;
