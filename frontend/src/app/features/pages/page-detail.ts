@@ -155,6 +155,18 @@ export function resolveSaveStatus(state: {
             <button
               mat-icon-button
               type="button"
+              class="board-refresh"
+              [class.spinning]="boardRefreshing()"
+              [disabled]="boardRefreshing()"
+              (click)="boardView()?.refresh()"
+              aria-label="Refresh board"
+              title="Refresh board"
+            >
+              <mat-icon>refresh</mat-icon>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
               (click)="openBoardSettings()"
               aria-label="Board settings"
               title="Board settings"
@@ -383,6 +395,9 @@ export function resolveSaveStatus(state: {
     </div>
   `,
   styles: [`
+    .board-refresh.spinning mat-icon { animation: board-spin 0.8s linear infinite; }
+    @keyframes board-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .board-refresh.spinning mat-icon { animation: none; } }
     .page-detail { display: flex; flex-direction: column; height: 100%; }
     /*
       flex-wrap: wrap (Playwright suite finding, item 16/21 in
@@ -504,6 +519,10 @@ export class PageDetail {
   protected readonly pageContext = inject(PageContext);
 
   protected readonly editor = viewChild<WikiCodemirror>('editor');
+
+  /** The mounted Board view (only while viewMode() is 'board'). */
+  protected readonly boardView = viewChild(BoardView);
+  protected readonly boardRefreshing = computed(() => this.boardView()?.refreshing() ?? false);
 
   protected readonly guid = toSignal(
     this.route.paramMap.pipe(map((p) => p.get('guid'))),

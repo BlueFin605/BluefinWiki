@@ -415,12 +415,25 @@ describe('PageDetail', () => {
     expect(screen.getByRole('radio', { name: /^board$/i })).toBeInTheDocument();
     expect(TestBed.inject(PageContext).boardView()).toBe(true);
 
+    const refreshBtn = screen.getByRole('button', { name: /refresh board/i });
+    expect(refreshBtn).toBeEnabled();
+    await userEvent.click(refreshBtn);
+    await settle();
+    fixture.detectChanges();
+    expect(refreshBtn).toBeDisabled();
+    http.expectOne((req) => req.url.includes('/api/pages/g1/children') && req.url.includes('limit=200'))
+      .flush({ children: [], hasMore: false });
+    for (const req of http.match('/api/page-types')) req.flush({ pageTypes: [] });
+    await settle();
+    fixture.detectChanges();
+    expect(refreshBtn).toBeEnabled();
+
     // The View/Edit toggle, Refresh, the info/inspector button, save status
     // and Save all act on this page's own content — none of them apply while
     // the Board view is showing a Kanban of its children instead.
     expect(screen.queryByRole('radio', { name: /^view$/i })).toBeNull();
     expect(screen.queryByRole('radio', { name: /^edit$/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /refresh/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^refresh$/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /toggle inspector|page info/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull();
 
@@ -430,6 +443,7 @@ describe('PageDetail', () => {
     expect(TestBed.inject(PageContext).boardView()).toBe(false);
     expect(screen.getByRole('radio', { name: /^view$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /toggle inspector|page info/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /refresh board/i })).toBeNull();
   });
 
   it('falls back to content when defaultView is board but the page is no longer eligible', async () => {
