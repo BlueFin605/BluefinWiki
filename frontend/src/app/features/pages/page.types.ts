@@ -92,7 +92,9 @@ export interface PageChildDetail extends PageSummary {
 export interface BoardConfig {
   columns?: string[];
   colors?: Record<string, string>;
-  targetTypeGuid?: string;  // Page type to collect from descendants (deep board)
+  targetTypeGuid?: string;    // LEGACY — read as [targetTypeGuid]; never written
+  targetTypeGuids?: string[]; // Specific page types to collect from descendants (deep board)
+  leafTypes?: boolean;        // Collect every leaf type, resolved at view time (wins over targetTypeGuids)
   depth?: number;            // Max levels to recurse (default 1 = direct children; cap at 10)
   showParentTitle?: boolean; // Show parent page title as card subtitle (default true when targetTypeGuid set)
   swapTitles?: boolean;      // Show parent title as primary, page title as subtitle
