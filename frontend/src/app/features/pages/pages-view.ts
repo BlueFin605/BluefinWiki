@@ -509,6 +509,9 @@ export class PagesView {
    */
   protected readonly inspectorOpened = computed(() => {
     if (!this.ctx.guid() || !this.ctx.metadata()) return false;
+    // Board view shows a Kanban of the children, not this page — the
+    // inspector is suppressed (not closed) so the preference survives.
+    if (this.ctx.boardView()) return false;
     return this.bp.isDesktop()
       ? this.layout.inspectorVisible()
       : this.ctx.inspectorSheetOpen();
@@ -556,7 +559,9 @@ export class PagesView {
    *   - if the page itself unloaded (guid/metadata cleared), do nothing so the
    *     persisted `inspectorVisible` is never wiped;
    *   - only write `inspectorVisible: false` when it is still true (drops the
-   *     redundant localStorage write, roll-up 1b.5-a).
+   *     redundant localStorage write, roll-up 1b.5-a);
+   *   - if Board view suppressed the drawer, do nothing (the preference must
+   *     survive).
    *
    * Mobile: the sheet flag is ephemeral (not persisted), and this handler is
    * what syncs a backdrop/Esc dismiss back into `inspectorSheetOpen` so the
@@ -567,6 +572,9 @@ export class PagesView {
    */
   onInspectorClosed(): void {
     if (!this.ctx.guid() || !this.ctx.metadata()) return;
+    // Closed because Board view suppressed it — not a user dismiss, so
+    // neither the persisted preference nor the sheet flag may change.
+    if (this.ctx.boardView()) return;
     if (this.bp.isDesktop()) {
       if (this.inspectorOpened()) return;
       if (this.layout.inspectorVisible()) this.layout.update({ inspectorVisible: false });
