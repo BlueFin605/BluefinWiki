@@ -718,6 +718,45 @@ describe('PageDetail', () => {
     expect(boardView.refreshing()).toBe(false);
   });
 
+  it('opens Board settings with the previously loaded page types while the page types reload', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    http.expectOne('/api/page-types').flush({ pageTypes: [stateBearingType] });
+    http.expectOne('/api/pages/g1/children?include=properties&limit=50').flush({
+      children: [stateCard('To Do')],
+      hasMore: false,
+    });
+    await settle();
+    fixture.detectChanges();
+
+    await userEvent.click(screen.getByRole('radio', { name: /^board$/i }));
+    await settle();
+    fixture.detectChanges();
+    for (const req of http.match('/api/page-types')) req.flush({ pageTypes: [stateBearingType] });
+    http
+      .expectOne((r) => r.url.includes('/api/pages/g1/children') && r.url.includes('limit=200'))
+      .flush({ children: [stateCard('To Do')], hasMore: false });
+    await settle();
+    fixture.detectChanges();
+
+    // Refresh board puts the page-type resource back into 'loading'.
+    (fixture.debugElement.query(By.directive(BoardView)).componentInstance as BoardView).refresh();
+    await settle();
+    fixture.detectChanges();
+    expect(http.match('/api/page-types').length).toBeGreaterThan(0);
+
+    const dialogOpen = jest
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of(null) } as never);
+    await (
+      fixture.componentInstance as unknown as { openBoardSettings: () => Promise<void> }
+    ).openBoardSettings();
+
+    const opened = dialogOpen.mock.calls[0][1] as { data: { pageTypes: unknown[] } };
+    expect(opened.data.pageTypes).toEqual([stateBearingType]);
+  });
+
   it('does not fetch page types when the page is in edit mode', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     http.expectOne('/api/pages/g1').flush(serverPage);

@@ -1426,10 +1426,11 @@ export class PageDetail {
     // factory again from this click-handler method (outside any injection
     // context) threw NG0203 and silently swallowed the dialog open (Task 6
     // investigation, e2e/tests/board-settings-types.spec.ts).
-    const pageTypesList = this.pageTypesResource.value() ?? [];
+    // Read the kept list (`pageTypesList`), not the resource: mid-reload the
+    // resource is empty, and `value()` throws once it has errored.
     const data: BoardSettingsPanelData = {
       config: page.boardConfig ?? null,
-      pageTypes: pageTypesList,
+      pageTypes: [...this.pageTypesList()],
     };
     const ref = this.dialog.open<BoardSettingsPanel, BoardSettingsPanelData, BoardConfig | null>(
       BoardSettingsPanel,
