@@ -69,6 +69,11 @@ describe('isBoardEligible', () => {
     expect(isBoardEligible(null, [], {})).toBe(false);
   });
 
+  it('is eligible in leaf mode or with specific types, even with no children', () => {
+    expect(isBoardEligible({ boardConfig: { leafTypes: true } }, [], {})).toBe(true);
+    expect(isBoardEligible({ boardConfig: { targetTypeGuids: ['pt-task'] } }, [], {})).toBe(true);
+  });
+
   it('ignores a boardConfig that has no targetTypeGuid', () => {
     const children = [child({ pageType: 'pt-plain' })];
     const pageTypesMap = { 'pt-plain': PLAIN_TYPE };

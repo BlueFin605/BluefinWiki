@@ -55,6 +55,7 @@ import {
 } from './create-page-from-link-modal';
 import { rewriteWikiLink } from '../../shared/markdown/rewrite-wiki-link';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
+import { hasCardTypeSelection } from '../board/card-types';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import type {
   BoardConfig,
@@ -660,7 +661,7 @@ export class PageDetail {
    * page-type edit) bumps `page-types:list`, putting `pageTypesResource` back
    * into `'loading'` with its value cleared. Reading that as "no types" makes
    * {@link boardEligible} flip `false` on a direct-children board with no
-   * `targetTypeGuid` (its eligibility needs the child's type), which unmounts
+   * a card-type selection (`hasCardTypeSelection`) (its eligibility needs the child's type), which unmounts
    * the board and lets the `defaultView` effect move the user to Content.
    * Only a fully resolved reload replaces the list. The type set is global,
    * not per page, so unlike the probe there is no key to scope it by.
@@ -680,17 +681,17 @@ export class PageDetail {
 
   /**
    * Direct-children probe purely for {@link boardEligible} (step 5.1): a page
-   * with no `boardConfig.targetTypeGuid` can still be board-eligible when a
+   * with no card-type selection (`hasCardTypeSelection`) can still be board-eligible when a
    * direct child's page type carries a `state` property with a non-empty
    * value. Disabled (`null` parentGuid, so `childrenWithPropertiesResource`
    * fetches nothing) outside view mode, before the page resource has
-   * resolved, and once `targetTypeGuid` is already known — that alone makes
+   * resolved, and once a card-type selection (`hasCardTypeSelection`) is known — that alone makes
    * the page eligible, so the extra request would be wasted.
    */
   private readonly eligibilityParentGuid = computed<string | null>(() => {
     if (this.mode() !== 'view') return null;
     if (this.resource.status() !== 'resolved') return null;
-    if (this.boardConfig()?.targetTypeGuid) return null;
+    if (hasCardTypeSelection(this.boardConfig())) return null;
     return this.guid();
   });
   private readonly eligibilityOptions = computed<ChildrenWithPropertiesOptions | null>(
@@ -736,7 +737,7 @@ export class PageDetail {
     },
     computation: (source, previous) => {
       // Probe disabled (edit mode, page not yet resolved, or an explicit
-      // `targetTypeGuid` that makes it redundant) — nothing to retain.
+      // card-type selection that makes it redundant) — nothing to retain.
       if (!source.parentGuid) return [];
       if (source.resolved !== null) return source.resolved;
       // Loading / reloading / error: keep the last resolved answer for THIS
@@ -747,8 +748,8 @@ export class PageDetail {
   });
 
   /**
-   * Board-eligibility gate (step 5.1): true when `boardConfig.targetTypeGuid`
-   * is set, or a direct child of a state-bearing page type has a non-empty
+   * Board-eligibility gate (step 5.1): true when a card-type selection
+   * (`hasCardTypeSelection`) is set, or a direct child of a state-bearing page type has a non-empty
    * value for it. Drives the Content | Board toggle; `defaultView` (see the
    * constructor effect below) still decides which view opens first once
    * eligible — this only controls whether the toggle appears at all.

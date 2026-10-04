@@ -1,3 +1,4 @@
+import { hasCardTypeSelection } from './card-types';
 import type { BoardConfig, PageChildDetail, PageTypeDefinition } from '../pages/page.types';
 
 /** Minimal shape {@link isBoardEligible} needs from the page under view. */
@@ -7,7 +8,7 @@ export interface BoardEligibilityPage {
 
 /**
  * React parity (step 5.1): a page is board-eligible when its
- * `boardConfig.targetTypeGuid` is explicitly set, **or** at least one direct
+ * the board collects typed descendants (leaf types or specific types — see card-types.ts), **or** at least one direct
  * child's page type defines a `state` property and that child carries a
  * non-empty value for it. The latter lets a page become board-eligible the
  * moment a state-bearing child appears, without the owner first opening
@@ -22,7 +23,7 @@ export function isBoardEligible(
   children: readonly PageChildDetail[],
   pageTypesMap: Record<string, PageTypeDefinition>,
 ): boolean {
-  if (page?.boardConfig?.targetTypeGuid) return true;
+  if (hasCardTypeSelection(page?.boardConfig)) return true;
   return children.some((child) => childHasStateValue(child, pageTypesMap));
 }
 

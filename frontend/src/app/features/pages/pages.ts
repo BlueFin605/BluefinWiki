@@ -54,7 +54,7 @@ export interface WikiLinkResolution {
 }
 
 export interface ChildrenWithPropertiesOptions {
-  targetTypeGuid?: string;
+  targetTypeGuids?: string[];
   depth?: number;
   limit?: number;
   cursor?: string | null;
@@ -256,7 +256,7 @@ export class Pages {
   ): string {
     const qs = new URLSearchParams();
     qs.set('include', 'properties');
-    if (opts.targetTypeGuid) qs.set('type', opts.targetTypeGuid);
+    if (opts.targetTypeGuids?.length) qs.set('type', opts.targetTypeGuids.join(','));
     if (opts.depth !== undefined) qs.set('depth', String(opts.depth));
     if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
     if (opts.cursor) qs.set('cursor', opts.cursor);

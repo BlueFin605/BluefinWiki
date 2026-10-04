@@ -136,7 +136,7 @@ export class BoardView {
   private readonly options = computed<ChildrenWithPropertiesOptions | null>(() => {
     const cfg = this.boardConfig();
     if (cfg?.targetTypeGuid) {
-      return { targetTypeGuid: cfg.targetTypeGuid, depth: cfg.depth ?? 10, limit: PAGE_SIZE };
+      return { targetTypeGuids: [cfg.targetTypeGuid], depth: cfg.depth ?? 10, limit: PAGE_SIZE };
     }
     return { limit: PAGE_SIZE };
   });
@@ -230,7 +230,7 @@ export class BoardView {
     const opts = this.options() ?? {};
     return JSON.stringify([
       this.parentGuidSig(),
-      opts.targetTypeGuid ?? null,
+      opts.targetTypeGuids ?? null,
       opts.depth ?? null,
       opts.limit ?? null,
     ]);
