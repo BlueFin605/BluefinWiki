@@ -104,3 +104,24 @@ E2E (Playwright, new `e2e/tests/board-hides-inspector.spec.ts`, modelled on
 
 - An info button / inspector access in Board view.
 - Any change to what the inspector shows.
+
+## Addendum (2026-10-05): manual board refresh button
+
+Board view hides the page's Refresh button (it acts on the page's own
+content), so there is no way to re-pull the cards by hand.
+
+- `BoardView` gains `refresh(): void` — `bus.bumpMany([childrenTag(parentGuid()), pageTypesListTag()])`
+  (its cards resource already reads `children:<parent>`; `page-types:list`
+  re-resolves icons / leaf types) — and `refreshing = computed(() => childrenResource.isLoading())`.
+  Existing behaviour is kept: cards stay painted during the reload
+  (`showInitialLoading` only fires on an empty board) and the list restarts at
+  page one, as any invalidation does.
+- `page-detail` reaches it via `viewChild(BoardView)` and shows an icon button
+  (`refresh`, aria-label "Refresh board") next to the Board settings gear,
+  only while `viewMode() === 'board'`; disabled while `refreshing()`, icon
+  spins (CSS) meanwhile.
+- Tests: board-view spec — `refresh()` re-requests children and the old cards
+  stay visible until it resolves; page-detail spec — the button exists only in
+  Board view and clicking it re-requests children; e2e — change a card's state
+  via the API, click Refresh, the card moves (still useful once real-time
+  updates land).
