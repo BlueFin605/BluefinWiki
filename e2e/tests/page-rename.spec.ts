@@ -45,13 +45,10 @@ test.describe('Renaming a page', () => {
     await expect(page.getByRole('treeitem', { name: newName })).toBeVisible();
     await expect(page.getByRole('treeitem', { name: oldName, exact: true })).toHaveCount(0);
 
-    // The page-detail header, by contrast, does NOT pick up an external
-    // rename of the page it currently has open — `page-detail.ts` hydrates
-    // its editable `metadata` (which the header title reads) only once per
-    // guid, so autosave/dirty-tracking never gets clobbered by an unrelated
-    // refetch. A manual Refresh (or reload) is required. This is a real,
-    // separate UX gap from the tree-collapse bug above, left as-is here.
-    await expect(page.locator('.page-detail .bar .title')).toHaveText(oldName);
+    // The open page-detail header picks up the rename too: a clean page
+    // re-syncs its working copy when the page re-resolves (ticket 1d01bb06),
+    // so no manual Refresh or reload is needed.
+    await expect(page.locator('.page-detail .bar .title')).toHaveText(newName);
 
     await page.reload();
     await expect(page.locator('.page-detail .bar .title')).toHaveText(newName);
