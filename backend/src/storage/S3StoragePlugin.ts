@@ -404,6 +404,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       lines.push(`boardOrder: ${content.boardOrder}`);
     }
 
+    if (content.ticketKey) {
+      lines.push(`ticketKey: "${content.ticketKey}"`);
+    }
+
     // Add description if present
     if (content.description) {
       lines.push(`description: "${content.description}"`);
@@ -604,6 +608,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         ...(sortOrder !== undefined ? { sortOrder } : {}),
         ...(boardOrder !== undefined ? { boardOrder } : {}),
         description: Array.isArray(metadata.description) ? metadata.description[0] : metadata.description,
+        ...(metadata.ticketKey ? { ticketKey: Array.isArray(metadata.ticketKey) ? metadata.ticketKey[0] : metadata.ticketKey } : {}),
         ...(metadata.pageType ? { pageType: Array.isArray(metadata.pageType) ? metadata.pageType[0] : metadata.pageType } : {}),
         ...(properties ? { properties } : {}),
         ...(metadata.boardConfig ? (() => {
@@ -1025,6 +1030,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
               status: page.status === 'deleted' ? 'archived' : page.status,
               ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
               ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
+              ...(page.ticketKey ? { ticketKey: page.ticketKey } : {}),
               createdBy: page.createdBy,
               modifiedAt: page.modifiedAt,
               modifiedBy: page.modifiedBy,
@@ -1106,6 +1112,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
               status: page.status === 'deleted' ? 'archived' : page.status,
               ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
               ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
+              ...(page.ticketKey ? { ticketKey: page.ticketKey } : {}),
               createdBy: page.createdBy,
               modifiedAt: page.modifiedAt,
               modifiedBy: page.modifiedBy,

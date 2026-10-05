@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { createPageType } from './page-types-service.js';
-import { BoardConfigObjectSchema } from '../pages/board-config-schema.js';
+import { PageTypeBoardDefaultsSchema } from '../pages/board-config-schema.js';
 import { PageTypeDefinition } from '../types/index.js';
 
 const PageTypePropertySchema = z.object({
@@ -21,7 +21,7 @@ export const CreatePageTypeSchema = z.object({
   allowWikiPageChildren: z.boolean().default(true),
   allowedParentTypes: z.array(z.string().uuid()).default([]),
   allowAnyParent: z.boolean().default(true),
-  boardDefaults: BoardConfigObjectSchema.optional(),
+  boardDefaults: PageTypeBoardDefaultsSchema.optional(),
 });
 
 /**
