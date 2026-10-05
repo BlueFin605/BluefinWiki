@@ -1,11 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import {
   BoardSettingsPanel,
   type BoardSettingsPanelData,
+  type BoardSettingsResult,
 } from './board-settings-panel';
 import type { BoardConfig, PageTypeDefinition } from '../pages/page.types';
 
@@ -102,8 +103,9 @@ describe('BoardSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: /^add$/i }));
     await user.click(screen.getByRole('button', { name: /save/i }));
     expect(dialogRef.close).toHaveBeenCalledTimes(1);
-    const call = dialogRef.close.mock.calls[0] as [BoardConfig | null];
-    const arg = call[0] as BoardConfig;
+    const res = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0];
+    expect(res.action).toBe('save');
+    const arg = res.config;
     expect(arg.columns).toEqual(['To Do', 'Review']);
   });
 
@@ -127,7 +129,7 @@ describe('BoardSettingsPanel', () => {
     await user.click(screen.getByRole('switch', { name: /show parent title/i }));
     await user.click(screen.getByRole('switch', { name: /use parent as primary/i }));
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.showParentTitle).toBe(false);
     expect(arg.swapTitles).toBe(true);
     expect(arg.targetTypeGuids).toEqual(['pt-task']);
@@ -155,7 +157,7 @@ describe('BoardSettingsPanel', () => {
     expect(screen.getByText(/currently:/i)).toHaveTextContent('✅ Task · 🐞 Bug');
     expect(screen.getByRole('switch', { name: /show parent title/i })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.leafTypes).toBe(true);
     expect(arg.targetTypeGuids).toBeUndefined();
     expect(arg.depth).toBe(10);
@@ -174,7 +176,7 @@ describe('BoardSettingsPanel', () => {
     await user.keyboard('{Escape}');
     await settle();
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.targetTypeGuids).toEqual(['pt-task', 'pt-bug']);
     expect(arg.leafTypes).toBeUndefined();
   });
@@ -186,7 +188,7 @@ describe('BoardSettingsPanel', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('radio', { name: /specific types/i }));
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.targetTypeGuids).toBeUndefined();
     expect(arg.leafTypes).toBeUndefined();
     expect(arg.depth).toBeUndefined();
@@ -197,7 +199,7 @@ describe('BoardSettingsPanel', () => {
     await settle();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.targetTypeGuids).toEqual(['pt-a', 'pt-b']);
     expect(arg.depth).toBe(3);
   });
@@ -208,7 +210,7 @@ describe('BoardSettingsPanel', () => {
     await settle();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.targetTypeGuids).toEqual(['pt-legacy']);
     expect(arg.targetTypeGuid).toBeUndefined();
   });
@@ -219,7 +221,7 @@ describe('BoardSettingsPanel', () => {
     await settle();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.leafTypes).toBe(true);
   });
 
@@ -230,7 +232,61 @@ describe('BoardSettingsPanel', () => {
     expect(screen.getByRole('radio', { name: /specific types/i })).toBeChecked();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save/i }));
-    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    const arg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(arg.targetTypeGuids).toEqual(['pt-task', 'pt-bug']);
+  });
+
+  const TYPE = { name: 'Initiative', icon: '🎯', hasDefaults: true, canEdit: true };
+
+  it('tags overridden sections', async () => {
+    await renderPanel({ config: { columns: ['A'] }, pageTypes: [pageType()], type: TYPE, overridden: ['columns'] });
+    await settle();
+    const columnsSection = screen.getByRole('heading', { name: /columns/i }).closest('section')!;
+    expect(within(columnsSection).getByText('overridden')).toBeInTheDocument();
+    const viewSection = screen.getByRole('heading', { name: /default view/i }).closest('section')!;
+    expect(within(viewSection).queryByText('overridden')).toBeNull();
+  });
+
+  it('Reset is offered only when the type has defaults and something is overridden', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { columns: ['A'] }, pageTypes: [pageType()], type: TYPE, overridden: ['columns'] }, dialogRef);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('button', { name: /reset to 🎯 initiative default/i }));
+    expect((dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].action).toBe('reset');
+  });
+
+  it('hides Reset with nothing overridden, and Save-as-default without edit rights', async () => {
+    await renderPanel({ config: null, pageTypes: [pageType()], type: { ...TYPE, canEdit: false }, overridden: [] });
+    await settle();
+    expect(screen.queryByRole('button', { name: /reset to/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /save as default/i })).toBeNull();
+  });
+
+  it('Save as default returns the full config with action saveAsDefault', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { columns: ['A'], defaultView: 'board' }, pageTypes: [pageType()], type: { ...TYPE, hasDefaults: false }, overridden: [] }, dialogRef);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('button', { name: /save as default for 🎯 initiative pages/i }));
+    const res = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0];
+    expect(res.action).toBe('saveAsDefault');
+    expect(res.config.columns).toEqual(['A']);
+    expect(res.config.defaultView).toBe('board');
+  });
+
+  it('no type: neither extra button shows', async () => {
+    await renderPanel({ config: null, pageTypes: [pageType()] });
+    await settle();
+    expect(screen.queryByRole('button', { name: /reset to|save as default/i })).toBeNull();
+  });
+
+  it('direct-children mode passes the incoming depth/parent-title/swap through, so they are not false overrides', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { columns: ['A'], depth: 4, showParentTitle: false, swapTitles: true }, pageTypes: [pageType()] }, dialogRef);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('button', { name: /^save$/i }));
+    const cfg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
+    expect(cfg.depth).toBe(4);
+    expect(cfg.showParentTitle).toBe(false);
+    expect(cfg.swapTitles).toBe(true);
   });
 });

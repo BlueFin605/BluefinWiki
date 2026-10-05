@@ -10,11 +10,21 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { boardableTypes } from './boardable-types';
 import { configuredTypeGuids, leafTypes } from './card-types';
+import type { BoardGroup } from './board-defaults';
 import type { BoardConfig, PageTypeDefinition } from '../pages/page.types';
 
 export interface BoardSettingsPanelData {
   config: BoardConfig | null;
   pageTypes: PageTypeDefinition[];
+  /** The page's type, when it has one — enables Reset / Save as default. */
+  type?: { name: string; icon: string; hasDefaults: boolean; canEdit: boolean } | null;
+  /** Groups this page overrides (only set when the type has defaults). */
+  overridden?: BoardGroup[];
+}
+
+export interface BoardSettingsResult {
+  action: 'save' | 'reset' | 'saveAsDefault';
+  config: BoardConfig;
 }
 
 const COLOR_PALETTE = [
@@ -52,7 +62,7 @@ const COLOR_PALETTE = [
     <h2 mat-dialog-title>Board settings</h2>
     <mat-dialog-content>
       <section class="section">
-        <h3>Columns</h3>
+        <h3>Columns @if (isOverridden('columns', 'colors')) { <span class="overridden">overridden</span> }</h3>
         @if (columns().length === 0) {
           <p class="muted">No columns configured — they will be derived from state values automatically.</p>
         }
@@ -125,7 +135,7 @@ const COLOR_PALETTE = [
       </section>
 
       <section class="section">
-        <h3>Default view</h3>
+        <h3>Default view @if (isOverridden('defaultView')) { <span class="overridden">overridden</span> }</h3>
         <mat-button-toggle-group
           [value]="defaultView()"
           (change)="defaultView.set($event.value)"
@@ -137,7 +147,7 @@ const COLOR_PALETTE = [
       </section>
 
       <section class="section">
-        <h3>Collect pages of</h3>
+        <h3>Collect pages of @if (isOverridden('cards', 'depth')) { <span class="overridden">overridden</span> }</h3>
         <mat-button-toggle-group
           [value]="cardMode()"
           (change)="cardMode.set($event.value)"
@@ -177,6 +187,7 @@ const COLOR_PALETTE = [
            these for typed boards — so only offer them then. -->
       @if (typedBoard()) {
         <section class="section">
+          <h3>Cards @if (isOverridden('showParentTitle', 'swapTitles')) { <span class="overridden">overridden</span> }</h3>
           <mat-slide-toggle
             [checked]="showParentTitle()"
             (change)="showParentTitle.set($event.checked)"
@@ -190,6 +201,13 @@ const COLOR_PALETTE = [
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
+      @if (canReset()) {
+        <button mat-button type="button" (click)="onReset()">Reset to {{ data.type!.icon }} {{ data.type!.name }} default</button>
+      }
+      @if (canSaveAsDefault()) {
+        <button mat-stroked-button type="button" (click)="onSaveAsDefault()">Save as default for {{ data.type!.icon }} {{ data.type!.name }} pages</button>
+      }
+      <span class="spacer"></span>
       <button mat-button type="button" (click)="onCancel()">Cancel</button>
       <button mat-flat-button color="primary" type="button" (click)="onSave()">Save</button>
     </mat-dialog-actions>
@@ -200,6 +218,8 @@ const COLOR_PALETTE = [
     .section h3 { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.5rem; }
     .muted { color: #6b7280; font-size: 0.8125rem; margin: 0 0 0.5rem; }
     .full { width: 100%; }
+    .overridden { font-size: 0.6875rem; font-weight: 500; color: #92400e; background: #fef3c7; border-radius: 9999px; padding: 0.0625rem 0.375rem; margin-left: 0.375rem; }
+    .spacer { flex: 1; }
     .columns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
     .columns li { display: flex; align-items: center; gap: 0.5rem; position: relative; }
     .dot { width: 1.25rem; height: 1.25rem; border-radius: 9999px; border: 1px solid #d1d5db; cursor: pointer; background: #6b7280; padding: 0; }
@@ -226,7 +246,16 @@ const COLOR_PALETTE = [
 })
 export class BoardSettingsPanel {
   readonly data = inject<BoardSettingsPanelData>(MAT_DIALOG_DATA);
-  private readonly dialogRef = inject<MatDialogRef<BoardSettingsPanel, BoardConfig | null>>(MatDialogRef);
+  private readonly dialogRef = inject<MatDialogRef<BoardSettingsPanel, BoardSettingsResult | null>>(MatDialogRef);
+
+  protected readonly canReset = computed(
+    () => !!this.data.type?.hasDefaults && (this.data.overridden?.length ?? 0) > 0,
+  );
+  protected readonly canSaveAsDefault = computed(() => !!this.data.type?.canEdit);
+
+  protected isOverridden(...groups: BoardGroup[]): boolean {
+    return groups.some((g) => this.data.overridden?.includes(g));
+  }
 
   protected readonly palette = COLOR_PALETTE;
 
@@ -304,7 +333,11 @@ export class BoardSettingsPanel {
     this.dialogRef.close(null);
   }
 
-  onSave(): void {
+  onSave(): void { this.dialogRef.close({ action: 'save', config: this.buildConfig() }); }
+  onReset(): void { this.dialogRef.close({ action: 'reset', config: this.buildConfig() }); }
+  onSaveAsDefault(): void { this.dialogRef.close({ action: 'saveAsDefault', config: this.buildConfig() }); }
+
+  private buildConfig(): BoardConfig {
     const next: BoardConfig = {};
     if (this.columns().length > 0) next.columns = [...this.columns()];
     if (Object.keys(this.colors()).length > 0) next.colors = { ...this.colors() };
@@ -323,8 +356,15 @@ export class BoardSettingsPanel {
       next.depth = this.depth();
       next.showParentTitle = this.showParentTitle();
       if (this.swapTitles()) next.swapTitles = true;
+    } else {
+      // Direct-children mode hides these controls; carry the incoming values through
+      // so the caller's override diff doesn't see them as changed.
+      const inc = this.data.config;
+      if (inc?.depth !== undefined) next.depth = inc.depth;
+      if (inc?.showParentTitle !== undefined) next.showParentTitle = inc.showParentTitle;
+      if (inc?.swapTitles !== undefined) next.swapTitles = inc.swapTitles;
     }
     if (this.defaultView() === 'board') next.defaultView = 'board';
-    this.dialogRef.close(next);
+    return next;
   }
 }
