@@ -10,4 +10,6 @@ export interface Environment {
   };
   disableAuth: boolean;
   aiAllowDestructive: boolean;
+  /** wss URL (prod) or dev proxy path; empty disables realtime and X-Client-Id. */
+  realtimeUrl: string;
 }
