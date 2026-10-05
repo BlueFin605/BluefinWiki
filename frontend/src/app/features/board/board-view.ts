@@ -53,7 +53,7 @@ const MAX_LIMIT = 1000;
   template: `
     @if (showInitialLoading()) {
       <div class="state">Loading board...</div>
-    } @else if (childrenResource.error() && !awaitingTypes()) {
+    } @else if (typesFailed() || (childrenResource.error() && !awaitingTypes())) {
       <div class="state error">Failed to load board.</div>
     } @else {
       <div class="board-body">
@@ -162,6 +162,11 @@ export class BoardView {
     () => this.boardConfig()?.leafTypes === true && this.pageTypesList() === null,
   );
 
+  /** Leaf mode's first schema load failed — nothing to resolve the card types from. */
+  protected readonly typesFailed = computed(
+    () => this.awaitingTypes() && this.pageTypesResource.status() === 'error',
+  );
+
   private readonly parentGuidSig = computed<string | null>(() =>
     this.awaitingTypes() ? null : (this.parentGuid() ?? null),
   );
@@ -233,7 +238,8 @@ export class BoardView {
    */
   protected readonly showInitialLoading = computed(
     () =>
-      this.awaitingTypes() || (this.childrenResource.isLoading() && this.accumulated().length === 0),
+      (this.awaitingTypes() && !this.typesFailed()) ||
+      (this.childrenResource.isLoading() && this.accumulated().length === 0),
   );
 
   // Bumped every time the reset effect below runs (i.e. every time

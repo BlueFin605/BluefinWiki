@@ -1480,6 +1480,42 @@ describe('BoardView', () => {
       expect(http.match((r) => r.url.includes('/children')).length).toBe(0);
     });
 
+    it('leaf mode shows the failure message when the first page-types load errors', async () => {
+      const { fixture } = await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'p1', boardConfig: { leafTypes: true } },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      for (const r of http.match('/api/page-types')) {
+        r.flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+      }
+      await settle();
+      fixture.detectChanges();
+      expect(screen.getByText(/failed to load board/i)).toBeInTheDocument();
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument();
+      expect(http.match((r) => r.url.includes('/children')).length).toBe(0);
+    });
+
+    it('re-fetches the cards when a page-types reload changes the leaf set', async () => {
+      const { fixture, http } = await loadedLeafBoard();
+
+      TestBed.inject(InvalidationBus).bump(pageTypesListTag());
+      await settle();
+      // pt-bug gains a boardable child type, so it is no longer a leaf.
+      for (const r of http.match('/api/page-types')) {
+        r.flush({ pageTypes: [pt('pt-story', ['pt-task', 'pt-bug']), pt('pt-task'), pt('pt-bug', ['pt-task'])] });
+      }
+      await settle();
+      http.expectOne('/api/pages/p1/children?include=properties&type=pt-task&depth=10&limit=200').flush({
+        children: [card({ guid: 'a', title: 'Leaf A', properties: { state: { type: 'string', value: 'To Do' } } })],
+        hasMore: false,
+      });
+      await settle();
+      fixture.detectChanges();
+      expect(screen.getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
+    });
+
     it('leaf mode keeps its cards and leaf query across refresh()', async () => {
       const { fixture, http } = await loadedLeafBoard();
 
