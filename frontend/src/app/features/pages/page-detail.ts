@@ -116,6 +116,9 @@ export function resolveSaveStatus(state: {
  * "not applicable", not "off". Before diffing against type defaults, fill any
  * missing ones from the config that was in force, so they don't turn into
  * overrides (e.g. a type `depth: 5` being pinned to 10 on this page).
+ * Defence in depth: the panel already carries these through from
+ * `data.config` when the type has defaults (its hasDefaults passthrough).
+ * This also covers results that arrive without them.
  */
 function withHiddenFields(result: BoardConfig, effective: BoardConfig | null): BoardConfig {
   if (hasCardTypeSelection(result) || !effective) return result;
@@ -707,10 +710,16 @@ export class PageDetail {
    * group, with this page's own `boardConfig` (see board-defaults.ts). Feeds
    * eligibility, the default-view effect, the board view and Board settings.
    */
-  protected readonly boardConfig = computed<BoardConfig | null>(() => {
-    if (this.resource.status() !== 'resolved') return null;
-    return effectiveBoardConfig(this.resource.value()?.boardConfig, this.pageTypeDef()?.boardDefaults);
-  });
+  protected readonly boardConfig = computed<BoardConfig | null>(
+    () => {
+      if (this.resource.status() !== 'resolved') return null;
+      return effectiveBoardConfig(this.resource.value()?.boardConfig, this.pageTypeDef()?.boardDefaults);
+    },
+    // Structural: every page-type reload builds a fresh (equal) object, which
+    // would otherwise re-run the defaultView effect and pull a user who chose
+    // Content back to Board. effectiveBoardConfig emits keys in a fixed order.
+    { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+  );
 
   /**
    * Direct-children probe purely for {@link boardEligible} (step 5.1): a page
@@ -1492,7 +1501,15 @@ export class PageDetail {
     try {
       if (result.action === 'saveAsDefault' && type) {
         await this.pageTypes.updatePageType(type.guid, { boardDefaults: result.config });
-        await this.pages.updatePage(page.guid, { boardConfig: null });
+        try {
+          await this.pages.updatePage(page.guid, { boardConfig: null });
+        } catch {
+          this.snack.open(
+            `Saved the ${type.name} defaults, but couldn't clear this page's overrides.`,
+            'Dismiss',
+            { duration: 4000 },
+          );
+        }
       } else if (result.action === 'reset') {
         await this.pages.updatePage(page.guid, { boardConfig: null });
       } else {

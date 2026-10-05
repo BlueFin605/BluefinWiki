@@ -864,6 +864,30 @@ describe('PageDetail', () => {
     expect(comp.viewMode()).toBe('board');
   });
 
+  it('stays in Content after the user leaves a type-default board, across a page-types reload', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture);
+    const comp = fixture.componentInstance as unknown as BoardHost;
+    expect(comp.viewMode()).toBe('board');
+
+    await userEvent.click(screen.getByRole('radio', { name: /^content$/i }));
+    await settle();
+    fixture.detectChanges();
+    expect(comp.viewMode()).toBe('content');
+
+    // A reload with the SAME defaults yields a new (but equal) effective
+    // config object; that must not re-run the defaultView effect.
+    TestBed.inject(InvalidationBus).bump(pageTypesListTag());
+    await settle();
+    // (The unmounted board's own page-type request was cancelled.)
+    for (const r of http.match('/api/page-types').filter((x) => !x.cancelled)) {
+      r.flush({ pageTypes: [{ ...INITIATIVE, boardDefaults: { ...INITIATIVE.boardDefaults } }, TASK] });
+    }
+    await settle();
+    fixture.detectChanges();
+    expect(comp.viewMode()).toBe('content');
+  });
+
   it('opens Board settings with the effective config, type info and overridden groups', async () => {
     const { http, fixture } = await renderDetail();
     await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });
@@ -947,6 +971,27 @@ describe('PageDetail', () => {
     expect((put.request.body as { boardConfig: unknown }).boardConfig).toBeNull();
     put.flush({ ...serverPage, pageType: 'pt-init' });
     await done;
+  });
+
+  it('saveAsDefault says the defaults were saved when only clearing the page overrides fails', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });
+    const snackSpy = jest.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+    const config = { columns: ['Mine'], leafTypes: true };
+    stubDialog({ action: 'saveAsDefault', config });
+    const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    await settle();
+    http.expectOne((r) => r.method === 'PUT' && r.url === '/api/page-types/pt-init')
+      .flush({ ...INITIATIVE, boardDefaults: config });
+    await settle();
+    http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1')
+      .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await done;
+    expect(snackSpy).toHaveBeenCalledWith(
+      "Saved the Initiative defaults, but couldn't clear this page's overrides.",
+      'Dismiss',
+      { duration: 4000 },
+    );
   });
 
   it('does not fetch page types when the page is in edit mode', async () => {
