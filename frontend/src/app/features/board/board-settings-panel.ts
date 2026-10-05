@@ -183,8 +183,8 @@ const COLOR_PALETTE = [
         }
       </section>
 
-      <!-- Only deep boards populate card.parentTitle, and onSave only persists
-           these for typed boards — so only offer them then. -->
+      <!-- Only deep boards populate card.parentTitle, so only offer these for typed
+           boards. Direct-children mode omits them (see buildConfig). -->
       @if (typedBoard()) {
         <section class="section">
           <h3>Cards @if (isOverridden('showParentTitle', 'swapTitles')) { <span class="overridden">overridden</span> }</h3>
@@ -356,9 +356,10 @@ export class BoardSettingsPanel {
       next.depth = this.depth();
       next.showParentTitle = this.showParentTitle();
       if (this.swapTitles()) next.swapTitles = true;
-    } else {
-      // Direct-children mode hides these controls; carry the incoming values through
-      // so the caller's override diff doesn't see them as changed.
+    } else if (this.data.type?.hasDefaults) {
+      // Direct-children mode hides these controls. For a page whose type has defaults,
+      // carry the incoming values through so the caller's override diff doesn't see them
+      // as changed; otherwise store exactly what was stored before (fields stripped).
       const inc = this.data.config;
       if (inc?.depth !== undefined) next.depth = inc.depth;
       if (inc?.showParentTitle !== undefined) next.showParentTitle = inc.showParentTitle;

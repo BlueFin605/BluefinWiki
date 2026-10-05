@@ -279,14 +279,26 @@ describe('BoardSettingsPanel', () => {
     expect(screen.queryByRole('button', { name: /reset to|save as default/i })).toBeNull();
   });
 
-  it('direct-children mode passes the incoming depth/parent-title/swap through, so they are not false overrides', async () => {
+  it('direct-children mode passes the incoming depth/parent-title/swap through when the type has defaults, so they are not false overrides', async () => {
     const dialogRef = { close: jest.fn() };
-    await renderPanel({ config: { columns: ['A'], depth: 4, showParentTitle: false, swapTitles: true }, pageTypes: [pageType()] }, dialogRef);
+    await renderPanel({ config: { columns: ['A'], depth: 4, showParentTitle: false, swapTitles: true }, pageTypes: [pageType()], type: TYPE, overridden: [] }, dialogRef);
     await settle();
     await userEvent.setup().click(screen.getByRole('button', { name: /^save$/i }));
     const cfg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(cfg.depth).toBe(4);
     expect(cfg.showParentTitle).toBe(false);
     expect(cfg.swapTitles).toBe(true);
+  });
+
+  it.each([
+    ['untyped pages', undefined],
+    ['types without defaults', { ...TYPE, hasDefaults: false }],
+  ])('direct-children mode strips depth/parent-title/swap for %s', async (_label, type) => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { columns: ['A'], depth: 4, showParentTitle: false, swapTitles: true }, pageTypes: [pageType()], type }, dialogRef);
+    await settle();
+    await userEvent.setup().click(screen.getByRole('button', { name: /^save$/i }));
+    const cfg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
+    expect(cfg).toEqual({ columns: ['A'] });
   });
 });

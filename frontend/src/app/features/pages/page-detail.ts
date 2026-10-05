@@ -46,7 +46,7 @@ import { Drafts, type PageMetadata } from './drafts';
 import { PageContext } from './page-context';
 import { PageTypes } from '../page-types/page-types';
 import { BoardView } from '../board/board-view';
-import { BoardSettingsPanel, type BoardSettingsPanelData } from '../board/board-settings-panel';
+import { BoardSettingsPanel, type BoardSettingsPanelData, type BoardSettingsResult } from '../board/board-settings-panel';
 import { isBoardEligible } from '../board/is-board-eligible';
 import {
   CreatePageFromLinkModal,
@@ -1433,14 +1433,15 @@ export class PageDetail {
       config: page.boardConfig ?? null,
       pageTypes: [...this.pageTypesList()],
     };
-    const ref = this.dialog.open<BoardSettingsPanel, BoardSettingsPanelData, BoardConfig | null>(
+    const ref = this.dialog.open<BoardSettingsPanel, BoardSettingsPanelData, BoardSettingsResult | null>(
       BoardSettingsPanel,
       { data },
     );
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
+    // Interim: every action saves the panel's config; the actions are wired in the next task.
     try {
-      await this.pages.updatePage(page.guid, { boardConfig: result });
+      await this.pages.updatePage(page.guid, { boardConfig: result.config });
     } catch {
       this.snack.open('Failed to save board settings.', 'Dismiss', { duration: 4000 });
     }

@@ -757,6 +757,27 @@ describe('PageDetail', () => {
     expect(opened.data.pageTypes).toEqual([stateBearingType]);
   });
 
+  it('saves the Board settings result config (not the { action, config } wrapper) as boardConfig', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    http.expectOne('/api/page-types').flush({ pageTypes: [stateBearingType] });
+    await settle();
+    fixture.detectChanges();
+
+    jest
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of({ action: 'save', config: { columns: ['A'] } }) } as never);
+    const done = (
+      fixture.componentInstance as unknown as { openBoardSettings: () => Promise<void> }
+    ).openBoardSettings();
+    await settle();
+    const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+    expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ columns: ['A'] });
+    put.flush(serverPage);
+    await done;
+  });
+
   it('does not fetch page types when the page is in edit mode', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     http.expectOne('/api/pages/g1').flush(serverPage);
