@@ -13,7 +13,7 @@ import { createPageType, deletePageType } from '../fixtures/page-types';
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Board Settings — boardable type filtering', () => {
-  test('the Target type select lists only state-bearing types', async ({ page, pageTree, request }) => {
+  test('the Page types select lists only state-bearing types', async ({ page, pageTree, request }) => {
     const prefix = `E2E-${pageTree.runId}`;
     const boardableGuid = await createPageType(request, `${prefix} Boardable Type`, {
       properties: [{ name: 'state', type: 'string', required: false }],
@@ -41,7 +41,8 @@ test.describe('Board Settings — boardable type filtering', () => {
       // satisfies -- no toggle click needed before this.
       await page.getByRole('button', { name: 'Board settings' }).click();
 
-      await page.getByLabel('Target type').click();
+      await page.getByRole('radio', { name: 'Specific types' }).click();
+      await page.getByLabel('Page types').click();
       await expect(page.getByRole('option', { name: new RegExp(`${prefix} Boardable Type`) })).toBeVisible();
       await expect(page.getByRole('option', { name: new RegExp(`${prefix} Non-Boardable Type`) })).toHaveCount(0);
     } finally {
@@ -78,6 +79,7 @@ test.describe('Board Settings — boardable type filtering', () => {
     await page.goto(`/pages/${parentGuid}`);
     await page.getByRole('button', { name: 'Board settings' }).click();
     await expect(page.getByText(/No page types define a "state" property/)).toBeVisible();
-    await expect(page.getByLabel('Target type')).toBeDisabled();
+    await expect(page.getByRole('radio', { name: 'Leaf types' })).toBeDisabled();
+    await expect(page.getByRole('radio', { name: 'Specific types' })).toBeDisabled();
   });
 });

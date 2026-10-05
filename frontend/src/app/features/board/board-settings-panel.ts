@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { boardableTypes } from './boardable-types';
+import { configuredTypeGuids, leafTypes } from './card-types';
 import type { BoardConfig, PageTypeDefinition } from '../pages/page.types';
 
 export interface BoardSettingsPanelData {
@@ -136,41 +137,45 @@ const COLOR_PALETTE = [
       </section>
 
       <section class="section">
-        <h3>Collect pages of type</h3>
-        <mat-form-field appearance="fill" class="full">
-          <mat-label>Target type</mat-label>
-          <mat-select
-            [value]="targetTypeGuid()"
-            [disabled]="boardableTypeOptions().length === 0"
-            (selectionChange)="targetTypeGuid.set($event.value)"
-          >
-            <mat-option [value]="''">(Direct children)</mat-option>
-            @for (pt of boardableTypeOptions(); track pt.guid) {
-              <mat-option [value]="pt.guid">{{ pt.icon }} {{ pt.name }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
+        <h3>Collect pages of</h3>
+        <mat-button-toggle-group
+          [value]="cardMode()"
+          (change)="cardMode.set($event.value)"
+          aria-label="Collect pages of"
+        >
+          <mat-button-toggle value="children">Direct children</mat-button-toggle>
+          <mat-button-toggle value="leaves" [disabled]="boardableTypeOptions().length === 0">Leaf types</mat-button-toggle>
+          <mat-button-toggle value="types" [disabled]="boardableTypeOptions().length === 0">Specific types</mat-button-toggle>
+        </mat-button-toggle-group>
         @if (boardableTypeOptions().length === 0) {
           <p class="muted">No page types define a "state" property — nothing to collect from descendants.</p>
         }
-        @if (targetTypeGuid()) {
+        @if (cardMode() === 'leaves') {
+          <p class="muted">
+            @if (leafSummary()) { Currently: {{ leafSummary() }} } @else { No leaf types yet. }
+          </p>
+        }
+        @if (cardMode() === 'types') {
+          <mat-form-field appearance="fill" class="full">
+            <mat-label>Page types</mat-label>
+            <mat-select multiple [value]="targetTypeGuids()" (selectionChange)="targetTypeGuids.set($event.value)">
+              @for (pt of boardableTypeOptions(); track pt.guid) {
+                <mat-option [value]="pt.guid">{{ pt.icon }} {{ pt.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+        @if (typedBoard()) {
           <mat-form-field appearance="fill" class="depth-input">
             <mat-label>Depth</mat-label>
-            <input
-              matInput
-              type="number"
-              min="1"
-              max="10"
-              [ngModel]="depth()"
-              (ngModelChange)="depth.set($event)"
-            />
+            <input matInput type="number" min="1" max="10" [ngModel]="depth()" (ngModelChange)="depth.set($event)" />
           </mat-form-field>
         }
       </section>
 
       <!-- Only deep boards populate card.parentTitle, and onSave only persists
-           these when a target type is set — so only offer them then. -->
-      @if (targetTypeGuid()) {
+           these for typed boards — so only offer them then. -->
+      @if (typedBoard()) {
         <section class="section">
           <mat-slide-toggle
             [checked]="showParentTitle()"
@@ -228,7 +233,18 @@ export class BoardSettingsPanel {
   protected readonly columns = signal<string[]>([...(this.data.config?.columns ?? [])]);
   protected readonly colors = signal<Record<string, string>>({ ...(this.data.config?.colors ?? {}) });
   protected readonly defaultView = signal<'content' | 'board'>(this.data.config?.defaultView ?? 'content');
-  protected readonly targetTypeGuid = signal<string>(this.data.config?.targetTypeGuid ?? '');
+  protected readonly cardMode = signal<'children' | 'leaves' | 'types'>(
+    this.data.config?.leafTypes ? 'leaves'
+      : configuredTypeGuids(this.data.config).length ? 'types'
+      : 'children',
+  );
+  protected readonly targetTypeGuids = signal<string[]>(configuredTypeGuids(this.data.config));
+  /** "✅ Task · 🐞 Bug" — what leaf mode would collect right now. */
+  protected readonly leafSummary = computed(() =>
+    leafTypes(this.data.pageTypes).map((t) => `${t.icon} ${t.name}`).join(' · '),
+  );
+  /** Depth + parent-title options apply to any typed (deep) board. */
+  protected readonly typedBoard = computed(() => this.cardMode() !== 'children');
   protected readonly depth = signal<number>(this.data.config?.depth ?? 10);
   protected readonly showParentTitle = signal<boolean>(this.data.config?.showParentTitle ?? true);
   protected readonly swapTitles = signal<boolean>(this.data.config?.swapTitles ?? false);
@@ -292,8 +308,14 @@ export class BoardSettingsPanel {
     const next: BoardConfig = {};
     if (this.columns().length > 0) next.columns = [...this.columns()];
     if (Object.keys(this.colors()).length > 0) next.colors = { ...this.colors() };
-    if (this.targetTypeGuid()) {
-      next.targetTypeGuid = this.targetTypeGuid();
+    const mode = this.cardMode();
+    const order = this.boardableTypeOptions().map((t) => t.guid);
+    // Backend schema allows 1-50 guids; order follows the option list.
+    const types = order.filter((g) => this.targetTypeGuids().includes(g)).slice(0, 50);
+    const typed = mode === 'leaves' || (mode === 'types' && types.length > 0);
+    if (mode === 'leaves') next.leafTypes = true;
+    else if (typed) next.targetTypeGuids = types;
+    if (typed) {
       next.depth = this.depth();
       next.showParentTitle = this.showParentTitle();
       if (this.swapTitles()) next.swapTitles = true;

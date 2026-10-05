@@ -56,7 +56,8 @@ describe('BoardSettingsPanel', () => {
     await renderPanel({ config: null, pageTypes: [plain, stateBearing] });
     await settle();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('combobox', { name: /target type/i }));
+    await user.click(screen.getByRole('radio', { name: /specific types/i }));
+    await user.click(screen.getByRole('combobox', { name: /page types/i }));
     await settle();
     expect(screen.getByRole('option', { name: /task/i })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /note/i })).not.toBeInTheDocument();
@@ -66,10 +67,8 @@ describe('BoardSettingsPanel', () => {
     const plain = pageType({ guid: 'pt-note', name: 'Note', properties: [] });
     await renderPanel({ config: null, pageTypes: [plain] });
     await settle();
-    expect(screen.getByRole('combobox', { name: /target type/i })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    expect(screen.getByRole('radio', { name: /leaf types/i })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /specific types/i })).toBeDisabled();
     expect(screen.getByText(/no page types define a "state" property/i)).toBeInTheDocument();
   });
 
@@ -131,5 +130,65 @@ describe('BoardSettingsPanel', () => {
     const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
     expect(arg.showParentTitle).toBe(false);
     expect(arg.swapTitles).toBe(true);
+    expect(arg.targetTypeGuids).toEqual(['pt-task']);
+    expect(arg.targetTypeGuid).toBeUndefined();
+  });
+
+  const STATE = [{ name: 'state', type: 'string' as const, required: false }];
+  const story = pageType({ guid: 'pt-story', name: 'Story', icon: '📘', properties: STATE, allowedChildTypes: ['pt-task', 'pt-bug'] });
+  const task = pageType({ guid: 'pt-task', name: 'Task', icon: '✅', properties: STATE });
+  const bug = pageType({ guid: 'pt-bug', name: 'Bug', icon: '🐞', properties: STATE });
+
+  it('opens in the mode the config implies', async () => {
+    await renderPanel({ config: { leafTypes: true }, pageTypes: [story, task, bug] });
+    await settle();
+    expect(screen.getByRole('radio', { name: /leaf types/i })).toBeChecked();
+  });
+
+  it('leaf mode shows the currently resolved leaf types and saves leafTypes', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: null, pageTypes: [story, task, bug] }, dialogRef);
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('radio', { name: /leaf types/i }));
+    await settle();
+    expect(screen.getByText(/currently:/i)).toHaveTextContent('✅ Task · 🐞 Bug');
+    expect(screen.getByRole('switch', { name: /show parent title/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.leafTypes).toBe(true);
+    expect(arg.targetTypeGuids).toBeUndefined();
+    expect(arg.depth).toBe(10);
+  });
+
+  it('specific types saves the multi-selection', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: null, pageTypes: [story, task, bug] }, dialogRef);
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('radio', { name: /specific types/i }));
+    await user.click(screen.getByRole('combobox', { name: /page types/i }));
+    await settle();
+    await user.click(screen.getByRole('option', { name: /task/i }));
+    await user.click(screen.getByRole('option', { name: /bug/i }));
+    await user.keyboard('{Escape}');
+    await settle();
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.targetTypeGuids).toEqual(['pt-task', 'pt-bug']);
+    expect(arg.leafTypes).toBeUndefined();
+  });
+
+  it('specific types with nothing selected saves as direct children', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: null, pageTypes: [story, task, bug] }, dialogRef);
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('radio', { name: /specific types/i }));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.targetTypeGuids).toBeUndefined();
+    expect(arg.leafTypes).toBeUndefined();
+    expect(arg.depth).toBeUndefined();
   });
 });
