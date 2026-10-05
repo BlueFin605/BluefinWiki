@@ -32,8 +32,8 @@ const PING_MS = 300000;
  *
  * Connection: reconnects with exponential backoff (1 s doubling, 30 s cap,
  * reset on open); closes while the tab is hidden and reopens when visible.
- * After any REopen it bumps coarse catch-up tags, since messages sent while
- * disconnected are lost. No UI — failures only `console.warn`. With an empty
+ * After any REopen it bumps coarse catch-up tags plus the open page (never
+ * held back), since messages sent while disconnected are lost. No UI — failures only `console.warn`. With an empty
  * `environment.realtimeUrl` it does nothing at all.
  */
 @Injectable({ providedIn: 'root' })
@@ -163,12 +163,18 @@ export class Realtime {
     });
   }
 
-  /** Messages may have been missed while disconnected: refetch the broad views. */
+  /**
+   * Messages may have been missed while disconnected: refetch the broad views
+   * and the open page. The open page is bumped even while it is held back —
+   * a missed change to it would otherwise go unseen and a Save would silently
+   * overwrite it. page-detail keeps a dirty working copy through that refetch
+   * and raises `remoteChange` itself when the server `modifiedAt` moved.
+   */
   private catchUp(): void {
     untracked(() => {
       const tags = [childrenAnyTag(), ancestorsAnyTag(), pageTypesListTag()];
       const guid = this.ctx.guid();
-      if (guid !== null && this.heldBackTag() === null) tags.push(pageTag(guid));
+      if (guid !== null) tags.push(pageTag(guid));
       this.bus.bumpMany(tags);
     });
   }

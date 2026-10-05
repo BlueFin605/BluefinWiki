@@ -2403,6 +2403,298 @@ describe('PageDetail', () => {
     expect(call[1].data.target).toBe('alias');
     expect(call[1].data.originalTarget).toBe('Ghost Page');
   });
+
+  // ---- Piece 5: realtime — publish dirty, "changed elsewhere" banner ----
+
+  describe('changed elsewhere', () => {
+    const BANNER = /this page was changed elsewhere\./i;
+
+    /** Load g1 and let the hydrate effect run; returns the component handle. */
+    async function load(opts: { editMode?: boolean; page?: Record<string, unknown> } = {}) {
+      const r = await renderDetail({ editMode: opts.editMode ?? true });
+      r.http.expectOne('/api/pages/g1').flush({ ...serverPage, ...opts.page });
+      await settle();
+      r.fixture.detectChanges();
+      await settle();
+      return r;
+    }
+
+    /** A realtime `page:g1` bump (live message or reconnect catch-up). */
+    async function bumpPage(fixture: { detectChanges: () => void }): Promise<void> {
+      TestBed.inject(InvalidationBus).bump(pageTag('g1'));
+      await settle();
+      fixture.detectChanges();
+    }
+
+    async function typeEdit(fixture: { componentInstance: PageDetail; detectChanges: () => void }, text: string) {
+      fixture.componentInstance.content.set(text);
+      fixture.detectChanges();
+      await settle();
+    }
+
+    it('publishes dirty to PageContext while an edit is unsaved', async () => {
+      const { fixture } = await load();
+      const ctx = TestBed.inject(PageContext);
+      expect(ctx.dirty()).toBe(false);
+
+      await typeEdit(fixture, '# Unsaved edit');
+
+      expect(ctx.dirty()).toBe(true);
+    });
+
+    it('shows the banner with Reload and Dismiss when remoteChange is set', async () => {
+      const { fixture } = await load();
+
+      TestBed.inject(PageContext).remoteChange.set(true);
+      fixture.detectChanges();
+
+      const banner = screen.getByText(BANNER).closest('[role="status"]') as HTMLElement;
+      expect(banner).not.toBeNull();
+      expect(within(banner).getByRole('button', { name: /^reload$/i })).toBeInTheDocument();
+      expect(within(banner).getByRole('button', { name: /^dismiss$/i })).toBeInTheDocument();
+    });
+
+    it('Dismiss hides the banner, clears remoteChange and leaves the draft untouched', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+      ctx.remoteChange.set(true);
+      fixture.detectChanges();
+
+      await userEvent.click(screen.getByRole('button', { name: /^dismiss$/i }));
+      await settle();
+      fixture.detectChanges();
+
+      expect(screen.queryByText(BANNER)).toBeNull();
+      expect(ctx.remoteChange()).toBe(false);
+      expect(fixture.componentInstance.content()).toBe('# My draft');
+      http.expectNone('/api/pages/g1');
+    });
+
+    it('Reload refetches with no confirm dialog, resets the working copy and hides the banner', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+      ctx.remoteChange.set(true);
+      fixture.detectChanges();
+
+      await userEvent.click(screen.getByRole('button', { name: /^reload$/i }));
+      await settle();
+
+      // The user already chose Reload: no "Discard unsaved changes?" prompt.
+      expect(screen.queryByRole('dialog')).toBeNull();
+      const req = http.expectOne('/api/pages/g1');
+      expect(req.request.method).toBe('GET');
+      req.flush({ ...serverPage, content: '# Theirs', modifiedAt: '2026-02-02T00:00:00Z' });
+      await settle();
+      fixture.detectChanges();
+      await settle();
+
+      expect(screen.queryByText(BANNER)).toBeNull();
+      expect(ctx.remoteChange()).toBe(false);
+      expect(fixture.componentInstance.content()).toBe('# Theirs');
+      expect(ctx.dirty()).toBe(false);
+    });
+
+    it('the banner survives a dirty -> clean transition on the same guid', async () => {
+      const { fixture } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+      ctx.remoteChange.set(true);
+      fixture.detectChanges();
+
+      await typeEdit(fixture, serverPage.content); // back to clean
+      expect(ctx.dirty()).toBe(false);
+
+      expect(ctx.remoteChange()).toBe(true);
+      expect(screen.getByText(BANNER)).toBeInTheDocument();
+    });
+
+    it('clears remoteChange when the route guid changes', async () => {
+      const paramMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ guid: 'gA' }));
+      await render(PageDetail, {
+        providers: [
+          provideAnimationsAsync(),
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: ActivatedRoute, useValue: { paramMap: paramMap$, data: of({ editMode: true }) } },
+        ],
+      });
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne('/api/pages/gA').flush({ ...serverPage, guid: 'gA' });
+      await settle();
+      const ctx = TestBed.inject(PageContext);
+      ctx.remoteChange.set(true);
+      await settle();
+      expect(ctx.remoteChange()).toBe(true);
+
+      paramMap$.next(convertToParamMap({ guid: 'gB' }));
+      await settle();
+
+      expect(ctx.remoteChange()).toBe(false);
+    });
+
+    it('a live update of a clean page re-syncs the working copy and stashes no draft', async () => {
+      const { fixture, http } = await load({ editMode: false });
+
+      await bumpPage(fixture);
+      http.expectOne('/api/pages/g1').flush({
+        ...serverPage,
+        content: '# Changed elsewhere',
+        modifiedAt: '2026-02-02T00:00:00Z',
+      });
+      await settle();
+      fixture.detectChanges();
+      await settle();
+
+      expect(fixture.componentInstance.content()).toBe('# Changed elsewhere');
+      expect(screen.getByRole('heading', { name: /changed elsewhere/i })).toBeInTheDocument();
+      expect((fixture.componentInstance as unknown as { dirty: () => boolean }).dirty()).toBe(false);
+      expect(TestBed.inject(PageContext).remoteChange()).toBe(false);
+
+      fixture.destroy();
+      expect(TestBed.inject(Drafts).hasDraft('g1')).toBe(false);
+    });
+
+    it('a reload of a dirty page with a changed modifiedAt raises the banner and keeps the draft', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+
+      // e.g. the reconnect catch-up, which always bumps the open page.
+      await bumpPage(fixture);
+      http.expectOne('/api/pages/g1').flush({
+        ...serverPage,
+        content: '# Theirs',
+        modifiedAt: '2026-02-02T00:00:00Z',
+      });
+      await settle();
+      fixture.detectChanges();
+      await settle();
+
+      expect(ctx.remoteChange()).toBe(true);
+      expect(screen.getByText(BANNER)).toBeInTheDocument();
+      expect(fixture.componentInstance.content()).toBe('# My draft');
+      expect(ctx.dirty()).toBe(true);
+    });
+
+    it('a reload of a dirty page with an unchanged modifiedAt raises no banner and keeps the draft', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+
+      await bumpPage(fixture);
+      http.expectOne('/api/pages/g1').flush(serverPage);
+      await settle();
+      fixture.detectChanges();
+      await settle();
+
+      expect(ctx.remoteChange()).toBe(false);
+      expect(screen.queryByText(BANNER)).toBeNull();
+      expect(fixture.componentInstance.content()).toBe('# My draft');
+      expect(ctx.dirty()).toBe(true);
+    });
+
+    it('dirty stays published as true while the page reloads', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+      expect(ctx.dirty()).toBe(true);
+
+      await bumpPage(fixture);
+      await settle();
+
+      // MID-RELOAD: the GET is pending. Flipping to false here would stop
+      // Realtime holding back live page:<guid> messages.
+      const req = http.expectOne('/api/pages/g1');
+      expect(ctx.dirty()).toBe(true);
+      req.flush(serverPage);
+      await settle();
+      expect(ctx.dirty()).toBe(true);
+    });
+
+    it("this tab's own page-type change on a dirty page raises no banner", async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+
+      ctx.emitPageTypeChange({ pageType: 'pt-task', properties: {} });
+      await settle();
+      const saved = { ...serverPage, pageType: 'pt-task', modifiedAt: '2026-03-03T00:00:00Z' };
+      http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush(saved);
+      await settle();
+      http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(saved);
+      await settle();
+      fixture.detectChanges();
+
+      expect(ctx.remoteChange()).toBe(false);
+      expect(fixture.componentInstance.content()).toBe('# My draft');
+    });
+
+    it('a successful save re-baselines at once, so nothing is stashed while the page reloads', async () => {
+      const { fixture, http } = await load();
+      jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      await typeEdit(fixture, '# Edited');
+
+      await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+      http
+        .expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1')
+        .flush({ ...serverPage, content: '# Edited', modifiedAt: '2026-03-03T00:00:00Z' });
+      await settle();
+
+      // The reload GET is still pending (the route change would destroy us here).
+      http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1');
+      expect(TestBed.inject(PageContext).dirty()).toBe(false);
+      fixture.destroy();
+      expect(TestBed.inject(Drafts).hasDraft('g1')).toBe(false);
+    });
+
+    it('keeps the board config and Board view while the page itself reloads', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture);
+      const comp = fixture.componentInstance as unknown as BoardHost;
+      const before = comp.boardConfig();
+      expect(before).toEqual(INITIATIVE.boardDefaults);
+      expect(comp.viewMode()).toBe('board');
+
+      await bumpPage(fixture);
+
+      // MID-RELOAD of page:g1 (e.g. a card was added elsewhere).
+      expect(http.match((r) => r.method === 'GET' && r.url === '/api/pages/g1')).toHaveLength(1);
+      expect(comp.boardConfig()).toEqual(before);
+      expect(comp.viewMode()).toBe('board');
+    });
+
+    it('keeps a direct-children board (probe eligibility) in Board view across a page reload', async () => {
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush(serverPage);
+      await settle();
+      http.expectOne('/api/page-types').flush({ pageTypes: [stateBearingType] });
+      http.expectOne('/api/pages/g1/children?include=properties&limit=50').flush({
+        children: [stateCard('To Do')],
+        hasMore: false,
+      });
+      await settle();
+      fixture.detectChanges();
+
+      const comp = fixture.componentInstance as unknown as { viewMode: () => string };
+      await userEvent.click(screen.getByRole('radio', { name: /^board$/i }));
+      await settle();
+      fixture.detectChanges();
+      expect(comp.viewMode()).toBe('board');
+
+      await bumpPage(fixture);
+      expect(comp.viewMode()).toBe('board');
+
+      http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(serverPage);
+      await settle();
+      fixture.detectChanges();
+      expect(comp.viewMode()).toBe('board');
+      // No second probe was needed: the same parent stays enabled through the reload.
+      expect(http.match('/api/pages/g1/children?include=properties&limit=50')).toHaveLength(0);
+    });
+  });
 });
 
 describe('resolveSaveStatus', () => {

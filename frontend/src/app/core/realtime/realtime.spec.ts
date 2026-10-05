@@ -126,6 +126,16 @@ describe('Realtime', () => {
     expect(FakeWs.instances).toHaveLength(1);
   });
 
+  it('applies a message with no origin field (e.g. an MCP write)', async () => {
+    const { rt, bump } = setup();
+    rt.start();
+    await flush();
+    last().open();
+    last().msg({ type: 'invalidate', tags: ['page:g', 'children:any'] });
+
+    expect(bump).toHaveBeenCalledWith(['page:g', 'children:any']);
+  });
+
   it("ignores this tab's own echoes", async () => {
     const { rt, bump } = setup();
     rt.start();
@@ -259,7 +269,7 @@ describe('Realtime', () => {
     expect(bump).toHaveBeenCalledWith([...CATCH_UP, 'page:g']);
   });
 
-  it('catch-up holds back the page being edited with unsaved changes', async () => {
+  it('catch-up ALWAYS bumps page:<guid>, even for a dirty page being edited', async () => {
     const { rt, ctx, bump } = setup();
     rt.start();
     await flush();
@@ -272,7 +282,11 @@ describe('Realtime', () => {
     await jest.advanceTimersByTimeAsync(1000);
     last().open();
 
-    expect(bump).toHaveBeenCalledWith(CATCH_UP);
+    // Messages for g may have been missed while disconnected, so holding the
+    // refetch back would hide them. page-detail compares modifiedAt on the
+    // re-resolve and raises the banner itself; catch-up never sets it.
+    expect(bump).toHaveBeenCalledWith([...CATCH_UP, 'page:g']);
+    expect(ctx.remoteChange()).toBe(false);
   });
 
   it('catch-up with no page open bumps only the coarse tags', async () => {

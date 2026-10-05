@@ -8,6 +8,7 @@ import {
   inject,
   linkedSignal,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -127,6 +128,16 @@ function withHiddenFields(result: BoardConfig, effective: BoardConfig | null): B
     if (out[k] === undefined && effective[k] !== undefined) (out as Record<string, unknown>)[k] = effective[k];
   }
   return out;
+}
+
+/** Whether a working copy (body + metadata) differs from a server page. */
+function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent): boolean {
+  if (content !== (page.content ?? '')) return true;
+  if (m.title !== page.title) return true;
+  if (m.status !== page.status) return true;
+  if ((m.pageType ?? null) !== (page.pageType ?? null)) return true;
+  if (JSON.stringify(m.tags ?? []) !== JSON.stringify(page.tags ?? [])) return true;
+  return JSON.stringify(m.properties ?? {}) !== JSON.stringify(page.properties ?? {});
 }
 
 /**
@@ -290,6 +301,14 @@ function withHiddenFields(result: BoardConfig, effective: BoardConfig | null): B
             </button>
           </div>
         }
+      }
+
+      @if (pageContext.remoteChange()) {
+        <div class="banner remote-change" role="status">
+          <span class="banner-msg">This page was changed elsewhere.</span>
+          <button mat-button type="button" (click)="onRemoteReload()">Reload</button>
+          <button mat-button type="button" (click)="pageContext.remoteChange.set(false)">Dismiss</button>
+        </div>
       }
 
       @if (guid(); as g) {
@@ -465,6 +484,14 @@ function withHiddenFields(result: BoardConfig, effective: BoardConfig | null): B
       background: #fef2f2; color: #b91c1c; font-size: 0.875rem;
     }
     .save-failed-msg { flex: 1; }
+    /* Same shape as .save-failed, in a neutral info blue. */
+    .remote-change {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin: 0.5rem 1rem; padding: 0.25rem 0.25rem 0.25rem 0.75rem;
+      border: 1px solid #93c5fd; border-radius: 4px;
+      background: #eff6ff; color: #1e40af; font-size: 0.875rem;
+    }
+    .remote-change .banner-msg { flex: 1; }
     .attachment-guard {
       margin: 0.5rem 1rem; padding: 0.25rem 0.75rem;
       border: 1px solid #fca5a5; border-radius: 4px;
@@ -697,11 +724,34 @@ export class PageDetail {
   );
 
   /**
+   * The last resolved page for the CURRENT guid, RETAINED while that same page
+   * reloads (a realtime `page:<guid>` bump, a save, Refresh). `null` until the
+   * first resolve and again from the moment the guid changes. Board-side
+   * derivations read this rather than the resource, so a reload of a board
+   * parent doesn't read as "no board config" and drop the viewer to Content.
+   */
+  private readonly settledPage = linkedSignal<
+    { guid: string | null; page: PageContent | null | undefined },
+    PageContent | null
+  >({
+    source: () => ({
+      guid: this.guid(),
+      // `value()` throws on an errored resource — only read it when resolved.
+      page: this.resource.status() === 'resolved' ? (this.resource.value() ?? null) : undefined,
+    }),
+    computation: (source, previous) => {
+      if (source.page !== undefined) return source.page;
+      if (previous && previous.source.guid === source.guid) return previous.value;
+      return null;
+    },
+  });
+
+  /**
    * This page's type definition, when the client knows it. Resolved from the
    * kept {@link pageTypesList}, so it stays put while the type list reloads.
    */
   protected readonly pageTypeDef = computed<PageTypeDefinition | null>(() => {
-    const t = this.resource.status() === 'resolved' ? this.resource.value()?.pageType : undefined;
+    const t = this.settledPage()?.pageType;
     return t ? (this.pageTypesMap()[t] ?? null) : null;
   });
 
@@ -709,11 +759,13 @@ export class PageDetail {
    * The board settings in force: the type's `boardDefaults` overlaid, group by
    * group, with this page's own `boardConfig` (see board-defaults.ts). Feeds
    * eligibility, the default-view effect, the board view and Board settings.
+   * Kept through a reload of the same page (see {@link settledPage}).
    */
   protected readonly boardConfig = computed<BoardConfig | null>(
     () => {
-      if (this.resource.status() !== 'resolved') return null;
-      return effectiveBoardConfig(this.resource.value()?.boardConfig, this.pageTypeDef()?.boardDefaults);
+      const page = this.settledPage();
+      if (!page) return null;
+      return effectiveBoardConfig(page.boardConfig, this.pageTypeDef()?.boardDefaults);
     },
     // Structural: every page-type reload builds a fresh (equal) object, which
     // would otherwise re-run the defaultView effect and pull a user who chose
@@ -732,7 +784,7 @@ export class PageDetail {
    */
   private readonly eligibilityParentGuid = computed<string | null>(() => {
     if (this.mode() !== 'view') return null;
-    if (this.resource.status() !== 'resolved') return null;
+    if (!this.settledPage()) return null;
     if (hasCardTypeSelection(this.boardConfig())) return null;
     return this.guid();
   });
@@ -817,18 +869,30 @@ export class PageDetail {
     () => this.mode() !== 'edit' && this.viewMode() === 'board' && this.boardEligible(),
   );
 
-  /** Whether the working copy diverges from the persisted server page. */
+  /**
+   * The server page the working copy was last synced to — the `dirty()`
+   * baseline — tagged with the guid it belongs to. Set only by
+   * {@link resetWorkingCopyToServer}, by the re-resolve path of the hydrate
+   * effect and by a successful {@link save}. It does NOT follow the page
+   * resource, so `dirty()` stays stable while the page reloads: Realtime keeps
+   * holding back live messages through that window, and the hydrate effect
+   * can still tell whether the copy was dirty BEFORE the reload.
+   */
+  private readonly base = signal<{ guid: string; page: PageContent } | null>(null);
+
+  /**
+   * `modifiedAt` values produced by this component's own writes (Save, page
+   * type change, Board settings). A re-resolve landing on one of these is
+   * this tab's own change, not a change made elsewhere.
+   */
+  private readonly ownModifiedAts = new Set<string>();
+
+  /** Whether the working copy diverges from the server page it was synced to. */
   protected readonly dirty = computed<boolean>(() => {
-    if (this.resource.status() !== 'resolved') return false;
-    const page = this.resource.value();
+    const base = this.base();
     const m = this.metadata();
-    if (!page || !m) return false;
-    if (this.content() !== (page.content ?? '')) return true;
-    if (m.title !== page.title) return true;
-    if (m.status !== page.status) return true;
-    if ((m.pageType ?? null) !== (page.pageType ?? null)) return true;
-    if (JSON.stringify(m.tags ?? []) !== JSON.stringify(page.tags ?? [])) return true;
-    return JSON.stringify(m.properties ?? {}) !== JSON.stringify(page.properties ?? {});
+    if (!base || !m || base.guid !== this.guid()) return false;
+    return workingCopyDiverges(this.content(), m, base.page);
   });
 
   /**
@@ -868,10 +932,24 @@ export class PageDetail {
     // whether attachment inserts are allowed. `metadata` is not pushed here —
     // it IS `pageContext.metadata`, kept current by the hydrate / refresh /
     // page-type paths.
+    // `dirty` is published for the realtime client's hold-back; it is
+    // base-relative, so it stays put while the page reloads.
     effect(() => {
       this.pageContext.guid.set(this.guid());
       this.pageContext.mode.set(this.mode());
       this.pageContext.boardView.set(this.showingBoard());
+      this.pageContext.dirty.set(this.dirty());
+    });
+
+    // The "changed elsewhere" banner belongs to one page: clear it only when
+    // the guid really changes. Not in the publish effect above, which also
+    // re-runs on mode / board / dirty changes (e.g. after a Save).
+    let bannerGuid: string | null = null;
+    effect(() => {
+      const g = this.guid();
+      if (g === bannerGuid) return;
+      bannerGuid = g;
+      untracked(() => this.pageContext.remoteChange.set(false));
     });
 
     // Route the hoisted inspector's editor-affecting outputs back into the
@@ -904,38 +982,14 @@ export class PageDetail {
     });
 
     // Hydrate the working copy once per guid — draft takes priority over server.
+    // A later re-resolve of the SAME guid (realtime bump, catch-up, own write)
+    // goes through onPageReResolved instead.
     effect(() => {
       if (this.resource.status() !== 'resolved') return;
       const page = this.resource.value();
       const currentGuid = this.guid();
       if (!page || !currentGuid) return;
-      if (this.syncedGuid === currentGuid) return;
-      this.syncedGuid = currentGuid;
-
-      // A new page identity starts clean: drop any editor-crash panel left over
-      // from a previous page (EditorErrorState is root-scoped, so it otherwise
-      // follows the user across navigations).
-      this.errorState.clear();
-
-      const draft = this.drafts.get(currentGuid);
-
-      // Dirty-detection baseline = freshly fetched server content. Factored so
-      // the Refresh action resets it exactly the same way (see `refresh()`).
-      this.resetWorkingCopyToServer(page);
-
-      if (draft) {
-        // Defensive: fall back to the server-derived metadata (just set by
-        // resetWorkingCopyToServer) if a persisted draft row is missing it.
-        this.metadata.set(draft.metadata ?? this.metadata());
-        this.content.set(draft.content);
-
-        // React parity: a local draft that diverges from the server copy opens
-        // in Split so the user sees both surfaces. The route still governs
-        // read-only vs edit; this only sets the editor-surface layout.
-        if (draft.content !== (page.content ?? '')) {
-          this._editorMode.set('split');
-        }
-      }
+      untracked(() => this.hydrate(page, currentGuid));
     });
 
     // Responsive fallback (step 1b.6): Split is a desktop-only editor sub-mode.
@@ -1033,11 +1087,84 @@ export class PageDetail {
   }
 
   /**
+   * The hydrate effect's body (run untracked). The first resolve for a guid
+   * fills the working copy, a local draft taking priority over the server;
+   * every later resolve of the same guid goes to {@link onPageReResolved}.
+   */
+  private hydrate(page: PageContent, currentGuid: string): void {
+    if (this.syncedGuid === currentGuid) {
+      this.onPageReResolved(page, currentGuid);
+      return;
+    }
+    this.syncedGuid = currentGuid;
+
+    // A new page identity starts clean: drop any editor-crash panel left over
+    // from a previous page (EditorErrorState is root-scoped, so it otherwise
+    // follows the user across navigations).
+    this.errorState.clear();
+
+    const draft = this.drafts.get(currentGuid);
+
+    // Dirty-detection baseline = freshly fetched server content. Factored so
+    // the Refresh action resets it exactly the same way (see `refresh()`).
+    this.resetWorkingCopyToServer(page);
+
+    if (draft) {
+      // Defensive: fall back to the server-derived metadata (just set by
+      // resetWorkingCopyToServer) if a persisted draft row is missing it.
+      this.metadata.set(draft.metadata ?? this.metadata());
+      this.content.set(draft.content);
+
+      // React parity: a local draft that diverges from the server copy opens
+      // in Split so the user sees both surfaces. The route still governs
+      // read-only vs edit; this only sets the editor-surface layout.
+      if (draft.content !== (page.content ?? '')) {
+        this._editorMode.set('split');
+      }
+    }
+  }
+
+  /**
+   * The page resource re-resolved for the guid already on screen (a realtime
+   * `page:<guid>` bump, the reconnect catch-up, a Save / page-type / board
+   * write, Refresh). `dirty()` is still measured against the PREVIOUS server
+   * page here, so it answers "was the copy dirty before this reload":
+   *
+   * - clean, or already equal to the new page → adopt the new page, so a live
+   *   change shows and no stale draft is stashed later;
+   * - dirty → keep the working copy untouched and move the baseline to the new
+   *   page. If the server `modifiedAt` moved and that isn't one of this tab's
+   *   own writes, the page changed elsewhere: raise the banner.
+   */
+  private onPageReResolved(page: PageContent, currentGuid: string): void {
+    const base = this.base();
+    if (base?.guid === currentGuid && base.page === page) return;
+    const m = this.metadata();
+    if (!base || base.guid !== currentGuid || !m || !this.dirty()
+        || !workingCopyDiverges(this.content(), m, page)) {
+      this.resetWorkingCopyToServer(page);
+      return;
+    }
+    if (page.modifiedAt !== base.page.modifiedAt && !this.ownModifiedAts.has(page.modifiedAt)) {
+      this.pageContext.remoteChange.set(true);
+    }
+    this.base.set({ guid: currentGuid, page });
+  }
+
+  /** Remember the `modifiedAt` of a write this component made itself. */
+  private recordOwnWrite(result: PageContent | null | undefined): void {
+    if (result?.modifiedAt) this.ownModifiedAts.add(result.modifiedAt);
+  }
+
+  /**
    * Reset the working copy — the `dirty()` baseline — to the given server page.
    * Called by the initial-load hydrate effect (before layering any local draft
-   * on top) and directly by `refresh()` once its reload round-trip settles.
+   * on top), by a clean re-resolve, and directly by `refresh()` once its
+   * reload round-trip settles.
    */
   private resetWorkingCopyToServer(page: PageContent): void {
+    const g = this.guid();
+    if (g) this.base.set({ guid: g, page });
     this.metadata.set({
       title: page.title,
       tags: page.tags ?? [],
@@ -1063,12 +1190,25 @@ export class PageDetail {
    * dialog) while one refresh is still in flight.
    */
   async refresh(): Promise<void> {
+    await this.discardAndReload(true);
+  }
+
+  /**
+   * Banner Reload: the same discard-and-refetch as {@link refresh}, minus the
+   * "Discard unsaved changes?" prompt — the user already chose Reload.
+   */
+  async onRemoteReload(): Promise<void> {
+    this.pageContext.remoteChange.set(false);
+    await this.discardAndReload(false);
+  }
+
+  private async discardAndReload(confirmIfDirty: boolean): Promise<void> {
     const g = this.guid();
     if (!g || this.isRefreshing()) return;
 
     this._isRefreshing.set(true);
     try {
-      if (this.dirty()) {
+      if (confirmIfDirty && this.dirty()) {
         const data: ConfirmDialogData = {
           title: 'Discard unsaved changes?',
           message: 'Discard unsaved changes and reload this page from the server?',
@@ -1087,7 +1227,12 @@ export class PageDetail {
       this.errorState.clear();
 
       const page = await this.reloadPageResource();
-      if (page) this.resetWorkingCopyToServer(page);
+      if (page) {
+        this.resetWorkingCopyToServer(page);
+        // The copy now IS the server page, so a "changed elsewhere" raised by
+        // this very reload's re-resolve is moot.
+        this.pageContext.remoteChange.set(false);
+      }
     } finally {
       this._isRefreshing.set(false);
     }
@@ -1268,7 +1413,7 @@ export class PageDetail {
       : { pageType: null };
 
     try {
-      await this.pages.updatePage(g, body);
+      this.recordOwnWrite(await this.pages.updatePage(g, body));
       // Keep a live draft in step with what was just persisted so a reload
       // can't resurrect the previous type from localStorage.
       if (this.drafts.hasDraft(g)) {
@@ -1502,7 +1647,7 @@ export class PageDetail {
       if (result.action === 'saveAsDefault' && type) {
         await this.pageTypes.updatePageType(type.guid, { boardDefaults: result.config });
         try {
-          await this.pages.updatePage(page.guid, { boardConfig: null });
+          this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig: null }));
         } catch {
           this.snack.open(
             `Saved the ${type.name} defaults, but couldn't clear this page's overrides.`,
@@ -1511,12 +1656,12 @@ export class PageDetail {
           );
         }
       } else if (result.action === 'reset') {
-        await this.pages.updatePage(page.guid, { boardConfig: null });
+        this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig: null }));
       } else {
         const boardConfig = defaults
           ? boardOverrides(withHiddenFields(result.config, effective), defaults)
           : result.config;
-        await this.pages.updatePage(page.guid, { boardConfig });
+        this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig }));
       }
     } catch {
       this.snack.open('Failed to save board settings.', 'Dismiss', { duration: 4000 });
@@ -1536,7 +1681,7 @@ export class PageDetail {
     this.saveError.set(null);
     this.saveErrorDismissed.set(false);
     try {
-      await this.pages.updatePage(g, {
+      const saved = await this.pages.updatePage(g, {
         content,
         title: m.title,
         tags: m.tags,
@@ -1544,6 +1689,26 @@ export class PageDetail {
         ...(m.pageType !== undefined ? { pageType: m.pageType || null } : {}),
         ...(m.properties ? { properties: m.properties } : {}),
       });
+      this.recordOwnWrite(saved);
+      // What was sent is now the server state: re-baseline at once, so the
+      // working copy reads clean through the reload that updatePage kicked
+      // off (the destroy-time stash would otherwise re-save it as a draft).
+      const base = this.base();
+      if (base?.guid === g) {
+        this.base.set({
+          guid: g,
+          page: {
+            ...base.page,
+            content,
+            title: m.title,
+            tags: m.tags ?? [],
+            status: m.status,
+            pageType: m.pageType,
+            properties: m.properties,
+            ...(saved?.modifiedAt ? { modifiedAt: saved.modifiedAt } : {}),
+          },
+        });
+      }
       this.drafts.clear(g);
       // updatePage bumps the pages version, so the view reload picks up the save.
       await this.router.navigate(['/pages', g]);
