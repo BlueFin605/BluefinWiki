@@ -1,5 +1,6 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
+import { BoardConfigSchema } from './board-config-schema.js';
 import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageContent } from '../types/index.js';
@@ -26,17 +27,7 @@ const PagePropertySchema = z.object({
 
 const PropertyNameSchema = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Property names must be kebab-case');
 
-export const BoardConfigSchema = z.object({
-  columns: z.array(z.string()).optional(),
-  colors: z.record(z.string(), z.string()).optional(),
-  targetTypeGuid: z.string().uuid().optional(),
-  targetTypeGuids: z.array(z.string().uuid()).min(1).max(50).optional(),
-  leafTypes: z.boolean().optional(),
-  depth: z.number().min(1).max(10).optional(),
-  showParentTitle: z.boolean().optional(),
-  swapTitles: z.boolean().optional(),
-  defaultView: z.enum(['content', 'board']).optional(),
-}).nullable().optional();
+export { BoardConfigSchema };
 
 // Request validation schema
 const UpdatePageRequestSchema = z.object({

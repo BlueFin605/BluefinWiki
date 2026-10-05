@@ -80,6 +80,7 @@ export interface PageTypeDefinition {
   allowWikiPageChildren: boolean;  // Whether untyped wiki pages can be children (default true)
   allowedParentTypes: string[];    // GUIDs of types this page type can be a child of (empty = any parent)
   allowAnyParent: boolean;         // Whether this type can be placed under untyped wiki pages (default true)
+  boardDefaults?: BoardConfig;     // Default board settings for pages of this type (per-group overridable)
   createdBy: string;               // Cognito sub
   createdAt: string;               // ISO 8601
   updatedAt: string;               // ISO 8601
