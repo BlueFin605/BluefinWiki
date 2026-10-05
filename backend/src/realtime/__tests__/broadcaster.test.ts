@@ -35,6 +35,46 @@ describe('publishChange', () => {
       vi.useRealTimers();
     }
   });
+  it('skips publishes for 5 s after one times out (circuit breaker)', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const publish = vi.fn(() => new Promise<void>(() => {}));
+      setBroadcaster({ publish });
+      const first = publishChange(['page:a']);
+      await vi.advanceTimersByTimeAsync(1000);
+      await first;
+      expect(publish).toHaveBeenCalledTimes(1);
+
+      // e.g. pages-reorder publishing once per sibling: 20 more publishes
+      // must not each wait out the 1 s cap.
+      const start = Date.now();
+      for (let i = 0; i < 20; i++) await publishChange([`page:${i}`]);
+      expect(Date.now() - start).toBe(0);
+      expect(publish).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      void publishChange(['page:later']);
+      expect(publish).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+      warn.mockRestore();
+    }
+  });
+  it('skips publishes for 5 s after one fails, and installing a broadcaster resets it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const failing = vi.fn().mockRejectedValue(new Error('boom'));
+    setBroadcaster({ publish: failing });
+    await publishChange(['page:a']);
+    await publishChange(['page:b']);
+    expect(failing).toHaveBeenCalledTimes(1);
+
+    const ok = vi.fn().mockResolvedValue(undefined);
+    setBroadcaster({ publish: ok });
+    await publishChange(['page:c']);
+    expect(ok).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
   it('is a no-op with no broadcaster and no tags', async () => {
     await expect(publishChange(['page:g'])).resolves.toBeUndefined();
     const publish = vi.fn();

@@ -19,6 +19,7 @@
     "test:all": "vitest run && vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.1146.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1022.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.984.0",
     "@aws-sdk/client-dynamodb": "^3.511.0",

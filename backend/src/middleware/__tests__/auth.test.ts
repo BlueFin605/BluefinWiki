@@ -65,3 +65,23 @@ describe('withAuth request origin', () => {
     expect(res.headers?.['Access-Control-Allow-Headers']).toContain('X-Client-Id');
   });
 });
+
+describe('verifyIdToken', () => {
+  it('accepts mock-jwt-token in local mode', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('USER_POOL_ID', 'local_pool');
+    vi.resetModules();
+    const { verifyIdToken } = await import('../auth.js');
+    await expect(verifyIdToken('mock-jwt-token')).resolves.toMatchObject({ sub: 'local-dev-user-id' });
+  });
+
+  it('rejects a malformed token in deployed mode', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('USER_POOL_ID', 'us-east-1_TestPool');
+    vi.stubEnv('CLIENT_ID', 'test-client');
+    vi.resetModules();
+    const { verifyIdToken } = await import('../auth.js');
+    await expect(verifyIdToken('mock-jwt-token')).rejects.toThrow();
+  });
+});
