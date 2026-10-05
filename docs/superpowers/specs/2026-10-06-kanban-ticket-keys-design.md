@@ -14,6 +14,12 @@ and MCP output and accepted anywhere the `kanban_*` tools take a GUID.
 The GUID remains the page's identity. Storage layout, links, moves and the page
 index are unchanged; the key is an additional, immutable alias.
 
+> **Revised (§6):** tickets keyed *at creation* now use the key itself as their
+> page ID (`{parent}/BGT-12/BGT-12.md`). Everything else — existing tickets,
+> tickets under an Initiative without a prefix, and creations where the key
+> cannot be obtained — keeps a GUID. §1's create path and failure handling are
+> superseded by §6.
+
 ## Decisions
 
 | Question | Decision |
@@ -189,8 +195,85 @@ Claude follow-up after deploy: update the `bluefin-kanban` skill and
 `.superpowers/sdd/common-implementer.md` to use keys (`Kanban: BGT-12` commit
 trailers, key arguments).
 
+## 6. Revision: the key is the page ID for new tickets
+
+A page ID is an opaque, immutable string; nothing requires it to be a UUID. A
+key allocated at creation is just as unique (one counter per prefix, guarded by
+the write-once mapping) and never changes, so new keyed tickets use it as their
+ID. This is a **hybrid** — two ID formats coexist permanently:
+
+| Page | ID |
+|---|---|
+| Ticket created under an Initiative with a prefix | `BGT-12` (the key) |
+| Existing tickets, incl. ones keyed later by the backfill | their GUID (unchanged) |
+| Tickets under an Initiative with no prefix; all non-ticket pages | GUID |
+| Key could not be allocated or mapped at creation | GUID, no key |
+
+Existing pages are never renamed, so no S3 moves or link rewrites.
+
+### Page ID format
+
+New `backend/src/pages/page-id.ts`:
+
+- `PAGE_KEY_REGEX = /^[A-Z][A-Z0-9]{1,9}-[1-9]\d*$/` (canonical upper case;
+  prefix rule matches `keyPrefix` validation).
+- `isPageId(id)` — UUID (`uuid.validate`) **or** `PAGE_KEY_REGEX`.
+- `pageIdSchema` — Zod string refined with `isPageId`.
+
+Every check that today means "is this a page ID" switches to `isPageId` /
+`pageIdSchema`:
+
+- `BaseStoragePlugin.validateGuid` (covers every `S3StoragePlugin` method,
+  including the descendant walk in `movePage` — today it silently skips
+  non-UUID child folders, which would orphan keyed children on a move).
+- REST handlers' local `uuidRegex`/`UUID_REGEX`: `pages-get`, `pages-update`,
+  `pages-move`, `pages-delete`, `pages-backlinks`, `pages-list-children`
+  (parent only — `targetTypeGuids` stay UUID), all `pages-attachments-*`; Zod
+  `parentGuid` in `pages-create`, `newParentGuid` in `pages-move`,
+  `parentGuid`/`orderedGuids` in `pages-reorder`.
+- `links-resolve.ts` `isValidGuid` → `isPageId`, so `[[BGT-12]]` resolves for
+  key-ID pages.
+- MCP tools' `pageGuid`/`parentGuid`/`newParentGuid` checks: `create-page`,
+  `update-page`, `move-page`, `delete-page`, `add-comment`, `list-comments`,
+  `update-comment`, `delete-comment`.
+
+Page-type GUIDs, comment IDs and `targetTypeGuid(s)` stay UUID-only.
+
+### Create path
+
+`ticket-keys-service.ts` gains `idForNewPage(parentGuid, pageType)` →
+`{ guid: string; ticketKey?: string }`. Never throws:
+
+1. `key = await keyForNewPage(parentGuid, pageType)` (already never throws).
+2. No key → `{ guid: uuidv4() }`.
+3. `putMapping(key, key)`; `'created'` → `{ guid: key, ticketKey: key }`.
+4. `'exists'` (counter reset / collision) or a throw → warn, `{ guid: uuidv4() }`
+   — the number is skipped and the page is unkeyed. It must never take a key
+   whose mapping it could not claim, since the key is now an S3 folder name.
+
+`pages-create.ts` and `mcp/tools/create-page.ts` replace `uuidv4()` +
+`keyForNewPage` + `recordKey` with `idForNewPage`. The mapping is written
+*before* `savePage`; if `savePage` then fails the key maps to a missing page and
+resolves to 404, like a deleted ticket.
+
+Resolution needs no special case: key-ID pages map `BGT-12 → BGT-12`, so
+`resolveKey`, `/t/:key`, search pinning and `kanban_*` key arguments all keep
+working. The backfill is unchanged (it only touches pages without `ticketKey`).
+
+### Frontend
+
+No ID-format checks exist in `frontend/`; `/pages/BGT-12` works as soon as the
+backend accepts it. Board cards and the header chip still read `ticketKey`.
+
+### Gaps
+
+Skipped numbers are acceptable: allocation succeeded but mapping failed,
+mapping succeeded but `savePage` failed, or a collision.
+
 ## Out of scope
 
-- `[[BGT-12]]` wiki-link syntax.
-- Keys in generic page MCP tools.
+- Keys in generic page MCP tools for GUID-ID tickets (key-ID tickets work there
+  natively after §6).
 - Re-keying tickets on move or prefix change.
+- Renaming existing GUID tickets to key IDs.
+- `/pages/{key}` for GUID-ID tickets (use `/t/{key}`).
