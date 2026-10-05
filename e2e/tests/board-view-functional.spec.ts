@@ -136,9 +136,19 @@ test.describe('Board view', () => {
     });
 
     try {
+      // Realtime off: with it on, the push below would move the card by itself
+      // and this test would pass even if the Refresh button did nothing. The
+      // app's `/ws` socket is answered by this route and never reaches the
+      // server, so no invalidation ever arrives. (Vite's HMR socket is `/`.)
+      let realtimeIntercepted = false;
+      await page.routeWebSocket(/\/ws(\?|$)/, () => {
+        realtimeIntercepted = true;
+      });
+
       await page.goto(`/pages/${parentGuid}`);
       const todo = page.locator('wiki-board-column', { hasText: 'To Do' });
       await expect(todo.locator('[data-testid="board-column-count"]')).toHaveText('1');
+      await expect.poll(() => realtimeIntercepted).toBe(true);
 
       // Out-of-band change (API, as another user or Claude would make).
       await updatePage(request, cardGuid, { properties: { state: { type: 'string', value: 'Done' } } });
