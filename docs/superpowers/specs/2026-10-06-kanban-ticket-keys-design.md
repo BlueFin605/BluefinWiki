@@ -20,7 +20,7 @@ index are unchanged; the key is an additional, immutable alias.
 |---|---|
 | Prefix scope | **Shared namespace.** The counter belongs to the prefix, not the initiative. Several initiatives may use `BGT` and share one sequence. No uniqueness check between initiatives. |
 | Which pages get a key | **All tickets** — Epic, Story, Task (any page type with a `state` property other than Initiative) under an Initiative with a prefix. The Initiative itself has no key. |
-| Where the prefix lives | `boardConfig.keyPrefix` on the Initiative page, edited in Board Settings (or via MCP `update_page`). No page-type schema change. |
+| Where the prefix lives | `boardConfig.keyPrefix` on the Initiative page, edited in Board Settings. Page-only: never part of a page type's `boardDefaults`. No page-type schema change. |
 | Storage / lookup | New `ticket-keys` DynamoDB table holding counters and write-once key→GUID mappings (Approach A). |
 | Moves | A ticket keeps its key forever, including when moved to another initiative. |
 | Prefix change | Affects new tickets only. Existing keys keep their old prefix and still resolve. |
@@ -34,6 +34,11 @@ index are unchanged; the key is an additional, immutable alias.
 `pages/board-config-schema.ts`). Validation: `^[A-Z][A-Z0-9]{1,9}$` (2–10
 characters, upper-case letters/digits, starting with a letter). Absent or empty
 means the initiative does not key its tickets.
+
+`keyPrefix` is **page-only**. It is stripped from page-type `boardDefaults`
+(the page-types create/update schemas omit it), and the frontend's board-defaults
+machinery carries it through untouched: it is not a `BoardGroup`, survives
+"Reset to default" and "Save as default", and is never shown as overridden.
 
 ### Key on the page
 
@@ -107,8 +112,9 @@ Page creation never fails because of key assignment.
 
 ### REST
 
-- `GET /api/ticket-keys/{key}` → `200 { guid }` or `404`. Case-insensitive. Same
-  auth as reading a page.
+- `GET /api/ticket-keys/{key}` → `200 { key, guid, title }` or `404` (unknown key,
+  or the mapped page no longer exists). Case-insensitive; `key` is the canonical
+  upper-case form. Same auth as reading a page.
 - `POST /api/pages/{guid}/ticket-keys/backfill` → `200 { assigned, repaired }`.
   Admin only. `400` if the page is not an Initiative or has no `keyPrefix`.
   Walks the Initiative's ticket descendants (published + draft, ticket types
@@ -132,8 +138,8 @@ on the table. Aspire local dev creates the table alongside the existing ones.
   `Task · Ready · Fix login · BGT-12 · #dean`. Unkeyed tickets render exactly as
   today. `kanban_create`'s per-node output lines and `closeable:` / `closed:`
   lines follow the same rule.
-- `kanban_get` adds a `Guid: <guid>` line to the card body so the generic page
-  tools can still be used.
+- `kanban_get` adds a `Guid: <guid>` line after the header (keyed tickets only)
+  so the generic page tools can still be used.
 - `kanban_initiatives` shows the prefix when set:
   `<guid> · [BGT] <title> · <state> · N open`.
 
