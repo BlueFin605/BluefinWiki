@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { runWithOrigin, originFromHeaders } from '../realtime/request-origin.js';
 
 // Environment variables
 const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || process.env.USER_POOL_ID!;
@@ -14,6 +15,36 @@ if (!IS_LOCAL) {
     tokenUse: 'id',
     clientId: CLIENT_ID,
   });
+}
+
+/** Claims of a verified (or, locally, decoded) Cognito ID token. */
+export type IdTokenPayload = { sub: string; [claim: string]: unknown };
+
+/**
+ * Verify a Cognito ID token with the shared verifier. Locally (`IS_LOCAL`)
+ * `mock-jwt-token` maps to the dev user and any other JWT is only decoded.
+ * Rejects when the token is invalid. Used by withAuth and the WebSocket
+ * `$connect` handler.
+ */
+export async function verifyIdToken(token: string): Promise<IdTokenPayload> {
+  if (IS_LOCAL) {
+    console.log('🔓 Local mode: Bypassing JWT verification');
+    if (token === 'mock-jwt-token') {
+      return {
+        sub: 'local-dev-user-id',
+        email: 'dev@example.com',
+        'cognito:username': 'dev@example.com',
+        'custom:role': 'Admin',
+        'custom:displayName': 'Local Dev User',
+      };
+    }
+    return decodeJWT(token);
+  }
+  // Fallback: verify token if no API Gateway claims present
+  if (!verifier) {
+    throw new Error('Cognito verifier not initialized');
+  }
+  return (await verifier.verify(token)) as unknown as IdTokenPayload;
 }
 
 // Extend the APIGatewayProxyEvent to include user context
@@ -67,7 +98,7 @@ export function withAuth(
       const existingClaims = event.requestContext.authorizer?.claims;
       if (existingClaims && !IS_LOCAL) {
         const authenticatedEvent = event as AuthenticatedEvent;
-        const handlerResponse = await handler(authenticatedEvent, context);
+        const handlerResponse = await runWithOrigin(originFromHeaders(event.headers), () => handler(authenticatedEvent, context));
         return withCorsHeaders(event, handlerResponse);
       }
 
@@ -84,26 +115,7 @@ export function withAuth(
 
       let payload;
       try {
-        if (IS_LOCAL) {
-          console.log('🔓 Local mode: Bypassing JWT verification');
-          if (token === 'mock-jwt-token') {
-            payload = {
-              sub: 'local-dev-user-id',
-              email: 'dev@example.com',
-              'cognito:username': 'dev@example.com',
-              'custom:role': 'Admin',
-              'custom:displayName': 'Local Dev User',
-            };
-          } else {
-            payload = decodeJWT(token);
-          }
-        } else {
-          // Fallback: verify token if no API Gateway claims present
-          if (!verifier) {
-            throw new Error('Cognito verifier not initialized');
-          }
-          payload = await verifier.verify(token);
-        }
+        payload = await verifyIdToken(token);
       } catch (error) {
         console.error('JWT verification failed:', error);
         return withCorsHeaders(event, {
@@ -120,7 +132,7 @@ export function withAuth(
       };
 
       // Call the wrapped handler with authenticated event
-      const handlerResponse = await handler(authenticatedEvent, context);
+      const handlerResponse = await runWithOrigin(originFromHeaders(event.headers), () => handler(authenticatedEvent, context));
       return withCorsHeaders(event, handlerResponse);
     } catch (error) {
       console.error('Authentication middleware error:', error);
@@ -180,7 +192,7 @@ function withCorsHeaders(
     headers: {
       ...response.headers,
       'Access-Control-Allow-Origin': allowOrigin,
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Access-Token',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Access-Token,X-Client-Id',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
       'Vary': 'Origin',
     },

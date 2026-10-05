@@ -12,6 +12,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from './core/auth/auth-interceptor';
 import { errorInterceptor } from './core/api/error-interceptor';
 import { apiBaseUrlInterceptor } from './core/api/api-base-url-interceptor';
+import { clientIdInterceptor } from './core/api/client-id-interceptor';
 import { GlobalErrorHandler } from './core/error/global-error-handler';
 import { provideServiceWorker } from '@angular/service-worker';
 import { environment } from '../environments/environment';
@@ -32,6 +33,7 @@ export const appConfig: ApplicationConfig = {
       withInterceptors([
         errorInterceptor,
         authInterceptor,
+        clientIdInterceptor,
         apiBaseUrlInterceptor(environment.apiBaseUrl),
       ]),
     ),

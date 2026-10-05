@@ -9,11 +9,22 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { boardableTypes } from './boardable-types';
+import { configuredTypeGuids, leafTypes } from './card-types';
+import type { BoardGroup } from './board-defaults';
 import type { BoardConfig, PageTypeDefinition } from '../pages/page.types';
 
 export interface BoardSettingsPanelData {
   config: BoardConfig | null;
   pageTypes: PageTypeDefinition[];
+  /** The page's type, when it has one — enables Reset / Save as default. */
+  type?: { name: string; icon: string; hasDefaults: boolean; canEdit: boolean } | null;
+  /** Groups this page overrides (only set when the type has defaults). */
+  overridden?: BoardGroup[];
+}
+
+export interface BoardSettingsResult {
+  action: 'save' | 'reset' | 'saveAsDefault';
+  config: BoardConfig;
 }
 
 const COLOR_PALETTE = [
@@ -51,7 +62,7 @@ const COLOR_PALETTE = [
     <h2 mat-dialog-title>Board settings</h2>
     <mat-dialog-content>
       <section class="section">
-        <h3>Columns</h3>
+        <h3>Columns @if (isOverridden('columns', 'colors')) { <span class="overridden">overridden</span> }</h3>
         @if (columns().length === 0) {
           <p class="muted">No columns configured — they will be derived from state values automatically.</p>
         }
@@ -124,7 +135,7 @@ const COLOR_PALETTE = [
       </section>
 
       <section class="section">
-        <h3>Default view</h3>
+        <h3>Default view @if (isOverridden('defaultView')) { <span class="overridden">overridden</span> }</h3>
         <mat-button-toggle-group
           [value]="defaultView()"
           (change)="defaultView.set($event.value)"
@@ -136,42 +147,47 @@ const COLOR_PALETTE = [
       </section>
 
       <section class="section">
-        <h3>Collect pages of type</h3>
-        <mat-form-field appearance="fill" class="full">
-          <mat-label>Target type</mat-label>
-          <mat-select
-            [value]="targetTypeGuid()"
-            [disabled]="boardableTypeOptions().length === 0"
-            (selectionChange)="targetTypeGuid.set($event.value)"
-          >
-            <mat-option [value]="''">(Direct children)</mat-option>
-            @for (pt of boardableTypeOptions(); track pt.guid) {
-              <mat-option [value]="pt.guid">{{ pt.icon }} {{ pt.name }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
+        <h3>Collect pages of @if (isOverridden('cards', 'depth')) { <span class="overridden">overridden</span> }</h3>
+        <mat-button-toggle-group
+          [value]="cardMode()"
+          (change)="cardMode.set($event.value)"
+          aria-label="Collect pages of"
+        >
+          <mat-button-toggle value="children">Direct children</mat-button-toggle>
+          <mat-button-toggle value="leaves" [disabled]="boardableTypeOptions().length === 0">Leaf types</mat-button-toggle>
+          <mat-button-toggle value="types" [disabled]="boardableTypeOptions().length === 0">Specific types</mat-button-toggle>
+        </mat-button-toggle-group>
         @if (boardableTypeOptions().length === 0) {
           <p class="muted">No page types define a "state" property — nothing to collect from descendants.</p>
         }
-        @if (targetTypeGuid()) {
+        @if (cardMode() === 'leaves') {
+          <p class="muted">
+            @if (leafSummary()) { Currently: {{ leafSummary() }} } @else { No leaf types yet. }
+          </p>
+        }
+        @if (cardMode() === 'types') {
+          <mat-form-field appearance="fill" class="full">
+            <mat-label>Page types</mat-label>
+            <mat-select multiple [value]="targetTypeGuids()" (selectionChange)="targetTypeGuids.set($event.value)">
+              @for (pt of boardableTypeOptions(); track pt.guid) {
+                <mat-option [value]="pt.guid">{{ pt.icon }} {{ pt.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+        @if (typedBoard()) {
           <mat-form-field appearance="fill" class="depth-input">
             <mat-label>Depth</mat-label>
-            <input
-              matInput
-              type="number"
-              min="1"
-              max="10"
-              [ngModel]="depth()"
-              (ngModelChange)="depth.set($event)"
-            />
+            <input matInput type="number" min="1" max="10" [ngModel]="depth()" (ngModelChange)="depth.set($event)" />
           </mat-form-field>
         }
       </section>
 
-      <!-- Only deep boards populate card.parentTitle, and onSave only persists
-           these when a target type is set — so only offer them then. -->
-      @if (targetTypeGuid()) {
+      <!-- Only deep boards populate card.parentTitle, so only offer these for typed
+           boards. Direct-children mode omits them (see buildConfig). -->
+      @if (typedBoard()) {
         <section class="section">
+          <h3>Cards @if (isOverridden('showParentTitle', 'swapTitles')) { <span class="overridden">overridden</span> }</h3>
           <mat-slide-toggle
             [checked]="showParentTitle()"
             (change)="showParentTitle.set($event.checked)"
@@ -185,6 +201,13 @@ const COLOR_PALETTE = [
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
+      @if (canReset()) {
+        <button mat-button type="button" (click)="onReset()">Reset to {{ data.type!.icon }} {{ data.type!.name }} default</button>
+      }
+      @if (canSaveAsDefault()) {
+        <button mat-stroked-button type="button" (click)="onSaveAsDefault()">Save as default for {{ data.type!.icon }} {{ data.type!.name }} pages</button>
+      }
+      <span class="spacer"></span>
       <button mat-button type="button" (click)="onCancel()">Cancel</button>
       <button mat-flat-button color="primary" type="button" (click)="onSave()">Save</button>
     </mat-dialog-actions>
@@ -195,6 +218,8 @@ const COLOR_PALETTE = [
     .section h3 { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.5rem; }
     .muted { color: #6b7280; font-size: 0.8125rem; margin: 0 0 0.5rem; }
     .full { width: 100%; }
+    .overridden { font-size: 0.6875rem; font-weight: 500; color: #92400e; background: #fef3c7; border-radius: 9999px; padding: 0.0625rem 0.375rem; margin-left: 0.375rem; }
+    .spacer { flex: 1; }
     .columns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
     .columns li { display: flex; align-items: center; gap: 0.5rem; position: relative; }
     .dot { width: 1.25rem; height: 1.25rem; border-radius: 9999px; border: 1px solid #d1d5db; cursor: pointer; background: #6b7280; padding: 0; }
@@ -221,14 +246,34 @@ const COLOR_PALETTE = [
 })
 export class BoardSettingsPanel {
   readonly data = inject<BoardSettingsPanelData>(MAT_DIALOG_DATA);
-  private readonly dialogRef = inject<MatDialogRef<BoardSettingsPanel, BoardConfig | null>>(MatDialogRef);
+  private readonly dialogRef = inject<MatDialogRef<BoardSettingsPanel, BoardSettingsResult | null>>(MatDialogRef);
+
+  protected readonly canReset = computed(
+    () => !!this.data.type?.hasDefaults && (this.data.overridden?.length ?? 0) > 0,
+  );
+  protected readonly canSaveAsDefault = computed(() => !!this.data.type?.canEdit);
+
+  protected isOverridden(...groups: BoardGroup[]): boolean {
+    return groups.some((g) => this.data.overridden?.includes(g));
+  }
 
   protected readonly palette = COLOR_PALETTE;
 
   protected readonly columns = signal<string[]>([...(this.data.config?.columns ?? [])]);
   protected readonly colors = signal<Record<string, string>>({ ...(this.data.config?.colors ?? {}) });
   protected readonly defaultView = signal<'content' | 'board'>(this.data.config?.defaultView ?? 'content');
-  protected readonly targetTypeGuid = signal<string>(this.data.config?.targetTypeGuid ?? '');
+  protected readonly cardMode = signal<'children' | 'leaves' | 'types'>(
+    this.data.config?.leafTypes ? 'leaves'
+      : configuredTypeGuids(this.data.config).length ? 'types'
+      : 'children',
+  );
+  protected readonly targetTypeGuids = signal<string[]>(configuredTypeGuids(this.data.config));
+  /** "✅ Task · 🐞 Bug" — what leaf mode would collect right now. */
+  protected readonly leafSummary = computed(() =>
+    leafTypes(this.data.pageTypes).map((t) => `${t.icon} ${t.name}`).join(' · '),
+  );
+  /** Depth + parent-title options apply to any typed (deep) board. */
+  protected readonly typedBoard = computed(() => this.cardMode() !== 'children');
   protected readonly depth = signal<number>(this.data.config?.depth ?? 10);
   protected readonly showParentTitle = signal<boolean>(this.data.config?.showParentTitle ?? true);
   protected readonly swapTitles = signal<boolean>(this.data.config?.swapTitles ?? false);
@@ -288,17 +333,39 @@ export class BoardSettingsPanel {
     this.dialogRef.close(null);
   }
 
-  onSave(): void {
+  onSave(): void { this.dialogRef.close({ action: 'save', config: this.buildConfig() }); }
+  onReset(): void { this.dialogRef.close({ action: 'reset', config: this.buildConfig() }); }
+  onSaveAsDefault(): void { this.dialogRef.close({ action: 'saveAsDefault', config: this.buildConfig() }); }
+
+  private buildConfig(): BoardConfig {
     const next: BoardConfig = {};
     if (this.columns().length > 0) next.columns = [...this.columns()];
     if (Object.keys(this.colors()).length > 0) next.colors = { ...this.colors() };
-    if (this.targetTypeGuid()) {
-      next.targetTypeGuid = this.targetTypeGuid();
+    const mode = this.cardMode();
+    const options = this.boardableTypeOptions();
+    // With no page types loaded (not yet fetched, errored, or none boardable) the option
+    // list can't validate anything — keep the configured selection rather than wiping it.
+    // Backend schema allows 1-50 guids; otherwise order follows the option list.
+    const types = options.length === 0
+      ? this.targetTypeGuids().slice(0, 50)
+      : options.map((t) => t.guid).filter((g) => this.targetTypeGuids().includes(g)).slice(0, 50);
+    const typed = mode === 'leaves' || (mode === 'types' && types.length > 0);
+    if (mode === 'leaves') next.leafTypes = true;
+    else if (typed) next.targetTypeGuids = types;
+    if (typed) {
       next.depth = this.depth();
       next.showParentTitle = this.showParentTitle();
       if (this.swapTitles()) next.swapTitles = true;
+    } else if (this.data.type?.hasDefaults) {
+      // Direct-children mode hides these controls. For a page whose type has defaults,
+      // carry the incoming values through so the caller's override diff doesn't see them
+      // as changed; otherwise store exactly what was stored before (fields stripped).
+      const inc = this.data.config;
+      if (inc?.depth !== undefined) next.depth = inc.depth;
+      if (inc?.showParentTitle !== undefined) next.showParentTitle = inc.showParentTitle;
+      if (inc?.swapTitles !== undefined) next.swapTitles = inc.swapTitles;
     }
     if (this.defaultView() === 'board') next.defaultView = 'board';
-    this.dialogRef.close(next);
+    return next;
   }
 }

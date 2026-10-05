@@ -16,6 +16,15 @@ using System.Collections.Generic;
 using LambdaFunction = Amazon.CDK.AWS.Lambda.Function;
 using LambdaFunctionProps = Amazon.CDK.AWS.Lambda.FunctionProps;
 using CloudFrontDistribution = Amazon.CDK.AWS.CloudFront.Distribution;
+// Aliased rather than imported wholesale: Apigatewayv2 shares type names
+// (DomainNameOptions, EndpointType, SecurityPolicy...) with AWS.APIGateway.
+using WebSocketApi = Amazon.CDK.AWS.Apigatewayv2.WebSocketApi;
+using WebSocketApiProps = Amazon.CDK.AWS.Apigatewayv2.WebSocketApiProps;
+using WebSocketStage = Amazon.CDK.AWS.Apigatewayv2.WebSocketStage;
+using WebSocketStageProps = Amazon.CDK.AWS.Apigatewayv2.WebSocketStageProps;
+using WebSocketRouteOptions = Amazon.CDK.AWS.Apigatewayv2.WebSocketRouteOptions;
+using WebSocketThrottleSettings = Amazon.CDK.AWS.Apigatewayv2.ThrottleSettings;
+using WebSocketLambdaIntegration = Amazon.CDK.AwsApigatewayv2Integrations.WebSocketLambdaIntegration;
 
 namespace Infrastructure.Stacks
 {
@@ -43,7 +52,8 @@ namespace Infrastructure.Stacks
         public Table PageIndexTable { get; private set; }
         public Table TagsTable { get; private set; }
         public Table PageTypesTable { get; private set; }
-        
+        public Table RealtimeConnectionsTable { get; private set; }
+
         // Compute resources
         public RestApi Api { get; private set; }
         // JWT signing secret lives in SSM SecureString at /{prefix}/{name}/jwt-secret.
@@ -700,6 +710,20 @@ namespace Infrastructure.Stacks
                 RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
             });
 
+            // Realtime Connections table - open API Gateway WebSocket connections
+            // PK: connectionId. Attributes: userId, expiresAt (Unix seconds).
+            // TTL on expiresAt removes rows whose $disconnect never fired. Rows are
+            // ephemeral connection ids only, so DESTROY in every environment.
+            RealtimeConnectionsTable = new Table(this, "RealtimeConnectionsTable", new TableProps
+            {
+                TableName = $"{config.Prefix}-realtime-connections-{config.Name}",
+                PartitionKey = new Attribute { Name = "connectionId", Type = AttributeType.STRING },
+                BillingMode = BillingMode.PAY_PER_REQUEST,
+                RemovalPolicy = RemovalPolicy.DESTROY,
+                Encryption = TableEncryption.AWS_MANAGED,
+                TimeToLiveAttribute = "expiresAt"
+            });
+
             // Database Stack outputs
             new CfnOutput(this, "PageTypesTableName", new CfnOutputProps
             {
@@ -771,7 +795,8 @@ namespace Infrastructure.Stacks
                 {
                     AllowOrigins = Cors.ALL_ORIGINS, // Will be restricted in production
                     AllowMethods = Cors.ALL_METHODS,
-                    AllowHeaders = new[] { "Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key", "X-Amz-Security-Token", "X-Access-Token" },
+                    // X-Client-Id: realtime origin id, so a tab can ignore its own change events.
+                    AllowHeaders = new[] { "Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key", "X-Amz-Security-Token", "X-Access-Token", "X-Client-Id" },
                     AllowCredentials = true
                 }
             });
@@ -781,7 +806,7 @@ namespace Infrastructure.Stacks
             var gatewayResponseCorsHeaders = new Dictionary<string, string>
             {
                 { "gatewayresponse.header.Access-Control-Allow-Origin", "'*'" },
-                { "gatewayresponse.header.Access-Control-Allow-Headers", "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'" },
+                { "gatewayresponse.header.Access-Control-Allow-Headers", "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Client-Id'" },
                 { "gatewayresponse.header.Access-Control-Allow-Methods", "'GET,POST,PUT,PATCH,DELETE,OPTIONS'" }
             };
 
@@ -892,6 +917,62 @@ namespace Infrastructure.Stacks
                 }
             }
 
+            // =============================================================================
+            // Realtime WebSocket API (change notifications)
+            // Created before commonEnvVars because every API Lambda needs its callback
+            // URL; the routes are attached further down once the ws-* functions exist.
+            // =============================================================================
+            var realtimeWsApi = new WebSocketApi(this, "RealtimeWsApi", new WebSocketApiProps
+            {
+                ApiName = $"{config.Prefix}-ws-{config.Name}",
+                Description = $"BlueFinWiki realtime change notifications for {config.Name} environment"
+            });
+
+            // Access logging is deliberately left OFF on this stage: the Cognito ID token
+            // travels in the $connect query string (?token=), and browsers cannot send
+            // headers on a WebSocket, so an access log would record live tokens.
+            // Throttle (stage default route settings, applied per route): $connect is
+            // unauthenticated at the gateway, so every attempt invokes ws-connect. 20 rps
+            // steady / 50 burst is far above a few-user wiki (one connect per tab, a ping
+            // every 5 min) while bounding the cost of abuse.
+            var realtimeWsStage = new WebSocketStage(this, "RealtimeWsStage", new WebSocketStageProps
+            {
+                WebSocketApi = realtimeWsApi,
+                StageName = "prod",
+                AutoDeploy = true,
+                Throttle = new WebSocketThrottleSettings
+                {
+                    RateLimit = 20,
+                    BurstLimit = 50
+                }
+            });
+
+            // https callback (management API) URL the API Lambdas post to — NOT the wss URL.
+            var realtimeCallbackUrl = $"https://{realtimeWsApi.ApiId}.execute-api.{this.Region}.amazonaws.com/{realtimeWsStage.StageName}";
+            var realtimeClientUrl = $"wss://{realtimeWsApi.ApiId}.execute-api.{this.Region}.amazonaws.com/{realtimeWsStage.StageName}";
+
+            // Least-privilege grants for any role whose Lambdas publish change events:
+            // Scan the connection list, DeleteItem gone connections, and POST to
+            // @connections on this API's stage only.
+            void GrantRealtimePublish(Role role)
+            {
+                role.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+                {
+                    Actions = new[] { "dynamodb:Scan", "dynamodb:DeleteItem" },
+                    Resources = new[] { RealtimeConnectionsTable.TableArn }
+                }));
+                role.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+                {
+                    Actions = new[] { "execute-api:ManageConnections" },
+                    Resources = new[]
+                    {
+                        $"arn:aws:execute-api:{this.Region}:{this.Account}:{realtimeWsApi.ApiId}/{realtimeWsStage.StageName}/POST/@connections/*"
+                    }
+                }));
+            }
+
+            GrantRealtimePublish(lambdaRole);
+
             // S3 Vectors names — deterministic, reused below where the bucket/index are
             // actually created. Declared here so commonEnvVars can ship them to every
             // Lambda that uses vector search (e.g. SearchQueryFunction).
@@ -915,7 +996,9 @@ namespace Infrastructure.Stacks
                 { "VECTOR_BUCKET_NAME", vectorBucketName },
                 { "VECTOR_INDEX_NAME", vectorIndexName },
                 { "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0" },
-                { "ENVIRONMENT", config.Name }
+                { "ENVIRONMENT", config.Name },
+                { "REALTIME_WS_ENDPOINT", realtimeCallbackUrl },
+                { "REALTIME_CONNECTIONS_TABLE", RealtimeConnectionsTable.TableName }
             };
 
             if (!string.IsNullOrWhiteSpace(config.SesFromAddress))
@@ -939,7 +1022,83 @@ namespace Infrastructure.Stacks
                 Tracing = Tracing.ACTIVE,
                 LogRetention = (RetentionDays)config.LogRetentionDays
             };
-            
+
+            // =============================================================================
+            // Realtime WebSocket Lambda Functions ($connect / $disconnect / $default)
+            // Own roles, nothing from the shared lambdaRole: ws-connect / ws-disconnect
+            // record and forget connections (PutItem / DeleteItem on the connections table
+            // only); ws-default just answers pings (basic execution + X-Ray only).
+            // Environment is commonEnvVars (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID for
+            // ws-connect's token check, REALTIME_CONNECTIONS_TABLE). NODE_ENV must never be
+            // "development" here — that switches on the local mock-token bypass.
+            // =============================================================================
+            var realtimeWsRole = new Role(this, "RealtimeWsLambdaRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+                    ManagedPolicy.FromAwsManagedPolicyName("AWSXRayDaemonWriteAccess")
+                }
+            });
+            realtimeWsRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
+            {
+                Actions = new[] { "dynamodb:PutItem", "dynamodb:DeleteItem" },
+                Resources = new[] { RealtimeConnectionsTable.TableArn }
+            }));
+
+            var realtimeWsDefaultRole = new Role(this, "RealtimeWsDefaultLambdaRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+                    ManagedPolicy.FromAwsManagedPolicyName("AWSXRayDaemonWriteAccess")
+                }
+            });
+
+            LambdaFunction CreateRealtimeWsFunction(string id, string suffix, IRole role, string description)
+            {
+                return new LambdaFunction(this, id, new LambdaFunctionProps
+                {
+                    FunctionName = $"{config.Prefix}-{config.Name}-ws-{suffix}",
+                    Runtime = lambdaProps.Runtime,
+                    Handler = $"realtime/ws-{suffix}.handler",
+                    Code = lambdaProps.Code,
+                    Role = role,
+                    Environment = commonEnvVars,
+                    Timeout = Duration.Seconds(10),
+                    MemorySize = 256,
+                    Tracing = lambdaProps.Tracing,
+                    LogRetention = lambdaProps.LogRetention,
+                    Description = description
+                });
+            }
+
+            var wsConnectFunction = CreateRealtimeWsFunction("RealtimeWsConnectFunction", "connect", realtimeWsRole, "Realtime WebSocket $connect: verify ID token, record connection");
+            var wsDisconnectFunction = CreateRealtimeWsFunction("RealtimeWsDisconnectFunction", "disconnect", realtimeWsRole, "Realtime WebSocket $disconnect: forget connection");
+            var wsDefaultFunction = CreateRealtimeWsFunction("RealtimeWsDefaultFunction", "default", realtimeWsDefaultRole, "Realtime WebSocket $default: keep-alive pings");
+
+            realtimeWsApi.AddRoute("$connect", new WebSocketRouteOptions
+            {
+                Integration = new WebSocketLambdaIntegration("RealtimeWsConnectIntegration", wsConnectFunction)
+            });
+            realtimeWsApi.AddRoute("$disconnect", new WebSocketRouteOptions
+            {
+                Integration = new WebSocketLambdaIntegration("RealtimeWsDisconnectIntegration", wsDisconnectFunction)
+            });
+            realtimeWsApi.AddRoute("$default", new WebSocketRouteOptions
+            {
+                Integration = new WebSocketLambdaIntegration("RealtimeWsDefaultIntegration", wsDefaultFunction)
+            });
+
+            new CfnOutput(this, "RealtimeUrl", new CfnOutputProps
+            {
+                Value = realtimeClientUrl,
+                Description = "Realtime WebSocket URL for the SPA (environment.realtimeUrl)",
+                ExportName = $"{config.Name}-realtime-url"
+            });
+
             // =============================================================================
             // Pages Lambda Functions (Task 3.3)
             // =============================================================================
@@ -2095,6 +2254,9 @@ namespace Infrastructure.Stacks
             PageIndexTable.GrantReadWriteData(mcpLambdaRole);
             PageTypesTable.GrantReadData(mcpLambdaRole);
 
+            // MCP page writes go through the same storage plugin, so they publish too.
+            GrantRealtimePublish(mcpLambdaRole);
+
             // S3 Vectors for semantic search (derived data — DESTROY on stack deletion).
             // vectorBucketName and vectorIndexName are declared further up alongside commonEnvVars.
             var stackRegion = Stack.Of(this).Region;
@@ -2160,7 +2322,9 @@ namespace Infrastructure.Stacks
                 { "VECTOR_BUCKET_NAME", vectorBucketName },
                 { "VECTOR_INDEX_NAME", vectorIndexName },
                 { "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0" },
-                { "ENVIRONMENT", config.Name }
+                { "ENVIRONMENT", config.Name },
+                { "REALTIME_WS_ENDPOINT", realtimeCallbackUrl },
+                { "REALTIME_CONNECTIONS_TABLE", RealtimeConnectionsTable.TableName }
             };
 
             var mcpFunction = new LambdaFunction(this, "McpFunction", new LambdaFunctionProps

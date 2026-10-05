@@ -31,6 +31,7 @@ import type {
 } from '../pages/page.types';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { AdminBackHeader } from '../../shared/components/admin-back-header';
+import { ICON_SUGGESTIONS, isGenericIcon } from './icon-suggestions';
 
 const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'string', label: 'Text' },
@@ -167,16 +168,33 @@ function formatDefault(prop: PageTypeProperty): string {
                 />
               </mat-form-field>
 
-              <mat-form-field appearance="fill" class="icon-field">
+              <mat-form-field appearance="fill" class="icon-field" subscriptSizing="dynamic">
                 <mat-label>Icon</mat-label>
                 <input
                   matInput
                   type="text"
-                  maxlength="4"
+                  maxlength="16"
                   [ngModel]="form().icon"
                   (ngModelChange)="updateIcon($event)"
                 />
+                @if (iconIsGeneric()) {
+                  <mat-hint class="icon-warning">
+                    Same as an untyped page — it won't stand out in the tree or on boards.
+                  </mat-hint>
+                }
               </mat-form-field>
+              <div class="icon-suggestions" role="group" aria-label="Suggested icons">
+                @for (s of iconSuggestions; track s) {
+                  <button
+                    type="button"
+                    class="icon-suggestion"
+                    [class.selected]="form().icon === s"
+                    [attr.aria-pressed]="form().icon === s"
+                    [attr.aria-label]="'Use icon ' + s"
+                    (click)="updateIcon(s)"
+                  >{{ s }}</button>
+                }
+              </div>
 
               <h3>Properties</h3>
               <div class="prop-list">
@@ -327,7 +345,15 @@ function formatDefault(prop: PageTypeProperty): string {
       .row-actions { display: flex; gap: 0.5rem; }
       .editor { display: flex; flex-direction: column; gap: 0.75rem; background: #fafafa; padding: 1rem; border-radius: 8px; }
       .full { width: 100%; }
-      .icon-field { width: 8rem; }
+      .icon-field { width: 20rem; max-width: 100%; }
+      .icon-warning { color: var(--mat-sys-error, #b3261e); }
+      .icon-suggestions { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.5rem; }
+      .icon-suggestion {
+        font-size: 1.25rem; line-height: 1; padding: 0.25rem 0.375rem;
+        border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer;
+      }
+      .icon-suggestion:hover { background: rgba(0, 0, 0, 0.06); }
+      .icon-suggestion.selected { border-color: var(--mat-sys-primary, #3f51b5); }
       .prop-list { display: flex; flex-direction: column; gap: 0.25rem; }
       .prop-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; background: #f0f0f0; border-radius: 4px; }
       .prop-name { font-family: monospace; flex: 1; }
@@ -350,6 +376,7 @@ export class PageTypesAdmin {
   private readonly snack = inject(MatSnackBar);
 
   protected readonly propertyTypes = PROPERTY_TYPES;
+  protected readonly iconSuggestions = ICON_SUGGESTIONS;
 
   readonly resource = this.pageTypesService.pageTypesResource();
 
@@ -381,6 +408,8 @@ export class PageTypesAdmin {
     const selected = this.selectedGuid();
     return this.pageTypes().filter((t) => t.guid !== selected);
   });
+
+  protected readonly iconIsGeneric = computed(() => isGenericIcon(this.form().icon));
 
   protected readonly canSave = computed(() => {
     const f = this.form();
@@ -584,7 +613,7 @@ function emptyForm(): {
 } {
   return {
     name: '',
-    icon: '📄',
+    icon: '',
     properties: [],
     allowedChildTypes: [],
     allowWikiPageChildren: true,

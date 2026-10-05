@@ -207,4 +207,69 @@ describe('PageTypesAdmin', () => {
     expect(screen.getByRole('heading', { level: 1, name: /page types/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back to pages/i })).toBeInTheDocument();
   });
+
+  async function openNewForm() {
+    const { fixture } = await render(PageTypesAdmin, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /new page type/i }));
+    await settle();
+    fixture.detectChanges();
+    return { fixture, http, user };
+  }
+
+  it('a new page type starts with no icon, so Save is disabled until one is chosen', async () => {
+    const { user } = await openNewForm();
+    expect(screen.getByLabelText<HTMLInputElement>(/^icon/i).value).toBe('');
+    await user.type(screen.getByLabelText(/^name/i), 'Bug');
+    await settle();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  it('clicking an icon suggestion fills the Icon field and is saved', async () => {
+    const { fixture, http, user } = await openNewForm();
+    await user.type(screen.getByLabelText(/^name/i), 'Bug');
+    await user.click(screen.getByRole('button', { name: 'Use icon 🐞' }));
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByLabelText<HTMLInputElement>(/^icon/i).value).toBe('🐞');
+    expect(screen.getByRole('button', { name: 'Use icon 🐞' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await settle();
+    const post = http.expectOne('/api/page-types');
+    expect((post.request.body as { icon: string }).icon).toBe('🐞');
+    post.flush(pageType({ guid: 'b-1', name: 'Bug', icon: '🐞' }));
+    await settle();
+    http.expectOne('/api/page-types').flush({ pageTypes: [pageType({ guid: 'b-1', name: 'Bug', icon: '🐞' })] });
+    await settle();
+  });
+
+  it('warns (without blocking Save) when the icon matches an untyped page or folder', async () => {
+    const { fixture, user } = await openNewForm();
+    const hint = /same as an untyped page/i;
+    await user.type(screen.getByLabelText(/^name/i), 'Thing');
+    const icon = screen.getByLabelText(/^icon/i);
+
+    await user.type(icon, '📄');
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByText(hint)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+
+    await user.clear(icon);
+    await user.type(icon, '📁');
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByText(hint)).toBeInTheDocument();
+
+    await user.clear(icon);
+    await user.type(icon, '✅');
+    await settle();
+    fixture.detectChanges();
+    expect(screen.queryByText(hint)).toBeNull();
+  });
 });

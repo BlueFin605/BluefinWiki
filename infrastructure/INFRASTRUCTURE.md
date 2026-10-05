@@ -46,6 +46,7 @@ DynamoDB tables actually created by the CDK stack (`UnifiedStack.cs`):
 - **Page Index**: Search/listing index over pages
 - **Tags**: Tag registry
 - **Page Types**: Page-type schema definitions
+- **Realtime Connections**: Open WebSocket connection ids (PK `connectionId`, TTL on `expiresAt`, always DESTROY — ephemeral)
 
 Local dev (`aspire/scripts/init-dynamodb.js`) also provisions
 `attachments`, `comments`, `user-preferences`, and `site-config` tables
@@ -66,6 +67,7 @@ AWS Cognito for authentication:
 Serverless compute:
 - **API Gateway REST API**: Public API endpoints with custom domain support (api.yourdomain.com)
 - **Lambda Functions**: Backend logic (Node.js handlers)
+- **Realtime WebSocket API** (API Gateway v2, stage `prod`): pushes change notifications to open tabs. Three Lambdas `{prefix}-{env}-ws-connect` / `-ws-disconnect` / `-ws-default`, off the shared role: connect/disconnect share a role with PutItem/DeleteItem on the connections table only; ws-default (pings) has a role with basic execution + X-Ray only. The stage throttles every route at **20 requests/s steady, 50 burst** — `$connect` is unauthenticated at the gateway (the token is checked inside ws-connect), so this bounds the cost of connect floods while staying far above a few-user wiki's needs (one connect per tab, one ping per tab every 5 minutes). `$connect` verifies the Cognito ID token from `?token=`, so **stage access logging is deliberately off** — it would record live tokens. API and MCP Lambdas get `REALTIME_WS_ENDPOINT` (the https callback URL) and `REALTIME_CONNECTIONS_TABLE`, with Scan/DeleteItem on the table and `execute-api:ManageConnections` on `POST/@connections/*` of this stage only. The REST API's CORS allow-list (preflight and gateway responses) includes `X-Client-Id`, the tab id that lets a tab ignore its own changes.
 - **Secrets Manager**: Google OAuth client secret (when Google login enabled)
 - **IAM Roles**: Lambda execution roles with least privilege
 
@@ -167,6 +169,16 @@ After deployment, the unified stack exports these resource identifiers:
 - `DistributionId`: CloudFront distribution ID
 - `FrontendUrl`: Full frontend URL (https://wiki.yourdomain.com or CloudFront domain)
 - `CognitoDomain`: Cognito Hosted UI domain (auth.yourdomain.com or prefix domain)
+- `RealtimeUrl`: Realtime WebSocket URL (`wss://{apiId}.execute-api.{region}.amazonaws.com/prod`) — feed it to the frontend build as `NG_APP_REALTIME_URL`; empty disables realtime
+
+### Smoke-testing realtime after deploy
+
+A missing `execute-api:ManageConnections` grant (or a wrong `REALTIME_WS_ENDPOINT`) does not fail any request — publishing errors are swallowed and only logged as warnings. After a deploy that touches realtime:
+
+1. Open the wiki in two browser tabs (or two browsers) and sign in.
+2. Confirm a row appears in the `{prefix}-realtime-connections-{env}` table per tab (and `{prefix}-{env}-ws-connect` logs show no 401s).
+3. Edit and save a page in tab A; tab B should refresh the page/tree within a second or two.
+4. If it doesn't, check the CloudWatch logs of the API Lambda that handled the save (e.g. `{prefix}-{env}-pages-update`) for `realtime post failed` / `realtime publish ...` warnings (e.g. `AccessDeniedException` on ManageConnections or Scan).
 
 ## Cost Estimation
 
@@ -179,6 +191,7 @@ After deployment, the unified stack exports these resource identifiers:
 - **Cognito**: Free (< 50K MAUs)
 - **Secrets Manager**: $0.40/month (1 secret)
 - **CloudWatch Logs**: < $0.50/month (< 5 GB logs)
+- **Realtime (WebSocket API + connections table + 3 ws Lambdas)**: < $0.10/month — $1.00/M messages + $0.25/M connection-minutes (one tab open 8 h/day ≈ 15k min/month ≈ $0.004); DynamoDB on-demand for a few rows and scans is cents; the ws Lambdas sit in the free tier
 
 **Total**: **< $5/month**
 
@@ -191,6 +204,7 @@ After deployment, the unified stack exports these resource identifiers:
 - **Cognito**: Free (< 50K MAUs)
 - **Secrets Manager**: $0.40/month
 - **CloudWatch Logs**: < $2.00/month
+- **Realtime (WebSocket API + connections table + 3 ws Lambdas)**: < $0.10/month for a few users (same pricing as above; scales with open tabs × hours and saves × open tabs)
 
 **Total**: **< $20/month**
 

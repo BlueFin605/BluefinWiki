@@ -11,6 +11,8 @@
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import http from 'node:http';
+import { attachRealtime, originMiddleware } from './realtime/local-ws.js';
 import { APIGatewayProxyEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 import { initializeStoragePlugin, StoragePluginRegistry } from './storage/index.js';
 import { S3StoragePlugin } from './storage/S3StoragePlugin.js';
@@ -77,6 +79,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(originMiddleware);
 
 // Disable ETag for attachment downloads to prevent 304 responses
 app.set('etag', false);
@@ -574,7 +577,9 @@ async function startServer() {
       console.warn('⚠️  Could not verify/create DynamoDB tables:', error);
     }
 
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+    attachRealtime(server);
+    server.listen(PORT, () => {
       console.log('╔══════════════════════════════════════════════════════════════╗');
       console.log('║  BlueFinWiki Local Development Server                       ║');
       console.log('╚══════════════════════════════════════════════════════════════╝');
@@ -585,6 +590,7 @@ async function startServer() {
       console.log('');
       console.log('📋 Available Routes:');
       console.log('   GET    /health');
+      console.log('   WS     /ws');
       console.log('   POST   /pages');
   console.log('   GET    /pages/:guid');
   console.log('   PUT    /pages/:guid');

@@ -19,6 +19,7 @@
     "test:all": "vitest run && vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.1146.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1022.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.984.0",
     "@aws-sdk/client-dynamodb": "^3.511.0",
@@ -34,6 +35,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
     "uuid": "^14.0.0",
+    "ws": "^8.22.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -45,6 +47,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.2",
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.2",
     "aws-sdk-client-mock": "^4.0.0",

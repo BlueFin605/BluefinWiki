@@ -46,15 +46,20 @@ function decodeCursor(cursor: string | undefined): number {
   }
 }
 
+/** `type=a,b,c` → Set of non-empty, trimmed guids. Empty set = no type filter. */
+function parseTypeList(raw: string | undefined | null): Set<string> {
+  return new Set((raw ?? '').split(',').map((s) => s.trim()).filter((s) => s.length > 0));
+}
+
 /**
- * Recursively collect descendants matching a specific page type.
+ * Recursively collect descendants matching any of the target page types.
  * Each result includes parentTitle for context.
  */
 async function collectDescendantsByType(
   storagePlugin: StoragePlugin,
   parentGuid: string,
   parentTitle: string,
-  targetTypeGuid: string,
+  targetTypeGuids: ReadonlySet<string>,
   remainingDepth: number,
   user: UserContext,
   offset: number,
@@ -91,7 +96,7 @@ async function collectDescendantsByType(
 
     for (const { node, children } of levelChildren) {
       for (const child of children) {
-        if (child.pageType === targetTypeGuid) {
+        if (child.pageType && targetTypeGuids.has(child.pageType)) {
           if (seenMatches >= offset && seenMatches < stopAfterMatchIndex) {
             matches.push({ child, parentTitle: node.title });
           }
@@ -150,7 +155,7 @@ function withoutProperties(children: PageSummary[]): PageSummary[] {
  *
  * Query Parameters:
  * - include=properties — enrich each child with pageType and properties
- * - type={typeGuid} — filter to descendants matching this page type (requires include=properties)
+ * - type={guid[,guid...]} — filter to descendants matching any of these page types (requires include=properties)
  * - depth={1-10} — how many levels deep to search (default 1, requires type)
  * - limit={1-1000} — page size (default 200)
  * - cursor={opaque} — pagination cursor from previous response
@@ -198,7 +203,7 @@ export const handler = withAuth(async (
     }
 
     const includeProperties = event.queryStringParameters?.include === 'properties';
-    const targetTypeGuid = event.queryStringParameters?.type || null;
+    const targetTypeGuids = parseTypeList(event.queryStringParameters?.type);
     const depthParam = parseInt(event.queryStringParameters?.depth || '1', 10);
     const depth = Math.min(Math.max(isNaN(depthParam) ? 1 : depthParam, 1), MAX_DEPTH);
     const limit = parseLimit(event.queryStringParameters?.limit);
@@ -215,7 +220,7 @@ export const handler = withAuth(async (
     }
 
     // Validate type GUID format
-    if (targetTypeGuid && !UUID_REGEX.test(targetTypeGuid)) {
+    if ([...targetTypeGuids].some((g) => !UUID_REGEX.test(g))) {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -226,13 +231,14 @@ export const handler = withAuth(async (
     let responseChildren: PageChildDetail[] | PageSummary[];
     let hasMore = false;
 
-    if (includeProperties && targetTypeGuid && depth > 1 && parentGuid) {
-      // Deep fetch: recursively collect descendants matching the target type
+    if (includeProperties && targetTypeGuids.size > 0 && parentGuid) {
+      // Typed fetch (any depth >= 1): collect descendants matching the target types.
+      // Depth 1 used to fall through to the standard path and ignore the filter.
       const pagedResult = await collectDescendantsByType(
         storagePlugin,
         parentGuid,
         parentTitle,
-        targetTypeGuid,
+        targetTypeGuids,
         depth,
         user,
         offset,
@@ -260,7 +266,7 @@ export const handler = withAuth(async (
       parentGuid,
       childCount: responseChildren.length,
       includeProperties,
-      targetTypeGuid,
+      targetTypeGuids: [...targetTypeGuids],
       depth,
       limit,
       offset,

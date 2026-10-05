@@ -277,7 +277,7 @@ describe('Pages service', () => {
 
     it('updatePage with a title change re-requests a deep board aggregating the renamed page as a descendant', async () => {
       const ancestor = signal<string | null>('ancestor-guid');
-      const opts = signal<{ targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null } | null>({
+      const opts = signal<{ targetTypeGuids?: string[]; depth?: number; limit?: number; cursor?: string | null } | null>({
         depth: 10,
       });
       const resource = TestBed.runInInjectionContext(() =>
@@ -426,7 +426,7 @@ describe('Pages service', () => {
   describe('childrenWithPropertiesResource', () => {
     it('GETs /api/pages/{guid}/children?include=properties with no options', async () => {
       const parent = signal<string | null>('p1');
-      const opts = signal<{ targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null } | null>(null);
+      const opts = signal<{ targetTypeGuids?: string[]; depth?: number; limit?: number; cursor?: string | null } | null>(null);
       const resource = TestBed.runInInjectionContext(() =>
         pages.childrenWithPropertiesResource(parent, opts),
       );
@@ -445,10 +445,24 @@ describe('Pages service', () => {
       expect(resource.value()?.children?.[0]?.guid).toBe('c1');
     });
 
+    it('joins multiple card types into a comma-separated type param', async () => {
+      const parent = signal<string | null>('p1');
+      const opts = signal<{ targetTypeGuids?: string[]; depth?: number; limit?: number; cursor?: string | null } | null>({
+        targetTypeGuids: ['pt-task', 'pt-bug'], depth: 5, limit: 200,
+      });
+      TestBed.runInInjectionContext(() => pages.childrenWithPropertiesResource(parent, opts));
+      await settle();
+      const req = http.expectOne(
+        '/api/pages/p1/children?include=properties&type=pt-task%2Cpt-bug&depth=5&limit=200',
+      );
+      req.flush({ children: [], hasMore: false });
+      await settle();
+    });
+
     it('passes type, depth, limit, cursor query params when options provided', async () => {
       const parent = signal<string | null>('p1');
-      const opts = signal<{ targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null } | null>({
-        targetTypeGuid: 'pt-task', depth: 5, limit: 200, cursor: 'abc',
+      const opts = signal<{ targetTypeGuids?: string[]; depth?: number; limit?: number; cursor?: string | null } | null>({
+        targetTypeGuids: ['pt-task'], depth: 5, limit: 200, cursor: 'abc',
       });
       TestBed.runInInjectionContext(() => pages.childrenWithPropertiesResource(parent, opts));
       await settle();
@@ -462,7 +476,7 @@ describe('Pages service', () => {
 
     it('does not fetch when parentGuid is null', async () => {
       const parent = signal<string | null>(null);
-      const opts = signal<{ targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null } | null>(null);
+      const opts = signal<{ targetTypeGuids?: string[]; depth?: number; limit?: number; cursor?: string | null } | null>(null);
       TestBed.runInInjectionContext(() => pages.childrenWithPropertiesResource(parent, opts));
       await settle();
       http.expectNone(() => true);
@@ -470,7 +484,7 @@ describe('Pages service', () => {
 
     it('reruns the loader when options signal changes', async () => {
       const parent = signal<string | null>('p1');
-      const opts = signal<{ targetTypeGuid?: string; depth?: number; limit?: number; cursor?: string | null } | null>({
+      const opts = signal<{ targetTypeGuids?: string[]; depth?: number; limit?: number; cursor?: string | null } | null>({
         limit: 200,
       });
       TestBed.runInInjectionContext(() => pages.childrenWithPropertiesResource(parent, opts));
@@ -478,7 +492,7 @@ describe('Pages service', () => {
       http.expectOne('/api/pages/p1/children?include=properties&limit=200').flush({ children: [], hasMore: false });
       await settle();
 
-      opts.set({ targetTypeGuid: 'pt-x', depth: 3, limit: 200 });
+      opts.set({ targetTypeGuids: ['pt-x'], depth: 3, limit: 200 });
       await settle();
       http.expectOne('/api/pages/p1/children?include=properties&type=pt-x&depth=3&limit=200').flush({
         children: [], hasMore: false,

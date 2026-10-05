@@ -121,4 +121,43 @@ test.describe('Board view', () => {
       await deletePageType(request, typeGuid);
     }
   });
+
+  test('Refresh board re-pulls cards changed elsewhere', async ({ page, pageTree, request }) => {
+    const prefix = `E2E-${pageTree.runId}`;
+    const typeGuid = await createPageType(request, `${prefix} Refresh Card Type`, {
+      properties: [{ name: 'state', type: 'string', required: false }],
+    });
+    const parentGuid = await createPage(request, `${prefix} Refresh Parent`, { parentGuid: pageTree.rootGuid });
+    await updatePage(request, parentGuid, { boardConfig: { targetTypeGuid: typeGuid, defaultView: 'board' } });
+    const cardGuid = await createPage(request, `${prefix} Refresh Card`, {
+      parentGuid,
+      pageType: typeGuid,
+      properties: { state: { type: 'string', value: 'To Do' } },
+    });
+
+    try {
+      // Realtime off: with it on, the push below would move the card by itself
+      // and this test would pass even if the Refresh button did nothing. The
+      // app's `/ws` socket is answered by this route and never reaches the
+      // server, so no invalidation ever arrives. (Vite's HMR socket is `/`.)
+      let realtimeIntercepted = false;
+      await page.routeWebSocket(/\/ws(\?|$)/, () => {
+        realtimeIntercepted = true;
+      });
+
+      await page.goto(`/pages/${parentGuid}`);
+      const todo = page.locator('wiki-board-column', { hasText: 'To Do' });
+      await expect(todo.locator('[data-testid="board-column-count"]')).toHaveText('1');
+      await expect.poll(() => realtimeIntercepted).toBe(true);
+
+      // Out-of-band change (API, as another user or Claude would make).
+      await updatePage(request, cardGuid, { properties: { state: { type: 'string', value: 'Done' } } });
+
+      await page.getByRole('button', { name: 'Refresh board' }).click();
+      const done = page.locator('wiki-board-column', { hasText: 'Done' });
+      await expect(done.locator('[data-testid="board-column-count"]')).toHaveText('1');
+    } finally {
+      await deletePageType(request, typeGuid);
+    }
+  });
 });

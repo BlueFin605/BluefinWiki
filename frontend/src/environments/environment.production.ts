@@ -13,5 +13,6 @@ export const environment: Environment = {
     "redirectUri": "https://wiki.bluefin605.com/callback"
   },
   "disableAuth": false,
-  "aiAllowDestructive": true
+  "aiAllowDestructive": true,
+  "realtimeUrl": ""
 };

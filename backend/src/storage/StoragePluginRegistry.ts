@@ -8,6 +8,7 @@
 import { StoragePlugin } from './StoragePlugin.js';
 import { StoragePluginConfig } from '../types/index.js';
 import { S3StoragePlugin } from './S3StoragePlugin.js';
+import { BroadcastingStoragePlugin } from './BroadcastingStoragePlugin.js';
 import * as PageIndex from './PageIndexService.js';
 
 type StoragePluginConstructor = new (config: Record<string, unknown>) => StoragePlugin;
@@ -186,11 +187,11 @@ export function getStoragePlugin(): StoragePlugin {
       const pageIndex = process.env.DYNAMODB_PAGE_INDEX_TABLE || process.env.PAGE_INDEX_TABLE
         ? PageIndex
         : undefined;
-      globalPluginInstance = new S3StoragePlugin({
+      globalPluginInstance = new BroadcastingStoragePlugin(new S3StoragePlugin({
         bucketName,
         region: process.env.AWS_REGION,
         pageIndex,
-      });
+      }));
     } else {
       throw new Error(
         'Storage plugin not initialized and PAGES_BUCKET environment variable not set.'
@@ -228,9 +229,11 @@ export function initializeStoragePlugin(
     throw new Error('Storage plugin already initialized');
   }
 
-  globalPluginInstance = config
-    ? StoragePluginFactory.create(config)
-    : StoragePluginFactory.fromEnvironment();
+  globalPluginInstance = new BroadcastingStoragePlugin(
+    config
+      ? StoragePluginFactory.create(config)
+      : StoragePluginFactory.fromEnvironment()
+  );
 
   return globalPluginInstance;
 }

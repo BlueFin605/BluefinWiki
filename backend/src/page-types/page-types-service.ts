@@ -15,7 +15,9 @@ import {
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { PageTypeDefinition } from '../types/index.js';
+import { PageTypeDefinition, BoardConfig } from '../types/index.js';
+import { publishChange } from '../realtime/broadcaster.js';
+import { tagsForPageType } from '../realtime/change-tags.js';
 
 let _dynamoClient: DynamoDBClient | null = null;
 
@@ -87,16 +89,17 @@ export async function createPageType(pageType: PageTypeDefinition): Promise<Page
     ConditionExpression: 'attribute_not_exists(guid)',
   }));
 
+  await publishChange(tagsForPageType(pageType.guid));
   return pageType;
 }
 
 /**
  * Update an existing page type definition.
- * Only updates mutable fields (name, icon, properties, allowedChildTypes, allowWikiPageChildren, allowedParentTypes, allowAnyParent).
+ * Only updates mutable fields (name, icon, properties, allowedChildTypes, allowWikiPageChildren, allowedParentTypes, allowAnyParent, boardDefaults).
  */
 export async function updatePageType(
   guid: string,
-  updates: Partial<Pick<PageTypeDefinition, 'name' | 'icon' | 'properties' | 'allowedChildTypes' | 'allowWikiPageChildren' | 'allowedParentTypes' | 'allowAnyParent'>>
+  updates: Partial<Pick<PageTypeDefinition, 'name' | 'icon' | 'properties' | 'allowedChildTypes' | 'allowWikiPageChildren' | 'allowedParentTypes' | 'allowAnyParent' | 'boardDefaults'>>
 ): Promise<PageTypeDefinition | null> {
   const expressionParts: string[] = [];
   const names: Record<string, string> = {};
@@ -131,6 +134,10 @@ export async function updatePageType(
     expressionParts.push('allowAnyParent = :allowAnyParent');
     values[':allowAnyParent'] = updates.allowAnyParent;
   }
+  if (updates.boardDefaults !== undefined) {
+    expressionParts.push('boardDefaults = :boardDefaults');
+    values[':boardDefaults'] = JSON.stringify(updates.boardDefaults);
+  }
 
   if (expressionParts.length === 0) {
     return getPageType(guid);
@@ -155,6 +162,7 @@ export async function updatePageType(
   }
 
   const record = unmarshall(result.Attributes) as Record<string, unknown>;
+  await publishChange(tagsForPageType(guid));
   return deserializePageType(record);
 }
 
@@ -168,7 +176,6 @@ export async function deletePageType(guid: string): Promise<boolean> {
       Key: marshall({ guid }),
       ConditionExpression: 'attribute_exists(guid)',
     }));
-    return true;
   } catch (err: unknown) {
     const error = err as { name?: string };
     if (error.name === 'ConditionalCheckFailedException') {
@@ -176,6 +183,8 @@ export async function deletePageType(guid: string): Promise<boolean> {
     }
     throw err;
   }
+  await publishChange(tagsForPageType(guid));
+  return true;
 }
 
 /**
@@ -200,7 +209,7 @@ export async function getAllowedChildTypes(guid: string): Promise<PageTypeDefini
 }
 
 /** Serialize a PageTypeDefinition for DynamoDB storage (JSON-encode complex fields). */
-function serializePageType(pageType: PageTypeDefinition): Record<string, unknown> {
+export function serializePageType(pageType: PageTypeDefinition): Record<string, unknown> {
   return {
     guid: pageType.guid,
     name: pageType.name,
@@ -210,6 +219,7 @@ function serializePageType(pageType: PageTypeDefinition): Record<string, unknown
     allowWikiPageChildren: pageType.allowWikiPageChildren,
     allowedParentTypes: JSON.stringify(pageType.allowedParentTypes),
     allowAnyParent: pageType.allowAnyParent,
+    ...(pageType.boardDefaults ? { boardDefaults: JSON.stringify(pageType.boardDefaults) } : {}),
     createdBy: pageType.createdBy,
     createdAt: pageType.createdAt,
     updatedAt: pageType.updatedAt,
@@ -217,7 +227,7 @@ function serializePageType(pageType: PageTypeDefinition): Record<string, unknown
 }
 
 /** Deserialize a DynamoDB record back into a PageTypeDefinition. */
-function deserializePageType(record: Record<string, unknown>): PageTypeDefinition {
+export function deserializePageType(record: Record<string, unknown>): PageTypeDefinition {
   return {
     guid: record.guid as string,
     name: record.name as string,
@@ -233,6 +243,7 @@ function deserializePageType(record: Record<string, unknown>): PageTypeDefinitio
       ? JSON.parse(record.allowedParentTypes)
       : (record.allowedParentTypes as string[]) || [],
     allowAnyParent: record.allowAnyParent !== false,
+    ...(record.boardDefaults ? { boardDefaults: typeof record.boardDefaults === 'string' ? JSON.parse(record.boardDefaults) : record.boardDefaults as BoardConfig } : {}),
     createdBy: record.createdBy as string,
     createdAt: record.createdAt as string,
     updatedAt: record.updatedAt as string,

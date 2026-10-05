@@ -845,6 +845,62 @@ describe('PagesView', () => {
     expect(ctx.inspectorSheetOpen()).toBe(false);
   });
 
+  // ---- Board view hides the inspector (Wiki Enhancements piece 1) ----
+
+  it('desktop: board view hides the inspector without clearing Layout.inspectorVisible', async () => {
+    const { fixture, ctx } = await renderShellWithPage(true);
+    const layout = TestBed.inject(Layout);
+    layout.update({ inspectorVisible: true });
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    ctx.boardView.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(false);
+
+    // The drawer's own (closed) event must not persist the close.
+    inspectorSidenavDe(fixture).triggerEventHandler('closed', undefined);
+    fixture.detectChanges();
+    await settle();
+    expect(layout.inspectorVisible()).toBe(true);
+
+    ctx.boardView.set(false);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+  });
+
+  it('mobile: board view hides the sheet without clearing inspectorSheetOpen', async () => {
+    const { fixture, ctx } = await renderShellWithPage(false);
+    ctx.inspectorSheetOpen.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+
+    ctx.boardView.set(true);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(false);
+
+    inspectorSidenavDe(fixture).triggerEventHandler('closed', undefined);
+    fixture.detectChanges();
+    await settle();
+    expect(ctx.inspectorSheetOpen()).toBe(true);
+
+    ctx.boardView.set(false);
+    fixture.detectChanges();
+    await settle();
+    fixture.detectChanges();
+    expect(inspectorSidenav(fixture).opened).toBe(true);
+  });
+
   it('flipping to desktop while the mobile sheet is open closes it cleanly (no stuck backdrop)', async () => {
     const { fixture, ctx } = await renderShellWithPage(false);
     ctx.inspectorSheetOpen.set(true);
