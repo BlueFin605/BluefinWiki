@@ -5,5 +5,6 @@
     "changeOrigin": true,
     "pathRewrite": { "^/api": "" },
     "logLevel": "debug"
-  }
+  },
+  "/ws": { "target": "http://localhost:3000", "ws": true, "secure": false }
 }
