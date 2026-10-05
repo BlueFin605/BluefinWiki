@@ -243,7 +243,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
             </mat-button-toggle-group>
           }
 
-          @if (resource.hasValue()) {
+          @if (settledPage()) {
             <button
               mat-icon-button
               type="button"
@@ -271,7 +271,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
             <mat-icon>info</mat-icon>
           </button>
 
-          @if (resource.hasValue()) {
+          @if (settledPage()) {
             <span class="save-status" [attr.data-status]="saveStatus()" aria-live="polite">
               {{ saveStatusLabel() }}
             </span>
@@ -338,7 +338,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
           }
 
           <section class="body" [class.toolbar-pinned]="toolbarPinned()">
-            @if (resource.isLoading()) {
+            @if (resource.isLoading() && !settledPage()) {
               <div class="state">Loading page...</div>
             } @else if (resource.error()) {
               <div class="state error">
@@ -356,7 +356,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
                   Reload Page
                 </button>
               </div>
-            } @else if (resource.value(); as page) {
+            } @else if (settledPage(); as page) {
               @if (mode() === 'edit') {
                 @if (metadata()) {
                   <div
@@ -729,8 +729,11 @@ export class PageDetail {
    * first resolve and again from the moment the guid changes. Board-side
    * derivations read this rather than the resource, so a reload of a board
    * parent doesn't read as "no board config" and drop the viewer to Content.
+   * The template renders the page body from it too, so the editor (with its
+   * undo history, cursor and focus) and the board stay mounted through such
+   * a reload; only a guid change shows "Loading page..." again.
    */
-  private readonly settledPage = linkedSignal<
+  protected readonly settledPage = linkedSignal<
     { guid: string | null; page: PageContent | null | undefined },
     PageContent | null
   >({
@@ -918,6 +921,16 @@ export class PageDetail {
 
   private syncedGuid: string | null = null;
 
+  /** The pending debounced draft autosave (see the constructor). */
+  private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private cancelAutosave(): void {
+    if (this.autosaveTimer !== null) {
+      clearTimeout(this.autosaveTimer);
+      this.autosaveTimer = null;
+    }
+  }
+
   /** Guards against a second Refresh (and a second confirm dialog) while one
    * refresh is already in flight — see `refresh()`. */
   private readonly _isRefreshing = signal(false);
@@ -1006,14 +1019,14 @@ export class PageDetail {
     // Debounced draft autosave whenever the working copy diverges from the
     // server. Properties are editable in both view and edit mode, so this is
     // not gated on mode — only on there being real unsaved changes.
-    let timer: ReturnType<typeof setTimeout> | null = null;
     effect(() => {
       const c = this.content();
       const g = this.guid();
       const m = this.metadata();
       if (!g || !m) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
+      this.cancelAutosave();
+      this.autosaveTimer = setTimeout(() => {
+        this.autosaveTimer = null;
         if (this.dirty()) this.drafts.set(g, { content: c, metadata: m });
       }, DRAFT_DEBOUNCE_MS);
     });
@@ -1063,7 +1076,7 @@ export class PageDetail {
     // Final stash on destroy — covers navigation before the debounce fires
     // (including the View/Edit toggle, which recreates this component).
     this.destroyRef.onDestroy(() => {
-      if (timer) clearTimeout(timer);
+      this.cancelAutosave();
       this.stashDraft();
       // Clear the shared channel last — after the draft is stashed, since
       // stashDraft() reads pageContext.metadata — so the hoisted inspector
@@ -1198,6 +1211,8 @@ export class PageDetail {
    * "Discard unsaved changes?" prompt — the user already chose Reload.
    */
   async onRemoteReload(): Promise<void> {
+    // A click dropped by the in-flight guard must not hide the banner.
+    if (this.isRefreshing()) return;
     this.pageContext.remoteChange.set(false);
     await this.discardAndReload(false);
   }
@@ -1222,6 +1237,8 @@ export class PageDetail {
       }
 
       // `Drafts.clear` drops both the in-memory Map entry and the localStorage row.
+      // A still-pending autosave would write the discarded copy back mid-reload.
+      this.cancelAutosave();
       this.drafts.clear(g);
       this.saveError.set(null);
       this.errorState.clear();
@@ -1229,6 +1246,9 @@ export class PageDetail {
       const page = await this.reloadPageResource();
       if (page) {
         this.resetWorkingCopyToServer(page);
+        // Belt and braces: whatever was stashed while the GET was in flight
+        // is the discarded copy.
+        this.drafts.clear(g);
         // The copy now IS the server page, so a "changed elsewhere" raised by
         // this very reload's re-resolve is moot.
         this.pageContext.remoteChange.set(false);

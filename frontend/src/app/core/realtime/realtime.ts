@@ -28,13 +28,18 @@ const PING_MS = 300000;
  * Hold-back: while the open page is in edit mode with unsaved changes
  * (`PageContext.dirty`), its `page:<guid>` tag is NOT bumped — a refetch would
  * replace the working copy under the user. `PageContext.remoteChange` is set
- * instead, and page-detail offers Reload / Dismiss.
+ * instead, and page-detail offers Reload / Dismiss. The hold-back applies to
+ * live messages only — the reconnect catch-up deliberately ignores it (see
+ * below and {@link catchUp}).
  *
  * Connection: reconnects with exponential backoff (1 s doubling, 30 s cap,
  * reset on open); closes while the tab is hidden and reopens when visible.
- * After any REopen it bumps coarse catch-up tags plus the open page (never
- * held back), since messages sent while disconnected are lost. No UI — failures only `console.warn`. With an empty
- * `environment.realtimeUrl` it does nothing at all.
+ * After any REopen it bumps coarse catch-up tags plus the open page, since
+ * messages sent while disconnected are lost. The open page is bumped even
+ * while held back: page-detail keeps a dirty working copy through that
+ * refetch and raises the banner itself when `modifiedAt` moved. No UI —
+ * failures only `console.warn`. With an empty `environment.realtimeUrl` it
+ * does nothing at all.
  */
 @Injectable({ providedIn: 'root' })
 export class Realtime {

@@ -2650,6 +2650,97 @@ describe('PageDetail', () => {
       expect(TestBed.inject(Drafts).hasDraft('g1')).toBe(false);
     });
 
+    it('keeps the same CodeMirror mounted through a page:g1 reload in edit mode', async () => {
+      const { fixture, http } = await load();
+      await typeEdit(fixture, '# My draft');
+      const editorEl = (fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror');
+      expect(editorEl).not.toBeNull();
+
+      await bumpPage(fixture); // e.g. the reconnect catch-up after a tab switch
+      await settle();
+      fixture.detectChanges();
+
+      // MID-RELOAD: no "Loading page..." swap, the very same editor element.
+      const req = http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1');
+      expect(screen.queryByText(/loading page/i)).toBeNull();
+      expect((fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror')).toBe(editorEl);
+
+      req.flush(serverPage);
+      await settle();
+      fixture.detectChanges();
+      await settle();
+      expect((fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror')).toBe(editorEl);
+      expect(fixture.componentInstance.content()).toBe('# My draft');
+    });
+
+    it('still shows the loading state when the route guid changes', async () => {
+      const paramMap$ = new BehaviorSubject<ParamMap>(convertToParamMap({ guid: 'gA' }));
+      const { fixture } = await render(PageDetail, {
+        providers: [
+          provideAnimationsAsync(),
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: ActivatedRoute, useValue: { paramMap: paramMap$, data: of({ editMode: true }) } },
+        ],
+      });
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne('/api/pages/gA').flush({ ...serverPage, guid: 'gA' });
+      await settle();
+      fixture.detectChanges();
+      expect(screen.queryByText(/loading page/i)).toBeNull();
+
+      paramMap$.next(convertToParamMap({ guid: 'gB' }));
+      await settle();
+      fixture.detectChanges();
+
+      expect(screen.getByText(/loading page/i)).toBeInTheDocument();
+      expect((fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror')).toBeNull();
+      http.expectOne('/api/pages/gB').flush({ ...serverPage, guid: 'gB' });
+      await settle();
+    });
+
+    it('a pending autosave cannot write the discarded draft back during Reload', async () => {
+      const { fixture, http } = await load();
+      const drafts = TestBed.inject(Drafts);
+      // Arms the 400 ms debounced autosave...
+      await typeEdit(fixture, '# Discarded draft');
+      TestBed.inject(PageContext).remoteChange.set(true);
+      fixture.detectChanges();
+
+      // ...and Reload lands inside that window.
+      await userEvent.click(screen.getByRole('button', { name: /^reload$/i }));
+      await settle();
+      const req = http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1');
+      // Let the debounce elapse while the GET is still in flight.
+      await new Promise((r) => setTimeout(r, 500));
+      req.flush(serverPage);
+      await settle();
+      fixture.detectChanges();
+      await new Promise((r) => setTimeout(r, 500));
+
+      expect(fixture.componentInstance.content()).toBe(serverPage.content);
+      expect(drafts.hasDraft('g1')).toBe(false);
+      expect(localStorage.getItem('bluefinwiki:draft:g1')).toBeNull();
+    });
+
+    it('a Reload click while a refresh is in flight leaves the banner up', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      const comp = fixture.componentInstance as unknown as { refresh: () => Promise<void> };
+      const pending = comp.refresh(); // clean: reloads straight away
+      await settle();
+      ctx.remoteChange.set(true);
+      fixture.detectChanges();
+
+      await userEvent.click(screen.getByRole('button', { name: /^reload$/i }));
+      // Dropped by the in-flight guard, so the banner must not vanish.
+      expect(ctx.remoteChange()).toBe(true);
+
+      http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(serverPage);
+      await pending;
+    });
+
     it('keeps the board config and Board view while the page itself reloads', async () => {
       const { http, fixture } = await renderDetail();
       await loadInitiative(http, fixture);
