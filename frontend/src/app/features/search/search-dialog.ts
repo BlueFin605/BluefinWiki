@@ -322,8 +322,9 @@ const DEBOUNCE_MS = 200;
       font: inherit;
     }
     .key-match:hover, .key-match:focus-visible { background: #dbeafe; }
-    .key-match-key { font-weight: 600; color: #111827; }
-    .key-match-title { color: #4b5563; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .key-match mat-icon { flex-shrink: 0; }
+    .key-match-key { font-weight: 600; color: #111827; flex-shrink: 0; white-space: nowrap; }
+    .key-match-title { color: #4b5563; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .results {
       flex: 1;
       overflow-y: auto;
