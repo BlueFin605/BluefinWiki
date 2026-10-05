@@ -14,6 +14,7 @@ import { Component } from '@angular/core';
 import { SearchDialog } from './search-dialog';
 import { RateLimitExceededError, Search } from './search';
 import { RECENT_SEARCHES_KEY } from './recent-searches';
+import { TicketKeys } from '../ticket-keys/ticket-keys';
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -1460,5 +1461,86 @@ describe('SearchDialog recent searches (step 6.4)', () => {
     expect(navSpy).toHaveBeenCalledWith(['/pages', 'g1']);
     expect(dialogRef.close).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe('SearchDialog pinned ticket-key match', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  async function renderWithKeys(resolve: jest.Mock) {
+    const dialogRef = makeDialogRef();
+    await render(SearchDialog, {
+      providers: [...baseProviders(dialogRef), { provide: TicketKeys, useValue: { resolve } }],
+    });
+    const router = TestBed.inject(Router);
+    const navigate = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    const http = TestBed.inject(HttpTestingController);
+    const input = screen.getByPlaceholderText(/search wiki/i);
+    return { dialogRef, navigate, http, input, user: userEvent.setup() };
+  }
+
+  it('pins a resolved key above the results; click navigates and closes with the guid', async () => {
+    const resolve = jest.fn().mockResolvedValue({ key: 'BGT-3', guid: 'g3', title: 'Fix' });
+    const { dialogRef, navigate, http, input, user } = await renderWithKeys(resolve);
+    await user.type(input, 'bgt-3');
+    await wait(260);
+    await settle();
+    http.match((r) => r.url === '/api/search').forEach((r) =>
+      r.flush({
+        results: [{ pageId: 'g9', title: 'Other', snippet: '', relevanceScore: 1, matchCount: 0, path: 'p', tags: [] }],
+        totalResults: 1,
+        executionTimeMs: 1,
+      }),
+    );
+    await settle();
+
+    expect(resolve).toHaveBeenCalledWith('bgt-3');
+    const row = await screen.findByTestId('search-key-match');
+    expect(row).toHaveTextContent('BGT-3');
+    expect(row).toHaveTextContent('Fix');
+    expect(await screen.findByText('Other')).toBeInTheDocument();
+
+    await user.click(row);
+    await settle();
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'g3']);
+    expect(dialogRef.close).toHaveBeenCalledWith('g3');
+  });
+
+  it('shows no row when the key does not resolve', async () => {
+    const resolve = jest.fn().mockResolvedValue(null);
+    const { http, input, user } = await renderWithKeys(resolve);
+    await user.type(input, 'BGT-99');
+    await wait(260);
+    await settle();
+    http.match((r) => r.url === '/api/search');
+    expect(resolve).toHaveBeenCalled();
+    expect(screen.queryByTestId('search-key-match')).toBeNull();
+  });
+
+  it('never resolves a non-key query', async () => {
+    const resolve = jest.fn();
+    const { http, input, user } = await renderWithKeys(resolve);
+    await user.type(input, 'recipe');
+    await wait(260);
+    await settle();
+    http.match((r) => r.url === '/api/search');
+    expect(resolve).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('search-key-match')).toBeNull();
+  });
+
+  it('Enter with nothing highlighted selects the key match', async () => {
+    const resolve = jest.fn().mockResolvedValue({ key: 'BGT-3', guid: 'g3', title: 'Fix' });
+    const { dialogRef, navigate, http, input, user } = await renderWithKeys(resolve);
+    await user.type(input, 'BGT-3');
+    await wait(260);
+    await settle();
+    http.match((r) => r.url === '/api/search');
+    await screen.findByTestId('search-key-match');
+    await user.type(input, '{Enter}');
+    await settle();
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'g3']);
+    expect(dialogRef.close).toHaveBeenCalledWith('g3');
   });
 });

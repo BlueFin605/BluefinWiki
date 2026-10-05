@@ -10,8 +10,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { debounceTime, distinctUntilChanged, filter, switchMap } from 'rxjs';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { debounceTime, distinctUntilChanged, filter, from, map, of, switchMap } from 'rxjs';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
@@ -21,6 +21,8 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RATE_LIMIT_MESSAGE, RateLimitExceededError, Search, hasMoreResults } from './search';
 import { moveSelection } from './move-selection';
+import { isTicketKey } from '../ticket-keys/ticket-key';
+import { TicketKeys, type ResolvedTicketKey } from '../ticket-keys/ticket-keys';
 import { addRecent, readRecentSearches, removeRecent, writeRecentSearches } from './recent-searches';
 import { highlight, type HighlightSegment } from './highlight';
 import type { SearchPageSize, WikiSearchQuery, WikiSearchResult } from './search.types';
@@ -143,6 +145,14 @@ const DEBOUNCE_MS = 200;
           }
         </mat-button-toggle-group>
       </div>
+
+      @if (keyMatch(); as km) {
+        <button type="button" class="key-match" data-testid="search-key-match" (click)="onSelectKey(km)">
+          <mat-icon aria-hidden="true">confirmation_number</mat-icon>
+          <span class="key-match-key">{{ km.key }}</span>
+          <span class="key-match-title">{{ km.title }}</span>
+        </button>
+      }
 
       <div
         id="search-results-listbox"
@@ -297,6 +307,23 @@ const DEBOUNCE_MS = 200;
     .page-size-group {
       font-size: 0.75rem;
     }
+    .key-match {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      border-left: 3px solid #2563eb;
+      border-bottom: 1px solid #e5e7eb;
+      background: #eff6ff;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font: inherit;
+    }
+    .key-match:hover, .key-match:focus-visible { background: #dbeafe; }
+    .key-match-key { font-weight: 600; color: #111827; }
+    .key-match-title { color: #4b5563; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .results {
       flex: 1;
       overflow-y: auto;
@@ -440,10 +467,13 @@ export class SearchDialog {
   private readonly router = inject(Router);
   private readonly dialogRef = inject(MatDialogRef<SearchDialog, string | null>);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ticketKeys = inject(TicketKeys);
 
   protected readonly pageSizes = PAGE_SIZES;
 
   protected readonly rawQuery = signal('');
+  /** Ticket-key hit pinned above the results; independent of `state`/`generation`. */
+  protected readonly keyMatch = signal<ResolvedTicketKey | null>(null);
   protected readonly scope = signal<ScopeValue>('all');
   protected readonly pageSize = signal<SearchPageSize>(DEFAULT_PAGE_SIZE);
   protected readonly state = signal<SearchState>(IDLE_STATE);
@@ -596,6 +626,16 @@ export class SearchDialog {
   private loadMoreObserver: IntersectionObserver | null = null;
 
   constructor() {
+    // A query that looks like a ticket key (BGT-12) also resolves it directly and
+    // pins the hit above the normal results.
+    toObservable(this.rawQuery).pipe(
+      debounceTime(DEBOUNCE_MS),
+      map((q) => q.trim()),
+      distinctUntilChanged(),
+      switchMap((q) => (isTicketKey(q) ? from(this.ticketKeys.resolve(q).catch(() => null)) : of(null))),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((m) => this.keyMatch.set(m));
+
     // Pipe debounced() into state() so the OnPush template re-reads cleanly.
     // This is the ONLY place `state` is replaced wholesale with a fresh page
     // one, so it's also the right place to bump `generation` (see its doc
@@ -670,6 +710,12 @@ export class SearchDialog {
     }
     if (key === 'Enter') {
       const selected = results[this.selectedIndex()];
+      const km = this.keyMatch();
+      if (!selected && km && this.selectedIndex() === -1) {
+        event.preventDefault();
+        void this.onSelectKey(km);
+        return;
+      }
       if (!selected) return;
       event.preventDefault();
       if (event.ctrlKey || event.metaKey) {
@@ -690,6 +736,12 @@ export class SearchDialog {
     this.recordRecentForSelection();
     await this.router.navigate(['/pages', result.pageId]);
     this.dialogRef.close(result.pageId);
+  }
+
+  protected async onSelectKey(km: ResolvedTicketKey): Promise<void> {
+    this.recordRecentForSelection();
+    await this.router.navigate(['/pages', km.guid]);
+    this.dialogRef.close(km.guid);
   }
 
   protected onClose(): void {
