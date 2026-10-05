@@ -27,6 +27,7 @@ import { checkSiblingDropAllowed } from './check-type-constraints';
 import { SearchDialog } from '../search/search-dialog';
 import { AiButton } from '../ai/ai-button';
 import { AiSidebar } from '../ai/ai-sidebar';
+import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
 
 @Component({
   selector: 'wiki-pages-view',
@@ -489,6 +490,7 @@ export class PagesView {
   private readonly snack = inject(MatSnackBar);
   private readonly auth = inject(Auth);
   private readonly pageTypes = inject(PageTypes);
+  private readonly ticketKeys = inject(TicketKeys);
   /** Shared channel to the routed page-detail; feeds the hoisted inspector. */
   protected readonly ctx = inject(PageContext);
   /** Single responsive switch (DESIGN.md D1); drives sidenav mode + the hamburger. */
@@ -653,10 +655,30 @@ export class PagesView {
   }
 
   constructor() {
-    // Sync activeGuid from URL changes.
+    // Sync activeGuid from URL changes. The segment may be a ticket key
+    // (`/pages/BGT-12`): use the cached GUID, else resolve it and apply the
+    // result only if the URL hasn't moved on meanwhile. A navigation fires
+    // several events per URL; only a URL change needs work.
+    let lastUrl: string | null = null;
     this.router.events.subscribe(() => {
-      const match = /^\/pages\/([0-9a-f-]+)/i.exec(this.router.url);
-      this.activeGuid.set(match ? match[1] : null);
+      const url = this.router.url;
+      if (url === lastUrl) return;
+      lastUrl = url;
+      const seg = /^\/pages\/([^/?#]+)/.exec(url)?.[1] ?? null;
+      if (!seg || !isTicketKey(seg)) {
+        this.activeGuid.set(seg);
+        return;
+      }
+      const cached = this.ticketKeys.guidFor(seg);
+      if (cached) {
+        this.activeGuid.set(cached);
+        return;
+      }
+      this.activeGuid.set(null);
+      void this.ticketKeys.toGuid(seg).then(
+        (guid) => { if (this.router.url === url) this.activeGuid.set(guid); },
+        () => undefined,
+      );
     });
 
     // Mutual exclusion, inspector-sheet side (DESIGN.md D9 / review I3). The
