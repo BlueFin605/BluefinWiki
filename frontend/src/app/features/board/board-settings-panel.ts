@@ -8,10 +8,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { boardableTypes } from './boardable-types';
 import { configuredTypeGuids, leafTypes } from './card-types';
 import type { BoardGroup } from './board-defaults';
 import type { BoardConfig, PageTypeDefinition } from '../pages/page.types';
+import { KEY_PREFIX_PATTERN } from '../ticket-keys/ticket-key';
+import { TicketKeys } from '../ticket-keys/ticket-keys';
 
 export interface BoardSettingsPanelData {
   config: BoardConfig | null;
@@ -20,6 +23,11 @@ export interface BoardSettingsPanelData {
   type?: { name: string; icon: string; hasDefaults: boolean; canEdit: boolean } | null;
   /** Groups this page overrides (only set when the type has defaults). */
   overridden?: BoardGroup[];
+  /**
+   * Set only for Initiative pages — enables the ticket key prefix field
+   * (page-only, never a type default) and, for Admins, the backfill button.
+   */
+  ticketKeys?: { pageGuid: string; canBackfill: boolean } | null;
 }
 
 export interface BoardSettingsResult {
@@ -61,6 +69,35 @@ const COLOR_PALETTE = [
   template: `
     <h2 mat-dialog-title>Board settings</h2>
     <mat-dialog-content>
+      @if (data.ticketKeys) {
+        <section class="section" data-testid="ticket-key-section">
+          <h3>Ticket keys</h3>
+          <div class="ticket-keys">
+            <mat-form-field appearance="fill" class="prefix-input" subscriptSizing="dynamic">
+              <mat-label>Ticket key prefix</mat-label>
+              <input
+                matInput
+                type="text"
+                maxlength="10"
+                [pattern]="prefixPattern"
+                [ngModel]="keyPrefix()"
+                (ngModelChange)="keyPrefix.set($event.toUpperCase())"
+                aria-label="Ticket key prefix"
+              />
+              <mat-hint>e.g. BGT → tickets get BGT-1, BGT-2…</mat-hint>
+              @if (keyPrefixInvalid()) { <mat-error>2–10 letters/digits, starting with a letter</mat-error> }
+            </mat-form-field>
+            @if (data.ticketKeys.canBackfill) {
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="!savedPrefix || backfilling()"
+                (click)="onBackfill()"
+              >Assign keys to existing tickets</button>
+            }
+          </div>
+        </section>
+      }
       <section class="section">
         <h3>Columns @if (isOverridden('columns', 'colors')) { <span class="overridden">overridden</span> }</h3>
         @if (columns().length === 0) {
@@ -205,11 +242,11 @@ const COLOR_PALETTE = [
         <button mat-button type="button" (click)="onReset()">Reset to {{ data.type!.icon }} {{ data.type!.name }} default</button>
       }
       @if (canSaveAsDefault()) {
-        <button mat-stroked-button type="button" (click)="onSaveAsDefault()">Save as default for {{ data.type!.icon }} {{ data.type!.name }} pages</button>
+        <button mat-stroked-button type="button" [disabled]="keyPrefixInvalid()" (click)="onSaveAsDefault()">Save as default for {{ data.type!.icon }} {{ data.type!.name }} pages</button>
       }
       <span class="spacer"></span>
       <button mat-button type="button" (click)="onCancel()">Cancel</button>
-      <button mat-flat-button color="primary" type="button" (click)="onSave()">Save</button>
+      <button mat-flat-button color="primary" type="button" [disabled]="keyPrefixInvalid()" (click)="onSave()">Save</button>
     </mat-dialog-actions>
   `,
   styles: [`
@@ -242,11 +279,26 @@ const COLOR_PALETTE = [
     .add-input { flex: 1; }
     .depth-input { width: 100px; margin-left: 0.5rem; }
     mat-slide-toggle { display: block; margin: 0.25rem 0; }
+    .ticket-keys { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem 1rem; }
+    .prefix-input { width: 15rem; max-width: 100%; }
+    .ticket-keys button { margin-top: 0.5rem; }
   `],
 })
 export class BoardSettingsPanel {
   readonly data = inject<BoardSettingsPanelData>(MAT_DIALOG_DATA);
   private readonly dialogRef = inject<MatDialogRef<BoardSettingsPanel, BoardSettingsResult | null>>(MatDialogRef);
+  private readonly ticketKeys = inject(TicketKeys);
+  private readonly snack = inject(MatSnackBar);
+
+  protected readonly keyPrefix = signal<string>(this.data.config?.keyPrefix ?? '');
+  /** Backfill needs the prefix already stored on the page, not just typed. */
+  protected readonly savedPrefix = !!this.data.config?.keyPrefix;
+  protected readonly keyPrefixInvalid = computed(
+    () => !!this.keyPrefix() && !KEY_PREFIX_PATTERN.test(this.keyPrefix()),
+  );
+  protected readonly backfilling = signal(false);
+  /** Bound as the input's pattern validator so mat-error shows (once touched). */
+  protected readonly prefixPattern = KEY_PREFIX_PATTERN;
 
   protected readonly canReset = computed(
     () => !!this.data.type?.hasDefaults && (this.data.overridden?.length ?? 0) > 0,
@@ -329,6 +381,20 @@ export class BoardSettingsPanel {
     this.editingColor.set(null);
   }
 
+  async onBackfill(): Promise<void> {
+    const keys = this.data.ticketKeys;
+    if (!keys) return;
+    this.backfilling.set(true);
+    try {
+      const r = await this.ticketKeys.backfill(keys.pageGuid);
+      this.snack.open(`Assigned ${r.assigned}, repaired ${r.repaired}`, 'Dismiss', { duration: 4000 });
+    } catch {
+      this.snack.open('Failed to assign ticket keys.', 'Dismiss', { duration: 4000 });
+    } finally {
+      this.backfilling.set(false);
+    }
+  }
+
   onCancel(): void {
     this.dialogRef.close(null);
   }
@@ -366,6 +432,7 @@ export class BoardSettingsPanel {
       if (inc?.swapTitles !== undefined) next.swapTitles = inc.swapTitles;
     }
     if (this.defaultView() === 'board') next.defaultView = 'board';
+    if (this.data.ticketKeys && this.keyPrefix()) next.keyPrefix = this.keyPrefix();
     return next;
   }
 }

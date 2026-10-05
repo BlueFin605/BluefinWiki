@@ -1010,6 +1010,89 @@ describe('PageDetail', () => {
     );
   });
 
+  describe('ticket key prefix (page-only)', () => {
+    it('passes ticketKeys for an Initiative, with backfill rights for an Admin, and the saved prefix in config', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { boardConfig: { keyPrefix: 'BGT' } });
+      const open = stubDialog(null);
+      await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+      expect(data['ticketKeys']).toEqual({ pageGuid: 'g1', canBackfill: true });
+      expect((data['config'] as { keyPrefix?: string }).keyPrefix).toBe('BGT');
+    });
+
+    it('withholds backfill from non-Admins', async () => {
+      const { http, fixture } = await renderDetail({ user: { userId: 'someone-else', role: 'Standard' } });
+      await loadInitiative(http, fixture);
+      const open = stubDialog(null);
+      await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+      expect(data['ticketKeys']).toEqual({ pageGuid: 'g1', canBackfill: false });
+    });
+
+    it('passes no ticketKeys for a non-Initiative page', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { pageType: 'pt-task' });
+      const open = stubDialog(null);
+      await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+      expect(data['ticketKeys']).toBeNull();
+    });
+
+    it('save keeps the prefix alongside the group overrides', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture);
+      stubDialog({ action: 'save', config: { keyPrefix: 'BGT', columns: ['Todo'], leafTypes: true, defaultView: 'board' } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ columns: ['Todo'], keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
+
+    it('save with only a prefix (matching defaults) stores just the prefix', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture);
+      stubDialog({ action: 'save', config: { keyPrefix: 'BGT', ...INITIATIVE.boardDefaults } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
+
+    it('reset keeps the prefix', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'], keyPrefix: 'BGT' } });
+      stubDialog({ action: 'reset', config: { columns: ['Mine'], leafTypes: true, keyPrefix: 'BGT' } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
+
+    it('saveAsDefault keeps the prefix off the type defaults and on the page', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'], keyPrefix: 'BGT' } });
+      const config = { columns: ['Mine'], leafTypes: true, defaultView: 'board' as const };
+      stubDialog({ action: 'saveAsDefault', config: { ...config, keyPrefix: 'BGT' } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const typePut = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/page-types/pt-init');
+      expect(typePut.request.body).toEqual({ boardDefaults: config });
+      typePut.flush({ ...INITIATIVE, boardDefaults: config });
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
+  });
+
   it('does not fetch page types when the page is in edit mode', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     http.expectOne('/api/pages/g1').flush(serverPage);

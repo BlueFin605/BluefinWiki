@@ -58,7 +58,13 @@ import {
 import { rewriteWikiLink } from '../../shared/markdown/rewrite-wiki-link';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { hasCardTypeSelection } from '../board/card-types';
-import { boardOverrides, effectiveBoardConfig, overriddenGroups } from '../board/board-defaults';
+import {
+  boardOverrides,
+  effectiveBoardConfig,
+  overriddenGroups,
+  withoutPageOnly,
+  withPageOnly,
+} from '../board/board-defaults';
 import { Auth } from '../../core/auth/auth';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import type {
@@ -1686,6 +1692,10 @@ export class PageDetail {
           }
         : null,
       overridden: defaults ? overriddenGroups(page.boardConfig) : [],
+      // Initiatives own a ticket key prefix (page-only); backfill is Admin-only.
+      ticketKeys: type?.name === 'Initiative'
+        ? { pageGuid: page.guid, canBackfill: me?.role === 'Admin' }
+        : null,
     };
     const ref = this.dialog.open<BoardSettingsPanel, BoardSettingsPanelData, BoardSettingsResult | null>(
       BoardSettingsPanel,
@@ -1693,11 +1703,15 @@ export class PageDetail {
     );
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
+    // `keyPrefix` is page-only: strip it from anything diffed against or
+    // written to the type defaults, then re-apply it to the page's config.
     try {
       if (result.action === 'saveAsDefault' && type) {
-        await this.pageTypes.updatePageType(type.guid, { boardDefaults: result.config });
+        await this.pageTypes.updatePageType(type.guid, { boardDefaults: withoutPageOnly(result.config) });
         try {
-          this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig: null }));
+          this.recordOwnWrite(
+            await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) }),
+          );
         } catch {
           this.snack.open(
             `Saved the ${type.name} defaults, but couldn't clear this page's overrides.`,
@@ -1706,10 +1720,16 @@ export class PageDetail {
           );
         }
       } else if (result.action === 'reset') {
-        this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig: null }));
+        this.recordOwnWrite(
+          await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) }),
+        );
       } else {
+        // Without type defaults the result (prefix included) is stored as-is.
         const boardConfig = defaults
-          ? boardOverrides(withHiddenFields(result.config, effective), defaults)
+          ? withPageOnly(
+              boardOverrides(withHiddenFields(withoutPageOnly(result.config), effective), defaults),
+              result.config,
+            )
           : result.config;
         this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig }));
       }
