@@ -19,6 +19,7 @@ const SKIP_SUBTREE = new Set(['Waiting for Action', 'Blocked', 'Done']);
 
 interface Ticket {
   guid: string;
+  key?: string;
   title: string;
   type: string;
   state: string;
@@ -56,9 +57,9 @@ function stateOf(page: Pick<PageSummary, 'properties'>): string {
   return String(page.properties?.state?.value ?? '');
 }
 
-function line(t: { type: string; state: string; title: string; guid: string; tags?: string[] }): string {
+function line(t: { type: string; state: string; title: string; guid: string; key?: string; tags?: string[] }): string {
   const tags = t.tags?.length ? ` · ${t.tags.map(tag => `#${tag}`).join(' ')}` : '';
-  return `${t.type} · ${t.state} · ${t.title} · ${t.guid}${tags}`;
+  return `${t.type} · ${t.state} · ${t.title} · ${t.key ?? t.guid}${tags}`;
 }
 
 function checkState(state: string | undefined): void {
@@ -97,6 +98,7 @@ async function buildTree(deps: KanbanDeps, types: TypeInfo, page: PageSummary | 
   const children = await ticketChildren(deps, types, page.guid);
   return {
     guid: page.guid,
+    ...(page.ticketKey ? { key: page.ticketKey } : {}),
     title: page.title,
     type: types.byGuid.get(page.pageType!)!.name,
     state: stateOf(page),
@@ -143,7 +145,8 @@ export async function kanbanInitiatives(
         if (state === 'Done' && !input.includeDone) continue;
         const tree = await buildTree(deps, types, page);
         const open = descendants(tree).filter(t => t.state !== 'Done').length;
-        found.push(`${page.guid} · ${page.title} · ${state} · ${open} open`);
+        const prefix = (await deps.loadPage(page.guid)).boardConfig?.keyPrefix;
+        found.push(`${page.guid} · ${prefix ? `[${prefix}] ` : ''}${page.title} · ${state} · ${open} open`);
       } else if (page.hasChildren) {
         await walk(page.guid);
       }
@@ -168,7 +171,8 @@ export async function kanbanGet(deps: KanbanDeps, input: { guid: string }): Prom
     parentGuid = parent.folderId;
   }
 
-  const out = [line({ type, state: stateOf(page), title: page.title, guid: page.guid, tags: page.tags })];
+  const out = [line({ type, state: stateOf(page), title: page.title, guid: page.guid, key: page.ticketKey, tags: page.tags })];
+  if (page.ticketKey) out.push(`Guid: ${page.guid}`);
   if (path.length) out.push(`Path: ${path.join(' › ')}`);
   out.push('', page.content.trim());
 
@@ -290,8 +294,9 @@ export async function kanbanCreate(
     for (const n of list) {
       const type = types.byName.get(n.type.toLowerCase())!;
       let guid: string;
+      let ticketKey: string | undefined;
       try {
-        ({ guid } = await deps.createPage({
+        ({ guid, ticketKey } = await deps.createPage({
           title: n.title,
           content: n.body ?? '',
           parentGuid,
@@ -302,8 +307,8 @@ export async function kanbanCreate(
       } catch (err) {
         throw new Error(`create failed at "${n.title}": ${(err as Error).message}; already created: ${created.join(', ') || 'none'}`);
       }
-      created.push(guid);
-      out.push(`${'  '.repeat(depth)}${type.name} · ${n.title} · ${guid}`);
+      created.push(ticketKey ?? guid);
+      out.push(`${'  '.repeat(depth)}${type.name} · ${n.title} · ${ticketKey ?? guid}`);
       await write(n.children ?? [], guid, depth + 1);
     }
   }
@@ -339,7 +344,7 @@ export async function kanbanSetState(
   });
   if (input.comment?.trim()) await deps.addComment(page.guid, input.comment);
 
-  const out = [line({ type, state: input.state, title: page.title, guid: page.guid, tags })];
+  const out = [line({ type, state: input.state, title: page.title, guid: page.guid, key: page.ticketKey, tags })];
   if (input.state !== 'Done' || type === INITIATIVE) return out.join('\n');
 
   let parentGuid = page.folderId;
@@ -351,7 +356,7 @@ export async function kanbanSetState(
     const siblings = await ticketChildren(deps, types, parent.guid);
     if (!siblings.every(s => stateOf(s) === 'Done')) break;
 
-    const summary = `${parentType.name} · ${parent.title} · ${parent.guid}`;
+    const summary = `${parentType.name} · ${parent.title} · ${parent.ticketKey ?? parent.guid}`;
     if (!input.rollup || parentType.name === INITIATIVE) {
       out.push(`closeable: ${summary}`);
       break;

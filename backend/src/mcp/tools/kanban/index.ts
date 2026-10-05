@@ -21,7 +21,7 @@ const guid = (description: string) => ({ type: 'string', description });
 export const KANBAN_TOOLS = [
   {
     name: 'kanban_initiatives',
-    description: 'Kanban: list Initiatives (one per feature board) as "guid · title · state · N open". Done ones hidden unless includeDone.',
+    description: 'Kanban: list Initiatives (one per feature board) as "guid · [PREFIX] title · state · N open". Done ones hidden unless includeDone.',
     inputSchema: {
       type: 'object' as const,
       properties: { includeDone: { type: 'boolean', description: 'Also list Done initiatives' } },
@@ -50,7 +50,7 @@ export const KANBAN_TOOLS = [
   },
   {
     name: 'kanban_board',
-    description: 'Kanban: indented tree of an initiative, one line per ticket "Type · State · Title · guid[ · #tags]".',
+    description: 'Kanban: indented tree of an initiative, one line per ticket "Type · State · Title · key-or-guid[ · #tags]".',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -64,7 +64,7 @@ export const KANBAN_TOOLS = [
   },
   {
     name: 'kanban_create',
-    description: 'Kanban: create a nested ticket tree under a parent ticket in one call. Node: {type (Epic|Story|Task…), title, body?, state? (default Ready), tags? (string[]), children?}. Validates everything before writing. Returns created "Type · Title · guid" lines.',
+    description: 'Kanban: create a nested ticket tree under a parent ticket in one call. Node: {type (Epic|Story|Task…), title, body?, state? (default Ready), tags? (string[]), children?}. Validates everything before writing. Returns created "Type · Title · key-or-guid" lines.',
     inputSchema: {
       type: 'object' as const,
       properties: {

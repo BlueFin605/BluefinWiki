@@ -22,7 +22,7 @@ export interface KanbanDeps {
   listChildren(parentGuid: string | null): Promise<PageSummary[]>;
   loadPage(guid: string): Promise<PageContent>;
   listPageTypes(): Promise<KanbanPageType[]>;
-  createPage(input: CreatePageInput): Promise<{ guid: string }>;
+  createPage(input: CreatePageInput): Promise<{ guid: string; ticketKey?: string }>;
   updatePage(input: UpdatePageInput): Promise<unknown>;
   addComment(pageGuid: string, body: string): Promise<unknown>;
   listComments(pageGuid: string): Promise<Comment[]>;
