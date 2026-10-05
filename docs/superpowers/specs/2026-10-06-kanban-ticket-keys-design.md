@@ -14,11 +14,10 @@ and MCP output and accepted anywhere the `kanban_*` tools take a GUID.
 The GUID remains the page's identity. Storage layout, links, moves and the page
 index are unchanged; the key is an additional, immutable alias.
 
-> **Revised (§6):** tickets keyed *at creation* now use the key itself as their
-> page ID (`{parent}/BGT-12/BGT-12.md`). Everything else — existing tickets,
-> tickets under an Initiative without a prefix, and creations where the key
-> cannot be obtained — keeps a GUID. §1's create path and failure handling are
-> superseded by §6.
+> **Revised (§6):** keys are accepted wherever a page reference enters the
+> system (the `/pages/:id` URL, generic MCP page tools, `[[BGT-12]]` links) and
+> resolved to the GUID; the UI keeps the key in the address bar and prefers it
+> in generated links. Storage is unchanged.
 
 ## Decisions
 
@@ -195,85 +194,57 @@ Claude follow-up after deploy: update the `bluefin-kanban` skill and
 `.superpowers/sdd/common-implementer.md` to use keys (`Kanban: BGT-12` commit
 trailers, key arguments).
 
-## 6. Revision: the key is the page ID for new tickets
+## 6. Revision: keys work wherever a page ID is accepted at the edge
 
-A page ID is an opaque, immutable string; nothing requires it to be a UUID. A
-key allocated at creation is just as unique (one counter per prefix, guarded by
-the write-once mapping) and never changes, so new keyed tickets use it as their
-ID. This is a **hybrid** — two ID formats coexist permanently:
+The GUID stays every page's identity and storage is unchanged (§1 stands). A
+key is accepted wherever a page reference *enters* the system, resolved to the
+GUID via the existing mapping, and preferred in the URLs and links the UI
+generates. This covers all keyed tickets, including backfilled ones.
 
-| Page | ID |
-|---|---|
-| Ticket created under an Initiative with a prefix | `BGT-12` (the key) |
-| Existing tickets, incl. ones keyed later by the backfill | their GUID (unchanged) |
-| Tickets under an Initiative with no prefix; all non-ticket pages | GUID |
-| Key could not be allocated or mapped at creation | GUID, no key |
+(An alternative — making the key the page ID for new tickets, with a GUID
+fallback — was considered and rejected: two permanent ID formats, a sweep of
+~25 UUID checks, a collision-overwrite risk if the ticket-keys table were ever
+lost, and a one-way rollback constraint, for little extra benefit.)
 
-Existing pages are never renamed, so no S3 moves or link rewrites.
+### Frontend: key in the address bar
 
-### Page ID format
+- **`/pages/:guid` accepts a key.** `page-detail.ts` keeps the raw route param
+  as `routeRef` and derives `guid` from it: a GUID passes through; a key
+  (`/^[A-Za-z][A-Za-z0-9]*-\d+$/`) is resolved via `TicketKeys.resolve`
+  (cached, see below). Unknown key → the existing not-found state. The
+  address bar keeps the key; mode toggle and post-save navigation use
+  `routeRef()` so `/pages/BGT-12/edit` → `/pages/BGT-12`.
+- **`TicketKeys` caches** key ↔ GUID in memory (both directions), filled by
+  `resolve` and by `remember(key, guid)` from any loaded `PageSummary` /
+  `PageContent` carrying `ticketKey`.
+- **Page tree highlight.** `pages-view.ts:658` parses the URL with a hex regex;
+  it changes to take any segment and map a key to its GUID via the cache
+  (resolving if missing) before setting `activeGuid`.
+- **Generated links prefer the key.** A shared helper
+  `pageRef(p: { guid: string; ticketKey?: string }) => p.ticketKey ?? p.guid`
+  is used wherever the UI navigates to a page it has a summary for: tree
+  selection (`pages-view.ts` `onPageSelect` — the tree emits the summary or
+  the helper looks it up), board card click, breadcrumbs, linked-pages panel,
+  search results and the search key pin.
+- **`/t/:key`** keeps working and now redirects to `/pages/{KEY}` (key kept).
+- **Header chip** copies the key (unchanged); a second action copies the full
+  `/pages/{KEY}` link.
 
-New `backend/src/pages/page-id.ts`:
+### Backend / MCP
 
-- `PAGE_KEY_REGEX = /^[A-Z][A-Z0-9]{1,9}-[1-9]\d*$/` (canonical upper case;
-  prefix rule matches `keyPrefix` validation).
-- `isPageId(id)` — UUID (`uuid.validate`) **or** `PAGE_KEY_REGEX`.
-- `pageIdSchema` — Zod string refined with `isPageId`.
-
-Every check that today means "is this a page ID" switches to `isPageId` /
-`pageIdSchema`:
-
-- `BaseStoragePlugin.validateGuid` (covers every `S3StoragePlugin` method,
-  including the descendant walk in `movePage` — today it silently skips
-  non-UUID child folders, which would orphan keyed children on a move).
-- REST handlers' local `uuidRegex`/`UUID_REGEX`: `pages-get`, `pages-update`,
-  `pages-move`, `pages-delete`, `pages-backlinks`, `pages-list-children`
-  (parent only — `targetTypeGuids` stay UUID), all `pages-attachments-*`; Zod
-  `parentGuid` in `pages-create`, `newParentGuid` in `pages-move`,
-  `parentGuid`/`orderedGuids` in `pages-reorder`.
-- `links-resolve.ts` `isValidGuid` → `isPageId`, so `[[BGT-12]]` resolves for
-  key-ID pages.
-- MCP tools' `pageGuid`/`parentGuid`/`newParentGuid` checks: `create-page`,
-  `update-page`, `move-page`, `delete-page`, `add-comment`, `list-comments`,
-  `update-comment`, `delete-comment`.
-
-Page-type GUIDs, comment IDs and `targetTypeGuid(s)` stay UUID-only.
-
-### Create path
-
-`ticket-keys-service.ts` gains `idForNewPage(parentGuid, pageType)` →
-`{ guid: string; ticketKey?: string }`. Never throws:
-
-1. `key = await keyForNewPage(parentGuid, pageType)` (already never throws).
-2. No key → `{ guid: uuidv4() }`.
-3. `putMapping(key, key)`; `'created'` → `{ guid: key, ticketKey: key }`.
-4. `'exists'` (counter reset / collision) or a throw → warn, `{ guid: uuidv4() }`
-   — the number is skipped and the page is unkeyed. It must never take a key
-   whose mapping it could not claim, since the key is now an S3 folder name.
-
-`pages-create.ts` and `mcp/tools/create-page.ts` replace `uuidv4()` +
-`keyForNewPage` + `recordKey` with `idForNewPage`. The mapping is written
-*before* `savePage`; if `savePage` then fails the key maps to a missing page and
-resolves to 404, like a deleted ticket.
-
-Resolution needs no special case: key-ID pages map `BGT-12 → BGT-12`, so
-`resolveKey`, `/t/:key`, search pinning and `kanban_*` key arguments all keep
-working. The backfill is unchanged (it only touches pages without `ticketKey`).
-
-### Frontend
-
-No ID-format checks exist in `frontend/`; `/pages/BGT-12` works as soon as the
-backend accepts it. Board cards and the header chip still read `ticketKey`.
-
-### Gaps
-
-Skipped numbers are acceptable: allocation succeeded but mapping failed,
-mapping succeeded but `savePage` failed, or a collision.
+- REST is unchanged; the frontend resolves through `GET /api/ticket-keys/{key}`.
+- **Generic page MCP tools accept keys** for page IDs: `get_page`,
+  `update_page`, `move_page` (both IDs), `delete_page`, `create_page`
+  (`parentGuid`), `get_backlinks`, `add_comment`, `list_comments`,
+  `update_comment`, `delete_comment`. A shared
+  `resolvePageRef(ref): Promise<string>` in `ticket-keys-service.ts` returns a
+  GUID unchanged and resolves keys (unknown key → error
+  `unknown ticket key "X"`); each tool calls it before its existing UUID check.
+- **`[[BGT-12]]` wiki links** resolve: `links-resolve.ts` tries `resolveKey`
+  when the target matches the key pattern, before title search.
 
 ## Out of scope
 
-- Keys in generic page MCP tools for GUID-ID tickets (key-ID tickets work there
-  natively after §6).
+- Changing page identity or storage layout (keys stay aliases).
+- REST page endpoints accepting keys directly (the frontend resolves first).
 - Re-keying tickets on move or prefix change.
-- Renaming existing GUID tickets to key IDs.
-- `/pages/{key}` for GUID-ID tickets (use `/t/{key}`).
