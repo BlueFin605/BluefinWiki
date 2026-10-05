@@ -23,6 +23,7 @@ using WebSocketApiProps = Amazon.CDK.AWS.Apigatewayv2.WebSocketApiProps;
 using WebSocketStage = Amazon.CDK.AWS.Apigatewayv2.WebSocketStage;
 using WebSocketStageProps = Amazon.CDK.AWS.Apigatewayv2.WebSocketStageProps;
 using WebSocketRouteOptions = Amazon.CDK.AWS.Apigatewayv2.WebSocketRouteOptions;
+using WebSocketThrottleSettings = Amazon.CDK.AWS.Apigatewayv2.ThrottleSettings;
 using WebSocketLambdaIntegration = Amazon.CDK.AwsApigatewayv2Integrations.WebSocketLambdaIntegration;
 
 namespace Infrastructure.Stacks
@@ -930,11 +931,20 @@ namespace Infrastructure.Stacks
             // Access logging is deliberately left OFF on this stage: the Cognito ID token
             // travels in the $connect query string (?token=), and browsers cannot send
             // headers on a WebSocket, so an access log would record live tokens.
+            // Throttle (stage default route settings, applied per route): $connect is
+            // unauthenticated at the gateway, so every attempt invokes ws-connect. 20 rps
+            // steady / 50 burst is far above a few-user wiki (one connect per tab, a ping
+            // every 5 min) while bounding the cost of abuse.
             var realtimeWsStage = new WebSocketStage(this, "RealtimeWsStage", new WebSocketStageProps
             {
                 WebSocketApi = realtimeWsApi,
                 StageName = "prod",
-                AutoDeploy = true
+                AutoDeploy = true,
+                Throttle = new WebSocketThrottleSettings
+                {
+                    RateLimit = 20,
+                    BurstLimit = 50
+                }
             });
 
             // https callback (management API) URL the API Lambdas post to — NOT the wss URL.
@@ -1015,8 +1025,9 @@ namespace Infrastructure.Stacks
 
             // =============================================================================
             // Realtime WebSocket Lambda Functions ($connect / $disconnect / $default)
-            // Own role: they only record and forget connections, so they get PutItem /
-            // DeleteItem on the connections table and nothing from the shared lambdaRole.
+            // Own roles, nothing from the shared lambdaRole: ws-connect / ws-disconnect
+            // record and forget connections (PutItem / DeleteItem on the connections table
+            // only); ws-default just answers pings (basic execution + X-Ray only).
             // Environment is commonEnvVars (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID for
             // ws-connect's token check, REALTIME_CONNECTIONS_TABLE). NODE_ENV must never be
             // "development" here — that switches on the local mock-token bypass.
@@ -1036,7 +1047,17 @@ namespace Infrastructure.Stacks
                 Resources = new[] { RealtimeConnectionsTable.TableArn }
             }));
 
-            LambdaFunction CreateRealtimeWsFunction(string id, string suffix, string description)
+            var realtimeWsDefaultRole = new Role(this, "RealtimeWsDefaultLambdaRole", new RoleProps
+            {
+                AssumedBy = new ServicePrincipal("lambda.amazonaws.com"),
+                ManagedPolicies = new[]
+                {
+                    ManagedPolicy.FromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+                    ManagedPolicy.FromAwsManagedPolicyName("AWSXRayDaemonWriteAccess")
+                }
+            });
+
+            LambdaFunction CreateRealtimeWsFunction(string id, string suffix, IRole role, string description)
             {
                 return new LambdaFunction(this, id, new LambdaFunctionProps
                 {
@@ -1044,7 +1065,7 @@ namespace Infrastructure.Stacks
                     Runtime = lambdaProps.Runtime,
                     Handler = $"realtime/ws-{suffix}.handler",
                     Code = lambdaProps.Code,
-                    Role = realtimeWsRole,
+                    Role = role,
                     Environment = commonEnvVars,
                     Timeout = Duration.Seconds(10),
                     MemorySize = 256,
@@ -1054,9 +1075,9 @@ namespace Infrastructure.Stacks
                 });
             }
 
-            var wsConnectFunction = CreateRealtimeWsFunction("RealtimeWsConnectFunction", "connect", "Realtime WebSocket $connect: verify ID token, record connection");
-            var wsDisconnectFunction = CreateRealtimeWsFunction("RealtimeWsDisconnectFunction", "disconnect", "Realtime WebSocket $disconnect: forget connection");
-            var wsDefaultFunction = CreateRealtimeWsFunction("RealtimeWsDefaultFunction", "default", "Realtime WebSocket $default: keep-alive pings");
+            var wsConnectFunction = CreateRealtimeWsFunction("RealtimeWsConnectFunction", "connect", realtimeWsRole, "Realtime WebSocket $connect: verify ID token, record connection");
+            var wsDisconnectFunction = CreateRealtimeWsFunction("RealtimeWsDisconnectFunction", "disconnect", realtimeWsRole, "Realtime WebSocket $disconnect: forget connection");
+            var wsDefaultFunction = CreateRealtimeWsFunction("RealtimeWsDefaultFunction", "default", realtimeWsDefaultRole, "Realtime WebSocket $default: keep-alive pings");
 
             realtimeWsApi.AddRoute("$connect", new WebSocketRouteOptions
             {
