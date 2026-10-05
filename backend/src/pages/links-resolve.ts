@@ -3,6 +3,7 @@ import { withAuth, AuthenticatedEvent, getUserContext } from '../middleware/auth
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { PageSummary } from '../types/index.js';
 import type { StoragePlugin } from '../storage/StoragePlugin.js';
+import { isTicketKey, resolveKey } from '../ticket-keys/ticket-keys-service.js';
 
 /**
  * Lambda: links-resolve
@@ -230,10 +231,12 @@ export const handler = withAuth(async (
     // Get storage plugin instance
     const storagePlugin = getStoragePlugin();
 
-    // Check if query is a valid GUID first
-    if (isValidGuid(query)) {
+    // Exact match first: a GUID, or a ticket key (e.g. [[BGT-12]]) that resolves to one.
+    // An unknown key falls through to title search — a page could be titled like a key.
+    const exactGuid = isValidGuid(query) ? query : isTicketKey(query) ? await resolveKey(query) : null;
+    if (exactGuid) {
       try {
-        const page = await storagePlugin.loadPage(query);
+        const page = await storagePlugin.loadPage(exactGuid);
         const path = await buildPagePath(
           page.guid, 
           page.folderId || null, 
