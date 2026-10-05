@@ -119,6 +119,20 @@ describe('pages-list-children', () => {
       expect(mockPlugin.loadPage).toHaveBeenCalledTimes(1);
     });
 
+    it('carries ticketKey through the deep-board mapping and the standard listing', async () => {
+      const keyed = makeSummary({ guid: 'k', pageType: TYPE_GUID, ticketKey: 'BGT-3' });
+      (mockPlugin.listChildren as any).mockResolvedValue([keyed]);
+
+      const deep = await handler(
+        makeEvent({ include: 'properties', type: TYPE_GUID, depth: '2' }),
+        {} as any,
+      );
+      expect(JSON.parse(deep.body).children[0].ticketKey).toBe('BGT-3');
+
+      const flat = await handler(makeEvent(), {} as any);
+      expect(JSON.parse(flat.body).children[0].ticketKey).toBe('BGT-3');
+    });
+
     const TYPE_B = '22222222-2222-4222-8222-222222222222';
 
     it('matches any of several comma-separated types', async () => {

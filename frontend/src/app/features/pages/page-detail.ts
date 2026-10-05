@@ -180,6 +180,9 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
     <div class="page-detail">
       <header class="bar">
         <span class="title">{{ resolvedTitle() ?? 'Untitled' }}</span>
+        @if (ticketKey(); as key) {
+          <button type="button" class="ticket-key" data-testid="page-ticket-key" (click)="copyTicketKey(key)" [attr.aria-label]="'Copy ticket key ' + key" title="Copy ticket key">{{ key }}</button>
+        }
 
         @if (mode() === 'view' && boardEligible()) {
           <mat-button-toggle-group
@@ -477,6 +480,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
     .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
     .mode-toggle { flex-shrink: 0; }
     .title { font-weight: 600; }
+    .ticket-key { font: inherit; font-size: 0.75rem; color: #374151; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.0625rem 0.5rem; margin-left: 0.5rem; cursor: pointer; }
     .view-toggle { margin-left: 0.5rem; }
     .spacer { flex: 1; }
     /*
@@ -708,6 +712,17 @@ export class PageDetail {
     if (this.resource.status() !== 'resolved') return null;
     return this.resource.value()?.title ?? null;
   });
+
+  protected readonly ticketKey = computed(() => this.settledPage()?.ticketKey ?? null);
+
+  protected async copyTicketKey(key: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(key);
+      this.snack.open(`Copied ${key}`, undefined, { duration: 2000 });
+    } catch {
+      this.snack.open(`Couldn't copy ${key}`, undefined, { duration: 2000 });
+    }
+  }
 
   /**
    * All defined page types, keyed by guid — feeds {@link boardEligible}'s

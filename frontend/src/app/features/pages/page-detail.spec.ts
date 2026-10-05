@@ -144,6 +144,48 @@ describe('PageDetail', () => {
     expect(screen.getByRole('heading', { name: 'Hello world' })).toBeInTheDocument();
   });
 
+  describe('ticket key chip', () => {
+    it('shows the key chip and copies the key on click', async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-3' });
+      await settle();
+      fixture.detectChanges();
+      const snackSpy = jest.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+      const chip = screen.getByTestId('page-ticket-key');
+      expect(chip.textContent?.trim()).toBe('BGT-3');
+      chip.click();
+      await settle();
+
+      expect(writeText).toHaveBeenCalledWith('BGT-3');
+      expect(snackSpy).toHaveBeenCalledWith('Copied BGT-3', undefined, { duration: 2000 });
+    });
+
+    it('says the copy failed when the clipboard rejects', async () => {
+      Object.assign(navigator, { clipboard: { writeText: jest.fn().mockRejectedValue(new Error('no')) } });
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-3' });
+      await settle();
+      fixture.detectChanges();
+      const snackSpy = jest.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+      screen.getByTestId('page-ticket-key').click();
+      await settle();
+
+      expect(snackSpy).toHaveBeenCalledWith("Couldn't copy BGT-3", undefined, { duration: 2000 });
+    });
+
+    it('shows no chip for an unkeyed page', async () => {
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush(serverPage);
+      await settle();
+      fixture.detectChanges();
+      expect(screen.queryByTestId('page-ticket-key')).toBeNull();
+    });
+  });
+
   // ---- Step 1b.3: PageContext channel (inspector hoisted to pages-view) ----
 
   it('publishes guid / metadata / mode to PageContext on load', async () => {
