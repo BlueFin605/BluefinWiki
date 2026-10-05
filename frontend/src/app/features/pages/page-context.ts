@@ -53,6 +53,20 @@ export class PageContext {
    */
   readonly boardView: WritableSignal<boolean> = signal(false);
 
+  /**
+   * True while the open page's working copy has unsaved changes (published by
+   * `page-detail`). The realtime client reads it to hold back a live
+   * `page:<guid>` refetch that would otherwise clobber the edit.
+   */
+  readonly dirty: WritableSignal<boolean> = signal(false);
+
+  /**
+   * Set by the realtime client when the open page changed elsewhere while it
+   * had unsaved changes here (its refetch was held back). Drives the
+   * "changed elsewhere" banner.
+   */
+  readonly remoteChange: WritableSignal<boolean> = signal(false);
+
   constructor() {
     // Breakpoint-flip cleanup (step 1b.5): crossing to desktop drops any open
     // mobile bottom sheet so it can never leave an orphaned `over` backdrop.
@@ -108,5 +122,7 @@ export class PageContext {
     // `mode` is part of the "cleared on destroy" contract too — otherwise
     // `canInsert()` stays true after leaving an `/edit` route (review M1).
     this.mode.set('view');
+    this.dirty.set(false);
+    this.remoteChange.set(false);
   }
 }

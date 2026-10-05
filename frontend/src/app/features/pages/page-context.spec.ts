@@ -114,6 +114,8 @@ describe('PageContext', () => {
     ctx.inspectorSheetOpen.set(true);
     ctx.boardView.set(true);
     ctx.mode.set('edit');
+    ctx.dirty.set(true);
+    ctx.remoteChange.set(true);
 
     ctx.reset();
 
@@ -123,6 +125,14 @@ describe('PageContext', () => {
     expect(ctx.boardView()).toBe(false);
     expect(ctx.mode()).toBe('view');
     expect(ctx.canInsert()).toBe(false);
+    expect(ctx.dirty()).toBe(false);
+    expect(ctx.remoteChange()).toBe(false);
+  });
+
+  it('dirty and remoteChange default to false', () => {
+    const { ctx } = setup();
+    expect(ctx.dirty()).toBe(false);
+    expect(ctx.remoteChange()).toBe(false);
   });
 
   it('boardView defaults to false', () => {
