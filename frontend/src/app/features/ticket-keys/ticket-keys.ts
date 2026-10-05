@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { isTicketKey } from './ticket-key';
@@ -48,7 +48,9 @@ export class TicketKeys {
       this.remember(res.key, res.guid);
       return res;
     } catch (err) {
-      if (err instanceof HttpErrorResponse && err.status === 404) return null;
+      // errorInterceptor rethrows HTTP errors as an ApiError ({ status, … }),
+      // so match on the status, not the HttpErrorResponse class.
+      if ((err as { status?: number } | null)?.status === 404) return null;
       throw err;
     }
   }

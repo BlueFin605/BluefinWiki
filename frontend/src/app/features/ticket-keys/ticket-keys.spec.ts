@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { errorInterceptor } from '../../core/api/error-interceptor';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TicketKeys, isTicketKey, pageRef } from './ticket-keys';
 
@@ -118,5 +119,20 @@ describe('isTicketKey / pageRef', () => {
     expect(pageRef({ guid: 'g1', ticketKey: 'BGT-1' })).toBe('BGT-1');
     expect(pageRef({ guid: 'g1' })).toBe('g1');
     expect(pageRef({ guid: 'g1', ticketKey: null })).toBe('g1');
+  });
+});
+
+describe('TicketKeys behind the app error interceptor', () => {
+  it('still treats a 404 as an unknown key', async () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(withInterceptors([errorInterceptor])), provideHttpClientTesting(), TicketKeys],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const svc = TestBed.inject(TicketKeys);
+    const p = svc.toGuid('NOPE-1');
+    await settle();
+    http.expectOne('/api/ticket-keys/NOPE-1').flush({ error: 'Ticket key not found' }, { status: 404, statusText: 'Not Found' });
+    expect(await p).toBeNull();
+    http.verify();
   });
 });
