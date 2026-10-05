@@ -1654,7 +1654,9 @@ export class PageDetail {
   }
 
   async openBoardSettings(): Promise<void> {
-    const page = this.resource.value();
+    // The settled page, not `resource.value()`: the button stays mounted
+    // while the resource is errored, and `value()` throws then.
+    const page = this.settledPage();
     if (!page) return;
     // Reuse the field-level resource (constructed in an injection context at
     // class-init time), not `this.pageTypes.pageTypesResource()` called fresh

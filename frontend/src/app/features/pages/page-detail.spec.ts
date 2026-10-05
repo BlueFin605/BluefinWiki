@@ -899,6 +899,22 @@ describe('PageDetail', () => {
     expect(data['overridden']).toEqual(['columns']);
   });
 
+  it('opens Board settings from the kept button while the page resource is in an error state', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture);
+    TestBed.inject(InvalidationBus).bump(pageTag('g1'));
+    await settle();
+    http
+      .expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1')
+      .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+    await settle();
+    fixture.detectChanges();
+    const open = stubDialog(null);
+    await userEvent.click(screen.getByRole('button', { name: /^board settings$/i }));
+    await settle();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['an Admin', { userId: 'u', role: 'Admin' as const }, true],
     ['the type creator', { userId: 'someone-else', role: 'Standard' as const }, true],
