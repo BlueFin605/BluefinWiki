@@ -9,6 +9,7 @@ import { Comment, PageContent, PageSummary } from '../../../types/index.js';
 import { listPageTypes } from '../../../page-types/page-types-service.js';
 import { createPage, CreatePageInput } from '../create-page.js';
 import { updatePage, UpdatePageInput } from '../update-page.js';
+import { isTicketKey, resolveKey } from '../../../ticket-keys/ticket-keys-service.js';
 
 export interface KanbanPageType {
   guid: string;
@@ -25,6 +26,8 @@ export interface KanbanDeps {
   updatePage(input: UpdatePageInput): Promise<unknown>;
   addComment(pageGuid: string, body: string): Promise<unknown>;
   listComments(pageGuid: string): Promise<Comment[]>;
+  /** A ticket key (BGT-12) → its page GUID; anything else is returned unchanged. */
+  resolveRef(ref: string): Promise<string>;
 }
 
 export function defaultKanbanDeps(): KanbanDeps {
@@ -43,5 +46,11 @@ export function defaultKanbanDeps(): KanbanDeps {
     addComment: (pageGuid, body) =>
       addComment(pageGuid, { body, parentId: null }, { authorId: 'mcp-client', authorName: 'MCP Client' }),
     listComments,
+    resolveRef: async (ref) => {
+      if (!isTicketKey(ref)) return ref;
+      const guid = await resolveKey(ref);
+      if (!guid) throw new Error(`unknown ticket key "${ref}"`);
+      return guid;
+    },
   };
 }

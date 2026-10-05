@@ -23,6 +23,11 @@ export interface FakeWiki extends KanbanDeps {
   add(guid: string, parent: string | null, type: string | null, state?: string, title?: string): void;
   stateOf(guid: string): string | undefined;
   failCreateAfter?: number;
+  /** Canonical (upper-case) key -> guid. */
+  keys: Map<string, string>;
+  setKey(guid: string, key: string): void;
+  /** When set, createPage assigns `${autoKeyPrefix}-${n}` and returns it as ticketKey. */
+  autoKeyPrefix?: string;
 }
 
 export function createFakeWiki(): FakeWiki {
@@ -30,6 +35,8 @@ export function createFakeWiki(): FakeWiki {
   const comments = new Map<string, Comment[]>();
   let order = 0;
   let nextId = 0;
+  let nextKey = 0;
+  const keys = new Map<string, string>();
 
   const toSummary = (p: PageContent): PageSummary => ({
     guid: p.guid,
@@ -44,11 +51,26 @@ export function createFakeWiki(): FakeWiki {
     ...(p.pageType ? { pageType: p.pageType } : {}),
     ...(p.properties ? { properties: p.properties } : {}),
     ...(p.tags.length ? { tags: p.tags } : {}),
+    ...(p.ticketKey ? { ticketKey: p.ticketKey } : {}),
   });
 
   const wiki: FakeWiki = {
     pages,
     comments,
+    keys,
+
+    setKey(guid, key) {
+      pages.get(guid)!.ticketKey = key;
+      keys.set(key.toUpperCase(), guid);
+    },
+
+    async resolveRef(ref) {
+      if (!/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ref.trim())) return ref;
+      const guid = keys.get(ref.trim().toUpperCase());
+      if (guid) return guid;
+      if (pages.has(ref)) return ref; // fake guids like "new-1" look like keys
+      throw new Error(`unknown ticket key "${ref}"`);
+    },
 
     add(guid, parent, type, state, title) {
       pages.set(guid, {
@@ -95,6 +117,11 @@ export function createFakeWiki(): FakeWiki {
       wiki.add(guid, input.parentGuid ?? null, type?.name ?? null, input.properties?.state?.value as string, input.title);
       pages.get(guid)!.content = input.content ?? '';
       pages.get(guid)!.tags = input.tags ?? [];
+      if (wiki.autoKeyPrefix) {
+        const ticketKey = `${wiki.autoKeyPrefix}-${++nextKey}`;
+        wiki.setKey(guid, ticketKey);
+        return { guid, ticketKey };
+      }
       return { guid };
     },
 

@@ -33,7 +33,7 @@ export const KANBAN_TOOLS = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        initiative: guid('Initiative page GUID'),
+        initiative: guid('Initiative page GUID or key'),
         claim: { type: 'boolean', description: 'Move the ticket to In Progress' },
       },
       required: ['initiative'],
@@ -44,7 +44,7 @@ export const KANBAN_TOOLS = [
     description: 'Kanban: ticket card for one ticket — header, ancestor path, body, last 5 comments.',
     inputSchema: {
       type: 'object' as const,
-      properties: { guid: guid('Ticket page GUID') },
+      properties: { guid: guid('Ticket page GUID or key (e.g. BGT-12)') },
       required: ['guid'],
     },
   },
@@ -54,7 +54,7 @@ export const KANBAN_TOOLS = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        initiative: guid('Initiative page GUID'),
+        initiative: guid('Initiative page GUID or key'),
         states: { type: 'array', items: { type: 'string' }, description: 'Only show these states (plus their ancestors)' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Only show tickets with any of these tags (plus their ancestors); combines with states' },
         depth: { type: 'number', description: 'Levels below the initiative to show' },
@@ -68,7 +68,7 @@ export const KANBAN_TOOLS = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        parentGuid: guid('Parent ticket GUID (e.g. the initiative)'),
+        parentGuid: guid('Parent ticket GUID or key (e.g. the initiative)'),
         tree: {
           type: ['object', 'array'],
           description: 'One node or an array of sibling nodes',
@@ -83,7 +83,7 @@ export const KANBAN_TOOLS = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        guid: guid('Ticket page GUID'),
+        guid: guid('Ticket page GUID or key (e.g. BGT-12)'),
         state: { type: 'string', enum: [...STATES] },
         comment: { type: 'string', description: 'Comment to add, e.g. "commit abc123 — what changed"' },
         rollup: { type: 'boolean', description: 'Auto-close completed parents' },

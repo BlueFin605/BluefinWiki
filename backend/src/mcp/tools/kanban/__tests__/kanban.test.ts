@@ -332,3 +332,22 @@ describe('tags', () => {
     ]);
   });
 });
+
+describe('ticket keys', () => {
+  it('every tool accepts a key wherever it takes a guid', async () => {
+    wiki.setKey('init', 'HOME-0'); // initiatives aren't keyed in prod, but resolution is generic
+    wiki.setKey('task2', 'HOME-2');
+    wiki.setKey('story2', 'HOME-5');
+    expect((await kanbanGet(wiki, { guid: 'home-2' })).split('\n')[0]).toContain('Task 2');
+    expect((await kanbanBoard(wiki, { initiative: 'HOME-0' })).split('\n')[0]).toContain('Home');
+    expect((await kanbanNext(wiki, { initiative: 'HOME-0' })).split('\n')[0]).toContain('Task 2');
+    await kanbanSetState(wiki, { guid: 'HOME-2', state: 'Blocked' });
+    expect(wiki.stateOf('task2')).toBe('Blocked');
+    await kanbanCreate(wiki, { parentGuid: 'HOME-5', tree: { type: 'Task', title: 'Child' } });
+    expect(wiki.pages.get('new-1')!.folderId).toBe('story2');
+  });
+
+  it('rejects an unknown key', async () => {
+    await expect(kanbanGet(wiki, { guid: 'NOPE-9' })).rejects.toThrow('unknown ticket key "NOPE-9"');
+  });
+});

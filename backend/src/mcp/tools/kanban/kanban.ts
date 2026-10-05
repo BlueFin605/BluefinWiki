@@ -157,7 +157,7 @@ export async function kanbanInitiatives(
 /** kanban_get — a ticket card: header, ancestor path, body, recent comments. */
 export async function kanbanGet(deps: KanbanDeps, input: { guid: string }): Promise<string> {
   const types = await loadTypes(deps);
-  const { page, type } = await loadTicket(deps, types, input.guid);
+  const { page, type } = await loadTicket(deps, types, await deps.resolveRef(input.guid));
 
   const path: string[] = [];
   let parentGuid = type === INITIATIVE ? '' : page.folderId;
@@ -192,7 +192,7 @@ export async function kanbanNext(
   input: { initiative: string; claim?: boolean },
 ): Promise<string> {
   const types = await loadTypes(deps);
-  const root = await loadInitiative(deps, types, input.initiative);
+  const root = await loadInitiative(deps, types, await deps.resolveRef(input.initiative));
 
   function find(node: Ticket, want: string, path: Ticket[]): Ticket[] | null {
     for (const child of node.children) {
@@ -235,7 +235,7 @@ export async function kanbanBoard(
 ): Promise<string> {
   input.states?.forEach(checkState);
   const types = await loadTypes(deps);
-  const root = await loadInitiative(deps, types, input.initiative);
+  const root = await loadInitiative(deps, types, await deps.resolveRef(input.initiative));
   const maxDepth = input.depth ?? Infinity;
   const wantedStates = input.states?.length ? new Set(input.states) : null;
   const wantedTags = input.tags?.length ? new Set(normaliseTags(input.tags)) : null;
@@ -265,7 +265,8 @@ export async function kanbanCreate(
 ): Promise<string> {
   const types = await loadTypes(deps);
   const nodes = Array.isArray(input.tree) ? input.tree : [input.tree];
-  const parent = await loadTicket(deps, types, input.parentGuid);
+  const parentGuid = await deps.resolveRef(input.parentGuid);
+  const parent = await loadTicket(deps, types, parentGuid);
 
   function validate(list: CreateNode[], parentType: KanbanPageType): void {
     for (const n of list) {
@@ -306,7 +307,7 @@ export async function kanbanCreate(
       await write(n.children ?? [], guid, depth + 1);
     }
   }
-  await write(nodes, input.parentGuid, 0);
+  await write(nodes, parentGuid, 0);
   return out.join('\n');
 }
 
@@ -324,7 +325,7 @@ export async function kanbanSetState(
   const addTags = normaliseTags(input.addTags);
   const removeTags = normaliseTags(input.removeTags);
   const types = await loadTypes(deps);
-  const { page, type } = await loadTicket(deps, types, input.guid);
+  const { page, type } = await loadTicket(deps, types, await deps.resolveRef(input.guid));
 
   let tags = page.tags ?? [];
   const tagsChanged = input.addTags !== undefined || input.removeTags !== undefined;
