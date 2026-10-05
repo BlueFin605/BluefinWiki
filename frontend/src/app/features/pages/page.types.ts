@@ -23,6 +23,7 @@ export interface PageTypeDefinition {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  boardDefaults?: BoardConfig; // Default board settings for pages of this type
 }
 
 export interface PageProperty {

@@ -8,7 +8,7 @@ import {
   pageTypeTag,
   pageTypesListTag,
 } from '../../core/api/invalidation';
-import type { PageTypeDefinition, PageTypeProperty } from '../pages/page.types';
+import type { BoardConfig, PageTypeDefinition, PageTypeProperty } from '../pages/page.types';
 
 export interface CreatePageTypeRequest {
   name: string;
@@ -20,7 +20,7 @@ export interface CreatePageTypeRequest {
   allowAnyParent?: boolean;
 }
 
-export type UpdatePageTypeRequest = Partial<CreatePageTypeRequest>;
+export type UpdatePageTypeRequest = Partial<CreatePageTypeRequest> & { boardDefaults?: BoardConfig };
 
 /**
  * Sentinel value: pass as the guid signal value to disable the fetch entirely.
