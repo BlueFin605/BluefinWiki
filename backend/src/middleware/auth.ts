@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { runWithOrigin, originFromHeaders } from '../realtime/request-origin.js';
 
 // Environment variables
 const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || process.env.USER_POOL_ID!;
@@ -67,7 +68,7 @@ export function withAuth(
       const existingClaims = event.requestContext.authorizer?.claims;
       if (existingClaims && !IS_LOCAL) {
         const authenticatedEvent = event as AuthenticatedEvent;
-        const handlerResponse = await handler(authenticatedEvent, context);
+        const handlerResponse = await runWithOrigin(originFromHeaders(event.headers), () => handler(authenticatedEvent, context));
         return withCorsHeaders(event, handlerResponse);
       }
 
@@ -120,7 +121,7 @@ export function withAuth(
       };
 
       // Call the wrapped handler with authenticated event
-      const handlerResponse = await handler(authenticatedEvent, context);
+      const handlerResponse = await runWithOrigin(originFromHeaders(event.headers), () => handler(authenticatedEvent, context));
       return withCorsHeaders(event, handlerResponse);
     } catch (error) {
       console.error('Authentication middleware error:', error);
@@ -180,7 +181,7 @@ function withCorsHeaders(
     headers: {
       ...response.headers,
       'Access-Control-Allow-Origin': allowOrigin,
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Access-Token',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Access-Token,X-Client-Id',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
       'Vary': 'Origin',
     },

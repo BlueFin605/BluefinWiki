@@ -16,6 +16,8 @@ import {
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { PageTypeDefinition, BoardConfig } from '../types/index.js';
+import { publishChange } from '../realtime/broadcaster.js';
+import { tagsForPageType } from '../realtime/change-tags.js';
 
 let _dynamoClient: DynamoDBClient | null = null;
 
@@ -87,6 +89,7 @@ export async function createPageType(pageType: PageTypeDefinition): Promise<Page
     ConditionExpression: 'attribute_not_exists(guid)',
   }));
 
+  await publishChange(tagsForPageType(pageType.guid));
   return pageType;
 }
 
@@ -159,6 +162,7 @@ export async function updatePageType(
   }
 
   const record = unmarshall(result.Attributes) as Record<string, unknown>;
+  await publishChange(tagsForPageType(guid));
   return deserializePageType(record);
 }
 
@@ -172,7 +176,6 @@ export async function deletePageType(guid: string): Promise<boolean> {
       Key: marshall({ guid }),
       ConditionExpression: 'attribute_exists(guid)',
     }));
-    return true;
   } catch (err: unknown) {
     const error = err as { name?: string };
     if (error.name === 'ConditionalCheckFailedException') {
@@ -180,6 +183,8 @@ export async function deletePageType(guid: string): Promise<boolean> {
     }
     throw err;
   }
+  await publishChange(tagsForPageType(guid));
+  return true;
 }
 
 /**
