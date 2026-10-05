@@ -11,6 +11,7 @@ import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { extractWikiLinks, updatePageLinks } from '../../pages/link-extraction.js';
 import { validateChildTypeConstraint } from '../../pages/page-type-validation.js';
 import { PageContent, PageProperty } from '../../types/index.js';
+import { keyForNewPage, recordKey } from '../../ticket-keys/ticket-keys-service.js';
 import { validatePropertiesForCreate } from './mcp-property-validation.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,6 +32,7 @@ export interface CreatePageResult {
   title: string;
   parentGuid: string | null;
   createdAt: string;
+  ticketKey?: string;
 }
 
 export async function createPage(input: CreatePageInput): Promise<CreatePageResult> {
@@ -116,6 +118,9 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
   const guid = uuidv4();
   const now = new Date().toISOString();
 
+  // Jira-style key for tickets under a prefixed Initiative; never blocks creation.
+  const ticketKey = await keyForNewPage(parentGuid, pageType);
+
   const pageContent: PageContent = {
     guid,
     title,
@@ -124,6 +129,7 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
     tags,
     status,
     sortOrder,
+    ...(ticketKey ? { ticketKey } : {}),
     ...(pageType ? { pageType } : {}),
     ...(validatedProperties && Object.keys(validatedProperties).length > 0 ? { properties: validatedProperties } : {}),
     createdBy: 'mcp-client',
@@ -134,6 +140,7 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
 
   // Save page
   await storagePlugin.savePage(guid, parentGuid, pageContent);
+  if (ticketKey) await recordKey(ticketKey, guid);
 
   // Extract and save wiki links
   if (content) {
@@ -152,5 +159,6 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
     title,
     parentGuid,
     createdAt: now,
+    ...(ticketKey ? { ticketKey } : {}),
   };
 }
