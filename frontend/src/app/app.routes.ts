@@ -24,6 +24,8 @@ export const routes: Routes = [
   { path: 'admin/invitations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/invitation-management').then((m) => m.InvitationManagement) },
   { path: 'admin/rebuild-page-index', canActivate: [authGuard, adminGuard], loadComponent: () => import('./features/admin/rebuild-page-index').then((m) => m.RebuildPageIndex) },
 
+  { path: 't/:key', canActivate: [authGuard], loadComponent: () => import('./features/ticket-keys/ticket-key-redirect').then((m) => m.TicketKeyRedirect) },
+
   { path: '403', loadComponent: () => import('./features/errors/forbidden').then((m) => m.ForbiddenComponent) },
   { path: 'redirecting', loadComponent: () => import('./features/errors/redirecting').then((m) => m.RedirectingComponent) },
 
