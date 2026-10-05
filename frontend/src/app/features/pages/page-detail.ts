@@ -14,7 +14,21 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { filter, firstValueFrom, map, race, skipWhile, take, timer } from 'rxjs';
+import {
+  catchError,
+  concat,
+  filter,
+  firstValueFrom,
+  from,
+  map,
+  of,
+  race,
+  skipWhile,
+  switchMap,
+  take,
+  timer,
+  type Observable,
+} from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
@@ -66,6 +80,7 @@ import {
   withPageOnly,
 } from '../board/board-defaults';
 import { Auth } from '../../core/auth/auth';
+import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import type {
   BoardConfig,
@@ -76,6 +91,12 @@ import type {
 
 type Mode = 'view' | 'edit';
 type ViewMode = 'content' | 'board';
+/** The route segment (`ref`), the GUID it resolved to, and how a ticket-key lookup went. */
+interface RouteTarget {
+  ref: string | null;
+  guid: string | null;
+  keyLookup: 'pending' | 'missing' | 'failed' | null;
+}
 /** Editor-surface layout on the `/edit` route (client state, not a route param). */
 type EditorMode = 'edit' | 'split' | 'preview';
 
@@ -361,8 +382,12 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
           }
 
           <section class="body" [class.toolbar-pinned]="toolbarPinned()">
-            @if (resource.isLoading() && !settledPage()) {
+            @if (keyLookup() === 'pending' || (resource.isLoading() && !settledPage())) {
               <div class="state">Loading page...</div>
+            } @else if (keyLookup() === 'missing') {
+              <div class="state error" data-testid="page-key-not-found">No page has the key {{ routeRef()?.toUpperCase() }}.</div>
+            } @else if (keyLookup() === 'failed') {
+              <div class="state error">Couldn't look up {{ routeRef()?.toUpperCase() }}.</div>
             } @else if (resource.error() && !settledPage()) {
               <div class="state error">
                 Failed to load page.
@@ -582,6 +607,7 @@ export class PageDetail {
   private readonly destroyRef = inject(DestroyRef);
   private readonly errorState = inject(EditorErrorState);
   private readonly layout = inject(Layout);
+  private readonly ticketKeys = inject(TicketKeys);
   /** Single responsive switch (DESIGN.md D1); flips the editor-bar inspector control. */
   protected readonly bp = inject(Breakpoint);
   /**
@@ -598,10 +624,32 @@ export class PageDetail {
   protected readonly boardView = viewChild(BoardView);
   protected readonly boardRefreshing = computed(() => this.boardView()?.refreshing() ?? false);
 
-  protected readonly guid = toSignal(
-    this.route.paramMap.pipe(map((p) => p.get('guid'))),
-    { initialValue: null as string | null },
+  /**
+   * The `:guid` route segment resolved to a page GUID. The segment may be a
+   * ticket key (`/pages/BGT-12`), which resolves through {@link TicketKeys};
+   * a GUID passes straight through (synchronously). `keyLookup` tracks a key
+   * that is still resolving or did not resolve.
+   */
+  private readonly routeTarget = toSignal(
+    this.route.paramMap.pipe(
+      map((p) => p.get('guid')),
+      switchMap((ref): Observable<RouteTarget> => {
+        if (!ref || !isTicketKey(ref)) return of({ ref, guid: ref, keyLookup: null });
+        return concat(
+          of<RouteTarget>({ ref, guid: null, keyLookup: 'pending' }),
+          from(this.ticketKeys.toGuid(ref)).pipe(
+            map((guid): RouteTarget => ({ ref, guid, keyLookup: guid ? null : 'missing' })),
+            catchError(() => of<RouteTarget>({ ref, guid: null, keyLookup: 'failed' })),
+          ),
+        );
+      }),
+    ),
+    { initialValue: { ref: null, guid: null, keyLookup: null } as RouteTarget },
   );
+  /** The page reference as it appears in the URL — a ticket key or a GUID. */
+  protected readonly routeRef = computed(() => this.routeTarget().ref);
+  protected readonly guid = computed(() => this.routeTarget().guid);
+  protected readonly keyLookup = computed(() => this.routeTarget().keyLookup);
 
   private readonly editModeFromRoute = toSignal(
     this.route.data.pipe(map((d) => d['editMode'] === true)),
@@ -1003,6 +1051,12 @@ export class PageDetail {
       this.pageContext.dirty.set(this.dirty());
     });
 
+    // A loaded keyed page seeds the key cache, so the tree and links resolve it without a lookup.
+    effect(() => {
+      const page = this.settledPage();
+      if (page?.ticketKey) this.ticketKeys.remember(page.ticketKey, page.guid);
+    });
+
     // The "changed elsewhere" banner belongs to one page: clear it only when
     // the guid really changes. Not in the publish effect above, which also
     // re-runs on mode / board / dirty changes (e.g. after a Save).
@@ -1332,9 +1386,9 @@ export class PageDetail {
   }
 
   onModeToggle(next: Mode): void {
-    const g = this.guid();
-    if (!g || next === this.mode()) return;
-    void this.router.navigate(next === 'edit' ? ['/pages', g, 'edit'] : ['/pages', g]);
+    const ref = this.routeRef();
+    if (!this.guid() || !ref || next === this.mode()) return;
+    void this.router.navigate(next === 'edit' ? ['/pages', ref, 'edit'] : ['/pages', ref]);
   }
 
   onViewToggle(mode: ViewMode): void {
@@ -1755,6 +1809,7 @@ export class PageDetail {
 
   async save(): Promise<void> {
     const g = this.guid();
+    const ref = this.routeRef() ?? g;
     const m = this.metadata();
     if (!g || !m) return;
 
@@ -1796,7 +1851,7 @@ export class PageDetail {
       }
       this.drafts.clear(g);
       // updatePage bumps the pages version, so the view reload picks up the save.
-      await this.router.navigate(['/pages', g]);
+      await this.router.navigate(['/pages', ref]);
     } catch (err) {
       // Prefer the server-supplied body message; fall back to a real
       // Error.message, then a generic sentence. Never surface the raw

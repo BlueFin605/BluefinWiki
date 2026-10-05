@@ -177,6 +177,58 @@ describe('PageDetail', () => {
       expect(snackSpy).toHaveBeenCalledWith("Couldn't copy BGT-3", undefined, { duration: 2000 });
     });
 
+    it('loads the page by GUID when the route holds its key', async () => {
+      const { http, fixture } = await renderDetail({ guid: 'BGT-12' });
+      await settle();
+      http.expectOne('/api/ticket-keys/BGT-12').flush({ key: 'BGT-12', guid: 'g1', title: 'Page Title' });
+      await settle();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await settle();
+      fixture.detectChanges();
+      expect(TestBed.inject(PageContext).guid()).toBe('g1');
+      expect(screen.getByTestId('page-ticket-key').textContent?.trim()).toBe('BGT-12');
+    });
+
+    it('keeps the key in the URL when toggling to edit', async () => {
+      const { http } = await renderDetail({ guid: 'BGT-12' });
+      const navigate = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      await settle();
+      http.expectOne('/api/ticket-keys/BGT-12').flush({ key: 'BGT-12', guid: 'g1', title: 'Page Title' });
+      await settle();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await settle();
+
+      await userEvent.click(screen.getByRole('radio', { name: 'Edit' }));
+      expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-12', 'edit']);
+    });
+
+    it('saves back to the key URL', async () => {
+      const { http, fixture } = await renderDetail({ guid: 'BGT-12', editMode: true });
+      const navigate = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      await settle();
+      http.expectOne('/api/ticket-keys/BGT-12').flush({ key: 'BGT-12', guid: 'g1', title: 'Page Title' });
+      await settle();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await settle();
+      fixture.detectChanges();
+
+      const save = fixture.componentInstance.save();
+      await settle();
+      http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await save;
+      expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-12']);
+    });
+
+    it('shows a not-found state for an unknown key and loads nothing', async () => {
+      const { http, fixture } = await renderDetail({ guid: 'NOPE-999' });
+      await settle();
+      http.expectOne('/api/ticket-keys/NOPE-999').flush({}, { status: 404, statusText: 'Not Found' });
+      await settle();
+      fixture.detectChanges();
+      expect(screen.getByTestId('page-key-not-found').textContent).toContain('NOPE-999');
+      http.expectNone((r) => r.url.startsWith('/api/pages/'));
+    });
+
     it('shows no chip for an unkeyed page', async () => {
       const { http, fixture } = await renderDetail();
       http.expectOne('/api/pages/g1').flush(serverPage);
