@@ -23,13 +23,13 @@ function setup(resolve: jest.Mock) {
 }
 
 describe('TicketKeyRedirect', () => {
-  it('replaces the URL with /pages/:guid when the key resolves', async () => {
+  it('replaces the URL with /pages/:key when the key resolves', async () => {
     const resolve = jest.fn().mockResolvedValue({ key: 'BGT-12', guid: 'g1', title: 'T' });
     const { fixture, navigate } = setup(resolve);
     fixture.detectChanges();
     await settle(fixture);
     expect(resolve).toHaveBeenCalledWith('BGT-12');
-    expect(navigate).toHaveBeenCalledWith(['/pages', 'g1'], { replaceUrl: true });
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-12'], { replaceUrl: true });
     expect((fixture.nativeElement as HTMLElement).querySelector('wiki-not-found')).toBeNull();
   });
 

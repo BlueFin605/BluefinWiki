@@ -37,7 +37,7 @@ export class TicketKeyRedirect {
         this.notFound.set(true);
         return;
       }
-      await this.router.navigate(['/pages', r.guid], { replaceUrl: true });
+      await this.router.navigate(['/pages', r.key], { replaceUrl: true });
     } catch {
       this.notFound.set(true);
     }

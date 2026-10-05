@@ -1504,7 +1504,7 @@ describe('SearchDialog pinned ticket-key match', () => {
 
     await user.click(row);
     await settle();
-    expect(navigate).toHaveBeenCalledWith(['/pages', 'g3']);
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-3']);
     expect(dialogRef.close).toHaveBeenCalledWith('g3');
   });
 
@@ -1540,7 +1540,7 @@ describe('SearchDialog pinned ticket-key match', () => {
     await screen.findByTestId('search-key-match');
     await user.type(input, '{Enter}');
     await settle();
-    expect(navigate).toHaveBeenCalledWith(['/pages', 'g3']);
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-3']);
     expect(dialogRef.close).toHaveBeenCalledWith('g3');
   });
 });

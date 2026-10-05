@@ -5,6 +5,7 @@ import { checkSiblingDropAllowed, checkTypeConstraints } from './check-type-cons
 import { TreeDragState } from './tree-drag-state';
 import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
 import { rowIcon } from './row-icon';
+import { TicketKeys } from '../ticket-keys/ticket-keys';
 import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget } from './page.types';
 
 // Mouse drags start immediately; touch needs a hold so a swipe over a row
@@ -192,6 +193,7 @@ const TOUCH_DRAG_THRESHOLD = 24;
 })
 export class PageTreeItem {
   private readonly pages = inject(Pages);
+  private readonly ticketKeys = inject(TicketKeys);
   /**
    * Step 2.2: shared "what is being dragged" state. A row the pointer merely
    * hovers gets no CDK event when `enterPredicate` rejects it, so it reads the
@@ -386,7 +388,10 @@ export class PageTreeItem {
   }
 
   onClick(): void {
-    this.pageSelect.emit(this.page().guid);
+    const p = this.page();
+    // Seed the key cache so the key URL the shell navigates to resolves without a lookup.
+    if (p.ticketKey) this.ticketKeys.remember(p.ticketKey, p.guid);
+    this.pageSelect.emit(p.guid);
   }
 
   onDoubleClick(): void {

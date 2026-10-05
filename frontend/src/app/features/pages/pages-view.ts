@@ -695,7 +695,7 @@ export class PagesView {
   }
 
   onPageSelect(guid: string): void {
-    void this.router.navigate(['/pages', guid]);
+    void this.router.navigate(['/pages', this.ticketKeys.keyFor(guid) ?? guid]);
     // On mobile the tree is an `over` drawer — dismiss it once a page is picked.
     if (!this.bp.isDesktop()) this.treeDrawerOpen.set(false);
   }

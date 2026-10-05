@@ -1769,6 +1769,16 @@ describe('PagesView active page from a ticket-key URL', () => {
     expect(active()).toBe('3f2a7c1e-0000-4000-8000-000000000000');
   });
 
+  it('a tree pick navigates by key when the key is known, else by GUID', async () => {
+    const { fixture } = await renderAt('/pages', ['BGT-12', 'g12']);
+    const navigate = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const cmp = fixture.componentInstance as unknown as { onPageSelect(guid: string): void };
+    cmp.onPageSelect('g12');
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-12']);
+    cmp.onPageSelect('g99');
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'g99']);
+  });
+
   it('uses a GUID URL as before', async () => {
     const { active } = await renderAt('/pages/3f2a7c1e-0000-4000-8000-000000000000/edit');
     expect(active()).toBe('3f2a7c1e-0000-4000-8000-000000000000');

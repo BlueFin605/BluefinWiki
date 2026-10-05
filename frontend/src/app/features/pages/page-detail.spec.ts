@@ -163,6 +163,22 @@ describe('PageDetail', () => {
       expect(snackSpy).toHaveBeenCalledWith('Copied BGT-3', undefined, { duration: 2000 });
     });
 
+    it('copies a key link next to the chip', async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-3' });
+      await settle();
+      fixture.detectChanges();
+      const snackSpy = jest.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+      screen.getByTestId('page-ticket-link').click();
+      await settle();
+
+      expect(writeText).toHaveBeenCalledWith(`${location.origin}/pages/BGT-3`);
+      expect(snackSpy).toHaveBeenCalledWith('Copied link to BGT-3', undefined, { duration: 2000 });
+    });
+
     it('says the copy failed when the clipboard rejects', async () => {
       Object.assign(navigator, { clipboard: { writeText: jest.fn().mockRejectedValue(new Error('no')) } });
       const { http, fixture } = await renderDetail();

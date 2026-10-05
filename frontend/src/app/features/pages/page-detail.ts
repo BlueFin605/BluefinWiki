@@ -203,6 +203,9 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
         <span class="title">{{ resolvedTitle() ?? 'Untitled' }}</span>
         @if (ticketKey(); as key) {
           <button type="button" class="ticket-key" data-testid="page-ticket-key" (click)="copyTicketKey(key)" [attr.aria-label]="'Copy ticket key ' + key" title="Copy ticket key">{{ key }}</button>
+          <button mat-icon-button type="button" class="ticket-link" data-testid="page-ticket-link" (click)="copyTicketLink(key)" [attr.aria-label]="'Copy link to ' + key" title="Copy link">
+            <mat-icon>link</mat-icon>
+          </button>
         }
 
         @if (mode() === 'view' && boardEligible()) {
@@ -506,6 +509,8 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
     .mode-toggle { flex-shrink: 0; }
     .title { font-weight: 600; }
     .ticket-key { font: inherit; font-size: 0.75rem; color: #374151; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.0625rem 0.5rem; margin-left: 0.5rem; cursor: pointer; }
+    .ticket-link { --mdc-icon-button-state-layer-size: 28px; --mat-icon-button-state-layer-size: 28px; padding: 2px; color: #6b7280; }
+    .ticket-link mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .view-toggle { margin-left: 0.5rem; }
     .spacer { flex: 1; }
     /*
@@ -763,12 +768,20 @@ export class PageDetail {
 
   protected readonly ticketKey = computed(() => this.settledPage()?.ticketKey ?? null);
 
-  protected async copyTicketKey(key: string): Promise<void> {
+  protected copyTicketKey(key: string): Promise<void> {
+    return this.copy(key, key);
+  }
+
+  protected copyTicketLink(key: string): Promise<void> {
+    return this.copy(`${location.origin}/pages/${key}`, `link to ${key}`);
+  }
+
+  private async copy(text: string, what: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(key);
-      this.snack.open(`Copied ${key}`, undefined, { duration: 2000 });
+      await navigator.clipboard.writeText(text);
+      this.snack.open(`Copied ${what}`, undefined, { duration: 2000 });
     } catch {
-      this.snack.open(`Couldn't copy ${key}`, undefined, { duration: 2000 });
+      this.snack.open(`Couldn't copy ${what}`, undefined, { duration: 2000 });
     }
   }
 

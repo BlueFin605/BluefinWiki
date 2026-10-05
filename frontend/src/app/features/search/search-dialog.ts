@@ -741,7 +741,7 @@ export class SearchDialog {
 
   protected async onSelectKey(km: ResolvedTicketKey): Promise<void> {
     this.recordRecentForSelection();
-    await this.router.navigate(['/pages', km.guid]);
+    await this.router.navigate(['/pages', km.key]);
     this.dialogRef.close(km.guid);
   }
 
