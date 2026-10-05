@@ -6,7 +6,7 @@
  */
 
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getPageKey } from '../../storage/PageIndexService.js';
+import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { isTicketKey, resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -18,7 +18,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 async function toS3Key(ref: string): Promise<string> {
   if (!isTicketKey(ref) && !UUID_REGEX.test(ref)) return ref;
   const guid = await resolvePageRef(ref);
-  const s3Key = await getPageKey(guid);
+  const s3Key = await getStoragePlugin().getPageFileKey(guid);
   if (!s3Key) throw new Error(`Page not found: ${ref}`);
   return s3Key;
 }

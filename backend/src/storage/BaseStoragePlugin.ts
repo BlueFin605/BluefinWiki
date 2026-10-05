@@ -288,6 +288,8 @@ export abstract class BaseStoragePlugin implements StoragePlugin {
 
   abstract loadPage(guid: string): Promise<PageContent>;
 
+  abstract getPageFileKey(guid: string): Promise<string | null>;
+
   abstract deletePage(guid: string, recursive?: boolean): Promise<void>;
 
   abstract listVersions(guid: string): Promise<Version[]>;

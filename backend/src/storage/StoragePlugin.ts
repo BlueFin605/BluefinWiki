@@ -49,6 +49,14 @@ export interface StoragePlugin {
   loadPage(guid: string): Promise<PageContent>;
 
   /**
+   * The storage key of a page's markdown file (e.g. "a/b/b.md" in S3), or
+   * null when no such page exists.
+   *
+   * @param guid - Unique identifier for the page
+   */
+  getPageFileKey(guid: string): Promise<string | null>;
+
+  /**
    * Delete a page and optionally all its children
    * 
    * @param guid - Unique identifier for the page

@@ -534,6 +534,13 @@ export class S3StoragePlugin extends BaseStoragePlugin {
    * Note: This requires knowing the full path. For now, we'll search
    * for the page by GUID across all possible locations.
    */
+  /** The page's .md key, found via the page index or the S3 fallbacks; null when absent. */
+  async getPageFileKey(guid: string): Promise<string | null> {
+    if (!this.validateGuid(guid)) return null;
+    const folder = await this.findPageFolder(guid);
+    return folder ? folderToFileKey(folder, guid) : null;
+  }
+
   async loadPage(guid: string): Promise<PageContent> {
     try {
       // Validate GUID
