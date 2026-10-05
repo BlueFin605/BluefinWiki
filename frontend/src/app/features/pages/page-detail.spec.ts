@@ -1261,15 +1261,18 @@ describe('PageDetail', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /discard & reload/i }));
     await flushOverlay();
 
-    // The draft is gone from both the in-memory Map and localStorage.
-    expect(drafts.hasDraft('g1')).toBe(false);
-    expect(localStorage.getItem('bluefinwiki:draft:g1')).toBeNull();
+    // The draft survives until the GET succeeds (a failed GET must not lose it).
+    expect(drafts.hasDraft('g1')).toBe(true);
 
     // The page resource refetched.
     http.expectOne('/api/pages/g1').flush(serverPage);
     await settle();
     fixture.detectChanges();
     await settle();
+
+    // Now the draft is gone from both the in-memory Map and localStorage.
+    expect(drafts.hasDraft('g1')).toBe(false);
+    expect(localStorage.getItem('bluefinwiki:draft:g1')).toBeNull();
 
     // Baseline reset to the freshly fetched server content.
     expect(fixture.componentInstance.content()).toBe('# Original');
@@ -2784,6 +2787,98 @@ describe('PageDetail', () => {
       expect(comp.viewMode()).toBe('board');
       // No second probe was needed: the same parent stays enabled through the reload.
       expect(http.match('/api/pages/g1/children?include=properties&limit=50')).toHaveLength(0);
+    });
+
+    describe('failed background refetch', () => {
+      const REFRESH_FAILED = /couldn't refresh this page\./i;
+      const DELETED = /this page was deleted elsewhere\. your unsaved changes are kept in this tab/i;
+      const editorOf = (fixture: { nativeElement: unknown }) =>
+        (fixture.nativeElement as HTMLElement).querySelector('wiki-codemirror');
+
+      it('a same-guid refetch returning 500 keeps the editor mounted and shows an inline error with Retry', async () => {
+        const { fixture, http } = await load();
+        await typeEdit(fixture, '# My draft');
+        const editorEl = editorOf(fixture);
+        expect(editorEl).not.toBeNull();
+
+        await bumpPage(fixture);
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1')
+          .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+        await settle();
+        fixture.detectChanges();
+
+        expect(editorOf(fixture)).toBe(editorEl);
+        expect(screen.queryByText(/failed to load page/i)).toBeNull();
+        const banner = screen.getByText(REFRESH_FAILED).closest('.banner') as HTMLElement;
+        expect(banner).not.toBeNull();
+        expect(fixture.componentInstance.content()).toBe('# My draft');
+
+        await userEvent.click(within(banner).getByRole('button', { name: /^retry$/i }));
+        await settle();
+        http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(serverPage);
+        await settle();
+        fixture.detectChanges();
+        expect(screen.queryByText(REFRESH_FAILED)).toBeNull();
+        expect(editorOf(fixture)).toBe(editorEl);
+      });
+
+      it('a 404 refetch (deleted elsewhere) shows the deleted message and keeps the working copy', async () => {
+        const { fixture, http } = await load();
+        await typeEdit(fixture, '# My draft');
+        const editorEl = editorOf(fixture);
+
+        await bumpPage(fixture);
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1')
+          .flush({ message: 'not found' }, { status: 404, statusText: 'Not Found' });
+        await settle();
+        fixture.detectChanges();
+
+        expect(screen.getByText(DELETED)).toBeInTheDocument();
+        expect(screen.queryByText(REFRESH_FAILED)).toBeNull();
+        expect(screen.queryByText(/failed to load page/i)).toBeNull();
+        expect(editorOf(fixture)).toBe(editorEl);
+        expect(fixture.componentInstance.content()).toBe('# My draft');
+      });
+
+      it('a first load that errors still shows the full error panel', async () => {
+        const { fixture, http } = await renderDetail({ editMode: true });
+        http
+          .expectOne('/api/pages/g1')
+          .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+        await settle();
+        fixture.detectChanges();
+
+        expect(screen.getByText(/failed to load page/i)).toBeInTheDocument();
+        expect(screen.queryByText(REFRESH_FAILED)).toBeNull();
+        expect(editorOf(fixture)).toBeNull();
+      });
+
+      it('Reload whose GET 404s leaves the draft in storage and the working copy intact', async () => {
+        const { fixture, http } = await load();
+        const drafts = TestBed.inject(Drafts);
+        await typeEdit(fixture, '# My draft');
+        // Let the debounced autosave stash the draft.
+        await new Promise((r) => setTimeout(r, 500));
+        expect(drafts.hasDraft('g1')).toBe(true);
+        TestBed.inject(PageContext).remoteChange.set(true);
+        fixture.detectChanges();
+
+        await userEvent.click(screen.getByRole('button', { name: /^reload$/i }));
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1')
+          .flush({ message: 'not found' }, { status: 404, statusText: 'Not Found' });
+        await settle();
+        fixture.detectChanges();
+        await settle();
+
+        expect(drafts.hasDraft('g1')).toBe(true);
+        expect(localStorage.getItem('bluefinwiki:draft:g1')).not.toBeNull();
+        expect(fixture.componentInstance.content()).toBe('# My draft');
+        expect(screen.getByText(DELETED)).toBeInTheDocument();
+      });
     });
   });
 });

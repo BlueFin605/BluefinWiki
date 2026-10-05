@@ -11,6 +11,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { filter, firstValueFrom, map, race, skipWhile, take, timer } from 'rxjs';
@@ -311,6 +312,19 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
         </div>
       }
 
+      @if (backgroundLoadError(); as kind) {
+        <div class="banner remote-change" role="alert">
+          @if (kind === 'deleted') {
+            <span class="banner-msg">
+              This page was deleted elsewhere. Your unsaved changes are kept in this tab — copy them before leaving.
+            </span>
+          } @else {
+            <span class="banner-msg">Couldn't refresh this page.</span>
+            <button mat-button type="button" (click)="resource.reload()">Retry</button>
+          }
+        </div>
+      }
+
       @if (guid(); as g) {
         @if (resolvedTitle(); as t) {
           <wiki-breadcrumbs [guid]="g" [currentTitle]="t" />
@@ -340,7 +354,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
           <section class="body" [class.toolbar-pinned]="toolbarPinned()">
             @if (resource.isLoading() && !settledPage()) {
               <div class="state">Loading page...</div>
-            } @else if (resource.error()) {
+            } @else if (resource.error() && !settledPage()) {
               <div class="state error">
                 Failed to load page.
                 <button type="button" (click)="resource.reload()">Retry</button>
@@ -747,6 +761,20 @@ export class PageDetail {
       if (previous && previous.source.guid === source.guid) return previous.value;
       return null;
     },
+  });
+
+  /**
+   * A failed background refetch of a page that is already on screen (realtime
+   * bump, catch-up, Reload). The body keeps rendering from {@link settledPage},
+   * so the editor, its undo history and the unsaved working copy survive, and
+   * an inline banner reports the failure instead of the full error panel.
+   * `'deleted'` for a 404 (removed elsewhere), `'failed'` for anything else,
+   * `null` when there's no error or nothing settled to keep on screen.
+   */
+  protected readonly backgroundLoadError = computed<'deleted' | 'failed' | null>(() => {
+    const err = this.resource.error();
+    if (!err || !this.settledPage()) return null;
+    return err instanceof HttpErrorResponse && err.status === 404 ? 'deleted' : 'failed';
   });
 
   /**
@@ -1236,18 +1264,18 @@ export class PageDetail {
         if (!confirmed) return;
       }
 
-      // `Drafts.clear` drops both the in-memory Map entry and the localStorage row.
       // A still-pending autosave would write the discarded copy back mid-reload.
       this.cancelAutosave();
-      this.drafts.clear(g);
       this.saveError.set(null);
       this.errorState.clear();
 
       const page = await this.reloadPageResource();
       if (page) {
         this.resetWorkingCopyToServer(page);
-        // Belt and braces: whatever was stashed while the GET was in flight
-        // is the discarded copy.
+        // Only now, with the server page in hand, drop the draft (`Drafts.clear`
+        // removes the in-memory entry and the localStorage row), including
+        // anything stashed while the GET was in flight. A failed GET (e.g. a
+        // 404 after a delete elsewhere) keeps both the draft and the copy.
         this.drafts.clear(g);
         // The copy now IS the server page, so a "changed elsewhere" raised by
         // this very reload's re-resolve is moot.
