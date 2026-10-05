@@ -19,6 +19,7 @@ import { BoardColumn } from './board-column';
 import { CardSummaryDialog, type CardSummaryDialogData } from './card-summary-dialog';
 import { computeBoardOrder } from './compute-board-order';
 import { getColumnColor, groupByState } from './group-by-state';
+import { resolveCardTypes } from './card-types';
 import type {
   BoardConfig,
   PageChildDetail,
@@ -52,7 +53,7 @@ const MAX_LIMIT = 1000;
   template: `
     @if (showInitialLoading()) {
       <div class="state">Loading board...</div>
-    } @else if (childrenResource.error()) {
+    } @else if (childrenResource.error() && !awaitingTypes()) {
       <div class="state error">Failed to load board.</div>
     } @else {
       <div class="board-body">
@@ -132,17 +133,52 @@ export class BoardView {
   readonly parentGuid = input.required<string>();
   readonly boardConfig = input<BoardConfig | null>(null);
 
-  private readonly parentGuidSig = computed<string | null>(() => this.parentGuid() ?? null);
+  // Declared before the card query: leaf mode resolves its card types from it.
+  readonly pageTypesResource = this.pageTypes.pageTypesResource();
+
+  /**
+   * The page-type list, RETAINED across reloads — `null` only until the very
+   * first load resolves. {@link refresh} (and any page-type edit) bumps
+   * `page-types:list`, which puts `pageTypesResource` back into `'loading'`
+   * with its value cleared; reading it directly would blank every card's type
+   * icon and, in leaf mode, drop the board back to "awaiting types" (blanking
+   * it and changing the card query) until the reload lands. Hold the last
+   * fully resolved list instead — the same keep-last-good rule
+   * `showInitialLoading` applies to the cards. Only a resolved reload
+   * replaces it.
+   */
+  private readonly pageTypesList = linkedSignal<
+    readonly PageTypeDefinition[] | null,
+    readonly PageTypeDefinition[] | null
+  >({
+    // `value()` throws on an errored resource — only read it when resolved.
+    source: () =>
+      this.pageTypesResource.status() === 'resolved' ? (this.pageTypesResource.value() ?? []) : null,
+    computation: (resolved, previous) => resolved ?? previous?.value ?? null,
+  });
+
+  /** Leaf mode can't know which types to fetch until the schemas first arrive. */
+  protected readonly awaitingTypes = computed(
+    () => this.boardConfig()?.leafTypes === true && this.pageTypesList() === null,
+  );
+
+  private readonly parentGuidSig = computed<string | null>(() =>
+    this.awaitingTypes() ? null : (this.parentGuid() ?? null),
+  );
   private readonly options = computed<ChildrenWithPropertiesOptions | null>(() => {
     const cfg = this.boardConfig();
-    if (cfg?.targetTypeGuid) {
-      return { targetTypeGuids: [cfg.targetTypeGuid], depth: cfg.depth ?? 10, limit: PAGE_SIZE };
+    const types = resolveCardTypes(cfg, this.pageTypesList() ?? []);
+    if (types.length) {
+      return { targetTypeGuids: types, depth: cfg?.depth ?? 10, limit: PAGE_SIZE };
     }
     return { limit: PAGE_SIZE };
+  }, {
+    // Re-evaluates whenever page types (re)load; only a real query change may
+    // re-fetch the cards, so compare by value rather than identity.
+    equal: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
 
   readonly childrenResource = this.pages.childrenWithPropertiesResource(this.parentGuidSig, this.options);
-  readonly pageTypesResource = this.pageTypes.pageTypesResource();
 
   /** True while the cards are (re)loading — drives the header's Refresh-board button. */
   readonly refreshing = computed(() => this.childrenResource.isLoading());
@@ -196,7 +232,8 @@ export class BoardView {
    * keep painting the last-good grouping until the reload lands.
    */
   protected readonly showInitialLoading = computed(
-    () => this.childrenResource.isLoading() && this.accumulated().length === 0,
+    () =>
+      this.awaitingTypes() || (this.childrenResource.isLoading() && this.accumulated().length === 0),
   );
 
   // Bumped every time the reset effect below runs (i.e. every time
@@ -212,7 +249,7 @@ export class BoardView {
 
   constructor() {
     // Reset the accumulator every time the resource resolves a fresh page
-    // one — a parentGuid/targetTypeGuid/depth change or an invalidation bump
+    // one — a parentGuid/card-types/depth change or an invalidation bump
     // (e.g. step 1.2's `children:<parent>`) always re-fetches page one, so
     // handling both here covers them without a separate watcher. The body
     // runs `untracked` so that the bookkeeping signals it reads (and writes)
@@ -353,26 +390,8 @@ export class BoardView {
     this.hasMoreCards.set(value?.hasMore === true);
   }
 
-  /**
-   * The page-type list, RETAINED across reloads. {@link refresh} (and any
-   * page-type edit) bumps `page-types:list`, which puts `pageTypesResource`
-   * back into `'loading'` with its value cleared; reading it directly would
-   * blank every card's type icon until the reload lands. Hold the last fully
-   * resolved list instead — the same keep-last-good rule `showInitialLoading`
-   * applies to the cards. Only a resolved reload replaces it.
-   */
-  private readonly pageTypesList = linkedSignal<
-    readonly PageTypeDefinition[] | null,
-    readonly PageTypeDefinition[]
-  >({
-    // `value()` throws on an errored resource — only read it when resolved.
-    source: () =>
-      this.pageTypesResource.status() === 'resolved' ? (this.pageTypesResource.value() ?? []) : null,
-    computation: (resolved, previous) => resolved ?? previous?.value ?? [],
-  });
-
   protected readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() =>
-    Object.fromEntries(this.pageTypesList().map((t) => [t.guid, t])),
+    Object.fromEntries((this.pageTypesList() ?? []).map((t) => [t.guid, t])),
   );
 
   protected readonly grouping = computed(() => {

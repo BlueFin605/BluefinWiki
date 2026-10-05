@@ -8,7 +8,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { BoardView } from './board-view';
 import { errorInterceptor } from '../../core/api/error-interceptor';
-import { InvalidationBus, childrenAnyTag } from '../../core/api/invalidation';
+import { InvalidationBus, childrenAnyTag, pageTypesListTag } from '../../core/api/invalidation';
 import type { PageChildDetail } from '../pages/page.types';
 
 function card(over: Partial<PageChildDetail> = {}): PageChildDetail {
@@ -1372,5 +1372,134 @@ describe('BoardView', () => {
     await settle();
     fixture.detectChanges();
     expect(screen.getByTitle('Task')).toHaveTextContent('🧩');
+  });
+
+  describe('card types', () => {
+    const STATE = [{ name: 'state', type: 'string' as const, required: true }];
+    function pt(guid: string, allowedChildTypes: string[] = []) {
+      return {
+        guid, name: guid, icon: 'x', properties: STATE, allowedChildTypes,
+        allowWikiPageChildren: false, allowedParentTypes: [], allowAnyParent: true,
+        createdBy: 'u', createdAt: '', updatedAt: '',
+      };
+    }
+    const LEAF_SCHEMAS = [pt('pt-story', ['pt-task', 'pt-bug']), pt('pt-task'), pt('pt-bug')];
+    const LEAF_URL = '/api/pages/p1/children?include=properties&type=pt-task%2Cpt-bug&depth=10&limit=200';
+
+    it('fetches several specific card types as type=a,b', async () => {
+      await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'p1', boardConfig: { targetTypeGuids: ['pt-task', 'pt-bug'], depth: 4 } },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      flushPageTypes(http);
+      http.expectOne('/api/pages/p1/children?include=properties&type=pt-task%2Cpt-bug&depth=4&limit=200')
+        .flush({ children: [], hasMore: false });
+    });
+
+    it('still reads the legacy single targetTypeGuid', async () => {
+      await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'p1', boardConfig: { targetTypeGuid: 'pt-task' } },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      flushPageTypes(http);
+      http.expectOne('/api/pages/p1/children?include=properties&type=pt-task&depth=10&limit=200')
+        .flush({ children: [], hasMore: false });
+    });
+
+    it('leaf mode: waits for page types, then fetches the resolved leaf types', async () => {
+      await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'p1', boardConfig: { leafTypes: true } },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      // No children request (and no error state) before the schemas arrive.
+      expect(http.match((r) => r.url.includes('/children')).length).toBe(0);
+      expect(screen.getByText(/loading board/i)).toBeInTheDocument();
+
+      for (const r of http.match('/api/page-types')) r.flush({ pageTypes: LEAF_SCHEMAS });
+      await settle();
+      http.expectOne(LEAF_URL)
+        .flush({ children: [card({ guid: 'a', title: 'Leaf A', properties: { state: { type: 'string', value: 'To Do' } } })], hasMore: false });
+      await settle();
+      expect(screen.getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
+    });
+
+    it('leaf mode with no leaf types falls back to direct children', async () => {
+      await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'p1', boardConfig: { leafTypes: true } },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      flushPageTypes(http); // empty schema list -> no leaf types
+      await settle();
+      http.expectOne('/api/pages/p1/children?include=properties&limit=200').flush({ children: [], hasMore: false });
+    });
+
+    async function loadedLeafBoard() {
+      const view = await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'p1', boardConfig: { leafTypes: true } },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      for (const r of http.match('/api/page-types')) r.flush({ pageTypes: LEAF_SCHEMAS });
+      await settle();
+      http.expectOne(LEAF_URL).flush({
+        children: [card({ guid: 'a', title: 'Leaf A', properties: { state: { type: 'string', value: 'To Do' } } })],
+        hasMore: false,
+      });
+      await settle();
+      view.fixture.detectChanges();
+      expect(screen.getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
+      return { fixture: view.fixture, http };
+    }
+
+    it('leaf mode keeps its cards while page types reload (realtime page-types bump)', async () => {
+      const { fixture, http } = await loadedLeafBoard();
+
+      TestBed.inject(InvalidationBus).bump(pageTypesListTag());
+      await settle();
+      fixture.detectChanges();
+      // Schemas mid-reload: no "Loading board", no error, cards stay, and the
+      // card query is untouched (no re-fetch, no fallback to direct children).
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/failed to load/i)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
+      expect(http.match((r) => r.url.includes('/children')).length).toBe(0);
+
+      for (const r of http.match('/api/page-types')) r.flush({ pageTypes: LEAF_SCHEMAS });
+      await settle();
+      fixture.detectChanges();
+      expect(screen.getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
+      expect(http.match((r) => r.url.includes('/children')).length).toBe(0);
+    });
+
+    it('leaf mode keeps its cards and leaf query across refresh()', async () => {
+      const { fixture, http } = await loadedLeafBoard();
+
+      fixture.componentInstance.refresh();
+      await settle();
+      fixture.detectChanges();
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
+
+      // The card reload still asks for the leaf types, even with schemas in flight.
+      http.expectOne(LEAF_URL).flush({
+        children: [card({ guid: 'a', title: 'Leaf A', properties: { state: { type: 'string', value: 'Done' } } })],
+        hasMore: false,
+      });
+      for (const r of http.match('/api/page-types')) r.flush({ pageTypes: LEAF_SCHEMAS });
+      await settle();
+      fixture.detectChanges();
+      expect(within(screen.getByText('Done').closest('wiki-board-column') as HTMLElement)
+        .getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
+      expect(http.match((r) => r.url.includes('/children')).length).toBe(0);
+    });
   });
 });
