@@ -536,6 +536,12 @@ async function startServer() {
           BillingMode: 'PAY_PER_REQUEST',
         },
         {
+          TableName: process.env.DYNAMODB_TICKET_KEYS_TABLE || 'bluefinwiki-ticket-keys-local',
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
           TableName: 'bluefinwiki-tags-local',
           KeySchema: [
             { AttributeName: 'scope', KeyType: 'HASH' },
