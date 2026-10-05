@@ -14,6 +14,7 @@ import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { extractWikiLinks, updatePageLinks } from '../../pages/link-extraction.js';
 import { PageContent, PageProperty } from '../../types/index.js';
 import { validatePropertiesForUpdate } from './mcp-property-validation.js';
+import { resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -36,7 +37,8 @@ export interface UpdatePageResult {
 }
 
 export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResult> {
-  const { pageGuid, title, content, tags, status, pageType, properties } = input;
+  const { pageGuid: pageRef, title, content, tags, status, pageType, properties } = input;
+  const pageGuid = pageRef ? await resolvePageRef(pageRef) : pageRef;
 
   // Validate GUID format
   if (!pageGuid || !UUID_REGEX.test(pageGuid)) {

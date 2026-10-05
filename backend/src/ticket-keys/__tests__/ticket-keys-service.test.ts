@@ -14,6 +14,7 @@ import {
   keyForNewPage,
   recordKey,
   resolveKey,
+  resolvePageRef,
 } from '../ticket-keys-service.js';
 
 type FakePage = { guid: string; folderId: string; pageType?: string; boardConfig?: { keyPrefix?: string } };
@@ -128,5 +129,26 @@ describe('helpers', () => {
     expect(isTicketType(types['t-task'])).toBe(true);
     expect(isTicketType(types['t-init'])).toBe(false);
     expect(isTicketType(types['t-note'])).toBe(false);
+  });
+});
+
+describe('resolvePageRef', () => {
+  const GUID = '123e4567-e89b-42d3-a456-426614174000';
+
+  it('passes a GUID through without a lookup', async () => {
+    expect(await resolvePageRef(GUID)).toBe(GUID);
+    expect(getMapping).not.toHaveBeenCalled();
+  });
+
+  it('resolves a key, in any case', async () => {
+    vi.mocked(getMapping).mockResolvedValue('guid-1');
+    expect(await resolvePageRef('BGT-7')).toBe('guid-1');
+    expect(await resolvePageRef('bgt-7')).toBe('guid-1');
+    expect(getMapping).toHaveBeenLastCalledWith('BGT-7');
+  });
+
+  it('throws on an unknown key', async () => {
+    vi.mocked(getMapping).mockResolvedValue(null);
+    await expect(resolvePageRef('bgt-99')).rejects.toThrow('unknown ticket key "BGT-99"');
   });
 });

@@ -10,6 +10,7 @@ vi.mock('../../../storage/StoragePluginRegistry.js', () => ({
 vi.mock('../../../ticket-keys/ticket-keys-service.js', () => ({
   keyForNewPage: (...a: unknown[]) => keyForNewPage(...a),
   recordKey: (...a: unknown[]) => recordKey(...a),
+  resolvePageRef: async (r: string) => r,
 }));
 vi.mock('../../../pages/page-type-validation.js', () => ({
   validatePageType: vi.fn().mockResolvedValue({ warnings: [] }),

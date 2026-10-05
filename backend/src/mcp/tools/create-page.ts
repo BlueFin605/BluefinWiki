@@ -11,7 +11,7 @@ import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { extractWikiLinks, updatePageLinks } from '../../pages/link-extraction.js';
 import { validateChildTypeConstraint } from '../../pages/page-type-validation.js';
 import { PageContent, PageProperty } from '../../types/index.js';
-import { keyForNewPage, recordKey } from '../../ticket-keys/ticket-keys-service.js';
+import { keyForNewPage, recordKey, resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 import { validatePropertiesForCreate } from './mcp-property-validation.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -39,12 +39,13 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
   const {
     title,
     content = '',
-    parentGuid = null,
+    parentGuid: parentRef = null,
     tags = [],
     status = 'published',
     pageType,
     properties,
   } = input;
+  const parentGuid = parentRef ? await resolvePageRef(parentRef) : parentRef;
 
   // Validate title
   if (!title || title.trim().length === 0) {

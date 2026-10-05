@@ -62,3 +62,11 @@ export async function recordKey(key: string, guid: string): Promise<void> {
 export async function resolveKey(ref: string): Promise<string | null> {
   return isTicketKey(ref) ? getMapping(canonicalKey(ref)) : null;
 }
+
+/** A page reference as a GUID: GUIDs (and anything else non-key) pass through; keys resolve via the mapping. Throws on an unknown key. */
+export async function resolvePageRef(ref: string): Promise<string> {
+  if (!isTicketKey(ref)) return ref;
+  const guid = await resolveKey(ref);
+  if (!guid) throw new Error(`unknown ticket key "${canonicalKey(ref)}"`);
+  return guid;
+}

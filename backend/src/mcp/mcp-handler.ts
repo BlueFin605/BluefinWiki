@@ -54,7 +54,7 @@ const TOOLS = [
       properties: {
         s3Key: {
           type: 'string',
-          description: 'The S3 key of the page (e.g. "abc-123/abc-123.md"). Get this from list_pages or search_pages results.',
+          description: 'The S3 key of the page (e.g. "abc-123/abc-123.md", from list_pages or search_pages results), or the page GUID, or its ticket key (e.g. BGT-12).',
         },
       },
       required: ['s3Key'],
@@ -90,7 +90,7 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the target page (from the "guid" field in page frontmatter)',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the target page (GUID is the "guid" field in page frontmatter)',
         },
       },
       required: ['pageGuid'],
@@ -112,7 +112,7 @@ const TOOLS = [
         },
         parentGuid: {
           type: ['string', 'null'],
-          description: 'GUID of the parent page, or null/omit for a root-level page. Find parent GUIDs via list_pages or get_page.',
+          description: 'GUID or ticket key (e.g. BGT-12) of the parent page, or null/omit for a root-level page. Find parent GUIDs via list_pages or get_page.',
         },
         tags: {
           type: 'array',
@@ -144,7 +144,7 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the page to update (from the "guid" field in page frontmatter)',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the page to update (GUID is the "guid" field in page frontmatter)',
         },
         title: {
           type: 'string',
@@ -184,7 +184,7 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the page to delete (from the "guid" field in page frontmatter)',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the page to delete (GUID is the "guid" field in page frontmatter)',
         },
         recursive: {
           type: 'boolean',
@@ -202,11 +202,11 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the page to move',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the page to move',
         },
         newParentGuid: {
           type: ['string', 'null'],
-          description: 'GUID of the new parent page, or null to move to root level',
+          description: 'GUID or ticket key (e.g. BGT-12) of the new parent page, or null to move to root level',
         },
       },
       required: ['pageGuid', 'newParentGuid'],
@@ -220,7 +220,7 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the page (from the "guid" field in page frontmatter)',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the page (GUID is the "guid" field in page frontmatter)',
         },
       },
       required: ['pageGuid'],
@@ -234,7 +234,7 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the page to comment on',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the page to comment on',
         },
         body: {
           type: 'string',
@@ -256,7 +256,7 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the page the comment is on',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the page the comment is on',
         },
         commentId: {
           type: 'string',
@@ -278,7 +278,7 @@ const TOOLS = [
       properties: {
         pageGuid: {
           type: 'string',
-          description: 'The GUID of the page the comment is on',
+          description: 'The GUID or ticket key (e.g. BGT-12) of the page the comment is on',
         },
         commentId: {
           type: 'string',

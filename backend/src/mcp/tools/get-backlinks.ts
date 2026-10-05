@@ -8,6 +8,7 @@
 import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
+import { resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 
 const dynamodb = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
 const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
@@ -40,9 +41,10 @@ async function getPageTitle(guid: string): Promise<string> {
 }
 
 /**
- * Get all pages that link to the given page GUID.
+ * Get all pages that link to the given page (GUID or ticket key).
  */
-export async function getBacklinks(pageGuid: string): Promise<BacklinkResult[]> {
+export async function getBacklinks(pageRef: string): Promise<BacklinkResult[]> {
+  const pageGuid = await resolvePageRef(pageRef);
   const result = await dynamodb.send(new QueryCommand({
     TableName: linksTable,
     IndexName: 'targetGuid-index',
