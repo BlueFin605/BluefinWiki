@@ -191,4 +191,46 @@ describe('BoardSettingsPanel', () => {
     expect(arg.leafTypes).toBeUndefined();
     expect(arg.depth).toBeUndefined();
   });
+  it('keeps a targetTypeGuids selection on save when page types are unavailable', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { targetTypeGuids: ['pt-a', 'pt-b'], depth: 3 }, pageTypes: [] }, dialogRef);
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.targetTypeGuids).toEqual(['pt-a', 'pt-b']);
+    expect(arg.depth).toBe(3);
+  });
+
+  it('keeps a legacy targetTypeGuid selection on save when page types are unavailable, written as targetTypeGuids', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { targetTypeGuid: 'pt-legacy' }, pageTypes: [] }, dialogRef);
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.targetTypeGuids).toEqual(['pt-legacy']);
+    expect(arg.targetTypeGuid).toBeUndefined();
+  });
+
+  it('keeps leafTypes on save when page types are unavailable', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { leafTypes: true }, pageTypes: [] }, dialogRef);
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.leafTypes).toBe(true);
+  });
+
+  it('opens in Specific types with the configured guids preselected', async () => {
+    const dialogRef = { close: jest.fn() };
+    await renderPanel({ config: { targetTypeGuids: ['pt-task', 'pt-bug'] }, pageTypes: [story, task, bug] }, dialogRef);
+    await settle();
+    expect(screen.getByRole('radio', { name: /specific types/i })).toBeChecked();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const arg = (dialogRef.close.mock.calls[0] as [BoardConfig])[0];
+    expect(arg.targetTypeGuids).toEqual(['pt-task', 'pt-bug']);
+  });
 });

@@ -660,8 +660,8 @@ export class PageDetail {
    * {@link eligibilityChildren}. The board's manual Refresh (and any
    * page-type edit) bumps `page-types:list`, putting `pageTypesResource` back
    * into `'loading'` with its value cleared. Reading that as "no types" makes
-   * {@link boardEligible} flip `false` on a direct-children board with no
-   * a card-type selection (`hasCardTypeSelection`) (its eligibility needs the child's type), which unmounts
+   * {@link boardEligible} flip `false` on a direct-children board (one with no
+   * card-type selection, see `hasCardTypeSelection`), whose eligibility needs the child's type, which unmounts
    * the board and lets the `defaultView` effect move the user to Content.
    * Only a fully resolved reload replaces the list. The type set is global,
    * not per page, so unlike the probe there is no key to scope it by.
@@ -681,11 +681,11 @@ export class PageDetail {
 
   /**
    * Direct-children probe purely for {@link boardEligible} (step 5.1): a page
-   * with no card-type selection (`hasCardTypeSelection`) can still be board-eligible when a
+   * with no card-type selection (see `hasCardTypeSelection`) can still be board-eligible when a
    * direct child's page type carries a `state` property with a non-empty
    * value. Disabled (`null` parentGuid, so `childrenWithPropertiesResource`
    * fetches nothing) outside view mode, before the page resource has
-   * resolved, and once a card-type selection (`hasCardTypeSelection`) is known — that alone makes
+   * resolved, and once a card-type selection is known — that alone makes
    * the page eligible, so the extra request would be wasted.
    */
   private readonly eligibilityParentGuid = computed<string | null>(() => {

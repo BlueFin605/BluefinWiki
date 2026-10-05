@@ -309,9 +309,13 @@ export class BoardSettingsPanel {
     if (this.columns().length > 0) next.columns = [...this.columns()];
     if (Object.keys(this.colors()).length > 0) next.colors = { ...this.colors() };
     const mode = this.cardMode();
-    const order = this.boardableTypeOptions().map((t) => t.guid);
-    // Backend schema allows 1-50 guids; order follows the option list.
-    const types = order.filter((g) => this.targetTypeGuids().includes(g)).slice(0, 50);
+    const options = this.boardableTypeOptions();
+    // With no page types loaded (not yet fetched, errored, or none boardable) the option
+    // list can't validate anything — keep the configured selection rather than wiping it.
+    // Backend schema allows 1-50 guids; otherwise order follows the option list.
+    const types = options.length === 0
+      ? this.targetTypeGuids().slice(0, 50)
+      : options.map((t) => t.guid).filter((g) => this.targetTypeGuids().includes(g)).slice(0, 50);
     const typed = mode === 'leaves' || (mode === 'types' && types.length > 0);
     if (mode === 'leaves') next.leafTypes = true;
     else if (typed) next.targetTypeGuids = types;

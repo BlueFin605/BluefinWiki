@@ -7,7 +7,7 @@ export interface BoardEligibilityPage {
 }
 
 /**
- * React parity (step 5.1): a page is board-eligible when its
+ * React parity (step 5.1): a page is board-eligible when
  * the board collects typed descendants (leaf types or specific types — see card-types.ts), **or** at least one direct
  * child's page type defines a `state` property and that child carries a
  * non-empty value for it. The latter lets a page become board-eligible the

@@ -74,7 +74,7 @@ describe('isBoardEligible', () => {
     expect(isBoardEligible({ boardConfig: { targetTypeGuids: ['pt-task'] } }, [], {})).toBe(true);
   });
 
-  it('ignores a boardConfig that has no targetTypeGuid', () => {
+  it('ignores a boardConfig that has no card-type selection', () => {
     const children = [child({ pageType: 'pt-plain' })];
     const pageTypesMap = { 'pt-plain': PLAIN_TYPE };
     expect(
