@@ -56,6 +56,8 @@ import {
 import { rewriteWikiLink } from '../../shared/markdown/rewrite-wiki-link';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { hasCardTypeSelection } from '../board/card-types';
+import { boardOverrides, effectiveBoardConfig, overriddenGroups } from '../board/board-defaults';
+import { Auth } from '../../core/auth/auth';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import type {
   BoardConfig,
@@ -106,6 +108,22 @@ export function resolveSaveStatus(state: {
   if (state.saving) return 'saving';
   if (state.dirty) return 'unsaved';
   return 'saved';
+}
+
+/**
+ * The Board settings panel hides depth / showParentTitle / swapTitles in
+ * Direct-children mode, so a result there may leave them out: that means
+ * "not applicable", not "off". Before diffing against type defaults, fill any
+ * missing ones from the config that was in force, so they don't turn into
+ * overrides (e.g. a type `depth: 5` being pinned to 10 on this page).
+ */
+function withHiddenFields(result: BoardConfig, effective: BoardConfig | null): BoardConfig {
+  if (hasCardTypeSelection(result) || !effective) return result;
+  const out: BoardConfig = { ...result };
+  for (const k of ['depth', 'showParentTitle', 'swapTitles'] as const) {
+    if (out[k] === undefined && effective[k] !== undefined) (out as Record<string, unknown>)[k] = effective[k];
+  }
+  return out;
 }
 
 /**
@@ -377,7 +395,7 @@ export function resolveSaveStatus(state: {
                   no route back to its content. Falling through to the content
                   branch keeps the page readable either way.
                 -->
-                <wiki-board-view [parentGuid]="page.guid" [boardConfig]="page.boardConfig ?? null" />
+                <wiki-board-view [parentGuid]="page.guid" [boardConfig]="boardConfig()" />
               } @else {
                 <div class="view-with-toc">
                   <wiki-markdown-renderer
@@ -503,6 +521,7 @@ export class PageDetail {
   private readonly router = inject(Router);
   private readonly pages = inject(Pages);
   private readonly pageTypes = inject(PageTypes);
+  private readonly auth = inject(Auth);
   private readonly drafts = inject(Drafts);
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
@@ -640,11 +659,6 @@ export class PageDetail {
     return this.resource.value()?.title ?? null;
   });
 
-  protected readonly boardConfig = computed<BoardConfig | null>(() => {
-    if (this.resource.status() !== 'resolved') return null;
-    return this.resource.value()?.boardConfig ?? null;
-  });
-
   /**
    * All defined page types, keyed by guid — feeds {@link boardEligible}'s
    * child-state check, which only matters for the Content|Board toggle
@@ -678,6 +692,25 @@ export class PageDetail {
   private readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() =>
     Object.fromEntries(this.pageTypesList().map((t) => [t.guid, t])),
   );
+
+  /**
+   * This page's type definition, when the client knows it. Resolved from the
+   * kept {@link pageTypesList}, so it stays put while the type list reloads.
+   */
+  protected readonly pageTypeDef = computed<PageTypeDefinition | null>(() => {
+    const t = this.resource.status() === 'resolved' ? this.resource.value()?.pageType : undefined;
+    return t ? (this.pageTypesMap()[t] ?? null) : null;
+  });
+
+  /**
+   * The board settings in force: the type's `boardDefaults` overlaid, group by
+   * group, with this page's own `boardConfig` (see board-defaults.ts). Feeds
+   * eligibility, the default-view effect, the board view and Board settings.
+   */
+  protected readonly boardConfig = computed<BoardConfig | null>(() => {
+    if (this.resource.status() !== 'resolved') return null;
+    return effectiveBoardConfig(this.resource.value()?.boardConfig, this.pageTypeDef()?.boardDefaults);
+  });
 
   /**
    * Direct-children probe purely for {@link boardEligible} (step 5.1): a page
@@ -1429,9 +1462,26 @@ export class PageDetail {
     // investigation, e2e/tests/board-settings-types.spec.ts).
     // Read the kept list (`pageTypesList`), not the resource: mid-reload the
     // resource is empty, and `value()` throws once it has errored.
+    const type = this.pageTypeDef();
+    const defaults = type?.boardDefaults ?? null;
+    const effective = this.boardConfig();
+    const me = this.auth.user();
+    // `config` is the EFFECTIVE config: in Direct-children mode the panel
+    // re-emits the hidden depth / title fields from it, so the override diff
+    // below sees them unchanged. `canEdit` mirrors the backend's page-type
+    // update rule (creator or Admin).
     const data: BoardSettingsPanelData = {
-      config: page.boardConfig ?? null,
+      config: effective,
       pageTypes: [...this.pageTypesList()],
+      type: type
+        ? {
+            name: type.name,
+            icon: type.icon,
+            hasDefaults: !!defaults,
+            canEdit: me?.role === 'Admin' || (!!me && type.createdBy === me.userId),
+          }
+        : null,
+      overridden: defaults ? overriddenGroups(page.boardConfig) : [],
     };
     const ref = this.dialog.open<BoardSettingsPanel, BoardSettingsPanelData, BoardSettingsResult | null>(
       BoardSettingsPanel,
@@ -1439,9 +1489,18 @@ export class PageDetail {
     );
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
-    // Interim: every action saves the panel's config; the actions are wired in the next task.
     try {
-      await this.pages.updatePage(page.guid, { boardConfig: result.config });
+      if (result.action === 'saveAsDefault' && type) {
+        await this.pageTypes.updatePageType(type.guid, { boardDefaults: result.config });
+        await this.pages.updatePage(page.guid, { boardConfig: null });
+      } else if (result.action === 'reset') {
+        await this.pages.updatePage(page.guid, { boardConfig: null });
+      } else {
+        const boardConfig = defaults
+          ? boardOverrides(withHiddenFields(result.config, effective), defaults)
+          : result.config;
+        await this.pages.updatePage(page.guid, { boardConfig });
+      }
     } catch {
       this.snack.open('Failed to save board settings.', 'Dismiss', { duration: 4000 });
     }

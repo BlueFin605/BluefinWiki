@@ -35,6 +35,8 @@ import { WikiTableOfContents } from '../../shared/markdown/table-of-contents';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import { InvalidationBus, pageTag } from '../../core/api/invalidation';
 import type { PageProperty } from './page.types';
+import { Auth } from '../../core/auth/auth';
+import { pageTypesListTag } from '../../core/api/invalidation';
 
 const serverPage = {
   guid: 'g1',
@@ -77,8 +79,15 @@ function drain(): void {
 }
 
 async function renderDetail(
-  opts: { guid?: string; editMode?: boolean; noopAnimations?: boolean; isDesktop?: boolean } = {},
+  opts: {
+    guid?: string;
+    editMode?: boolean;
+    noopAnimations?: boolean;
+    isDesktop?: boolean;
+    user?: { userId: string; role: 'Admin' | 'Standard' };
+  } = {},
 ) {
+  const user = opts.user ?? { userId: 'u', role: 'Admin' as const };
   const guid = opts.guid ?? 'g1';
   // PageContext.toggleInspector() and the editor-bar control both branch on
   // Breakpoint; default to desktop so the toggle drives Layout.inspectorVisible
@@ -92,6 +101,12 @@ async function renderDetail(
       provideRouter([]),
       routeStub(guid, opts.editMode),
       ...bpStub.providers,
+      {
+        provide: Auth,
+        useValue: {
+          user: () => ({ ...user, email: 'a@b', displayName: 'A', emailVerified: true }),
+        },
+      },
     ],
   });
   const http = TestBed.inject(HttpTestingController);
@@ -775,6 +790,162 @@ describe('PageDetail', () => {
     const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
     expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ columns: ['A'] });
     put.flush(serverPage);
+    await done;
+  });
+
+  // ---- Piece 4: board config defaults on page types ----
+
+  const INITIATIVE = {
+    guid: 'pt-init', name: 'Initiative', icon: '🎯',
+    properties: [{ name: 'state', type: 'string', required: true }],
+    allowedChildTypes: ['pt-task'], allowWikiPageChildren: false, allowedParentTypes: [], allowAnyParent: true,
+    createdBy: 'someone-else', createdAt: '', updatedAt: '',
+    boardDefaults: { leafTypes: true, defaultView: 'board' as const, columns: ['Ready', 'Done'] },
+  };
+  const TASK = { ...INITIATIVE, guid: 'pt-task', name: 'Task', icon: '✅', allowedChildTypes: [], boardDefaults: undefined };
+
+  type BoardHost = {
+    openBoardSettings: () => Promise<void>;
+    boardConfig: () => unknown;
+    viewMode: () => string;
+  };
+
+  /** Loads g1 as an Initiative page (optionally with its own boardConfig) and the type list. */
+  async function loadInitiative(
+    http: HttpTestingController,
+    fixture: { detectChanges: () => void },
+    page: Record<string, unknown> = {},
+    types: unknown[] = [INITIATIVE, TASK],
+  ): Promise<void> {
+    http.expectOne('/api/pages/g1').flush({ ...serverPage, pageType: 'pt-init', ...page });
+    await settle();
+    for (const r of http.match('/api/page-types')) r.flush({ pageTypes: types });
+    await settle();
+    fixture.detectChanges();
+  }
+
+  function stubDialog(result: unknown) {
+    return jest
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of(result) } as never);
+  }
+
+  it('a page with no board settings of its own opens on its type-default board', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture);
+    // The mounted board fetches its own page-type list first.
+    for (const r of http.match('/api/page-types')) r.flush({ pageTypes: [INITIATIVE, TASK] });
+    await settle();
+    fixture.detectChanges();
+    // Leaf mode resolves to Task → the board fetches it.
+    http.expectOne((r) => r.url.includes('/api/pages/g1/children') && r.url.includes('type=pt-task'))
+      .flush({ children: [], hasMore: false });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByRole('radio', { name: /^board$/i })).toBeChecked();
+  });
+
+  it('keeps the effective (type-default) board config while the page types reload', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture);
+    const comp = fixture.componentInstance as unknown as BoardHost;
+    const before = comp.boardConfig();
+    expect(before).toEqual(INITIATIVE.boardDefaults);
+    expect(comp.viewMode()).toBe('board');
+
+    // Any page-type edit (or the board's Refresh) puts the type list back in flight.
+    TestBed.inject(InvalidationBus).bump(pageTypesListTag());
+    await settle();
+    fixture.detectChanges();
+    expect(http.match('/api/page-types').length).toBeGreaterThan(0);
+
+    // MID-RELOAD: must not fall back to the page's own (null) config.
+    expect(comp.boardConfig()).toEqual(before);
+    expect(comp.viewMode()).toBe('board');
+  });
+
+  it('opens Board settings with the effective config, type info and overridden groups', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });
+    const open = stubDialog(null);
+    await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+    expect(data['config']).toEqual({ columns: ['Mine'], leafTypes: true, defaultView: 'board' });
+    expect(data['type']).toEqual({ name: 'Initiative', icon: '🎯', hasDefaults: true, canEdit: true });
+    expect(data['overridden']).toEqual(['columns']);
+  });
+
+  it.each([
+    ['an Admin', { userId: 'u', role: 'Admin' as const }, true],
+    ['the type creator', { userId: 'someone-else', role: 'Standard' as const }, true],
+    ['anyone else', { userId: 'u', role: 'Standard' as const }, false],
+  ])('computes canEdit for %s', async (_who, user, canEdit) => {
+    const { http, fixture } = await renderDetail({ user });
+    await loadInitiative(http, fixture);
+    const open = stubDialog(null);
+    await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    const data = (open.mock.calls[0][1] as { data: { type: { canEdit: boolean } } }).data;
+    expect(data.type.canEdit).toBe(canEdit);
+  });
+
+  it('save stores only the groups that differ from the type defaults', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture);
+    const open = stubDialog({ action: 'save', config: { columns: ['Todo'], leafTypes: true, defaultView: 'board' } });
+    const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    await settle();
+    const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+    expect(data['type']).toEqual({ name: 'Initiative', icon: '🎯', hasDefaults: true, canEdit: true });
+    expect(data['overridden']).toEqual([]);
+    const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+    expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ columns: ['Todo'] });
+    put.flush({ ...serverPage, pageType: 'pt-init' });
+    await done;
+  });
+
+  it('save in Direct-children mode does not write the hidden depth/title fields as overrides', async () => {
+    const defaults = { leafTypes: true, depth: 5, showParentTitle: false, swapTitles: true, columns: ['Ready', 'Done'] };
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture, {}, [{ ...INITIATIVE, boardDefaults: defaults }, TASK]);
+    // The panel hides depth / showParentTitle / swapTitles in Direct-children
+    // mode, so its result may leave them out: that means "not applicable", not "off".
+    stubDialog({ action: 'save', config: { columns: ['Ready', 'Done'] } });
+    const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    await settle();
+    const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+    expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ leafTypes: false });
+    put.flush({ ...serverPage, pageType: 'pt-init' });
+    await done;
+  });
+
+  it('reset clears the page board config so it follows the type defaults', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });
+    stubDialog({ action: 'reset', config: { columns: ['Mine'], leafTypes: true } });
+    const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    await settle();
+    http.expectNone((r) => r.method === 'PUT' && r.url.startsWith('/api/page-types'));
+    const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+    expect((put.request.body as { boardConfig: unknown }).boardConfig).toBeNull();
+    put.flush({ ...serverPage, pageType: 'pt-init' });
+    await done;
+  });
+
+  it('saveAsDefault writes the type defaults, then clears the page board config', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });
+    const config = { columns: ['Mine'], leafTypes: true, depth: 3, showParentTitle: true, defaultView: 'board' };
+    stubDialog({ action: 'saveAsDefault', config });
+    const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    await settle();
+    http.expectNone((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+    const typePut = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/page-types/pt-init');
+    expect(typePut.request.body).toEqual({ boardDefaults: config });
+    typePut.flush({ ...INITIATIVE, boardDefaults: config });
+    await settle();
+    const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+    expect((put.request.body as { boardConfig: unknown }).boardConfig).toBeNull();
+    put.flush({ ...serverPage, pageType: 'pt-init' });
     await done;
   });
 
