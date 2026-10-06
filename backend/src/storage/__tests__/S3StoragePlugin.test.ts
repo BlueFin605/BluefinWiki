@@ -472,6 +472,44 @@ Content`;
 
       expect(s3Mock.commandCalls(DeleteObjectsCommand).length).toBeGreaterThan(0);
     });
+
+    it('recursively deletes every descendant of a nested (non-root) page', async () => {
+      const rootGuid = uuidv4();
+      const guid = uuidv4();
+      const childGuid = uuidv4();
+      const grandchildGuid = uuidv4();
+      const folder = `${rootGuid}/${guid}/`;
+      const nestedKeys = [
+        `${folder}${guid}.md`,
+        `${folder}${guid}.comments.json`,
+        `${folder}${childGuid}/${childGuid}.md`,
+        `${folder}${childGuid}/${childGuid}.comments.json`,
+        `${folder}${childGuid}/${grandchildGuid}/${grandchildGuid}.md`,
+      ];
+
+      vi.spyOn(plugin as any, 'findPageFolder').mockResolvedValue(folder);
+      vi.spyOn(plugin as any, 'hasChildren').mockResolvedValue(true);
+      vi.spyOn(plugin, 'listChildren').mockImplementation(async (parent) =>
+        parent === guid
+          ? [{ guid: childGuid, title: 'Child', parentGuid: guid, hasChildren: true } as any]
+          : parent === childGuid
+            ? [{ guid: grandchildGuid, title: 'Grandchild', parentGuid: childGuid, hasChildren: false } as any]
+            : []
+      );
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) =>
+        input.Prefix === folder && !input.Delimiter
+          ? { Contents: nestedKeys.map((Key) => ({ Key })) }
+          : { Contents: [] }
+      );
+      s3Mock.on(DeleteObjectsCommand).resolves({});
+
+      await plugin.deletePage(guid, true);
+
+      const deletedKeys = s3Mock
+        .commandCalls(DeleteObjectsCommand)
+        .flatMap((call) => call.args[0].input.Delete!.Objects!.map((o) => o.Key));
+      expect(new Set(deletedKeys)).toEqual(new Set(nestedKeys));
+    });
   });
 
   describe('listVersions', () => {
