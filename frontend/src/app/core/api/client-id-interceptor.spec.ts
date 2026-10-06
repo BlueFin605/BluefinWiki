@@ -47,4 +47,15 @@ describe('clientIdInterceptor', () => {
   it('clientId is stable within a tab', () => {
     expect(clientId()).toBe(clientId());
   });
+
+  it('clientId ignores an id copied into sessionStorage by a duplicated window', () => {
+    // Chrome copies sessionStorage into a duplicated tab / window.open / ctrl-click
+    // window; sharing the id would make each window drop the other's changes.
+    sessionStorage.setItem('wikiClientId', 'copied-from-opener');
+    try {
+      expect(clientId()).not.toBe('copied-from-opener');
+    } finally {
+      sessionStorage.removeItem('wikiClientId');
+    }
+  });
 });

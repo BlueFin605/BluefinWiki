@@ -1,15 +1,11 @@
-const KEY = 'wikiClientId';
-let memoryId: string | undefined;
+/**
+ * One id per page load; identifies this window as the origin of its own writes.
+ * Deliberately not in sessionStorage: Chrome copies that into a duplicated tab
+ * (and window.open / ctrl-click windows), and two windows sharing an id would
+ * each drop the other's realtime changes as their own echoes.
+ */
+const id = crypto.randomUUID();
 
-/** One id per browser tab; identifies this tab as the origin of its own writes. */
 export function clientId(): string {
-  try {
-    const existing = sessionStorage.getItem(KEY);
-    if (existing) return existing;
-    const id = crypto.randomUUID();
-    sessionStorage.setItem(KEY, id);
-    return id;
-  } catch {
-    return (memoryId ??= crypto.randomUUID());
-  }
+  return id;
 }
