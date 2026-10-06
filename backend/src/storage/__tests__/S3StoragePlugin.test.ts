@@ -128,6 +128,33 @@ describe('S3StoragePlugin', () => {
       expect(body).toContain('modifiedBy: "user-456"');
     });
 
+    it('stores a non-ASCII title as ASCII-safe S3 metadata', async () => {
+      const guid = uuidv4();
+      const title = 'Release → prod — café';
+      const content: PageContent = {
+        guid,
+        title,
+        content: 'Content',
+        folderId: '',
+        tags: [],
+        status: 'draft',
+        createdBy: 'user-123',
+        modifiedBy: 'user-123',
+        createdAt: '2026-02-10T10:00:00Z',
+        modifiedAt: '2026-02-10T12:00:00Z',
+      };
+
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await plugin.savePage(guid, null, content);
+
+      const input = s3Mock.commandCalls(PutObjectCommand)[0].args[0].input;
+      const metaTitle = input.Metadata!.title;
+      expect(metaTitle).toMatch(/^[\x20-\x7e]*$/);
+      expect(decodeURIComponent(metaTitle)).toBe(title);
+      expect(input.Body as string).toContain(`title: "${title}"`);
+    });
+
     it('should write ticketKey to frontmatter when present and omit it otherwise', async () => {
       const guid = uuidv4();
       const base: PageContent = {

@@ -499,7 +499,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         ContentType: 'text/markdown',
         Metadata: {
           guid: guid,
-          title: content.title,
+          // S3 user metadata must be ASCII — the real title lives in frontmatter
+          title: encodeURIComponent(content.title),
           status: content.status,
         },
       });
@@ -1222,7 +1223,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         ContentType: 'text/markdown',
         Metadata: {
           guid: guid,
-          title: page.title,
+          title: encodeURIComponent(page.title),
           status: page.status,
         },
         MetadataDirective: 'REPLACE',
