@@ -2847,6 +2847,25 @@ describe('PageDetail', () => {
       expect(fixture.componentInstance.content()).toBe('# My draft');
     });
 
+    it('an own page-type write that carries a remote content change still raises the banner', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+
+      ctx.emitPageTypeChange({ pageType: 'pt-task', properties: {} });
+      await settle();
+      // Someone else's edit landed between our base and this partial write.
+      const saved = { ...serverPage, content: '# Theirs', pageType: 'pt-task', modifiedAt: '2026-03-03T00:00:00Z' };
+      http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush(saved);
+      await settle();
+      http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(saved);
+      await settle();
+      fixture.detectChanges();
+
+      expect(ctx.remoteChange()).toBe(true);
+      expect(fixture.componentInstance.content()).toBe('# My draft');
+    });
+
     it('a successful save re-baselines at once, so nothing is stashed while the page reloads', async () => {
       const { fixture, http } = await load();
       jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);

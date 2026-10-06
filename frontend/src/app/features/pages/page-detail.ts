@@ -168,6 +168,14 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
   return JSON.stringify(m.properties ?? {}) !== JSON.stringify(page.properties ?? {});
 }
 
+/** Whether two server pages differ in a field only Save writes (body, title, tags, status). */
+function editableFieldsDiffer(a: PageContent, b: PageContent): boolean {
+  return (a.content ?? '') !== (b.content ?? '')
+    || a.title !== b.title
+    || a.status !== b.status
+    || JSON.stringify(a.tags ?? []) !== JSON.stringify(b.tags ?? []);
+}
+
 /**
  * Unified page screen. A single component backs both `/pages/:guid` (view) and
  * `/pages/:guid/edit` (edit) — the `:guid/edit` route carries `data.editMode`.
@@ -1289,7 +1297,11 @@ export class PageDetail {
    *   change shows and no stale draft is stashed later;
    * - dirty → keep the working copy untouched and move the baseline to the new
    *   page. If the server `modifiedAt` moved and that isn't one of this tab's
-   *   own writes, the page changed elsewhere: raise the banner.
+   *   own writes, the page changed elsewhere: raise the banner. An own write
+   *   counts only if the fields our partial writes never touch (body, title,
+   *   tags, status) are unchanged, so a remote edit that landed just before
+   *   our page-type or board write still raises it. (A Save re-baselines at
+   *   once, so its own reload compares equal here.)
    */
   private onPageReResolved(page: PageContent, currentGuid: string): void {
     const base = this.base();
@@ -1300,7 +1312,8 @@ export class PageDetail {
       this.resetWorkingCopyToServer(page);
       return;
     }
-    if (page.modifiedAt !== base.page.modifiedAt && !this.ownModifiedAts.has(page.modifiedAt)) {
+    const ownWrite = this.ownModifiedAts.has(page.modifiedAt) && !editableFieldsDiffer(base.page, page);
+    if (page.modifiedAt !== base.page.modifiedAt && !ownWrite) {
       this.pageContext.remoteChange.set(true);
     }
     if (!this.pageContext.remoteChange()) this.syncedModifiedAt = page.modifiedAt;
