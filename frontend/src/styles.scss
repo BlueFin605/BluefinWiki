@@ -19,6 +19,20 @@ html {
       density: -2,
     )
   );
+
+  // Form fields at density -1: at -2 and below Material 3 hides the label of
+  // every `appearance="fill"` field (no room for it), leaving bare grey boxes.
+  // These are the density -1 values from @angular/material's
+  // _m3-form-field.scss get-density-tokens.
+  @include mat.form-field-overrides(
+    (
+      container-height: 52px,
+      filled-label-display: block,
+      container-vertical-padding: 14px,
+      filled-with-label-container-padding-top: 22px,
+      filled-with-label-container-padding-bottom: 6px,
+    )
+  );
 }
 
 body {
