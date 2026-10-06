@@ -1,12 +1,12 @@
 import { CDK_DRAG_CONFIG, CdkDrag, CdkDropList, type CdkDragDrop } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { checkSiblingDropAllowed, checkTypeConstraints } from './check-type-constraints';
 import { TreeDragState } from './tree-drag-state';
 import { PageContextMenu, type ContextMenuEvent } from './page-context-menu';
 import { rowIcon } from './row-icon';
 import { TicketKeys } from '../ticket-keys/ticket-keys';
-import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget } from './page.types';
+import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeDropZone, TreeExpandTarget, TreeRevealTarget } from './page.types';
 
 // Mouse drags start immediately; touch needs a hold so a swipe over a row
 // scrolls the tree instead of picking the row up. CDK's own cancel check only
@@ -113,6 +113,7 @@ const TOUCH_DRAG_THRESHOLD = 24;
             [level]="level() + 1"
             [activeGuid]="activeGuid()"
             [expandGuid]="expandGuid()"
+            [revealTarget]="revealTarget()"
             [pageTypesMap]="pageTypesMap()"
             [parentPageType]="page().pageType ?? null"
             (pageSelect)="pageSelect.emit($event)"
@@ -215,6 +216,12 @@ export class PageTreeItem {
    * Threaded down the recursive tree; step 2.6 (New Page modal) feeds it too.
    */
   readonly expandGuid = input<TreeExpandTarget | null>(null);
+  /**
+   * The open page to reveal: an ancestor row expands and the page's own row
+   * scrolls into view. Acts once per visit (a change of `guid`), so a manual
+   * collapse sticks when the same page's ancestors are merely refetched.
+   */
+  readonly revealTarget = input<TreeRevealTarget | null>(null);
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
   readonly parentPageType = input<string | null>(null);
 
@@ -359,7 +366,31 @@ export class PageTreeItem {
     return this.warningsForZone(dragged, this._dropZone() ?? 'onto').length === 0;
   };
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  /** The `revealTarget().guid` this row last acted on (see `revealTarget`). */
+  private revealedFor: string | null = null;
+
   constructor() {
+    // Reveal the open page: expand when an ancestor of it, scroll the row
+    // into view when it IS the page. Rows below a collapsed ancestor don't
+    // exist yet; each is created as its parent expands and then sees the
+    // already-set target, so the chain unfolds one level at a time.
+    effect(() => {
+      const target = this.revealTarget();
+      if (!target || target.guid === this.revealedFor) return;
+      this.revealedFor = target.guid;
+      const guid = this.page().guid;
+      if (target.ancestors.includes(guid)) this._expanded.set(true);
+      if (target.guid === guid) {
+        afterNextRender(
+          () => this.host.nativeElement.querySelector<HTMLElement>('.page-tree-row')
+            ?.scrollIntoView?.({ block: 'nearest' }),
+          { injector: this.injector },
+        );
+      }
+    });
+
     // Force-expand (step 2.3): when the tree points expandGuid at this row,
     // expand it. Flipping `_expanded` re-keys `childrenGuid`, so the lazy
     // `childrenResource` fetches the children if they were never loaded. Each

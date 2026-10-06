@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSign
 import { Pages } from './pages';
 import { checkSiblingDropAllowed } from './check-type-constraints';
 import { PageTreeItem } from './page-tree-item';
-import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeExpandTarget } from './page.types';
+import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeExpandTarget, TreeRevealTarget } from './page.types';
 
 @Component({
   selector: 'wiki-page-tree',
@@ -25,6 +25,7 @@ import type { PageSummary, PageTypeDefinition, TreeDropRequest, TreeExpandTarget
             [level]="0"
             [activeGuid]="activeGuid()"
             [expandGuid]="expandGuid()"
+            [revealTarget]="revealTarget()"
             [pageTypesMap]="pageTypesMap()"
             [parentPageType]="null"
             (pageSelect)="pageSelect.emit($event)"
@@ -79,6 +80,8 @@ export class PageTree {
    * parent still fire). `null` is inert. Reused by step 2.6 (New Page modal).
    */
   readonly expandGuid = input<TreeExpandTarget | null>(null);
+  /** The open page to reveal (expand its ancestors, scroll to it); see `PageTreeItem`. */
+  readonly revealTarget = input<TreeRevealTarget | null>(null);
   readonly pageTypesMap = input<Record<string, PageTypeDefinition>>({});
 
   readonly pageSelect = output<string>();

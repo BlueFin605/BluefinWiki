@@ -84,6 +84,15 @@ export interface TreeExpandTarget {
   nonce: number;
 }
 
+/**
+ * The open page the tree should reveal: every `ancestors` row expands (once
+ * per visit to `guid`) and the `guid` row scrolls into view.
+ */
+export interface TreeRevealTarget {
+  guid: string;
+  ancestors: readonly string[];
+}
+
 /** Extended child summary with properties, returned by list-children?include=properties */
 export interface PageChildDetail extends PageSummary {
   pageType?: string;
