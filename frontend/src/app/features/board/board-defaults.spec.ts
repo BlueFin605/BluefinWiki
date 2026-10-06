@@ -43,6 +43,11 @@ describe('board-defaults', () => {
     expect(overriddenGroups(null)).toEqual([]);
   });
 
+  it('boardOverrides ignores colour key order', () => {
+    const d: BoardConfig = { ...D, colors: { Ready: '#3b82f6', Done: '#22c55e' } };
+    expect(boardOverrides({ ...d, colors: { Done: '#22c55e', Ready: '#3b82f6' } }, d)).toBeNull();
+  });
+
   it('boardOverrides keeps only differing groups, written explicitly', () => {
     expect(boardOverrides({ ...D }, D)).toBeNull();
     expect(boardOverrides({ ...D, columns: ['Todo'] }, D)).toEqual({ columns: ['Todo'] });

@@ -1102,6 +1102,37 @@ describe('PageDetail', () => {
     await done;
   });
 
+  it('saveAsDefault asks first, and Cancel writes nothing', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });
+    const open = jest
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValueOnce({ afterClosed: () => of({ action: 'saveAsDefault', config: { columns: ['Mine'] } }) } as never)
+      .mockReturnValueOnce({ afterClosed: () => of(false) } as never);
+    await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    await settle();
+    expect(open).toHaveBeenCalledTimes(2);
+    expect((open.mock.calls[1][1] as { data: { message: string } }).data.message).toMatch(/every .*Initiative page/i);
+    http.expectNone((r) => r.method === 'PUT');
+  });
+
+  it('Board settings stays disabled until the page types have loaded', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      pageType: 'pt-init',
+      boardConfig: { targetTypeGuid: 'pt-task', defaultView: 'board' },
+    });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByRole('button', { name: 'Board settings' })).toBeDisabled();
+
+    for (const r of http.match('/api/page-types')) r.flush({ pageTypes: [INITIATIVE, TASK] });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByRole('button', { name: 'Board settings' })).toBeEnabled();
+  });
+
   it('saveAsDefault says the defaults were saved when only clearing the page overrides fails', async () => {
     const { http, fixture } = await renderDetail();
     await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });

@@ -243,6 +243,7 @@ function editableFieldsDiffer(a: PageContent, b: PageContent): boolean {
               mat-icon-button
               type="button"
               (click)="openBoardSettings()"
+              [disabled]="!boardSettingsReady()"
               aria-label="Board settings"
               title="Board settings"
             >
@@ -823,6 +824,21 @@ export class PageDetail {
       this.pageTypesResource.status() === 'resolved' ? (this.pageTypesResource.value() ?? []) : null,
     computation: (resolved, previous) => resolved ?? previous?.value ?? [],
   });
+  /** Latches true once the page-type list has resolved (it stays kept through reloads). */
+  private readonly pageTypesLoaded = linkedSignal<boolean, boolean>({
+    source: () => this.pageTypesResource.status() === 'resolved',
+    computation: (resolved, previous) => resolved || (previous?.value ?? false),
+  });
+
+  /**
+   * Board settings needs the page's type (for its defaults) before it opens:
+   * without it the dialog saves the raw effective config, pinning every group
+   * as an override and hiding Reset / Save as default.
+   */
+  protected readonly boardSettingsReady = computed<boolean>(
+    () => !this.settledPage()?.pageType || this.pageTypesLoaded(),
+  );
+
   private readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() =>
     Object.fromEntries(this.pageTypesList().map((t) => [t.guid, t])),
   );
@@ -1792,7 +1808,7 @@ export class PageDetail {
     // The settled page, not `resource.value()`: the button stays mounted
     // while the resource is errored, and `value()` throws then.
     const page = this.settledPage();
-    if (!page) return;
+    if (!page || !this.boardSettingsReady()) return;
     // Reuse the field-level resource (constructed in an injection context at
     // class-init time), not `this.pageTypes.pageTypesResource()` called fresh
     // here -- `rxResource()` calls `inject()` internally, and invoking the
@@ -1832,6 +1848,15 @@ export class PageDetail {
     );
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
+    if (result.action === 'saveAsDefault' && type) {
+      const confirm: ConfirmDialogData = {
+        title: `Save as the ${type.name} default?`,
+        message: `Every ${type.icon} ${type.name} page that hasn't overridden these settings will use them.`,
+        confirmLabel: 'Save as default',
+      };
+      const ok = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data: confirm });
+      if (!(await firstValueFrom(ok.afterClosed()))) return;
+    }
     // `keyPrefix` is page-only: strip it from anything diffed against or
     // written to the type defaults, then re-apply it to the page's config.
     try {

@@ -50,6 +50,8 @@ test('board defaults: set from one board, followed by another, per-group overrid
       (r) => r.url().includes(`/page-types/${boardType}`) && r.request().method() === 'PUT',
     );
     await page.getByRole('button', { name: /save as default for .* BD Board pages/i }).click();
+    // It changes every page of the type, so it asks first.
+    await page.getByRole('dialog').getByRole('button', { name: 'Save as default', exact: true }).click();
     expect((await saved).ok()).toBeTruthy();
 
     // B has no settings of its own: it opens on the board with A's columns.
@@ -73,6 +75,25 @@ test('board defaults: set from one board, followed by another, per-group overrid
     await expect(page.getByRole('radio', { name: 'Content' })).toBeChecked();
     await page.getByRole('radio', { name: 'Board' }).click();
     await expect(page.locator('wiki-board-column', { hasText: 'Parked' })).toBeVisible();
+
+    // A cards-group change made through the UI on A reaches B, which never
+    // overrode that group.
+    await page.goto(`/pages/${a}`);
+    await page.getByRole('radio', { name: 'Board' }).click();
+    await page.getByRole('button', { name: 'Board settings' }).click();
+    await page.getByRole('radio', { name: 'Leaf types' }).click();
+    const savedLeaf = page.waitForResponse(
+      (r) => r.url().includes(`/page-types/${boardType}`) && r.request().method() === 'PUT',
+    );
+    await page.getByRole('button', { name: /save as default for .* BD Board pages/i }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Save as default', exact: true }).click();
+    expect((await savedLeaf).ok()).toBeTruthy();
+
+    await page.goto(`/pages/${b}`);
+    await page.getByRole('radio', { name: 'Board' }).click();
+    await expect(page.locator('wiki-board-column', { hasText: 'Parked' })).toBeVisible();
+    await page.getByRole('button', { name: 'Board settings' }).click();
+    await expect(page.getByRole('radio', { name: 'Leaf types' })).toBeChecked();
   } finally {
     for (const t of created) {
       try {
