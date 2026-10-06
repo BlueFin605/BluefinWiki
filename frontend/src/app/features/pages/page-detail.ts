@@ -341,7 +341,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
         <div class="banner remote-change" role="status">
           <span class="banner-msg">This page was changed elsewhere.</span>
           <button mat-button type="button" (click)="onRemoteReload()">Reload</button>
-          <button mat-button type="button" (click)="pageContext.remoteChange.set(false)">Dismiss</button>
+          <button mat-button type="button" (click)="dismissRemoteChange()">Dismiss</button>
         </div>
       }
 
@@ -1000,6 +1000,14 @@ export class PageDetail {
    */
   private readonly ownModifiedAts = new Set<string>();
 
+  /**
+   * The server `modifiedAt` the working copy is based on, as far as the user
+   * knows: it follows {@link base} except while a "changed elsewhere" banner is
+   * unacknowledged. Stored in drafts as `baseModifiedAt`, so a View/Edit toggle
+   * (which clears the banner) re-raises it when the draft is restored.
+   */
+  private syncedModifiedAt: string | null = null;
+
   /** Whether the working copy diverges from the server page it was synced to. */
   protected readonly dirty = computed<boolean>(() => {
     const base = this.base();
@@ -1143,7 +1151,7 @@ export class PageDetail {
       this.cancelAutosave();
       this.autosaveTimer = setTimeout(() => {
         this.autosaveTimer = null;
-        if (this.dirty()) this.drafts.set(g, { content: c, metadata: m });
+        if (this.dirty()) this.writeDraft(g, c, m);
       }, DRAFT_DEBOUNCE_MS);
     });
 
@@ -1211,8 +1219,17 @@ export class PageDetail {
     const g = this.guid();
     const m = this.metadata();
     if (g && m && this.dirty()) {
-      this.drafts.set(g, { content: this.content(), metadata: m });
+      this.writeDraft(g, this.content(), m);
     }
+  }
+
+  /** Persist a draft, stamped with the server version its edits are based on. */
+  private writeDraft(guid: string, content: string, metadata: PageMetadata): void {
+    this.drafts.set(guid, {
+      content,
+      metadata,
+      ...(this.syncedModifiedAt ? { baseModifiedAt: this.syncedModifiedAt } : {}),
+    });
   }
 
   /**
@@ -1250,6 +1267,15 @@ export class PageDetail {
       if (draft.content !== (page.content ?? '')) {
         this._editorMode.set('split');
       }
+
+      // The page moved on since the draft was stashed (e.g. a remote change
+      // landed, then a View/Edit toggle cleared the banner): raise it again,
+      // and keep the draft's base until the user acknowledges it.
+      if (draft.baseModifiedAt && draft.baseModifiedAt !== page.modifiedAt
+          && workingCopyDiverges(this.content(), this.metadata()!, page)) {
+        this.syncedModifiedAt = draft.baseModifiedAt;
+        this.pageContext.remoteChange.set(true);
+      }
     }
   }
 
@@ -1277,7 +1303,14 @@ export class PageDetail {
     if (page.modifiedAt !== base.page.modifiedAt && !this.ownModifiedAts.has(page.modifiedAt)) {
       this.pageContext.remoteChange.set(true);
     }
+    if (!this.pageContext.remoteChange()) this.syncedModifiedAt = page.modifiedAt;
     this.base.set({ guid: currentGuid, page });
+  }
+
+  /** Banner Dismiss: the user has seen the remote change and keeps their copy. */
+  dismissRemoteChange(): void {
+    this.pageContext.remoteChange.set(false);
+    this.syncedModifiedAt = this.base()?.page.modifiedAt ?? this.syncedModifiedAt;
   }
 
   /** Remember the `modifiedAt` of a write this component made itself. */
@@ -1294,6 +1327,7 @@ export class PageDetail {
   private resetWorkingCopyToServer(page: PageContent): void {
     const g = this.guid();
     if (g) this.base.set({ guid: g, page });
+    this.syncedModifiedAt = page.modifiedAt;
     this.metadata.set({
       title: page.title,
       tags: page.tags ?? [],
@@ -1553,7 +1587,7 @@ export class PageDetail {
       // Keep a live draft in step with what was just persisted so a reload
       // can't resurrect the previous type from localStorage.
       if (this.drafts.hasDraft(g)) {
-        this.drafts.set(g, { content: this.content(), metadata: nextMeta });
+        this.writeDraft(g, this.content(), nextMeta);
       }
     } catch {
       this.snack.open('Failed to change page type.', 'Dismiss', { duration: 4000 });
@@ -1828,7 +1862,7 @@ export class PageDetail {
 
     const content = this.content();
     // Persist a draft before the API call so a thrown request can't lose work.
-    this.drafts.set(g, { content, metadata: m });
+    this.writeDraft(g, content, m);
 
     this.saving.set(true);
     this.saveError.set(null);

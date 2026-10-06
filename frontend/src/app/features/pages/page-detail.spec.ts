@@ -3001,6 +3001,65 @@ describe('PageDetail', () => {
       expect(http.match('/api/pages/g1/children?include=properties&limit=50')).toHaveLength(0);
     });
 
+    describe('stashed draft over a newer server page', () => {
+      const T1 = serverPage.modifiedAt;
+      const T2 = '2026-02-02T00:00:00Z';
+      const stash = (baseModifiedAt?: string) =>
+        localStorage.setItem('bluefinwiki:draft:g1', JSON.stringify({
+          content: '# My draft',
+          metadata: { ...serverPage, tags: [] },
+          ...(baseModifiedAt ? { baseModifiedAt } : {}),
+        }));
+
+      it('raises the banner when the draft was based on an older modifiedAt', async () => {
+        stash(T1);
+        const { fixture } = await load({ page: { content: '# Theirs', modifiedAt: T2 } });
+
+        expect(fixture.componentInstance.content()).toBe('# My draft');
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(true);
+        expect(screen.getByText(BANNER)).toBeInTheDocument();
+      });
+
+      it('no banner when the draft was based on the current modifiedAt', async () => {
+        stash(T2);
+        await load({ page: { content: '# Theirs', modifiedAt: T2 } });
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(false);
+      });
+
+      it('no banner for a legacy draft with no baseModifiedAt', async () => {
+        stash();
+        await load({ page: { content: '# Theirs', modifiedAt: T2 } });
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(false);
+      });
+
+      it('an unacknowledged remote change survives a View/Edit toggle', async () => {
+        const { fixture, http } = await load();
+        await typeEdit(fixture, '# My draft');
+        await bumpPage(fixture);
+        http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Theirs', modifiedAt: T2 });
+        await settle();
+        fixture.detectChanges();
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(true);
+
+        fixture.destroy(); // the toggle recreates the component; reset() clears the banner
+        expect(TestBed.inject(Drafts).get('g1')?.baseModifiedAt).toBe(T1);
+      });
+
+      it('Dismiss acknowledges the remote change, so the stashed draft is based on it', async () => {
+        const { fixture, http } = await load();
+        await typeEdit(fixture, '# My draft');
+        await bumpPage(fixture);
+        http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Theirs', modifiedAt: T2 });
+        await settle();
+        fixture.detectChanges();
+
+        await userEvent.click(screen.getByRole('button', { name: /^dismiss$/i }));
+        await settle();
+        fixture.destroy();
+        expect(TestBed.inject(Drafts).get('g1')?.baseModifiedAt).toBe(T2);
+      });
+    });
+
     describe('failed background refetch', () => {
       const REFRESH_FAILED = /couldn't refresh this page\./i;
       const DELETED = /this page was deleted elsewhere\. your unsaved changes are kept in this tab/i;
