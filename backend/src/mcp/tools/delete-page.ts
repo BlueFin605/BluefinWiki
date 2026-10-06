@@ -7,6 +7,7 @@
  */
 
 import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
+import { resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -23,7 +24,8 @@ export interface DeletePageResult {
 }
 
 export async function deletePage(input: DeletePageInput): Promise<DeletePageResult> {
-  const { pageGuid, recursive = false } = input;
+  const { pageGuid: pageRef, recursive = false } = input;
+  const pageGuid = pageRef ? await resolvePageRef(pageRef) : pageRef;
 
   if (!pageGuid || !UUID_REGEX.test(pageGuid)) {
     throw new Error('Invalid page GUID format');

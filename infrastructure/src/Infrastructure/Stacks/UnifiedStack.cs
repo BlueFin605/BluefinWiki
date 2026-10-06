@@ -50,6 +50,7 @@ namespace Infrastructure.Stacks
         public Table PageLinksTable { get; private set; }
         public Table ActivityLogTable { get; private set; }
         public Table PageIndexTable { get; private set; }
+        public Table TicketKeysTable { get; private set; }
         public Table TagsTable { get; private set; }
         public Table PageTypesTable { get; private set; }
         public Table RealtimeConnectionsTable { get; private set; }
@@ -688,6 +689,16 @@ namespace Infrastructure.Stacks
                 RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
             });
 
+            // Ticket keys table - Jira-style ticket keys (BGT-12)
+            // id = "seq#{PREFIX}" (atomic counter) | "key#{KEY}" (write-once key -> page GUID)
+            TicketKeysTable = new Table(this, "TicketKeysTable", new TableProps
+            {
+                TableName = $"{config.Prefix}-ticket-keys-{config.Name}",
+                PartitionKey = new Attribute { Name = "id", Type = AttributeType.STRING },
+                BillingMode = BillingMode.PAY_PER_REQUEST,
+                RemovalPolicy = config.IsProd ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY
+            });
+
             // Tags table - vocabulary for tag autocomplete
             // PK: scope (e.g. "_page" for page-level tags, or property name for property tags)
             // SK: tag (the tag value)
@@ -758,6 +769,13 @@ namespace Infrastructure.Stacks
                 Value = PageIndexTable.TableName,
                 Description = "DynamoDB table for page GUID to S3 key index",
                 ExportName = $"{config.Name}-page-index-table"
+            });
+
+            new CfnOutput(this, "TicketKeysTableName", new CfnOutputProps
+            {
+                Value = TicketKeysTable.TableName,
+                Description = "DynamoDB table for Kanban ticket keys (counters and key to page GUID mappings)",
+                ExportName = $"{config.Name}-ticket-keys-table"
             });
 
             new CfnOutput(this, "TagsTableName", new CfnOutputProps
@@ -873,6 +891,7 @@ namespace Infrastructure.Stacks
             PageLinksTable.GrantReadWriteData(lambdaRole);
             ActivityLogTable.GrantReadWriteData(lambdaRole);
             PageIndexTable.GrantReadWriteData(lambdaRole);
+            TicketKeysTable.GrantReadWriteData(lambdaRole);
             TagsTable.GrantReadWriteData(lambdaRole);
             PageTypesTable.GrantReadWriteData(lambdaRole);
 
@@ -990,6 +1009,7 @@ namespace Infrastructure.Stacks
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
                 { "ACTIVITY_LOG_TABLE", ActivityLogTable.TableName },
                 { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
+                { "TICKET_KEYS_TABLE", TicketKeysTable.TableName },
                 { "TAGS_TABLE", TagsTable.TableName },
                 { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
                 { "JWT_PARAMETER_NAME", JwtParameterName },
@@ -1317,6 +1337,36 @@ namespace Infrastructure.Stacks
                 Tracing = lambdaProps.Tracing,
                 LogRetention = lambdaProps.LogRetention,
                 Description = "Get ancestor pages for breadcrumb navigation"
+            });
+
+            var ticketKeysResolveFunction = new LambdaFunction(this, "TicketKeysResolveFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-ticket-keys-resolve",
+                Runtime = lambdaProps.Runtime,
+                Handler = "ticket-keys/ticket-keys-resolve.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Resolve a ticket key to its page"
+            });
+
+            var ticketKeysBackfillFunction = new LambdaFunction(this, "TicketKeysBackfillFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-ticket-keys-backfill",
+                Runtime = lambdaProps.Runtime,
+                Handler = "ticket-keys/ticket-keys-backfill-handler.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = Duration.Minutes(5),
+                MemorySize = 1024,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Assign/repair ticket keys under an Initiative (admin only)"
             });
 
             var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
@@ -1909,6 +1959,13 @@ namespace Infrastructure.Stacks
                 Authorizer = cognitoAuthorizer
             });
 
+            // POST /pages/{guid}/ticket-keys/backfill - Assign/repair ticket keys under an Initiative (admin only)
+            pageGuidResource.AddResource("ticket-keys").AddResource("backfill").AddMethod("POST", new LambdaIntegration(ticketKeysBackfillFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
             // GET /pages/{guid}/backlinks - Get pages that link to this page
             var backlinksResource = pageGuidResource.AddResource("backlinks");
             backlinksResource.AddMethod("GET", new LambdaIntegration(pagesBacklinksFunction), new MethodOptions
@@ -1929,6 +1986,14 @@ namespace Infrastructure.Stacks
             // GET /pages/search - Search pages by title
             var searchResource = pagesResource.AddResource("search");
             searchResource.AddMethod("GET", new LambdaIntegration(pagesSearchFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // GET /ticket-keys/{key} - Resolve a ticket key to its page
+            var ticketKeysResource = Api.Root.AddResource("ticket-keys");
+            ticketKeysResource.AddResource("{key}").AddMethod("GET", new LambdaIntegration(ticketKeysResolveFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer
@@ -2252,6 +2317,7 @@ namespace Infrastructure.Stacks
             PagesBucket.GrantReadWrite(mcpLambdaRole);
             PageLinksTable.GrantReadWriteData(mcpLambdaRole);
             PageIndexTable.GrantReadWriteData(mcpLambdaRole);
+            TicketKeysTable.GrantReadWriteData(mcpLambdaRole);
             PageTypesTable.GrantReadData(mcpLambdaRole);
 
             // MCP page writes go through the same storage plugin, so they publish too.
@@ -2319,6 +2385,7 @@ namespace Infrastructure.Stacks
                 { "PAGE_LINKS_TABLE", PageLinksTable.TableName },
                 { "PAGE_TYPES_TABLE", PageTypesTable.TableName },
                 { "PAGE_INDEX_TABLE", PageIndexTable.TableName },
+                { "TICKET_KEYS_TABLE", TicketKeysTable.TableName },
                 { "VECTOR_BUCKET_NAME", vectorBucketName },
                 { "VECTOR_INDEX_NAME", vectorIndexName },
                 { "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0" },

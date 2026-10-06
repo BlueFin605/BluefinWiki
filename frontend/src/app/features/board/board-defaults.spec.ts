@@ -1,4 +1,4 @@
-import { boardOverrides, effectiveBoardConfig, overriddenGroups } from './board-defaults';
+import { boardOverrides, effectiveBoardConfig, overriddenGroups, withPageOnly, withoutPageOnly } from './board-defaults';
 import type { BoardConfig } from '../pages/page.types';
 
 const D: BoardConfig = {
@@ -63,5 +63,27 @@ describe('board-defaults', () => {
       const eff = effectiveBoardConfig(boardOverrides(x, D), D)!;
       expect(boardOverrides(eff, D)).toEqual(boardOverrides(x, D));
     }
+  });
+});
+
+describe('page-only keyPrefix', () => {
+  it('effectiveBoardConfig keeps the page keyPrefix over type defaults', () => {
+    expect(effectiveBoardConfig({ keyPrefix: 'BGT' }, { depth: 3 })).toEqual({ depth: 3, keyPrefix: 'BGT' });
+  });
+
+  it('keyPrefix is not an overridden group', () => {
+    expect(overriddenGroups({ keyPrefix: 'BGT' })).toEqual([]);
+  });
+
+  it('withPageOnly re-applies keyPrefix', () => {
+    expect(withPageOnly(null, { keyPrefix: 'BGT' })).toEqual({ keyPrefix: 'BGT' });
+    expect(withPageOnly({ depth: 2 }, { keyPrefix: 'BGT' })).toEqual({ depth: 2, keyPrefix: 'BGT' });
+    expect(withPageOnly(null, {})).toBeNull();
+    expect(withPageOnly(null, null)).toBeNull();
+    expect(withPageOnly({ depth: 2 }, undefined)).toEqual({ depth: 2 });
+  });
+
+  it('withoutPageOnly strips keyPrefix', () => {
+    expect(withoutPageOnly({ keyPrefix: 'X', depth: 1 })).toEqual({ depth: 1 });
   });
 });

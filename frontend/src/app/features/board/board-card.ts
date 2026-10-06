@@ -32,10 +32,13 @@ interface DisplayProperty {
       [cdkDragData]="card()"
       role="button"
       tabindex="0"
-      [attr.aria-label]="card().title"
+      [attr.aria-label]="card().ticketKey ? card().ticketKey + ' ' + card().title : card().title"
       (click)="onClick()"
       (keydown)="onKeydown($event)"
     >
+      @if (card().ticketKey; as key) {
+        <span class="key" data-testid="board-card-key">{{ key }}</span>
+      }
       <div class="row">
         @if (icon(); as iconText) {
           <span class="icon" [attr.title]="iconTitle()">{{ iconText }}</span>
@@ -77,6 +80,7 @@ interface DisplayProperty {
       transition: border-color 0.1s, box-shadow 0.1s;
     }
     .board-card:hover { border-color: #93c5fd; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .key { display: block; font-size: 0.6875rem; font-weight: 500; color: #6b7280; letter-spacing: 0.02em; margin-bottom: 0.125rem; font-variant-numeric: tabular-nums; }
     .row { display: flex; gap: 0.4rem; align-items: flex-start; }
     .icon { font-size: 1rem; line-height: 1.25; flex-shrink: 0; }
     .titles { display: flex; flex-direction: column; min-width: 0; }

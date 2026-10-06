@@ -8,6 +8,7 @@
 
 import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import type { StoragePlugin } from '../../storage/StoragePlugin.js';
+import { resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -23,7 +24,9 @@ export interface MovePageResult {
 }
 
 export async function movePage(input: MovePageInput): Promise<MovePageResult> {
-  const { pageGuid, newParentGuid } = input;
+  const { pageGuid: pageRef, newParentGuid: parentRef } = input;
+  const pageGuid = pageRef ? await resolvePageRef(pageRef) : pageRef;
+  const newParentGuid = parentRef ? await resolvePageRef(parentRef) : parentRef;
 
   if (!pageGuid || !UUID_REGEX.test(pageGuid)) {
     throw new Error('Invalid page GUID format');

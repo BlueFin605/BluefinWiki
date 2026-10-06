@@ -50,6 +50,24 @@ describe('BoardCard', () => {
     expect(screen.getByText('Hello card')).toBeInTheDocument();
   });
 
+  it('renders the ticket key and prefixes the aria-label with it', async () => {
+    await render(BoardCard, {
+      inputs: { card: card({ title: 'Keyed', ticketKey: 'BGT-3' }) },
+    });
+    await settle();
+    expect(screen.getByTestId('board-card-key').textContent?.trim()).toBe('BGT-3');
+    expect(screen.getByRole('button', { name: 'BGT-3 Keyed' })).toBeInTheDocument();
+  });
+
+  it('renders no key element and a plain aria-label when unkeyed', async () => {
+    await render(BoardCard, {
+      inputs: { card: card({ title: 'Plain' }) },
+    });
+    await settle();
+    expect(screen.queryByTestId('board-card-key')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Plain' })).toBeInTheDocument();
+  });
+
   it('renders page tags as #chips', async () => {
     await render(BoardCard, {
       inputs: { card: card({ tags: ['dean', 'ops'] }) },

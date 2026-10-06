@@ -1,7 +1,7 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { withAuth, AuthenticatedEvent, getUserContext, isAdmin } from '../middleware/auth.js';
-import { BoardConfigObjectSchema } from '../pages/board-config-schema.js';
+import { PageTypeBoardDefaultsSchema } from '../pages/board-config-schema.js';
 import { getPageType, updatePageType } from './page-types-service.js';
 
 const PageTypePropertySchema = z.object({
@@ -19,7 +19,7 @@ export const UpdatePageTypeSchema = z.object({
   allowWikiPageChildren: z.boolean().optional(),
   allowedParentTypes: z.array(z.string().uuid()).optional(),
   allowAnyParent: z.boolean().optional(),
-  boardDefaults: BoardConfigObjectSchema.optional(),
+  boardDefaults: PageTypeBoardDefaultsSchema.optional(),
 });
 
 /**

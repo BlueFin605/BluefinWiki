@@ -42,6 +42,7 @@ export interface PageContent {
   boardOrder?: number;
   description?: string;
   pageType?: string;
+  ticketKey?: string;
   properties?: Record<string, PageProperty>;
   boardConfig?: BoardConfig;
   createdBy: string;
@@ -61,6 +62,7 @@ export interface PageSummary {
   modifiedBy: string;
   hasChildren: boolean;
   pageType?: string;
+  ticketKey?: string;
   tags?: string[];
 }
 
@@ -100,6 +102,7 @@ export interface BoardConfig {
   showParentTitle?: boolean; // Show parent page title as card subtitle (default true when a card-type selection is set)
   swapTitles?: boolean;      // Show parent title as primary, page title as subtitle
   defaultView?: 'content' | 'board'; // Which view to show when opening the page
+  keyPrefix?: string;        // Initiative only — page-only, never a type default
 }
 
 export interface CreatePageRequest {

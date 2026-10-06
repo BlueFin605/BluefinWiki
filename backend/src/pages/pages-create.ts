@@ -7,6 +7,7 @@ import { PageContent } from '../types/index.js';
 import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
 import { autoRegisterTagsFromProperties, autoRegisterPageTags } from '../tags/tags-service.js';
 import { validatePageType, validateChildTypeConstraint } from './page-type-validation.js';
+import { keyForNewPage, recordKey } from '../ticket-keys/ticket-keys-service.js';
 
 // Property validation schema
 const PagePropertySchema = z.object({
@@ -123,6 +124,9 @@ export const handler = withAuth(async (
     }, -1000);
     const sortOrder = maxSortOrder + 1000;
 
+    // Jira-style key for tickets under a prefixed Initiative; never blocks creation.
+    const ticketKey = await keyForNewPage(parentGuid, pageType);
+
     // Build PageContent object
     const pageContent: PageContent = {
       guid,
@@ -132,6 +136,7 @@ export const handler = withAuth(async (
       tags,
       status,
       sortOrder,
+      ...(ticketKey ? { ticketKey } : {}),
       ...(pageType ? { pageType } : {}),
       ...(properties ? { properties } : {}),
       createdBy: user.userId,
@@ -142,6 +147,7 @@ export const handler = withAuth(async (
 
     // Save page to storage
     await storagePlugin.savePage(guid, parentGuid, pageContent);
+    if (ticketKey) await recordKey(ticketKey, guid);
 
     // Extract and save page links
     if (content) {
@@ -183,6 +189,7 @@ export const handler = withAuth(async (
         title,
         parentGuid,
         createdAt: now,
+        ...(ticketKey ? { ticketKey } : {}),
       }),
     };
   } catch (err: unknown) {

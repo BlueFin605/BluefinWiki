@@ -23,4 +23,17 @@ describe('BoardConfigSchema', () => {
     expect(BoardConfigSchema.safeParse({ targetTypeGuids: ['nope'] }).success).toBe(false);
     expect(BoardConfigSchema.safeParse({ targetTypeGuids: [] }).success).toBe(false);
   });
+
+  it('accepts a valid keyPrefix and rejects invalid ones', () => {
+    expect(BoardConfigSchema.safeParse({ keyPrefix: 'BGT' }).success).toBe(true);
+    expect(BoardConfigSchema.safeParse({ keyPrefix: 'B2C9' }).success).toBe(true);
+    for (const bad of ['b', 'bgt', '1AB', 'A', 'ABCDEFGHIJK', 'BG-T']) {
+      expect(BoardConfigSchema.safeParse({ keyPrefix: bad }).success).toBe(false);
+    }
+  });
+
+  it('strips keyPrefix from page-type board defaults', async () => {
+    const { PageTypeBoardDefaultsSchema } = await import('../board-config-schema.js');
+    expect(PageTypeBoardDefaultsSchema.parse({ keyPrefix: 'BGT', depth: 3 })).toEqual({ depth: 3 });
+  });
 });

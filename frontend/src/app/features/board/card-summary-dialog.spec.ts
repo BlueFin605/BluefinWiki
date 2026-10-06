@@ -267,6 +267,16 @@ describe('CardSummaryDialog', () => {
     openSpy.mockRestore();
   });
 
+  it('"Open full editor" opens a keyed card by its key', async () => {
+    const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+    await renderDialog({ card: card({ guid: 'open-me', ticketKey: 'BGT-7' }), pageType: null });
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /open full editor/i }));
+    expect(openSpy).toHaveBeenCalledWith('/pages/BGT-7', '_blank');
+    openSpy.mockRestore();
+  });
+
   it('Esc closes the dialog (Material default)', async () => {
     TestBed.configureTestingModule({
       providers: [provideNoopAnimations(), provideHttpClient(), provideHttpClientTesting()],

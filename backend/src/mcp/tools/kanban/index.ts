@@ -21,7 +21,7 @@ const guid = (description: string) => ({ type: 'string', description });
 export const KANBAN_TOOLS = [
   {
     name: 'kanban_initiatives',
-    description: 'Kanban: list Initiatives (one per feature board) as "guid · title · state · N open". Done ones hidden unless includeDone.',
+    description: 'Kanban: list Initiatives (one per feature board) as "guid · [PREFIX] title · state · N open". Done ones hidden unless includeDone.',
     inputSchema: {
       type: 'object' as const,
       properties: { includeDone: { type: 'boolean', description: 'Also list Done initiatives' } },
@@ -33,7 +33,7 @@ export const KANBAN_TOOLS = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        initiative: guid('Initiative page GUID'),
+        initiative: guid('Initiative page GUID or key'),
         claim: { type: 'boolean', description: 'Move the ticket to In Progress' },
       },
       required: ['initiative'],
@@ -44,17 +44,17 @@ export const KANBAN_TOOLS = [
     description: 'Kanban: ticket card for one ticket — header, ancestor path, body, last 5 comments.',
     inputSchema: {
       type: 'object' as const,
-      properties: { guid: guid('Ticket page GUID') },
+      properties: { guid: guid('Ticket page GUID or key (e.g. BGT-12)') },
       required: ['guid'],
     },
   },
   {
     name: 'kanban_board',
-    description: 'Kanban: indented tree of an initiative, one line per ticket "Type · State · Title · guid[ · #tags]".',
+    description: 'Kanban: indented tree of an initiative, one line per ticket "Type · State · Title · key-or-guid[ · #tags]".',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        initiative: guid('Initiative page GUID'),
+        initiative: guid('Initiative page GUID or key'),
         states: { type: 'array', items: { type: 'string' }, description: 'Only show these states (plus their ancestors)' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Only show tickets with any of these tags (plus their ancestors); combines with states' },
         depth: { type: 'number', description: 'Levels below the initiative to show' },
@@ -64,11 +64,11 @@ export const KANBAN_TOOLS = [
   },
   {
     name: 'kanban_create',
-    description: 'Kanban: create a nested ticket tree under a parent ticket in one call. Node: {type (Epic|Story|Task…), title, body?, state? (default Ready), tags? (string[]), children?}. Validates everything before writing. Returns created "Type · Title · guid" lines.',
+    description: 'Kanban: create a nested ticket tree under a parent ticket in one call. Node: {type (Epic|Story|Task…), title, body?, state? (default Ready), tags? (string[]), children?}. Validates everything before writing. Returns created "Type · Title · key-or-guid" lines.',
     inputSchema: {
       type: 'object' as const,
       properties: {
-        parentGuid: guid('Parent ticket GUID (e.g. the initiative)'),
+        parentGuid: guid('Parent ticket GUID or key (e.g. the initiative)'),
         tree: {
           type: ['object', 'array'],
           description: 'One node or an array of sibling nodes',
@@ -83,7 +83,7 @@ export const KANBAN_TOOLS = [
     inputSchema: {
       type: 'object' as const,
       properties: {
-        guid: guid('Ticket page GUID'),
+        guid: guid('Ticket page GUID or key (e.g. BGT-12)'),
         state: { type: 'string', enum: [...STATES] },
         comment: { type: 'string', description: 'Comment to add, e.g. "commit abc123 — what changed"' },
         rollup: { type: 'boolean', description: 'Auto-close completed parents' },

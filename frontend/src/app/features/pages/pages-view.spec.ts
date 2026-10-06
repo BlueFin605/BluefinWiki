@@ -3,7 +3,7 @@ jest.mock('mermaid', () => ({
   default: { initialize: jest.fn(), render: jest.fn() },
 }));
 
-import type { DebugElement } from '@angular/core';
+import { Component, type DebugElement } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -20,6 +20,7 @@ import { of } from 'rxjs';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
 import { PagesView } from './pages-view';
+import { TicketKeys } from '../ticket-keys/ticket-keys';
 import { Pages } from './pages';
 import { ConfirmDialog } from '../../shared/components/confirm-dialog';
 import { PageContext } from './page-context';
@@ -1722,5 +1723,64 @@ describe('PagesView', () => {
     errorSpy.mockRestore();
 
     http.match(() => true).forEach((r) => r.flush(null));
+  });
+});
+
+describe('PagesView active page from a ticket-key URL', () => {
+  @Component({ standalone: true, template: '' })
+  class Blank {}
+
+  async function renderAt(url: string, seed?: [string, string]) {
+    const result = await render(PagesView, { providers: [...baseProviders(), ...authProviders('Admin')] });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({ children: [] });
+    http.expectOne('/api/page-types').flush({ pageTypes: [] });
+    if (seed) TestBed.inject(TicketKeys).remember(seed[0], seed[1]);
+    const router = TestBed.inject(Router);
+    router.resetConfig([{ path: '**', component: Blank }]);
+    await router.navigateByUrl(url);
+    await settle();
+    const active = () => (result.fixture.componentInstance as unknown as { activeGuid: () => string | null }).activeGuid();
+    return { ...result, http, router, active };
+  }
+
+  afterEach(() => TestBed.inject(HttpTestingController).match(() => true).forEach((r) => r.flush(null)));
+
+  it('uses the cached GUID for a key URL', async () => {
+    const { active, http } = await renderAt('/pages/BGT-12', ['BGT-12', 'g12']);
+    expect(active()).toBe('g12');
+    http.expectNone('/api/ticket-keys/BGT-12');
+  });
+
+  it('resolves an uncached key, then sets the GUID', async () => {
+    const { active, http } = await renderAt('/pages/bgt-12');
+    expect(active()).toBeNull();
+    http.expectOne('/api/ticket-keys/bgt-12').flush({ key: 'BGT-12', guid: 'g12', title: 'T' });
+    await settle();
+    expect(active()).toBe('g12');
+  });
+
+  it('ignores a key resolution that lands after the URL moved on', async () => {
+    const { active, http, router } = await renderAt('/pages/BGT-12');
+    await router.navigateByUrl('/pages/3f2a7c1e-0000-4000-8000-000000000000');
+    await settle();
+    http.expectOne('/api/ticket-keys/BGT-12').flush({ key: 'BGT-12', guid: 'g12', title: 'T' });
+    await settle();
+    expect(active()).toBe('3f2a7c1e-0000-4000-8000-000000000000');
+  });
+
+  it('a tree pick navigates by key when the key is known, else by GUID', async () => {
+    const { fixture } = await renderAt('/pages', ['BGT-12', 'g12']);
+    const navigate = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const cmp = fixture.componentInstance as unknown as { onPageSelect(guid: string): void };
+    cmp.onPageSelect('g12');
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-12']);
+    cmp.onPageSelect('g99');
+    expect(navigate).toHaveBeenCalledWith(['/pages', 'g99']);
+  });
+
+  it('uses a GUID URL as before', async () => {
+    const { active } = await renderAt('/pages/3f2a7c1e-0000-4000-8000-000000000000/edit');
+    expect(active()).toBe('3f2a7c1e-0000-4000-8000-000000000000');
   });
 });

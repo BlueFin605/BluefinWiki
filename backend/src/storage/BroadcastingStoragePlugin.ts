@@ -87,6 +87,10 @@ export class BroadcastingStoragePlugin implements StoragePlugin {
     return this.inner.loadPage(guid);
   }
 
+  getPageFileKey(guid: string): Promise<string | null> {
+    return this.inner.getPageFileKey(guid);
+  }
+
   listVersions(guid: string): Promise<Version[]> {
     return this.inner.listVersions(guid);
   }

@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { CustomPropertiesEditor } from '../editor/custom-properties-editor';
 import { mergeSchema, withoutUnsetTypedProps } from '../pages/merge-schema';
 import { Pages } from '../pages/pages';
+import { pageRef } from '../ticket-keys/ticket-keys';
 import type { PageChildDetail, PageProperty, PageTypeDefinition } from '../pages/page.types';
 
 export interface CardSummaryDialogData {
@@ -154,7 +155,7 @@ export class CardSummaryDialog {
   }
 
   onOpenFullEditor(): void {
-    window.open('/pages/' + this.data.card.guid, '_blank');
+    window.open('/pages/' + pageRef(this.data.card), '_blank');
   }
 
   async onSave(): Promise<void> {

@@ -19,6 +19,7 @@ import { visit } from 'unist-util-visit';
 import type { Plugin } from 'unified';
 import type { Root, Text, Link, Code, InlineCode } from 'mdast';
 import { parseWikiLinks, getDisplayText, type WikiLink } from '../wiki-link-parser';
+import { isTicketKey } from '../../../features/ticket-keys/ticket-key';
 
 /** The kind of reference inside `[[…]]` — a page title or a raw page guid. */
 export type WikiTargetType = 'page-title' | 'page-guid';
@@ -108,8 +109,11 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
         broken = false;
         pending = true;
       } else {
-        // Step 3.8: resolved — always a GUID href.
-        url = `/pages/${resolution.guid}`;
+        // Step 3.8: resolved — a GUID href, except a `[[BGT-12]]` ticket-key
+        // target, which keeps the key in the URL (page-detail resolves it).
+        url = isTicketKey(wikiLink.target)
+          ? `/pages/${wikiLink.target.trim().toUpperCase()}`
+          : `/pages/${resolution.guid}`;
         broken = !resolution.exists;
       }
     } else {

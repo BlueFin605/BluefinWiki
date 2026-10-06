@@ -332,3 +332,54 @@ describe('tags', () => {
     ]);
   });
 });
+
+describe('ticket keys', () => {
+  it('every tool accepts a key wherever it takes a guid', async () => {
+    wiki.setKey('init', 'HOME-0'); // initiatives aren't keyed in prod, but resolution is generic
+    wiki.setKey('task2', 'HOME-2');
+    wiki.setKey('story2', 'HOME-5');
+    expect((await kanbanGet(wiki, { guid: 'home-2' })).split('\n')[0]).toContain('Task 2');
+    expect((await kanbanBoard(wiki, { initiative: 'HOME-0' })).split('\n')[0]).toContain('Home');
+    expect((await kanbanNext(wiki, { initiative: 'HOME-0' })).split('\n')[0]).toContain('Task 2');
+    await kanbanSetState(wiki, { guid: 'HOME-2', state: 'Blocked' });
+    expect(wiki.stateOf('task2')).toBe('Blocked');
+    await kanbanCreate(wiki, { parentGuid: 'HOME-5', tree: { type: 'Task', title: 'Child' } });
+    expect(wiki.pages.get('new-1')!.folderId).toBe('story2');
+  });
+
+  it('rejects an unknown key', async () => {
+    await expect(kanbanGet(wiki, { guid: 'NOPE-9' })).rejects.toThrow('unknown ticket key "NOPE-9"');
+  });
+
+  it('board, get, next and set_state show the key in place of the guid', async () => {
+    wiki.setKey('task2', 'HOME-2');
+    expect(await kanbanBoard(wiki, { initiative: 'init' })).toContain('      Task · Ready · Task 2 · HOME-2');
+    const card = (await kanbanGet(wiki, { guid: 'task2' })).split('\n');
+    expect(card[0]).toBe('Task · Ready · Task 2 · HOME-2');
+    expect(card[1]).toBe('Guid: task2');
+    expect(await kanbanSetState(wiki, { guid: 'task2', state: 'Ready' })).toBe('Task · Ready · Task 2 · HOME-2');
+  });
+
+  it('unkeyed tickets are unchanged and get no Guid line', async () => {
+    const card = (await kanbanGet(wiki, { guid: 'task3' })).split('\n');
+    expect(card[0]).toBe('Task · Ready · Task 3 · task3');
+    expect(card[1]).not.toMatch(/^Guid:/);
+  });
+
+  it('kanban_create prints assigned keys', async () => {
+    wiki.autoKeyPrefix = 'HOME';
+    const out = await kanbanCreate(wiki, { parentGuid: 'story2', tree: { type: 'Task', title: 'K' } });
+    expect(out).toBe('Task · K · HOME-1');
+  });
+
+  it('closeable/closed lines use the parent key', async () => {
+    wiki.setKey('story1', 'HOME-7');
+    const out = await kanbanSetState(wiki, { guid: 'task2', state: 'Done' });
+    expect(out.split('\n')[1]).toBe('closeable: Story · Story 1 · HOME-7');
+  });
+
+  it('kanban_initiatives shows the prefix', async () => {
+    wiki.pages.get('init')!.boardConfig = { keyPrefix: 'HOME' };
+    expect(await kanbanInitiatives(wiki, {})).toContain('init · [HOME] Home · In Progress · ');
+  });
+});

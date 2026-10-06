@@ -8,7 +8,9 @@ import {
   type BoardSettingsPanelData,
   type BoardSettingsResult,
 } from './board-settings-panel';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import type { BoardConfig, PageTypeDefinition } from '../pages/page.types';
+import { TicketKeys } from '../ticket-keys/ticket-keys';
 
 function pageType(over: Partial<PageTypeDefinition> = {}): PageTypeDefinition {
   return {
@@ -30,12 +32,16 @@ function pageType(over: Partial<PageTypeDefinition> = {}): PageTypeDefinition {
 async function renderPanel(
   data: BoardSettingsPanelData,
   dialogRef: { close: jest.Mock } = { close: jest.fn() },
+  ticketKeys: { backfill: jest.Mock } = { backfill: jest.fn() },
+  snack: { open: jest.Mock } = { open: jest.fn() },
 ) {
   return render(BoardSettingsPanel, {
     providers: [
       provideAnimationsAsync(),
       { provide: MAT_DIALOG_DATA, useValue: data },
       { provide: MatDialogRef, useValue: dialogRef },
+      { provide: TicketKeys, useValue: ticketKeys },
+      { provide: MatSnackBar, useValue: snack },
     ],
   });
 }
@@ -300,5 +306,103 @@ describe('BoardSettingsPanel', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: /^save$/i }));
     const cfg = (dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config;
     expect(cfg).toEqual({ columns: ['A'] });
+  });
+
+  describe('ticket keys', () => {
+    const KEYS = { pageGuid: 'g1', canBackfill: true };
+    const prefixInput = () => screen.getByRole('textbox', { name: /ticket key prefix/i });
+
+    it('hides the ticket key section without ticketKeys', async () => {
+      await renderPanel({ config: null, pageTypes: [pageType()], type: TYPE });
+      await settle();
+      expect(screen.queryByTestId('ticket-key-section')).toBeNull();
+    });
+
+    it('shows the section with the saved prefix when ticketKeys is set', async () => {
+      await renderPanel({ config: { keyPrefix: 'BGT' }, pageTypes: [pageType()], type: TYPE, ticketKeys: KEYS });
+      await settle();
+      expect(screen.getByTestId('ticket-key-section')).toBeInTheDocument();
+      expect(prefixInput()).toHaveValue('BGT');
+    });
+
+    it('upper-cases what is typed', async () => {
+      await renderPanel({ config: null, pageTypes: [pageType()], ticketKeys: KEYS });
+      await settle();
+      await userEvent.setup().type(prefixInput(), 'bgt');
+      await settle();
+      expect(prefixInput()).toHaveValue('BGT');
+    });
+
+    it('flags an invalid prefix and disables Save and Save as default', async () => {
+      await renderPanel({ config: null, pageTypes: [pageType()], type: { ...TYPE, hasDefaults: false }, ticketKeys: KEYS });
+      await settle();
+      const user = userEvent.setup();
+      await user.type(prefixInput(), 'b');
+      await user.tab();
+      await settle();
+      expect(screen.getByText(/2–10 letters\/digits, starting with a letter/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /save as default/i })).toBeDisabled();
+    });
+
+    it('Save carries the prefix in the config', async () => {
+      const dialogRef = { close: jest.fn() };
+      await renderPanel({ config: null, pageTypes: [pageType()], ticketKeys: KEYS }, dialogRef);
+      await settle();
+      const user = userEvent.setup();
+      await user.type(prefixInput(), 'bgt');
+      await settle();
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+      expect((dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config.keyPrefix).toBe('BGT');
+    });
+
+    it('an empty prefix leaves keyPrefix out of the config', async () => {
+      const dialogRef = { close: jest.fn() };
+      await renderPanel({ config: { keyPrefix: 'BGT' }, pageTypes: [pageType()], ticketKeys: KEYS }, dialogRef);
+      await settle();
+      const user = userEvent.setup();
+      await user.clear(prefixInput());
+      await settle();
+      await user.click(screen.getByRole('button', { name: /^save$/i }));
+      expect((dialogRef.close.mock.calls[0] as [BoardSettingsResult])[0].config).not.toHaveProperty('keyPrefix');
+    });
+
+    it('hides the Assign keys button without backfill rights', async () => {
+      await renderPanel({ config: { keyPrefix: 'BGT' }, pageTypes: [pageType()], ticketKeys: { pageGuid: 'g1', canBackfill: false } });
+      await settle();
+      expect(screen.getByTestId('ticket-key-section')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /assign keys/i })).toBeNull();
+    });
+
+    it('disables Assign keys until a prefix has been saved', async () => {
+      await renderPanel({ config: null, pageTypes: [pageType()], ticketKeys: KEYS });
+      await settle();
+      await userEvent.setup().type(prefixInput(), 'BGT');
+      await settle();
+      expect(screen.getByRole('button', { name: /assign keys to existing tickets/i })).toBeDisabled();
+    });
+
+    it('Assign keys backfills the Initiative and reports the counts', async () => {
+      const ticketKeys = { backfill: jest.fn().mockResolvedValue({ assigned: 2, repaired: 1 }) };
+      const snack = { open: jest.fn() };
+      await renderPanel({ config: { keyPrefix: 'BGT' }, pageTypes: [pageType()], ticketKeys: KEYS }, { close: jest.fn() }, ticketKeys, snack);
+      await settle();
+      await userEvent.setup().click(screen.getByRole('button', { name: /assign keys to existing tickets/i }));
+      await settle();
+      expect(ticketKeys.backfill).toHaveBeenCalledWith('g1');
+      expect(snack.open).toHaveBeenCalledWith('Assigned 2, repaired 1', 'Dismiss', { duration: 4000 });
+      expect(screen.getByRole('button', { name: /assign keys to existing tickets/i })).toBeEnabled();
+    });
+
+    it('Assign keys reports a failure', async () => {
+      const ticketKeys = { backfill: jest.fn().mockRejectedValue(new Error('boom')) };
+      const snack = { open: jest.fn() };
+      await renderPanel({ config: { keyPrefix: 'BGT' }, pageTypes: [pageType()], ticketKeys: KEYS }, { close: jest.fn() }, ticketKeys, snack);
+      await settle();
+      await userEvent.setup().click(screen.getByRole('button', { name: /assign keys to existing tickets/i }));
+      await settle();
+      expect(snack.open).toHaveBeenCalledWith('Failed to assign ticket keys.', 'Dismiss', { duration: 4000 });
+      expect(screen.getByRole('button', { name: /assign keys to existing tickets/i })).toBeEnabled();
+    });
   });
 });

@@ -144,6 +144,116 @@ describe('PageDetail', () => {
     expect(screen.getByRole('heading', { name: 'Hello world' })).toBeInTheDocument();
   });
 
+  describe('ticket key chip', () => {
+    it('shows the key chip and copies the key on click', async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-3' });
+      await settle();
+      fixture.detectChanges();
+      const snackSpy = jest.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+      const chip = screen.getByTestId('page-ticket-key');
+      expect(chip.textContent?.trim()).toBe('BGT-3');
+      chip.click();
+      await settle();
+
+      expect(writeText).toHaveBeenCalledWith('BGT-3');
+      expect(snackSpy).toHaveBeenCalledWith('Copied BGT-3', undefined, { duration: 2000 });
+    });
+
+    it('copies a key link next to the chip', async () => {
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-3' });
+      await settle();
+      fixture.detectChanges();
+      const snackSpy = jest.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+      screen.getByTestId('page-ticket-link').click();
+      await settle();
+
+      expect(writeText).toHaveBeenCalledWith(`${location.origin}/pages/BGT-3`);
+      expect(snackSpy).toHaveBeenCalledWith('Copied link to BGT-3', undefined, { duration: 2000 });
+    });
+
+    it('says the copy failed when the clipboard rejects', async () => {
+      Object.assign(navigator, { clipboard: { writeText: jest.fn().mockRejectedValue(new Error('no')) } });
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-3' });
+      await settle();
+      fixture.detectChanges();
+      const snackSpy = jest.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({} as never);
+
+      screen.getByTestId('page-ticket-key').click();
+      await settle();
+
+      expect(snackSpy).toHaveBeenCalledWith("Couldn't copy BGT-3", undefined, { duration: 2000 });
+    });
+
+    it('loads the page by GUID when the route holds its key', async () => {
+      const { http, fixture } = await renderDetail({ guid: 'BGT-12' });
+      await settle();
+      http.expectOne('/api/ticket-keys/BGT-12').flush({ key: 'BGT-12', guid: 'g1', title: 'Page Title' });
+      await settle();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await settle();
+      fixture.detectChanges();
+      expect(TestBed.inject(PageContext).guid()).toBe('g1');
+      expect(screen.getByTestId('page-ticket-key').textContent?.trim()).toBe('BGT-12');
+    });
+
+    it('keeps the key in the URL when toggling to edit', async () => {
+      const { http } = await renderDetail({ guid: 'BGT-12' });
+      const navigate = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      await settle();
+      http.expectOne('/api/ticket-keys/BGT-12').flush({ key: 'BGT-12', guid: 'g1', title: 'Page Title' });
+      await settle();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await settle();
+
+      await userEvent.click(screen.getByRole('radio', { name: 'Edit' }));
+      expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-12', 'edit']);
+    });
+
+    it('saves back to the key URL', async () => {
+      const { http, fixture } = await renderDetail({ guid: 'BGT-12', editMode: true });
+      const navigate = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      await settle();
+      http.expectOne('/api/ticket-keys/BGT-12').flush({ key: 'BGT-12', guid: 'g1', title: 'Page Title' });
+      await settle();
+      http.expectOne('/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await settle();
+      fixture.detectChanges();
+
+      const save = fixture.componentInstance.save();
+      await settle();
+      http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush({ ...serverPage, ticketKey: 'BGT-12' });
+      await save;
+      expect(navigate).toHaveBeenCalledWith(['/pages', 'BGT-12']);
+    });
+
+    it('shows a not-found state for an unknown key and loads nothing', async () => {
+      const { http, fixture } = await renderDetail({ guid: 'NOPE-999' });
+      await settle();
+      http.expectOne('/api/ticket-keys/NOPE-999').flush({}, { status: 404, statusText: 'Not Found' });
+      await settle();
+      fixture.detectChanges();
+      expect(screen.getByTestId('page-key-not-found').textContent).toContain('NOPE-999');
+      http.expectNone((r) => r.url.startsWith('/api/pages/'));
+    });
+
+    it('shows no chip for an unkeyed page', async () => {
+      const { http, fixture } = await renderDetail();
+      http.expectOne('/api/pages/g1').flush(serverPage);
+      await settle();
+      fixture.detectChanges();
+      expect(screen.queryByTestId('page-ticket-key')).toBeNull();
+    });
+  });
+
   // ---- Step 1b.3: PageContext channel (inspector hoisted to pages-view) ----
 
   it('publishes guid / metadata / mode to PageContext on load', async () => {
@@ -1008,6 +1118,89 @@ describe('PageDetail', () => {
       'Dismiss',
       { duration: 4000 },
     );
+  });
+
+  describe('ticket key prefix (page-only)', () => {
+    it('passes ticketKeys for an Initiative, with backfill rights for an Admin, and the saved prefix in config', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { boardConfig: { keyPrefix: 'BGT' } });
+      const open = stubDialog(null);
+      await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+      expect(data['ticketKeys']).toEqual({ pageGuid: 'g1', canBackfill: true });
+      expect((data['config'] as { keyPrefix?: string }).keyPrefix).toBe('BGT');
+    });
+
+    it('withholds backfill from non-Admins', async () => {
+      const { http, fixture } = await renderDetail({ user: { userId: 'someone-else', role: 'Standard' } });
+      await loadInitiative(http, fixture);
+      const open = stubDialog(null);
+      await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+      expect(data['ticketKeys']).toEqual({ pageGuid: 'g1', canBackfill: false });
+    });
+
+    it('passes no ticketKeys for a non-Initiative page', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { pageType: 'pt-task' });
+      const open = stubDialog(null);
+      await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      const data = (open.mock.calls[0][1] as { data: Record<string, unknown> }).data;
+      expect(data['ticketKeys']).toBeNull();
+    });
+
+    it('save keeps the prefix alongside the group overrides', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture);
+      stubDialog({ action: 'save', config: { keyPrefix: 'BGT', columns: ['Todo'], leafTypes: true, defaultView: 'board' } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ columns: ['Todo'], keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
+
+    it('save with only a prefix (matching defaults) stores just the prefix', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture);
+      stubDialog({ action: 'save', config: { keyPrefix: 'BGT', ...INITIATIVE.boardDefaults } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
+
+    it('reset keeps the prefix', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'], keyPrefix: 'BGT' } });
+      stubDialog({ action: 'reset', config: { columns: ['Mine'], leafTypes: true, keyPrefix: 'BGT' } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
+
+    it('saveAsDefault keeps the prefix off the type defaults and on the page', async () => {
+      const { http, fixture } = await renderDetail();
+      await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'], keyPrefix: 'BGT' } });
+      const config = { columns: ['Mine'], leafTypes: true, defaultView: 'board' as const };
+      stubDialog({ action: 'saveAsDefault', config: { ...config, keyPrefix: 'BGT' } });
+      const done = (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+      await settle();
+      const typePut = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/page-types/pt-init');
+      expect(typePut.request.body).toEqual({ boardDefaults: config });
+      typePut.flush({ ...INITIATIVE, boardDefaults: config });
+      await settle();
+      const put = http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1');
+      expect((put.request.body as { boardConfig: unknown }).boardConfig).toEqual({ keyPrefix: 'BGT' });
+      put.flush({ ...serverPage, pageType: 'pt-init' });
+      await done;
+    });
   });
 
   it('does not fetch page types when the page is in edit mode', async () => {

@@ -127,6 +127,22 @@ describe('S3StoragePlugin', () => {
       expect(body).toContain('createdBy: "user-123"');
       expect(body).toContain('modifiedBy: "user-456"');
     });
+
+    it('should write ticketKey to frontmatter when present and omit it otherwise', async () => {
+      const guid = uuidv4();
+      const base: PageContent = {
+        guid, title: 'Keyed', content: 'C', folderId: '', tags: [], status: 'draft',
+        createdBy: 'u', modifiedBy: 'u', createdAt: '2026-02-10T10:00:00Z', modifiedAt: '2026-02-10T12:00:00Z',
+      };
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await plugin.savePage(guid, null, { ...base, ticketKey: 'BGT-12' });
+      await plugin.savePage(guid, null, base);
+
+      const calls = s3Mock.commandCalls(PutObjectCommand);
+      expect(calls[0].args[0].input.Body as string).toContain('ticketKey: "BGT-12"');
+      expect(calls[1].args[0].input.Body as string).not.toContain('ticketKey');
+    });
   });
 
   describe('loadPage', () => {
@@ -232,6 +248,31 @@ Child content`;
 
       const page = await plugin.loadPage(guid);
       expect(page.folderId).toBe(parentGuid);
+    });
+
+    it('should parse ticketKey from frontmatter and omit it when absent', async () => {
+      const guid = uuidv4();
+      const mk = (extra: string) => `---
+title: "T"
+guid: "${guid}"
+folderId: ""
+status: "published"
+${extra}createdBy: "u"
+modifiedBy: "u"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Body`;
+      s3Mock.on(HeadObjectCommand).resolves({ ContentLength: 100, LastModified: new Date() });
+
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(mk('ticketKey: "BGT-12"\n'))() as any });
+      const keyed = await plugin.loadPage(guid);
+      expect(keyed?.ticketKey).toBe('BGT-12');
+
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(mk(''))() as any });
+      const plain = await plugin.loadPage(guid);
+      expect('ticketKey' in (plain as object)).toBe(false);
     });
   });
 
@@ -743,6 +784,34 @@ Content`;
       expect(children[0].properties).toEqual({
         state: { type: 'string', value: 'In Progress' },
       });
+    });
+
+    it('should include ticketKey on child summary', async () => {
+      const guid = uuidv4();
+      const markdown = `---
+title: "Keyed"
+guid: "${guid}"
+folderId: ""
+status: "published"
+ticketKey: "BGT-12"
+createdBy: "u"
+modifiedBy: "u"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Content`;
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) => {
+        if (!input.Prefix) return { CommonPrefixes: [{ Prefix: `${guid}/` }] };
+        return { CommonPrefixes: [] };
+      });
+      s3Mock.on(HeadObjectCommand).resolves({ ContentLength: 100, LastModified: new Date() });
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(markdown)() } as any);
+
+      const children = await plugin.listChildren(null);
+
+      expect(children).toHaveLength(1);
+      expect(children[0].ticketKey).toBe('BGT-12');
     });
   });
 

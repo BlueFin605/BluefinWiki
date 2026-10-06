@@ -88,3 +88,19 @@ describe('remark-wiki-links', () => {
     expect(html).toContain('>Home Page</a>');
   });
 });
+
+describe('remark-wiki-links ticket-key targets', () => {
+  const resolveWikiTarget = (target: string) =>
+    target.toUpperCase() === 'BGT-12' ? { guid: 'g12', exists: true } : { guid: 'g-other', exists: true };
+
+  it('links a resolved [[bgt-12]] by its canonical key', async () => {
+    const html = await toHtml('See [[bgt-12]].', { resolveWikiTarget });
+    expect(html).toContain('href="/pages/BGT-12"');
+    expect(html).toContain('>bgt-12</a>');
+  });
+
+  it('keeps the GUID href for a title target', async () => {
+    const html = await toHtml('See [[Fix login]].', { resolveWikiTarget });
+    expect(html).toContain('href="/pages/g-other"');
+  });
+});

@@ -40,7 +40,22 @@ export function effectiveBoardConfig(
   for (const g of BOARD_GROUPS) {
     Object.assign(out, pick(pageCfg && setsGroup(pageCfg, g) ? pageCfg : typeDefaults, g));
   }
+  if (pageCfg?.keyPrefix) out.keyPrefix = pageCfg.keyPrefix;
   return Object.keys(out).length ? out : null;
+}
+
+/** Re-applies the page-only settings (keyPrefix) from the page's current config onto `cfg`. */
+export function withPageOnly(cfg: BoardConfig | null, pageCfg: BoardConfig | null | undefined): BoardConfig | null {
+  const out: BoardConfig = { ...(cfg ?? {}) };
+  if (pageCfg?.keyPrefix) out.keyPrefix = pageCfg.keyPrefix;
+  return Object.keys(out).length ? out : null;
+}
+
+/** Strips page-only settings (keyPrefix), for writing type defaults. */
+export function withoutPageOnly(cfg: BoardConfig): BoardConfig {
+  const rest: BoardConfig = { ...cfg };
+  delete rest.keyPrefix;
+  return rest;
 }
 
 /** A group's value with absent keys normalised, for comparison and explicit writing. */

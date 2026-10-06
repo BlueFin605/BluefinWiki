@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { RouterLink } from '@angular/router';
 import { Breakpoint } from '../../core/layout/breakpoint';
 import { Pages } from '../../features/pages/pages';
+import { pageRef } from '../../features/ticket-keys/ticket-keys';
 
 @Component({
   selector: 'wiki-breadcrumbs',
@@ -28,7 +29,7 @@ import { Pages } from '../../features/pages/pages';
         } @else {
           @for (a of ancestors(); track a.guid) {
             <li>
-              <a class="crumb" [routerLink]="['/pages', a.guid]" [title]="a.title">{{ a.title }}</a>
+              <a class="crumb" [routerLink]="['/pages', pageRef(a)]" [title]="a.title">{{ a.title }}</a>
               <span class="sep" aria-hidden="true">/</span>
             </li>
           }
@@ -61,6 +62,7 @@ import { Pages } from '../../features/pages/pages';
   `],
 })
 export class Breadcrumbs {
+  protected readonly pageRef = pageRef;
   private readonly pages = inject(Pages);
   private readonly bp = inject(Breakpoint);
 

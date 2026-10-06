@@ -102,6 +102,7 @@ export interface BoardConfig {
   showParentTitle?: boolean;
   swapTitles?: boolean;
   defaultView?: 'content' | 'board';
+  keyPrefix?: string; // Initiative only: prefix for its tickets' keys (page-only, never a type default)
 }
 
 export interface PageContent {
@@ -113,6 +114,7 @@ export interface PageContent {
   status: 'draft' | 'published' | 'archived' | 'deleted';
   sortOrder?: number; // Position among siblings in the page tree — lower values first
   boardOrder?: number; // Position within a board column — lower values first
+  ticketKey?: string; // Immutable Jira-style key, e.g. BGT-12 — set only by ticket-keys
   description?: string; // Optional page description
   pageType?: string; // Page type GUID — references PageTypeDefinition
   properties?: Record<string, PageProperty>;
@@ -153,6 +155,7 @@ export interface PageSummary {
   status: 'draft' | 'published' | 'archived';
   sortOrder?: number; // Position among siblings in the page tree — lower values first
   boardOrder?: number; // Position within a board column — lower values first
+  ticketKey?: string; // Immutable Jira-style key, e.g. BGT-12 — set only by ticket-keys
   createdBy: string; // Cognito sub — needed for draft visibility filtering
   modifiedAt: string; // ISO 8601
   modifiedBy: string; // Cognito sub

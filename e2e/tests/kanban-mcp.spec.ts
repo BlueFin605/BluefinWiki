@@ -1,41 +1,14 @@
-import type { APIRequestContext } from '@playwright/test';
 import { test, expect, createPage, updatePage } from '../fixtures/page-tree';
-import { createPageType, deletePageType, allowChildTypes } from '../fixtures/page-types';
-import { API_BASE_URL, AUTH_HEADER } from '../fixtures/api';
+import { callTool, withTicketTypes } from '../fixtures/kanban';
 
 /**
  * The kanban_* MCP tools (used by the bluefin-kanban skill) drive the same
  * `state` property the board UI groups by: tickets created and moved over MCP
  * must show up in the right board columns.
- *
- * The tools look page types up by their exact names (Initiative/Epic/Story/
- * Task), so this spec can't use the usual run-id prefix — it removes any
- * leftover types with those names first, and its own on the way out.
  */
-const TICKET_TYPES = ['Initiative', 'Epic', 'Story', 'Task'] as const;
 
-async function callTool(request: APIRequestContext, name: string, args: Record<string, unknown>): Promise<string> {
-  const res = await request.post(`${API_BASE_URL}/mcp`, {
-    headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' },
-    data: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
-  });
-  expect(res.ok(), await res.text()).toBeTruthy();
-  const body = (await res.json()) as { result: { content: { text: string }[]; isError?: boolean } };
-  const text = body.result.content[0].text;
-  if (body.result.isError) throw new Error(`${name} failed: ${text}`);
-  return text;
-}
-
-/** "Type · State · Title · guid" → guid */
+/** "Type · State · Title · guid" → guid (this board has no key prefix, so refs are GUIDs) */
 const guidOf = (line: string) => line.split(' · ').pop()!;
-
-async function removeTicketTypes(request: APIRequestContext): Promise<void> {
-  const res = await request.get(`${API_BASE_URL}/page-types`, { headers: AUTH_HEADER });
-  const { pageTypes } = (await res.json()) as { pageTypes: { guid: string; name: string }[] };
-  for (const t of pageTypes) {
-    if ((TICKET_TYPES as readonly string[]).includes(t.name)) await deletePageType(request, t.guid);
-  }
-}
 
 test.describe('Kanban MCP tools', () => {
   test('tickets created and moved via kanban_* tools land in the matching board columns', async ({
@@ -43,17 +16,10 @@ test.describe('Kanban MCP tools', () => {
     pageTree,
     request,
   }) => {
+    test.setTimeout(180_000); // may wait on another spec holding the ticket-types lock
     const prefix = `E2E-${pageTree.runId}`;
-    await removeTicketTypes(request);
 
-    const state = [{ name: 'state', type: 'string' as const, required: true }];
-    const types: Record<string, string> = {};
-    for (const name of TICKET_TYPES) types[name] = await createPageType(request, name, { properties: state });
-    await allowChildTypes(request, types.Initiative, [types.Epic]);
-    await allowChildTypes(request, types.Epic, [types.Story]);
-    await allowChildTypes(request, types.Story, [types.Task]);
-
-    try {
+    await withTicketTypes(request, async (types) => {
       const initiativeGuid = await createPage(request, `${prefix} Initiative`, {
         parentGuid: pageTree.rootGuid,
         pageType: types.Initiative,
@@ -125,8 +91,6 @@ test.describe('Kanban MCP tools', () => {
       expect(await callTool(request, 'kanban_set_state', { guid: deanGuid, state: 'Done', removeTags: ['dean'] }))
         .toMatch(new RegExp(`^Task · Done · ${deanTitle} · ${deanGuid}$`, 'm'));
       expect(await callTool(request, 'kanban_board', { initiative: initiativeGuid, tags: ['dean'] })).not.toContain(deanGuid);
-    } finally {
-      for (const guid of Object.values(types)) await deletePageType(request, guid);
-    }
+    });
   });
 });

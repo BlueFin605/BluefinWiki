@@ -8,6 +8,7 @@ import { CDK_DRAG_CONFIG, CdkDrag } from '@angular/cdk/drag-drop';
 import { PageTreeItem } from './page-tree-item';
 import { Pages } from './pages';
 import { TreeDragState } from './tree-drag-state';
+import { TicketKeys } from '../ticket-keys/ticket-keys';
 import type { ContextMenuEvent } from './page-context-menu';
 import type { PageSummary, PageTypeDefinition } from './page.types';
 
@@ -124,6 +125,18 @@ describe('PageTreeItem', () => {
     fixture.componentInstance.pageSelect.subscribe((g: string) => calls.push(g));
     await user.click(screen.getByText('Click me'));
     expect(calls).toEqual(['g1']);
+  });
+
+  it('seeds the key cache when a keyed row is clicked', async () => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    const { fixture } = await render(PageTreeItem, {
+      inputs: { page: summary({ guid: 'g1', title: 'Keyed', ticketKey: 'BGT-4' }), level: 0, activeGuid: null, pageTypesMap: {} },
+    });
+    fixture.componentInstance.pageSelect.subscribe((g: string) => calls.push(g));
+    await user.click(screen.getByText('Keyed'));
+    expect(calls).toEqual(['g1']);
+    expect(TestBed.inject(TicketKeys).keyFor('g1')).toBe('BGT-4');
   });
 
   it('emits renameRequested with the row guid + real title on double-click', async () => {

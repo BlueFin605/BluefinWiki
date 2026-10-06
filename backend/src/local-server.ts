@@ -31,6 +31,8 @@ import { handler as pagesReorder } from './pages/pages-reorder.js';
 import { handler as pagesSearch } from './pages/pages-search.js';
 import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
 import { handler as pagesAncestors } from './pages/pages-ancestors.js';
+import { handler as ticketKeysResolve } from './ticket-keys/ticket-keys-resolve.js';
+import { handler as ticketKeysBackfill } from './ticket-keys/ticket-keys-backfill-handler.js';
 import {
   pagesAttachmentsUpload,
   pagesAttachmentsDownload,
@@ -229,6 +231,8 @@ app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));
 app.get('/pages/:guid/children', wrapLambdaHandler(pagesListChildren));
 app.put('/pages/:guid/move', wrapLambdaHandler(pagesMove));
 app.get('/pages/:guid/ancestors', wrapLambdaHandler(pagesAncestors));
+app.get('/ticket-keys/:key', wrapLambdaHandler(ticketKeysResolve));
+app.post('/pages/:guid/ticket-keys/backfill', wrapLambdaHandler(ticketKeysBackfill));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
 app.get('/pages/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
@@ -536,6 +540,12 @@ async function startServer() {
           BillingMode: 'PAY_PER_REQUEST',
         },
         {
+          TableName: process.env.DYNAMODB_TICKET_KEYS_TABLE || 'bluefinwiki-ticket-keys-local',
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          BillingMode: 'PAY_PER_REQUEST',
+        },
+        {
           TableName: 'bluefinwiki-tags-local',
           KeySchema: [
             { AttributeName: 'scope', KeyType: 'HASH' },
@@ -598,6 +608,8 @@ async function startServer() {
   console.log('   GET    /pages/:guid/children');
   console.log('   PUT    /pages/:guid/move');
   console.log('   GET    /pages/:guid/ancestors');
+  console.log('   GET    /ticket-keys/:key');
+  console.log('   POST   /pages/:guid/ticket-keys/backfill');
   console.log('   GET    /pages/:guid/backlinks');
   console.log('   GET    /pages/search');
   console.log('   GET    /search');

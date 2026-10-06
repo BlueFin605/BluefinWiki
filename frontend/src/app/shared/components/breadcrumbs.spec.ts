@@ -74,6 +74,12 @@ describe('Breadcrumbs', () => {
     expect(links[0]).toHaveAccessibleName('Home');
   });
 
+  it('links a keyed ancestor by its key and an unkeyed one by GUID', async () => {
+    await renderBreadcrumbs({ ancestors: [{ ...makeAncestor(1), ticketKey: 'BGT-1' }, makeAncestor(2)] });
+    expect(screen.getByRole('link', { name: 'Ancestor 1' })).toHaveAttribute('href', '/pages/BGT-1');
+    expect(screen.getByRole('link', { name: 'Ancestor 2' })).toHaveAttribute('href', '/pages/g2');
+  });
+
   it('renders a leading Home segment linking to /pages', async () => {
     await renderBreadcrumbs({ ancestors: [makeAncestor(1)] });
     const home = screen.getByRole('link', { name: 'Home' });

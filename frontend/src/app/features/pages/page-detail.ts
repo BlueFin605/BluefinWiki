@@ -14,7 +14,21 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { filter, firstValueFrom, map, race, skipWhile, take, timer } from 'rxjs';
+import {
+  catchError,
+  concat,
+  filter,
+  firstValueFrom,
+  from,
+  map,
+  of,
+  race,
+  skipWhile,
+  switchMap,
+  take,
+  timer,
+  type Observable,
+} from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
@@ -58,8 +72,15 @@ import {
 import { rewriteWikiLink } from '../../shared/markdown/rewrite-wiki-link';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { hasCardTypeSelection } from '../board/card-types';
-import { boardOverrides, effectiveBoardConfig, overriddenGroups } from '../board/board-defaults';
+import {
+  boardOverrides,
+  effectiveBoardConfig,
+  overriddenGroups,
+  withoutPageOnly,
+  withPageOnly,
+} from '../board/board-defaults';
 import { Auth } from '../../core/auth/auth';
+import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import type {
   BoardConfig,
@@ -70,6 +91,12 @@ import type {
 
 type Mode = 'view' | 'edit';
 type ViewMode = 'content' | 'board';
+/** The route segment (`ref`), the GUID it resolved to, and how a ticket-key lookup went. */
+interface RouteTarget {
+  ref: string | null;
+  guid: string | null;
+  keyLookup: 'pending' | 'missing' | 'failed' | null;
+}
 /** Editor-surface layout on the `/edit` route (client state, not a route param). */
 type EditorMode = 'edit' | 'split' | 'preview';
 
@@ -174,6 +201,12 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
     <div class="page-detail">
       <header class="bar">
         <span class="title">{{ resolvedTitle() ?? 'Untitled' }}</span>
+        @if (ticketKey(); as key) {
+          <button type="button" class="ticket-key" data-testid="page-ticket-key" (click)="copyTicketKey(key)" [attr.aria-label]="'Copy ticket key ' + key" title="Copy ticket key">{{ key }}</button>
+          <button mat-icon-button type="button" class="ticket-link" data-testid="page-ticket-link" (click)="copyTicketLink(key)" [attr.aria-label]="'Copy link to ' + key" title="Copy link">
+            <mat-icon>link</mat-icon>
+          </button>
+        }
 
         @if (mode() === 'view' && boardEligible()) {
           <mat-button-toggle-group
@@ -352,8 +385,12 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
           }
 
           <section class="body" [class.toolbar-pinned]="toolbarPinned()">
-            @if (resource.isLoading() && !settledPage()) {
+            @if (keyLookup() === 'pending' || (resource.isLoading() && !settledPage())) {
               <div class="state">Loading page...</div>
+            } @else if (keyLookup() === 'missing') {
+              <div class="state error" data-testid="page-key-not-found">No page has the key {{ routeRef()?.toUpperCase() }}.</div>
+            } @else if (keyLookup() === 'failed') {
+              <div class="state error">Couldn't look up {{ routeRef()?.toUpperCase() }}.</div>
             } @else if (resource.error() && !settledPage()) {
               <div class="state error">
                 Failed to load page.
@@ -471,6 +508,9 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
     .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
     .mode-toggle { flex-shrink: 0; }
     .title { font-weight: 600; }
+    .ticket-key { font: inherit; font-size: 0.75rem; color: #374151; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.0625rem 0.5rem; margin-left: 0.5rem; cursor: pointer; }
+    .ticket-link { --mdc-icon-button-state-layer-size: 28px; --mat-icon-button-state-layer-size: 28px; padding: 2px; color: #6b7280; }
+    .ticket-link mat-icon { font-size: 18px; width: 18px; height: 18px; }
     .view-toggle { margin-left: 0.5rem; }
     .spacer { flex: 1; }
     /*
@@ -572,6 +612,7 @@ export class PageDetail {
   private readonly destroyRef = inject(DestroyRef);
   private readonly errorState = inject(EditorErrorState);
   private readonly layout = inject(Layout);
+  private readonly ticketKeys = inject(TicketKeys);
   /** Single responsive switch (DESIGN.md D1); flips the editor-bar inspector control. */
   protected readonly bp = inject(Breakpoint);
   /**
@@ -588,10 +629,32 @@ export class PageDetail {
   protected readonly boardView = viewChild(BoardView);
   protected readonly boardRefreshing = computed(() => this.boardView()?.refreshing() ?? false);
 
-  protected readonly guid = toSignal(
-    this.route.paramMap.pipe(map((p) => p.get('guid'))),
-    { initialValue: null as string | null },
+  /**
+   * The `:guid` route segment resolved to a page GUID. The segment may be a
+   * ticket key (`/pages/BGT-12`), which resolves through {@link TicketKeys};
+   * a GUID passes straight through (synchronously). `keyLookup` tracks a key
+   * that is still resolving or did not resolve.
+   */
+  private readonly routeTarget = toSignal(
+    this.route.paramMap.pipe(
+      map((p) => p.get('guid')),
+      switchMap((ref): Observable<RouteTarget> => {
+        if (!ref || !isTicketKey(ref)) return of({ ref, guid: ref, keyLookup: null });
+        return concat(
+          of<RouteTarget>({ ref, guid: null, keyLookup: 'pending' }),
+          from(this.ticketKeys.toGuid(ref)).pipe(
+            map((guid): RouteTarget => ({ ref, guid, keyLookup: guid ? null : 'missing' })),
+            catchError(() => of<RouteTarget>({ ref, guid: null, keyLookup: 'failed' })),
+          ),
+        );
+      }),
+    ),
+    { initialValue: { ref: null, guid: null, keyLookup: null } },
   );
+  /** The page reference as it appears in the URL — a ticket key or a GUID. */
+  protected readonly routeRef = computed(() => this.routeTarget().ref);
+  protected readonly guid = computed(() => this.routeTarget().guid);
+  protected readonly keyLookup = computed(() => this.routeTarget().keyLookup);
 
   private readonly editModeFromRoute = toSignal(
     this.route.data.pipe(map((d) => d['editMode'] === true)),
@@ -702,6 +765,25 @@ export class PageDetail {
     if (this.resource.status() !== 'resolved') return null;
     return this.resource.value()?.title ?? null;
   });
+
+  protected readonly ticketKey = computed(() => this.settledPage()?.ticketKey ?? null);
+
+  protected copyTicketKey(key: string): Promise<void> {
+    return this.copy(key, key);
+  }
+
+  protected copyTicketLink(key: string): Promise<void> {
+    return this.copy(`${location.origin}/pages/${key}`, `link to ${key}`);
+  }
+
+  private async copy(text: string, what: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.snack.open(`Copied ${what}`, undefined, { duration: 2000 });
+    } catch {
+      this.snack.open(`Couldn't copy ${what}`, undefined, { duration: 2000 });
+    }
+  }
 
   /**
    * All defined page types, keyed by guid — feeds {@link boardEligible}'s
@@ -980,6 +1062,12 @@ export class PageDetail {
       this.pageContext.mode.set(this.mode());
       this.pageContext.boardView.set(this.showingBoard());
       this.pageContext.dirty.set(this.dirty());
+    });
+
+    // A loaded keyed page seeds the key cache, so the tree and links resolve it without a lookup.
+    effect(() => {
+      const page = this.settledPage();
+      if (page?.ticketKey) this.ticketKeys.remember(page.ticketKey, page.guid);
     });
 
     // The "changed elsewhere" banner belongs to one page: clear it only when
@@ -1311,9 +1399,9 @@ export class PageDetail {
   }
 
   onModeToggle(next: Mode): void {
-    const g = this.guid();
-    if (!g || next === this.mode()) return;
-    void this.router.navigate(next === 'edit' ? ['/pages', g, 'edit'] : ['/pages', g]);
+    const ref = this.routeRef();
+    if (!this.guid() || !ref || next === this.mode()) return;
+    void this.router.navigate(next === 'edit' ? ['/pages', ref, 'edit'] : ['/pages', ref]);
   }
 
   onViewToggle(mode: ViewMode): void {
@@ -1686,6 +1774,10 @@ export class PageDetail {
           }
         : null,
       overridden: defaults ? overriddenGroups(page.boardConfig) : [],
+      // Initiatives own a ticket key prefix (page-only); backfill is Admin-only.
+      ticketKeys: type?.name === 'Initiative'
+        ? { pageGuid: page.guid, canBackfill: me?.role === 'Admin' }
+        : null,
     };
     const ref = this.dialog.open<BoardSettingsPanel, BoardSettingsPanelData, BoardSettingsResult | null>(
       BoardSettingsPanel,
@@ -1693,11 +1785,15 @@ export class PageDetail {
     );
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
+    // `keyPrefix` is page-only: strip it from anything diffed against or
+    // written to the type defaults, then re-apply it to the page's config.
     try {
       if (result.action === 'saveAsDefault' && type) {
-        await this.pageTypes.updatePageType(type.guid, { boardDefaults: result.config });
+        await this.pageTypes.updatePageType(type.guid, { boardDefaults: withoutPageOnly(result.config) });
         try {
-          this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig: null }));
+          this.recordOwnWrite(
+            await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) }),
+          );
         } catch {
           this.snack.open(
             `Saved the ${type.name} defaults, but couldn't clear this page's overrides.`,
@@ -1706,10 +1802,16 @@ export class PageDetail {
           );
         }
       } else if (result.action === 'reset') {
-        this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig: null }));
+        this.recordOwnWrite(
+          await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) }),
+        );
       } else {
+        // Without type defaults the result (prefix included) is stored as-is.
         const boardConfig = defaults
-          ? boardOverrides(withHiddenFields(result.config, effective), defaults)
+          ? withPageOnly(
+              boardOverrides(withHiddenFields(withoutPageOnly(result.config), effective), defaults),
+              result.config,
+            )
           : result.config;
         this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig }));
       }
@@ -1720,6 +1822,7 @@ export class PageDetail {
 
   async save(): Promise<void> {
     const g = this.guid();
+    const ref = this.routeRef() ?? g;
     const m = this.metadata();
     if (!g || !m) return;
 
@@ -1761,7 +1864,7 @@ export class PageDetail {
       }
       this.drafts.clear(g);
       // updatePage bumps the pages version, so the view reload picks up the save.
-      await this.router.navigate(['/pages', g]);
+      await this.router.navigate(['/pages', ref]);
     } catch (err) {
       // Prefer the server-supplied body message; fall back to a real
       // Error.message, then a generic sentence. Never surface the raw

@@ -15,7 +15,6 @@ export default defineConfig({
     hookTimeout: 10000,
     pool: 'forks',
     singleFork: true,
-    isolate: false,
     execArgv: ['--max-old-space-size=8192'],
   },
 });
