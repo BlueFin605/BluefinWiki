@@ -11,7 +11,6 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
@@ -82,6 +81,7 @@ import {
 import { Auth } from '../../core/auth/auth';
 import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
 import { EditorErrorState } from '../../core/error/editor-error-state';
+import { httpStatusOf, isApiError } from '../../core/api/api.types';
 import type {
   BoardConfig,
   PageChildDetail,
@@ -856,7 +856,7 @@ export class PageDetail {
   protected readonly backgroundLoadError = computed<'deleted' | 'failed' | null>(() => {
     const err = this.resource.error();
     if (!err || !this.settledPage()) return null;
-    return err instanceof HttpErrorResponse && err.status === 404 ? 'deleted' : 'failed';
+    return httpStatusOf(err) === 404 ? 'deleted' : 'failed';
   });
 
   /**
@@ -1866,11 +1866,15 @@ export class PageDetail {
       // updatePage bumps the pages version, so the view reload picks up the save.
       await this.router.navigate(['/pages', ref]);
     } catch (err) {
-      // Prefer the server-supplied body message; fall back to a real
-      // Error.message, then a generic sentence. Never surface the raw
-      // HttpErrorResponse.message ("Http failure response for /api/… 500 …"),
-      // which leaks the internal request path into user-facing copy.
-      const serverMessage = (err as { error?: { message?: string } })?.error?.message;
+      // Prefer the server-supplied message (errorInterceptor carries it in
+      // ApiError.message); fall back to a real Error.message, then a generic
+      // sentence. Never surface the raw HttpErrorResponse.message ("Http
+      // failure response for /api/… 500 …"), which the interceptor also falls
+      // back to and which leaks the internal request path into user copy.
+      const serverMessage =
+        isApiError(err) && !/^Http failure/i.test(err.message)
+          ? err.message
+          : (err as { error?: { message?: string } })?.error?.message;
       const message =
         serverMessage || (err instanceof Error ? err.message : '') || 'Save failed. Try again.';
       // Store the resolved message — the banner template composes the

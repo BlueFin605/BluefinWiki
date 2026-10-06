@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { convertToParamMap, type ParamMap } from '@angular/router';
 import { By } from '@angular/platform-browser';
@@ -28,6 +28,7 @@ import { BoardView } from '../board/board-view';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { buildAttachmentMarkdown } from '../attachments/attachment.types';
 import { Drafts } from './drafts';
+import { errorInterceptor } from '../../core/api/error-interceptor';
 import { Layout } from '../../core/layout/layout';
 import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 import { ResizeDivider } from '../../shared/components/resize-divider';
@@ -96,7 +97,9 @@ async function renderDetail(
   const result = await render(PageDetail, {
     providers: [
       opts.noopAnimations ? provideNoopAnimations() : provideAnimationsAsync(),
-      provideHttpClient(),
+      // The app's errorInterceptor, so HTTP errors reach the component as the
+      // ApiError it really sees, not a raw HttpErrorResponse.
+      provideHttpClient(withInterceptors([errorInterceptor])),
       provideHttpClientTesting(),
       provideRouter([]),
       routeStub(guid, opts.editMode),
