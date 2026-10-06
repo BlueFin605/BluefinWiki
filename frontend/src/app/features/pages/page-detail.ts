@@ -1873,6 +1873,20 @@ export class PageDetail {
     const m = this.metadata();
     if (!g || !m) return;
 
+    // Last writer wins, but not silently: Save would overwrite the change
+    // the banner is warning about.
+    if (this.pageContext.remoteChange()) {
+      const data: ConfirmDialogData = {
+        title: 'This page changed elsewhere',
+        message: 'Saving replaces the other change with your version. Save anyway?',
+        confirmLabel: 'Save anyway',
+        cancelLabel: 'Cancel',
+        destructive: true,
+      };
+      const ref = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data });
+      if (!(await firstValueFrom(ref.afterClosed()))) return;
+    }
+
     const content = this.content();
     // Persist a draft before the API call so a thrown request can't lose work.
     this.writeDraft(g, content, m);
@@ -1909,6 +1923,8 @@ export class PageDetail {
           },
         });
       }
+      if (saved?.modifiedAt) this.syncedModifiedAt = saved.modifiedAt;
+      this.pageContext.remoteChange.set(false);
       this.drafts.clear(g);
       // updatePage bumps the pages version, so the view reload picks up the save.
       await this.router.navigate(['/pages', ref]);

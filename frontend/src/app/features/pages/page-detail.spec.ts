@@ -3020,6 +3020,59 @@ describe('PageDetail', () => {
       expect(http.match('/api/pages/g1/children?include=properties&limit=50')).toHaveLength(0);
     });
 
+    describe('Save while the banner is showing', () => {
+      async function dirtyWithBanner() {
+        const r = await load();
+        jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        await typeEdit(r.fixture, '# Mine');
+        TestBed.inject(PageContext).remoteChange.set(true);
+        r.fixture.detectChanges();
+        return r;
+      }
+
+      it('asks first, and Cancel sends nothing', async () => {
+        const { fixture, http } = await dirtyWithBanner();
+        const open = jest
+          .spyOn(TestBed.inject(MatDialog), 'open')
+          .mockReturnValue({ afterClosed: () => of(false) } as never);
+
+        await fixture.componentInstance.save();
+
+        expect(open).toHaveBeenCalledTimes(1);
+        expect((open.mock.calls[0][1] as { data: { title: string } }).data.title).toMatch(/changed elsewhere/i);
+        http.expectNone((r) => r.method === 'PUT');
+        expect(fixture.componentInstance.content()).toBe('# Mine');
+      });
+
+      it('Save anyway saves and clears the banner', async () => {
+        const { fixture, http } = await dirtyWithBanner();
+        jest
+          .spyOn(TestBed.inject(MatDialog), 'open')
+          .mockReturnValue({ afterClosed: () => of(true) } as never);
+
+        const done = fixture.componentInstance.save();
+        await settle();
+        http
+          .expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1')
+          .flush({ ...serverPage, content: '# Mine', modifiedAt: '2026-03-03T00:00:00Z' });
+        await done;
+
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(false);
+      });
+
+      it('no prompt without the banner', async () => {
+        const { fixture } = await load();
+        jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        await typeEdit(fixture, '# Mine');
+        const open = jest.spyOn(TestBed.inject(MatDialog), 'open');
+
+        void fixture.componentInstance.save();
+        await settle();
+
+        expect(open).not.toHaveBeenCalled();
+      });
+    });
+
     describe('stashed draft over a newer server page', () => {
       const T1 = serverPage.modifiedAt;
       const T2 = '2026-02-02T00:00:00Z';
