@@ -381,6 +381,74 @@ describe('PageTreeItem', () => {
     http.verify();
   });
 
+  describe('reveal the active page', () => {
+    const base = {
+      page: summary({ guid: 'anc', hasChildren: true }),
+      level: 0, activeGuid: null, pageTypesMap: {},
+    };
+
+    it('expands when the reveal target lists it as an ancestor', async () => {
+      const { rerender, fixture } = await render(PageTreeItem, { inputs: { ...base, revealTarget: null } });
+      await rerender({ inputs: { ...base, revealTarget: { guid: 'leaf', ancestors: ['root', 'anc'] } } });
+      await flush();
+      fixture.detectChanges();
+      expect(screen.getByRole('treeitem')).toHaveAttribute('aria-expanded', 'true');
+      TestBed.inject(HttpTestingController).expectOne('/api/pages/anc/children').flush({ children: [] });
+    });
+
+    it('stays collapsed when it is not an ancestor', async () => {
+      const { rerender, fixture } = await render(PageTreeItem, { inputs: { ...base, revealTarget: null } });
+      await rerender({ inputs: { ...base, revealTarget: { guid: 'leaf', ancestors: ['other'] } } });
+      await flush();
+      fixture.detectChanges();
+      expect(screen.getByRole('treeitem')).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('keeps a manual collapse when the same page is re-revealed, but re-expands on a later visit', async () => {
+      const { rerender, fixture } = await render(PageTreeItem, { inputs: { ...base, revealTarget: null } });
+      const http = TestBed.inject(HttpTestingController);
+      const row = screen.getByRole('treeitem');
+      await rerender({ inputs: { ...base, revealTarget: { guid: 'leaf', ancestors: ['anc'] } } });
+      await flush();
+      fixture.detectChanges();
+      http.expectOne('/api/pages/anc/children').flush({ children: [] });
+      fireEvent.keyDown(row, { key: 'ArrowLeft' });
+      fixture.detectChanges();
+      expect(row).toHaveAttribute('aria-expanded', 'false');
+
+      // Same page again (e.g. ancestors refetched after a rename): no re-expand.
+      await rerender({ inputs: { ...base, revealTarget: { guid: 'leaf', ancestors: ['anc'] } } });
+      await flush();
+      fixture.detectChanges();
+      expect(row).toHaveAttribute('aria-expanded', 'false');
+
+      // Navigate elsewhere, then back: expands again.
+      await rerender({ inputs: { ...base, revealTarget: { guid: 'elsewhere', ancestors: [] } } });
+      await flush();
+      await rerender({ inputs: { ...base, revealTarget: { guid: 'leaf', ancestors: ['anc'] } } });
+      await flush();
+      fixture.detectChanges();
+      http.expectOne('/api/pages/anc/children').flush({ children: [] });
+      expect(row).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('scrolls its own row into view when it is the revealed page', async () => {
+      const scroll = jest.fn();
+      Element.prototype.scrollIntoView = scroll;
+      const page = summary({ guid: 'leaf' });
+      const { rerender, fixture } = await render(PageTreeItem, {
+        inputs: { page, level: 1, activeGuid: 'leaf', pageTypesMap: {}, revealTarget: null },
+      });
+      await rerender({ inputs: { page, level: 1, activeGuid: 'leaf', pageTypesMap: {}, revealTarget: { guid: 'leaf', ancestors: ['anc'] } } });
+      await flush();
+      fixture.detectChanges();
+      await flush();
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll.mock.contexts[0]).toBe(screen.getByRole('treeitem'));
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    });
+  });
+
   it('enterPredicate rejects drops onto self', async () => {
     const { fixture } = await render(PageTreeItem, {
       inputs: { page: summary({ guid: 'g1' }), level: 0, activeGuid: null, pageTypesMap: {} },

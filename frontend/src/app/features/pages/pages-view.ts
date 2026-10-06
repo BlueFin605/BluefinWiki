@@ -21,7 +21,7 @@ import { InspectorPanel } from '../editor/inspector-panel';
 import { ResizeDivider } from '../../shared/components/resize-divider';
 import { PageRenameInline } from './page-rename-inline';
 import { NewPageModal, type NewPageModalData } from './new-page-modal';
-import type { PageTypeDefinition, TreeDropRequest, TreeExpandTarget } from './page.types';
+import type { PageTypeDefinition, TreeDropRequest, TreeExpandTarget, TreeRevealTarget } from './page.types';
 import { computeReorder } from './reorder-maths';
 import { checkSiblingDropAllowed } from './check-type-constraints';
 import { SearchDialog } from '../search/search-dialog';
@@ -130,6 +130,7 @@ import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
           <wiki-page-tree
             [activeGuid]="activeGuid()"
             [expandGuid]="expandTarget()"
+            [revealTarget]="revealTarget()"
             [pageTypesMap]="pageTypesMap()"
             (pageSelect)="onPageSelect($event)"
             (renameRequested)="onRenameRequested($event)"
@@ -636,6 +637,18 @@ export class PagesView {
    */
   protected readonly expandTarget = signal<TreeExpandTarget | null>(null);
   private expandNonce = 0;
+
+  /**
+   * Keeps the open page visible in the tree: its ancestor chain (the same
+   * `/ancestors` call the breadcrumbs make) expands down to it and its row
+   * scrolls into view. `null` until the chain for the current page resolves.
+   */
+  private readonly activeAncestors = this.pages.ancestorsResource(this.activeGuid);
+  protected readonly revealTarget = computed<TreeRevealTarget | null>(() => {
+    const guid = this.activeGuid();
+    if (!guid || this.activeAncestors.status() !== 'resolved') return null;
+    return { guid, ancestors: (this.activeAncestors.value() ?? []).map((a) => a.guid) };
+  });
 
   protected readonly aiOpen = signal(false);
 

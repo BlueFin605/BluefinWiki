@@ -3,7 +3,7 @@ jest.mock('mermaid', () => ({
   default: { initialize: jest.fn(), render: jest.fn() },
 }));
 
-import { Component, type DebugElement } from '@angular/core';
+import { Component, type DebugElement, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -1401,6 +1401,22 @@ describe('PagesView', () => {
     // hops; the nonce makes each create a distinct object.
     expect(Object.is(first, second)).toBe(false);
     expect(second?.nonce).not.toBe(first?.nonce);
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('feeds the tree a reveal target built from the active page and its ancestors', async () => {
+    const { fixture, http } = await renderShell();
+    expect(pageTree(fixture).revealTarget()).toBeNull();
+
+    (fixture.componentInstance as unknown as { activeGuid: WritableSignal<string | null> }).activeGuid.set('leaf');
+    await settle();
+    http.expectOne('/api/pages/leaf/ancestors').flush({
+      ancestors: [{ guid: 'root-1' }, { guid: 'parent-1' }],
+    });
+    await settle();
+    fixture.detectChanges();
+
+    expect(pageTree(fixture).revealTarget()).toEqual({ guid: 'leaf', ancestors: ['root-1', 'parent-1'] });
     http.match(() => true).forEach((r) => r.flush(null));
   });
 
