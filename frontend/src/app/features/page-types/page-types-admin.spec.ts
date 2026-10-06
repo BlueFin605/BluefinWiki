@@ -272,4 +272,38 @@ describe('PageTypesAdmin', () => {
     fixture.detectChanges();
     expect(screen.queryByText(hint)).toBeNull();
   });
+
+  it('warns (without blocking Save) when an edit would drop a type out of leaf-types boards', async () => {
+    const state = [{ name: 'state', type: 'string' as const, required: true }];
+    const { fixture } = await render(PageTypesAdmin, { providers: providers() });
+    const http = TestBed.inject(HttpTestingController);
+    await settle();
+    http.expectOne('/api/page-types').flush({
+      pageTypes: [
+        pageType({ guid: 'story', name: 'Story', properties: state, allowedChildTypes: ['task', 'bug'] }),
+        pageType({ guid: 'task', name: 'Task', properties: state }),
+        pageType({ guid: 'bug', name: 'Bug', properties: state }),
+      ],
+    });
+    await settle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /edit task/i }));
+    await settle();
+    fixture.detectChanges();
+    const warning = /leaf-types boards will stop showing Task cards/i;
+    expect(screen.queryByText(warning)).toBeNull();
+
+    // The first "Bug" checkbox is in Allowed Child Types (parent types follow).
+    const bugChild = screen.getAllByRole('checkbox', { name: /bug/i })[0];
+    await user.click(bugChild);
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByText(warning)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+
+    await user.click(bugChild);
+    await settle();
+    fixture.detectChanges();
+    expect(screen.queryByText(warning)).toBeNull();
+  });
 });

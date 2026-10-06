@@ -32,6 +32,7 @@ import type {
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
 import { AdminBackHeader } from '../../shared/components/admin-back-header';
 import { ICON_SUGGESTIONS, isGenericIcon } from './icon-suggestions';
+import { leafTypesLost } from '../board/card-types';
 
 const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'string', label: 'Text' },
@@ -305,6 +306,10 @@ function formatDefault(prop: PageTypeProperty): string {
                 Allow placement under untyped wiki pages
               </mat-slide-toggle>
 
+              @if (leafWarning(); as warn) {
+                <p class="leaf-warning" role="status">⚠️ {{ warn }}</p>
+              }
+
               @if (errorMessage(); as msg) {
                 <p class="error">{{ msg }}</p>
               }
@@ -347,6 +352,7 @@ function formatDefault(prop: PageTypeProperty): string {
       .full { width: 100%; }
       .icon-field { width: 20rem; max-width: 100%; }
       .icon-warning { color: var(--mat-sys-error, #b3261e); }
+      .leaf-warning { color: var(--mat-sys-error, #b3261e); font-size: 0.875rem; }
       .icon-suggestions { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.5rem; }
       .icon-suggestion {
         font-size: 1.25rem; line-height: 1; padding: 0.25rem 0.375rem;
@@ -410,6 +416,29 @@ export class PageTypesAdmin {
   });
 
   protected readonly iconIsGeneric = computed(() => isGenericIcon(this.form().icon));
+
+  /**
+   * Types this edit would knock out of leaf mode (e.g. letting Task hold Bug
+   * turns Task into a container). Shown as a non-blocking warning, since
+   * leaf-types boards would silently stop showing those cards.
+   */
+  protected readonly lostLeafTypes = computed(() => {
+    const f = this.form();
+    return leafTypesLost(this.pageTypes(), {
+      guid: this.selectedGuid(),
+      properties: f.properties,
+      allowedChildTypes: f.allowedChildTypes,
+    });
+  });
+
+  protected readonly leafWarning = computed(() => {
+    const lost = this.lostLeafTypes().map((t) => t.name);
+    if (lost.length === 0) return null;
+    const names = lost.join(', ');
+    return lost.length === 1
+      ? `Leaf-types boards will stop showing ${names} cards: ${names} would no longer be a leaf type.`
+      : `Leaf-types boards will stop showing ${names} cards: they would no longer be leaf types.`;
+  });
 
   protected readonly canSave = computed(() => {
     const f = this.form();
