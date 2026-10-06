@@ -128,6 +128,33 @@ describe('S3StoragePlugin', () => {
       expect(body).toContain('modifiedBy: "user-456"');
     });
 
+    it('stores a non-ASCII title as ASCII-safe S3 metadata', async () => {
+      const guid = uuidv4();
+      const title = 'Release → prod — café';
+      const content: PageContent = {
+        guid,
+        title,
+        content: 'Content',
+        folderId: '',
+        tags: [],
+        status: 'draft',
+        createdBy: 'user-123',
+        modifiedBy: 'user-123',
+        createdAt: '2026-02-10T10:00:00Z',
+        modifiedAt: '2026-02-10T12:00:00Z',
+      };
+
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await plugin.savePage(guid, null, content);
+
+      const input = s3Mock.commandCalls(PutObjectCommand)[0].args[0].input;
+      const metaTitle = input.Metadata!.title;
+      expect(metaTitle).toMatch(/^[\x20-\x7e]*$/);
+      expect(decodeURIComponent(metaTitle)).toBe(title);
+      expect(input.Body as string).toContain(`title: "${title}"`);
+    });
+
     it('should write ticketKey to frontmatter when present and omit it otherwise', async () => {
       const guid = uuidv4();
       const base: PageContent = {
@@ -444,6 +471,44 @@ Content`;
       await plugin.deletePage(guid, true);
 
       expect(s3Mock.commandCalls(DeleteObjectsCommand).length).toBeGreaterThan(0);
+    });
+
+    it('recursively deletes every descendant of a nested (non-root) page', async () => {
+      const rootGuid = uuidv4();
+      const guid = uuidv4();
+      const childGuid = uuidv4();
+      const grandchildGuid = uuidv4();
+      const folder = `${rootGuid}/${guid}/`;
+      const nestedKeys = [
+        `${folder}${guid}.md`,
+        `${folder}${guid}.comments.json`,
+        `${folder}${childGuid}/${childGuid}.md`,
+        `${folder}${childGuid}/${childGuid}.comments.json`,
+        `${folder}${childGuid}/${grandchildGuid}/${grandchildGuid}.md`,
+      ];
+
+      vi.spyOn(plugin as any, 'findPageFolder').mockResolvedValue(folder);
+      vi.spyOn(plugin as any, 'hasChildren').mockResolvedValue(true);
+      vi.spyOn(plugin, 'listChildren').mockImplementation(async (parent) =>
+        parent === guid
+          ? [{ guid: childGuid, title: 'Child', parentGuid: guid, hasChildren: true } as any]
+          : parent === childGuid
+            ? [{ guid: grandchildGuid, title: 'Grandchild', parentGuid: childGuid, hasChildren: false } as any]
+            : []
+      );
+      s3Mock.on(ListObjectsV2Command).callsFake((input: any) =>
+        input.Prefix === folder && !input.Delimiter
+          ? { Contents: nestedKeys.map((Key) => ({ Key })) }
+          : { Contents: [] }
+      );
+      s3Mock.on(DeleteObjectsCommand).resolves({});
+
+      await plugin.deletePage(guid, true);
+
+      const deletedKeys = s3Mock
+        .commandCalls(DeleteObjectsCommand)
+        .flatMap((call) => call.args[0].input.Delete!.Objects!.map((o) => o.Key));
+      expect(new Set(deletedKeys)).toEqual(new Set(nestedKeys));
     });
   });
 

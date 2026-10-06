@@ -499,7 +499,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         ContentType: 'text/markdown',
         Metadata: {
           guid: guid,
-          title: content.title,
+          // S3 user metadata must be ASCII — the real title lives in frontmatter
+          title: encodeURIComponent(content.title),
           status: content.status,
         },
       });
@@ -788,7 +789,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         const childGuids = await this.collectDescendantGuids(children);
 
         // Delete all children recursively from S3
-        await this.deletePageAndChildren(guid, folderToFileKey(folder, guid));
+        await this.deletePageAndChildren(folder, folderToFileKey(folder, guid));
 
         // Clean up index for deleted page and all descendants
         this.pageIndex.deletePageKeys([guid, ...childGuids]);
@@ -846,14 +847,16 @@ export class S3StoragePlugin extends BaseStoragePlugin {
   /**
    * Delete a page and all its children recursively
    */
-  private async deletePageAndChildren(guid: string, pageKey: string): Promise<void> {
+  private async deletePageAndChildren(folder: string, pageKey: string): Promise<void> {
     const objectsToDelete: { Key: string }[] = [];
 
     // Add the page itself
     objectsToDelete.push({ Key: pageKey });
 
-    // Find all children (files in the guid/ folder)
-    const prefix = `${guid}/`;
+    // Everything under the page's own folder — its comments sidecar and every
+    // descendant at any depth. The folder carries the ancestor path
+    // ({ancestors}/{guid}/), so a bare `${guid}/` prefix only matched root pages.
+    const prefix = folder;
     let continuationToken: string | undefined = undefined;
 
     do {
@@ -867,7 +870,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
       if (response.Contents) {
         for (const obj of response.Contents) {
-          if (obj.Key) {
+          if (obj.Key && obj.Key !== pageKey) {
             objectsToDelete.push({ Key: obj.Key });
           }
         }
@@ -1222,7 +1225,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
         ContentType: 'text/markdown',
         Metadata: {
           guid: guid,
-          title: page.title,
+          title: encodeURIComponent(page.title),
           status: page.status,
         },
         MetadataDirective: 'REPLACE',
