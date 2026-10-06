@@ -269,6 +269,18 @@ describe('Realtime', () => {
     expect(bump).toHaveBeenCalledWith([...CATCH_UP, 'page:g']);
   });
 
+  it('catches up on a slow first open (e.g. a cold-start connect)', async () => {
+    const { rt, ctx, bump } = setup();
+    ctx.guid.set('g');
+    rt.start();
+    await flush();
+    await jest.advanceTimersByTimeAsync(3001);
+    last().open();
+
+    // Writes made after the page loaded but before the socket opened were missed.
+    expect(bump).toHaveBeenCalledWith([...CATCH_UP, 'page:g']);
+  });
+
   it('catch-up ALWAYS bumps page:<guid>, even for a dirty page being edited', async () => {
     const { rt, ctx, bump } = setup();
     rt.start();

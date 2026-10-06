@@ -2,6 +2,7 @@ import { APIGatewayProxyResult } from 'aws-lambda';
 import { z } from 'zod';
 import { withAuth, AuthenticatedEvent } from '../middleware/auth.js';
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
+import { collectChanges } from '../realtime/broadcaster.js';
 
 const ReorderRequestSchema = z.object({
   parentGuid: z.string().uuid().nullable(),
@@ -102,26 +103,29 @@ export const handler = withAuth(async (
 
     // Assign sequential sortOrder values.
     // Use the request's parentGuid for saving — it's already validated
-    // that all GUIDs are children of this parent.
+    // that all GUIDs are children of this parent. One realtime publish for
+    // the whole reorder, not one per changed sibling.
     let updated = 0;
-    for (let i = 0; i < orderedGuids.length; i++) {
-      const guid = orderedGuids[i];
-      const newSortOrder = i * 1000;
+    await collectChanges(async () => {
+      for (let i = 0; i < orderedGuids.length; i++) {
+        const guid = orderedGuids[i];
+        const newSortOrder = i * 1000;
 
-      try {
-        const page = await storage.loadPage(guid);
+        try {
+          const page = await storage.loadPage(guid);
 
-        // Skip if sortOrder is already correct
-        if (page.sortOrder === newSortOrder) continue;
+          // Skip if sortOrder is already correct
+          if (page.sortOrder === newSortOrder) continue;
 
-        console.log(`[reorder] Updating ${guid}: sortOrder ${page.sortOrder} → ${newSortOrder}`);
-        page.sortOrder = newSortOrder;
-        await storage.savePage(guid, parentGuid, page);
-        updated++;
-      } catch (err) {
-        console.error(`[reorder] Failed to update sortOrder for ${guid}:`, err);
+          console.log(`[reorder] Updating ${guid}: sortOrder ${page.sortOrder} → ${newSortOrder}`);
+          page.sortOrder = newSortOrder;
+          await storage.savePage(guid, parentGuid, page);
+          updated++;
+        } catch (err) {
+          console.error(`[reorder] Failed to update sortOrder for ${guid}:`, err);
+        }
       }
-    }
+    });
 
     console.log('[reorder] Done:', { updated, total: orderedGuids.length });
 

@@ -16,6 +16,8 @@ const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30000;
 /** Keeps API Gateway's 10-minute idle timeout from dropping a quiet socket. */
 const PING_MS = 300000;
+/** A first open later than this after start() may have missed writes: catch up. */
+const SLOW_FIRST_OPEN_MS = 3000;
 
 /**
  * Live invalidation over a WebSocket.
@@ -34,8 +36,9 @@ const PING_MS = 300000;
  *
  * Connection: reconnects with exponential backoff (1 s doubling, 30 s cap,
  * reset on open); closes while the tab is hidden and reopens when visible.
- * After any REopen it bumps coarse catch-up tags plus the open page, since
- * messages sent while disconnected are lost. The open page is bumped even
+ * After any REopen (or a first open slower than 3 s, e.g. a cold start) it
+ * bumps coarse catch-up tags plus the open page, since messages sent while
+ * disconnected are lost. The open page is bumped even
  * while held back: page-detail keeps a dirty working copy through that
  * refetch and raises the banner itself when `modifiedAt` moved. No UI —
  * failures only `console.warn`. With an empty `environment.realtimeUrl` it
@@ -52,6 +55,8 @@ export class Realtime {
   private attempt = 0;
   /** Set after the first successful open; any later open runs catch-up. */
   private opened = false;
+  /** When start() ran; a slow first open (cold start) catches up too. */
+  private startedAt = 0;
   /** Bumped on every intentional teardown so an in-flight connect() bails. */
   private generation = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -71,6 +76,7 @@ export class Realtime {
     this.started = true;
     this.attempt = 0;
     this.opened = false;
+    this.startedAt = Date.now();
     document.addEventListener('visibilitychange', this.onVisibility);
     if (!document.hidden) void this.connect();
   }
@@ -137,7 +143,7 @@ export class Realtime {
         console.warn('[realtime] ping failed', err);
       }
     }, PING_MS);
-    if (this.opened) this.catchUp();
+    if (this.opened || Date.now() - this.startedAt > SLOW_FIRST_OPEN_MS) this.catchUp();
     this.opened = true;
   }
 

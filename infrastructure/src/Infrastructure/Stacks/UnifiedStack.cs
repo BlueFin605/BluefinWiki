@@ -985,7 +985,7 @@ namespace Infrastructure.Stacks
                     Actions = new[] { "execute-api:ManageConnections" },
                     Resources = new[]
                     {
-                        $"arn:aws:execute-api:{this.Region}:{this.Account}:{realtimeWsApi.ApiId}/{realtimeWsStage.StageName}/POST/@connections/*"
+                        $"arn:{this.Partition}:execute-api:{this.Region}:{this.Account}:{realtimeWsApi.ApiId}/{realtimeWsStage.StageName}/POST/@connections/*"
                     }
                 }));
             }
@@ -1048,9 +1048,9 @@ namespace Infrastructure.Stacks
             // Own roles, nothing from the shared lambdaRole: ws-connect / ws-disconnect
             // record and forget connections (PutItem / DeleteItem on the connections table
             // only); ws-default just answers pings (basic execution + X-Ray only).
-            // Environment is commonEnvVars (COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID for
-            // ws-connect's token check, REALTIME_CONNECTIONS_TABLE). NODE_ENV must never be
-            // "development" here — that switches on the local mock-token bypass.
+            // Environment is only what they read: COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID
+            // for ws-connect's token check, and REALTIME_CONNECTIONS_TABLE. NODE_ENV must
+            // never be "development" here — that switches on the local mock-token bypass.
             // =============================================================================
             var realtimeWsRole = new Role(this, "RealtimeWsLambdaRole", new RoleProps
             {
@@ -1077,6 +1077,13 @@ namespace Infrastructure.Stacks
                 }
             });
 
+            var realtimeWsEnvVars = new Dictionary<string, string>
+            {
+                { "COGNITO_USER_POOL_ID", UserPool.UserPoolId },
+                { "COGNITO_CLIENT_ID", WebClient.UserPoolClientId },
+                { "REALTIME_CONNECTIONS_TABLE", RealtimeConnectionsTable.TableName }
+            };
+
             LambdaFunction CreateRealtimeWsFunction(string id, string suffix, IRole role, string description)
             {
                 return new LambdaFunction(this, id, new LambdaFunctionProps
@@ -1086,7 +1093,7 @@ namespace Infrastructure.Stacks
                     Handler = $"realtime/ws-{suffix}.handler",
                     Code = lambdaProps.Code,
                     Role = role,
-                    Environment = commonEnvVars,
+                    Environment = realtimeWsEnvVars,
                     Timeout = Duration.Seconds(10),
                     MemorySize = 256,
                     Tracing = lambdaProps.Tracing,
