@@ -649,7 +649,7 @@ export class PageDetail {
         );
       }),
     ),
-    { initialValue: { ref: null, guid: null, keyLookup: null } as RouteTarget },
+    { initialValue: { ref: null, guid: null, keyLookup: null } },
   );
   /** The page reference as it appears in the URL — a ticket key or a GUID. */
   protected readonly routeRef = computed(() => this.routeTarget().ref);
