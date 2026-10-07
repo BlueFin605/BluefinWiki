@@ -110,10 +110,11 @@ export class PageTree {
    * `eligibilityChildren` ("keep painting the last-good data through a
    * reload", also `BoardView.showInitialLoading`'s rule).
    *
-   * `value()` throws on an errored resource — only read it once resolved.
+   * `value()` throws on an errored resource — only read it once it has a value
+   * (resolved, or patched in place by a page upsert — status `'local'`).
    */
   protected readonly displayedRoot = linkedSignal<PageSummary[] | undefined, PageSummary[] | undefined>({
-    source: () => (this.rootChildren.status() === 'resolved' ? this.rootChildren.value() : undefined),
+    source: () => (this.rootChildren.hasValue() ? this.rootChildren.value() : undefined),
     computation: (value, previous) => value ?? previous?.value,
   });
 

@@ -3,9 +3,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { firstValueFrom, of } from 'rxjs';
-import { Pages } from './pages';
+import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { InvalidationBus, pageTagsListTag } from '../../core/api/invalidation';
-import type { PageContent, PageSummary } from './page.types';
+import { PageUpserts } from '../../core/realtime/page-upserts';
+import type { PageContent, PageSummary, PageUpsert } from './page.types';
 
 function summary(over: Partial<PageSummary> = {}): PageSummary {
   return {
@@ -543,6 +544,92 @@ describe('Pages service', () => {
     // Sanity check that we aren't accidentally consuming the rxjs symbol export
     it('importable smoke', () => {
       void firstValueFrom(of(1));
+    });
+  });
+
+  describe('upserts', () => {
+    function upsert(over: Partial<PageUpsert> = {}): PageUpsert {
+      return {
+        guid: 'g',
+        title: 'T',
+        parentGuid: 'p',
+        status: 'published',
+        modifiedAt: '2026-02-01T00:00:00Z',
+        modifiedBy: 'u',
+        ...over,
+      };
+    }
+    const emit = async (...ps: PageUpsert[]) => {
+      TestBed.inject(PageUpserts).emit(ps, 'remote');
+      await settle();
+    };
+
+    async function loadedChildren(parentGuid: string | null, rows: PageSummary[]) {
+      const resource = TestBed.runInInjectionContext(() => pages.childrenResource(signal(parentGuid)));
+      await settle();
+      http.expectOne(`/api/pages/${parentGuid ?? 'root'}/children`).flush({ children: rows });
+      await settle();
+      return resource;
+    }
+
+    it('childrenResource renames a visible row in place, keeping hasChildren, with no HTTP', async () => {
+      const resource = await loadedChildren('p', [
+        summary({ guid: 'a', title: 'Alpha', parentGuid: 'p', sortOrder: 1, hasChildren: true }),
+        summary({ guid: 'b', title: 'Beta', parentGuid: 'p', sortOrder: 2 }),
+      ]);
+
+      await emit(upsert({ guid: 'a', title: 'Alpha 2', sortOrder: 1 }));
+
+      http.expectNone(() => true);
+      expect(resource.hasValue()).toBe(true);
+      expect(resource.value()?.[0]).toMatchObject({ guid: 'a', title: 'Alpha 2', hasChildren: true });
+    });
+
+    it('childrenResource re-sorts by sortOrder after a patch', async () => {
+      const resource = await loadedChildren(null, [
+        summary({ guid: 'a', title: 'A', sortOrder: 1 }),
+        summary({ guid: 'b', title: 'B', sortOrder: 2 }),
+        summary({ guid: 'c', title: 'C' }),
+      ]);
+      await emit(upsert({ guid: 'a', title: 'A', parentGuid: null, sortOrder: 3 }));
+      expect(resource.value()?.map((r) => r.guid)).toEqual(['b', 'a', 'c']);
+    });
+
+    it('childrenResource refetches once when a new child appears under the loaded parent', async () => {
+      const resource = await loadedChildren('p', [summary({ guid: 'a', parentGuid: 'p' })]);
+      await emit(upsert({ guid: 'new', parentGuid: 'p' }));
+      http.expectOne('/api/pages/p/children').flush({ children: [summary({ guid: 'a' }), summary({ guid: 'new' })] });
+      await settle();
+      expect(resource.value()?.map((r) => r.guid)).toEqual(['a', 'new']);
+    });
+
+    it('childrenResource ignores pages of other parents and older upserts', async () => {
+      const row = summary({ guid: 'a', title: 'Keep', parentGuid: 'p', modifiedAt: '2026-03-01T00:00:00Z' });
+      const resource = await loadedChildren('p', [row]);
+      await emit(upsert({ guid: 'x', parentGuid: 'other' }), upsert({ guid: 'a', title: 'Old' }));
+      expect(resource.value()).toEqual([row]);
+    });
+
+    it('childrenResource ignores upserts while collapsed (fetch skipped)', async () => {
+      TestBed.runInInjectionContext(() => pages.childrenResource(signal<string | null | typeof SKIP_CHILDREN_FETCH>(SKIP_CHILDREN_FETCH)));
+      await settle();
+      await emit(upsert({ guid: 'a' }));
+      http.expectNone(() => true);
+    });
+
+    it('ancestorsResource patches a renamed ancestor title with no HTTP', async () => {
+      const resource = TestBed.runInInjectionContext(() => pages.ancestorsResource(signal('leaf')));
+      await settle();
+      http.expectOne('/api/pages/leaf/ancestors').flush({
+        ancestors: [summary({ guid: 'root', title: 'Root' }), summary({ guid: 'mid', title: 'Mid', parentGuid: 'root' })],
+      });
+      await settle();
+
+      await emit(upsert({ guid: 'mid', title: 'Middle', parentGuid: 'root' }), upsert({ guid: 'x', title: 'X' }));
+
+      http.expectNone(() => true);
+      expect(resource.hasValue()).toBe(true);
+      expect(resource.value()?.map((a) => a.title)).toEqual(['Root', 'Middle']);
     });
   });
 });

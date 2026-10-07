@@ -316,11 +316,11 @@ export class PageTreeItem {
    * `eligibilityChildren`, one level down.
    *
    * `value()` throws on an errored resource (including the deliberate
-   * `SKIP_CHILDREN_FETCH` "error" while collapsed) — only read it once
-   * resolved.
+   * `SKIP_CHILDREN_FETCH` "error" while collapsed) — only read it once it
+   * has a value (resolved, or patched in place by a page upsert).
    */
   protected readonly displayedChildren = linkedSignal<PageSummary[] | undefined, PageSummary[] | undefined>({
-    source: () => (this.children.status() === 'resolved' ? this.children.value() : undefined),
+    source: () => (this.children.hasValue() ? this.children.value() : undefined),
     computation: (value, previous) => value ?? previous?.value,
   });
 

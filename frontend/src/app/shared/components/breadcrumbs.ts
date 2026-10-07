@@ -73,7 +73,7 @@ export class Breadcrumbs {
   private readonly resource = this.pages.ancestorsResource(this.guidSignal);
 
   protected readonly ancestors = computed(() => {
-    if (this.resource.status() !== 'resolved') return [];
+    if (!this.resource.hasValue()) return [];
     return this.resource.value() ?? [];
   });
 

@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, type Signal, inject } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { Injectable, type Signal, inject, untracked } from '@angular/core';
+import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { PageUpserts } from '../../core/realtime/page-upserts';
 import { firstValueFrom, map } from 'rxjs';
 import {
   InvalidationBus,
@@ -17,6 +18,7 @@ import type {
   PageContent,
   PageSummary,
   PageChildDetail,
+  PageUpsert,
   UpdatePageRequest,
   MovePageRequest,
   ReorderRequest,
@@ -90,6 +92,7 @@ export const SKIP_CHILDREN_FETCH: unique symbol = Symbol('SKIP_CHILDREN_FETCH');
 export class Pages {
   private readonly http = inject(HttpClient);
   private readonly bus = inject(InvalidationBus);
+  private readonly upserts = inject(PageUpserts);
 
   /**
    * Reactive children resource. `parentGuid` is a signal so consumers can
@@ -100,9 +103,14 @@ export class Pages {
    *
    * Invalidation: keys on `children:<parentGuid|root>` plus the coarse
    * `children:any` (bumped by move/delete, whose owning parent is unknown).
+   *
+   * Page upserts patch the loaded list in place (see {@link patchChildList});
+   * a new child of this parent refetches it via `children:<parentGuid|root>`.
+   * A patched value leaves the resource in `'local'` status — consumers read
+   * it through `hasValue()`, not `status() === 'resolved'`.
    */
   childrenResource(parentGuid: Signal<string | null | typeof SKIP_CHILDREN_FETCH>) {
-    return rxResource({
+    const resource = rxResource({
       params: () => {
         const pg = parentGuid();
         return {
@@ -127,6 +135,15 @@ export class Pages {
           .pipe(map((r) => r.children ?? []));
       },
     });
+    this.upserts.batches$.pipe(takeUntilDestroyed()).subscribe(({ pages }) => {
+      const pg = untracked(parentGuid);
+      if (pg === SKIP_CHILDREN_FETCH || !resource.hasValue()) return;
+      const list = untracked(resource.value);
+      const { next, missing } = patchChildList(list, pages, pg);
+      if (next !== list) resource.value.set(next);
+      if (missing) this.bus.bump(childrenTag(pg));
+    });
+    return resource;
   }
 
   /**
@@ -156,9 +173,13 @@ export class Pages {
    * (bumped by move/rename, whose affected descendant guids are unknown at the
    * mutation site — a folder rename must still refresh every descendant's
    * breadcrumb).
+   *
+   * A page upsert renaming an ancestor patches its title in place (visible
+   * saves no longer bump `ancestors:any`); like `childrenResource`, a patched
+   * value is `'local'`, so consumers read it through `hasValue()`.
    */
   ancestorsResource(guid: Signal<string | null>) {
-    return rxResource({
+    const resource = rxResource({
       params: () => {
         const g = guid();
         return {
@@ -174,6 +195,14 @@ export class Pages {
           .pipe(map((r) => r.ancestors ?? []));
       },
     });
+    this.upserts.batches$.pipe(takeUntilDestroyed()).subscribe(({ pages }) => {
+      if (!resource.hasValue()) return;
+      const titles = new Map(pages.map((p) => [p.guid, p.title]));
+      const chain = untracked(resource.value);
+      if (!chain.some((a) => titles.has(a.guid) && titles.get(a.guid) !== a.title)) return;
+      resource.value.set(chain.map((a) => (titles.has(a.guid) ? { ...a, title: titles.get(a.guid)! } : a)));
+    });
+    return resource;
   }
 
   backlinksResource(guid: Signal<string | null>) {
@@ -409,4 +438,44 @@ export class Pages {
     await firstValueFrom(this.http.delete<void>(`/api/pages/${guid}`, { body }));
     this.bus.bumpMany([childrenAnyTag(), pageTag(guid), backlinksAnyTag()]);
   }
+}
+
+/**
+ * Apply page upserts to one parent's child list. A row the batch updates is
+ * replaced by the summary (keeping `hasChildren`, which a save can't know) —
+ * or dropped if the summary places it under another parent — and the list
+ * re-sorted the way the backend sorts it. Upserts older than the row are
+ * ignored. `missing` = a page now under this parent isn't in the list yet
+ * (newly created), so the caller refetches. Returns the same `list` when
+ * nothing changed.
+ */
+export function patchChildList(
+  list: PageSummary[],
+  pages: readonly PageUpsert[],
+  listParent: string | null,
+): { next: PageSummary[]; missing: boolean } {
+  const byGuid = new Map(pages.map((p) => [p.guid, p]));
+  let changed = false;
+  const kept: PageSummary[] = [];
+  for (const row of list) {
+    const p = byGuid.get(row.guid);
+    byGuid.delete(row.guid);
+    if (!p || p.modifiedAt < row.modifiedAt) {
+      kept.push(row);
+      continue;
+    }
+    changed = true;
+    if (p.parentGuid === listParent) kept.push({ ...p, hasChildren: row.hasChildren });
+  }
+  const missing = [...byGuid.values()].some((p) => p.parentGuid === listParent);
+  return { next: changed ? kept.sort(compareSiblings) : list, missing };
+}
+
+/** Matches S3StoragePlugin.listChildren: sortOrder first (unordered last), then title. */
+function compareSiblings(a: PageSummary, b: PageSummary): number {
+  const aHas = a.sortOrder !== undefined;
+  const bHas = b.sortOrder !== undefined;
+  if (aHas && bHas) return a.sortOrder! - b.sortOrder!;
+  if (aHas !== bHas) return aHas ? -1 : 1;
+  return a.title.localeCompare(b.title);
 }
