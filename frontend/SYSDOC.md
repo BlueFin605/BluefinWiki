@@ -8,7 +8,7 @@ Note: `frontend/README.md` is the unedited Angular CLI boilerplate readme — it
 
 ## Where things are
 
-- `src/app/core/` — app-wide singletons (auth, HTTP, guards, etc.)
+- `src/app/core/` — app-wide singletons (auth, HTTP, guards, etc.). `core/realtime/` is the WebSocket client plus the `PageUpserts` stream that boards, tree rows and breadcrumbs patch from; `core/api/invalidation.ts` documents the invalidation tags. Message contract: root `../SYSDOC.md` "Realtime updates".
 - `src/app/features/` — one folder per feature area: `admin`, `ai`, `attachments`, `board`, `editor`, `page-types`, `pages`, `profile`, `search`, `tags`, `callback`, `errors`, `not-found`
 - `src/app/shared/` — shared components/pipes/directives
 - `src/app/testing/` — test utilities
