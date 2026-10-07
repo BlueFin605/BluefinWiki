@@ -12,4 +12,6 @@ export interface Environment {
   aiAllowDestructive: boolean;
   /** wss URL (prod) or dev proxy path; empty disables realtime and X-Client-Id. */
   realtimeUrl: string;
+  /** Shown beside the toolbar title, e.g. `#123 (abc1234)`; empty hides it. */
+  buildVersion: string;
 }

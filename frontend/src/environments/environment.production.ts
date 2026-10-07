@@ -14,5 +14,6 @@ export const environment: Environment = {
   },
   "disableAuth": false,
   "aiAllowDestructive": true,
-  "realtimeUrl": ""
+  "realtimeUrl": "",
+  "buildVersion": ""
 };
