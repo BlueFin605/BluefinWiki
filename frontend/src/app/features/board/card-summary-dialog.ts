@@ -49,10 +49,9 @@ function propertiesEqual(
  * so a schema field the card never had gets its default persisted alongside
  * any hand-edited values.
  *
- * Self-contained: `updatePage` (step 1.2) already bumps
- * `children:<parentGuid>` + `children:any` whenever `title`/`properties` are
- * in the body, so the board's own resource picks up the change with no
- * output from this dialog. `Esc` / backdrop close are Material's own
+ * Self-contained: `updatePage` emits the saved card on `PageUpserts`, which
+ * the board applies in place, so it picks up the change with no output from
+ * this dialog. `Esc` / backdrop close are Material's own
  * `MatDialogModule` defaults — nothing here overrides them.
  */
 @Component({

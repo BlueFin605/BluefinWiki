@@ -98,7 +98,7 @@ export class PageTree {
   /**
    * `rootChildren`, RETAINED across an invalidation-driven reload.
    * `rootChildren` keys on the coarse `children:any` tag (invalidation.ts) —
-   * ANY tree-visible edit ANYWHERE (a rename, a status/type change, a
+   * ANY structural edit ANYWHERE (a move, delete, create, draft save,
    * reorder…) bumps it, and Angular's `resource()` clears `value()`/
    * `status()` back to `'loading'` with no retained-value API. Reading
    * `rootChildren.value()` directly in the template therefore replaced the

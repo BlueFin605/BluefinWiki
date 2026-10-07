@@ -233,11 +233,11 @@ export class BoardView {
   private lastBasisKey: string | null = null;
 
   /**
-   * Show the "Loading board…" placeholder only on a genuine first load. Every
-   * successful drop and Card Summary save bumps `children:any`, which puts
-   * `childrenResource` back into a loading state — blanking the whole board
-   * there would unmount every column and erase the optimistic patch that
-   * steps 5.3/5.4 exist to produce. With something already accumulated we
+   * Show the "Loading board…" placeholder only on a genuine first load. Any
+   * `children:*` bump (a move, delete, create, draft save or manual Refresh)
+   * puts `childrenResource` back into a loading state — blanking the whole
+   * board there would unmount every column and erase any optimistic patch
+   * steps 5.3/5.4 produced. With something already accumulated we
    * keep painting the last-good grouping until the reload lands.
    */
   protected readonly showInitialLoading = computed(
@@ -563,12 +563,11 @@ export class BoardView {
         return this.pages.updatePage(guid, body);
       }),
     );
-    // Success: each successful `updatePage` bumps `children:any` (see its
-    // doc comment), which re-fetches page one and resets `accumulated` via
-    // the constructor effect above — that reconciles the affected cards with
-    // the server's authoritative state. Nothing further to do for those:
-    // the optimistic patch already shows them in place, so there's no
-    // visible jump when the reset lands.
+    // Success: each successful `updatePage` emits the saved card on
+    // PageUpserts (see its doc comment), and {@link applyUpserts} swaps the
+    // server's copy in over the optimistic one — no board refetch. Nothing
+    // further to do for those: the optimistic patch already shows them in
+    // place, so there's no visible jump.
 
     const failures = settled
       .map((r, i) => ({ r, guid: entries[i] }))

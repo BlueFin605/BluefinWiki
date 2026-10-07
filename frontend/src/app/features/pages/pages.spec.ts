@@ -5,7 +5,7 @@ import { signal } from '@angular/core';
 import { firstValueFrom, of } from 'rxjs';
 import { Pages, SKIP_CHILDREN_FETCH } from './pages';
 import { InvalidationBus, pageTagsListTag } from '../../core/api/invalidation';
-import { PageUpserts } from '../../core/realtime/page-upserts';
+import { PageUpserts, type PageUpsertBatch } from '../../core/realtime/page-upserts';
 import type { PageContent, PageSummary, PageUpsert } from './page.types';
 
 function summary(over: Partial<PageSummary> = {}): PageSummary {
@@ -234,7 +234,7 @@ describe('Pages service', () => {
       expect(resource.value()?.[0].guid).toBe('after-move');
     });
 
-    it('updatePage with a title change re-requests a descendant ancestorsResource (folder rename)', async () => {
+    it('updatePage with a title change patches a descendant ancestorsResource in place (folder rename)', async () => {
       const descendant = signal<string | null>('descendant-guid');
       const resource = TestBed.runInInjectionContext(() => pages.ancestorsResource(descendant));
       await settle();
@@ -244,14 +244,11 @@ describe('Pages service', () => {
       await settle();
 
       const promise = pages.updatePage('folder', { title: 'New Folder' });
-      http.expectOne('/api/pages/folder').flush(pageContent({ guid: 'folder', title: 'New Folder' }));
+      http.expectOne('/api/pages/folder').flush(pageContent({ guid: 'folder', title: 'New Folder', modifiedAt: '2026-02-01T00:00:00Z' }));
       await promise;
       await settle();
 
-      http
-        .expectOne('/api/pages/descendant-guid/ancestors')
-        .flush({ ancestors: [summary({ guid: 'folder', title: 'New Folder' })] });
-      await settle();
+      http.expectNone('/api/pages/descendant-guid/ancestors');
       expect(resource.value()?.[0].title).toBe('New Folder');
     });
 
@@ -276,50 +273,73 @@ describe('Pages service', () => {
       expect(resource.value()?.[0].guid).toBe('after');
     });
 
-    it('updatePage with a title change re-requests a deep board aggregating the renamed page as a descendant', async () => {
-      const ancestor = signal<string | null>('ancestor-guid');
-      const opts = signal<{ targetTypeGuids?: string[]; depth?: number; limit?: number; cursor?: string | null } | null>({
-        depth: 10,
-      });
-      const resource = TestBed.runInInjectionContext(() =>
-        pages.childrenWithPropertiesResource(ancestor, opts),
+    it('updatePage of a visible page emits a local upsert and bumps only page-level tags', async () => {
+      const bus = TestBed.inject(InvalidationBus);
+      const seen: PageUpsertBatch[] = [];
+      TestBed.inject(PageUpserts).batches$.subscribe((b) => seen.push(b));
+      const before = {
+        any: bus.version('children:any'),
+        mid: bus.version('children:mid-guid'),
+        anc: bus.version('ancestors:any'),
+        page: bus.version('page:card'),
+      };
+
+      const promise = pages.updatePage('card', { title: 'Card 2', properties: { state: { type: 'string', value: 'Done' } } });
+      http.expectOne('/api/pages/card').flush(
+        pageContent({
+          guid: 'card', title: 'Card 2', folderId: 'mid-guid', content: '# secret', tags: [],
+          properties: { state: { type: 'string', value: 'Done' } }, boardOrder: 3, pageType: 'pt-task',
+        }),
       );
-      await settle();
-      http
-        .expectOne('/api/pages/ancestor-guid/children?include=properties&depth=10')
-        .flush({ children: [], hasMore: false });
-      await settle();
-
-      // The renamed page's own folderId is a mid-level parent, NOT the board's root.
-      const promise = pages.updatePage('grandchild-guid', { title: 'Renamed Card' });
-      http
-        .expectOne('/api/pages/grandchild-guid')
-        .flush(pageContent({ guid: 'grandchild-guid', folderId: 'mid-guid' }));
       await promise;
-      await settle();
 
-      http
-        .expectOne('/api/pages/ancestor-guid/children?include=properties&depth=10')
-        .flush({ children: [], hasMore: false });
-      await settle();
-      expect(resource.value()?.children).toEqual([]);
+      expect(seen).toEqual([
+        {
+          source: 'local',
+          pages: [
+            {
+              guid: 'card', title: 'Card 2', parentGuid: 'mid-guid', status: 'published', boardOrder: 3, pageType: 'pt-task',
+              properties: { state: { type: 'string', value: 'Done' } },
+              createdBy: 'u', modifiedAt: '2026-01-01T00:00:00Z', modifiedBy: 'u',
+            },
+          ],
+        },
+      ]);
+      expect(bus.version('children:any')).toBe(before.any);
+      expect(bus.version('children:mid-guid')).toBe(before.mid);
+      expect(bus.version('ancestors:any')).toBe(before.anc);
+      expect(bus.version('page:card')).toBe(before.page + 1);
     });
 
-    it('updatePage on a root page (folderId "") re-requests childrenResource(null)', async () => {
+    it.each(['draft', 'archived'] as const)('updatePage returning a %s page keeps the coarse tags and emits nothing', async (status) => {
+      const bus = TestBed.inject(InvalidationBus);
+      const seen: PageUpsertBatch[] = [];
+      TestBed.inject(PageUpserts).batches$.subscribe((b) => seen.push(b));
+      const before = { any: bus.version('children:any'), anc: bus.version('ancestors:any') };
+
+      const promise = pages.updatePage('g1', { title: 'T', status });
+      http.expectOne('/api/pages/g1').flush(pageContent({ guid: 'g1', status }));
+      await promise;
+
+      expect(seen).toEqual([]);
+      expect(bus.version('children:any')).toBe(before.any + 1);
+      expect(bus.version('ancestors:any')).toBe(before.anc + 1);
+    });
+
+    it('updatePage on a root page (folderId "") patches childrenResource(null) in place', async () => {
       const parent = signal<string | null>(null);
       const resource = TestBed.runInInjectionContext(() => pages.childrenResource(parent));
       await settle();
-      http.expectOne('/api/pages/root/children').flush({ children: [summary({ guid: 'before' })] });
+      http.expectOne('/api/pages/root/children').flush({ children: [summary({ guid: 'g1', title: 'Before', hasChildren: true })] });
       await settle();
 
       const promise = pages.updatePage('g1', { title: 'Renamed' });
-      http.expectOne('/api/pages/g1').flush(pageContent({ guid: 'g1', folderId: '' }));
+      http.expectOne('/api/pages/g1').flush(pageContent({ guid: 'g1', title: 'Renamed', folderId: '', modifiedAt: '2026-02-01T00:00:00Z' }));
       await promise;
       await settle();
 
-      http.expectOne('/api/pages/root/children').flush({ children: [summary({ guid: 'after' })] });
-      await settle();
-      expect(resource.value()?.[0].guid).toBe('after');
+      http.expectNone('/api/pages/root/children');
+      expect(resource.value()?.[0]).toMatchObject({ guid: 'g1', title: 'Renamed', parentGuid: null, hasChildren: true });
     });
 
     it('deletePage sends DELETE with body', async () => {

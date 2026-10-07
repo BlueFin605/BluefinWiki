@@ -20,6 +20,18 @@
  * `version(tag)` for a tag never bumped is a stable `0`, so a resource that
  * mounts before any mutation still fetches exactly once (on its own params).
  *
+ * ## Page upserts (no tag)
+ *
+ * A save of a *published* page is not invalidated by tag at all: its summary
+ * is pushed on `core/realtime/page-upserts.ts`'s `PageUpserts` — by
+ * `Pages.updatePage` for our own PUT (`'local'`) and by `Realtime` for a
+ * server `upsert` message (`'remote'`) — and the board (`BoardView`), tree
+ * rows (`childrenResource`) and breadcrumbs (`ancestorsResource`) patch
+ * themselves in place. Only `page:<guid>` (the open page body) is bumped. A
+ * list that sees a page it should contain but doesn't (a new child) bumps its
+ * own precise `children:<parent>`. Draft and archived saves still use the
+ * coarse tags below.
+ *
  * ## Tag vocabulary
  *
  * Pages (`features/pages/pages.ts`):
@@ -50,7 +62,9 @@
  *                                  at the mutation site (the descendant guids
  *                                  are neither returned nor passed). Bumped by
  *                                  `movePage` and by `updatePage` when `title`
- *                                  is in the body.
+ *                                  is in the body of a draft/archived save
+ *                                  (a published rename patches breadcrumbs
+ *                                  through `PageUpserts` instead).
  *   - `backlinks:<guid>`         — pages linking to `<guid>` (`backlinksResource`)
  *   - `backlinks:any`            — coarse catch-all. EVERY backlinks resource
  *                                  also reads this. Editing page X's body adds
@@ -61,7 +75,8 @@
  *                                  `backlinks:<target>`, every mutation that
  *                                  changes page content or existence
  *                                  (`createPage`, `updatePage` with `content`,
- *                                  `deletePage`) bumps this.
+ *                                  `deletePage`) bumps this. The server pushes
+ *                                  it only when a page's links actually change.
  *
  *   `pageSearchResource` re-keys on the query string itself and depends on NO
  *   tag — no mutation needs to invalidate it.
@@ -106,9 +121,10 @@
  *   `children:<body.parentGuid|root>` AND the coarse `children:any`, so a page
  *   created or reordered under a *descendant* parent still refreshes a live
  *   deep board that aggregates that descendant.
- * - `Pages.updatePage`: the request body carries only the changed fields, so
- *   invalidation is derived from which keys are present — `page:<guid>`
- *   always; `children:<result.folderId>` (`PageContent.folderId` is the owning
+ * - `Pages.updatePage`: a published result is emitted on `PageUpserts` (see
+ *   above) and bumps only `page:<guid>`, plus `backlinks:any` / `page-tags:list`
+ *   per the body. For a draft/archived result the body decides —
+ *   `page:<guid>` always; `children:<result.folderId>` (`PageContent.folderId` is the owning
  *   parent guid, `''` for a top-level page → normalised to `children:root`)
  *   AND the coarse `children:any` when ANY tree- or board-visible field
  *   (`title` / `status` / `pageType` / `properties` / `boardOrder`) is in the

@@ -368,31 +368,35 @@ export class Pages {
   }
 
   /**
-   * Invalidation is derived from which keys the request body carries (it only
-   * sends changed fields):
+   * A visible (published) result is applied to lists through the same path as
+   * a remote save: its summary goes out on {@link PageUpserts} as `'local'`,
+   * and the board, tree rows and breadcrumbs patch in place — no list
+   * refetch. Invalidation is then derived from which keys the request body
+   * carries (it only sends changed fields):
    * - `page:<guid>` always.
-   * - `children:<result.folderId>` AND the coarse `children:any` when ANY tree-
-   *   or board-visible field (`title` / `status` / `pageType` / `properties` /
-   *   `boardOrder`) is present — `PageContent.folderId` is the owning parent
-   *   guid, and a deep board aggregates descendants of some *other* parent and
-   *   renders their titles/state, so it must refresh on a descendant card's
-   *   title/status/pageType edit just as on a property/order edit.
-   * - `ancestors:any` additionally when `title` is in the body — a folder
-   *   rename changes the ancestor chain shown in every descendant's breadcrumb
-   *   (precise per-descendant invalidation is not available at this layer).
-   * - `backlinks:any` additionally when `content` is in the body — a body edit
-   *   changes the link-graph edges into the pages it links to (precise
-   *   per-target invalidation would need a link resolver we lack here).
-   * - `page-tags:list` additionally when `tags` is in the body — the backend
+   * - `backlinks:any` when `content` is in the body — a body edit changes the
+   *   link-graph edges into the pages it links to.
+   * - `page-tags:list` when `tags` is in the body — the backend
    *   auto-registers page tags on write, growing the shared vocabulary.
+   *
+   * A draft or archived result isn't upserted (drafts are per-user and
+   * archived pages leave lists, same rule as the server): any tree- or
+   * board-visible field (`title` / `status` / `pageType` / `properties` /
+   * `boardOrder`) instead bumps `children:<result.folderId>` and the coarse
+   * `children:any` (a deep board aggregates descendants of some other parent),
+   * and `title` bumps `ancestors:any` (every descendant's breadcrumb).
    */
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
     const tags = [pageTag(guid)];
-    const treeVisible = 'title' in body || 'status' in body || 'pageType' in body;
-    const boardVisible = 'properties' in body || 'boardOrder' in body;
-    if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId), childrenAnyTag());
-    if ('title' in body) tags.push(ancestorsAnyTag());
+    if (result.status === 'published') {
+      this.upserts.emit([pageToUpsert(result)], 'local');
+    } else {
+      const treeVisible = 'title' in body || 'status' in body || 'pageType' in body;
+      const boardVisible = 'properties' in body || 'boardOrder' in body;
+      if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId), childrenAnyTag());
+      if ('title' in body) tags.push(ancestorsAnyTag());
+    }
     if ('content' in body) tags.push(backlinksAnyTag());
     // The backend auto-registers page-level tags on write, so the shared
     // vocabulary that feeds the Tags inspector autocomplete may have grown.
@@ -478,4 +482,27 @@ function compareSiblings(a: PageSummary, b: PageSummary): number {
   if (aHas && bHas) return a.sortOrder! - b.sortOrder!;
   if (aHas !== bHas) return aHas ? -1 : 1;
   return a.title.localeCompare(b.title);
+}
+
+/**
+ * A saved page as lists see it — mirrors the backend's `toPageSummary`
+ * (`backend/src/realtime/page-summary.ts`): no `content`, `folderId` becomes
+ * `parentGuid` (`''` → `null`), empty `tags`/`properties` omitted.
+ */
+export function pageToUpsert(page: PageContent): PageUpsert {
+  return {
+    guid: page.guid,
+    title: page.title,
+    parentGuid: page.folderId || null,
+    status: page.status,
+    ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
+    ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
+    ...(page.ticketKey ? { ticketKey: page.ticketKey } : {}),
+    createdBy: page.createdBy,
+    modifiedAt: page.modifiedAt,
+    modifiedBy: page.modifiedBy,
+    ...(page.pageType ? { pageType: page.pageType } : {}),
+    ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
+    ...(page.tags?.length ? { tags: page.tags } : {}),
+  };
 }

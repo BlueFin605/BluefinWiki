@@ -305,7 +305,7 @@ export class PageTreeItem {
   /**
    * `children`, RETAINED across an invalidation-driven reload. `children`
    * keys on the coarse `children:any` tag (invalidation.ts) — ANY
-   * tree-visible edit ANYWHERE (a rename, a status/type change, a reorder…)
+   * structural edit ANYWHERE (a move, delete, create, draft save, reorder…)
    * bumps it, and Angular's `resource()` clears `value()`/`status()` back to
    * `'loading'` with no retained-value API. Reading `children.value()`
    * directly in the template therefore blanked this row's child list for the

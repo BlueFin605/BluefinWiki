@@ -150,12 +150,9 @@ describe('BoardView', () => {
     });
     await dropped;
     await settle();
-    // updatePage bumps children:any on the invalidation bus, so the board's
-    // children-with-properties resource re-requests
-    http.expectOne('/api/pages/parent-drop/children?include=properties&limit=200').flush({
-      children: [], hasMore: false,
-    });
-    await settle();
+    // The PUT result patches the card through PageUpserts — the board no
+    // longer re-requests its children after a drop.
+    http.expectNone((r) => r.url.includes('/children'));
   });
 
   it('skips updatePage when dropping into the current column', async () => {
@@ -388,16 +385,9 @@ describe('BoardView', () => {
     );
 
     // Before A resolves, something elsewhere bumps the coarse `children:any`
-    // invalidation tag (e.g. dragging a card into a new column calls
-    // updatePage) — this re-fetches page one and resets the accumulator.
-    const dropped = instance.onCardDropped({ card: draggedCard, targetState: 'Done', targetIndex: 0 });
-    await settle();
-    const updateReq = http.expectOne('/api/pages/card-race');
-    updateReq.flush({
-      guid: 'card-race', title: 'Race Card', content: '', folderId: 'f', tags: [],
-      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
-    });
-    await dropped;
+    // invalidation tag (e.g. a page moved or deleted) — this re-fetches page
+    // one and resets the accumulator.
+    TestBed.inject(InvalidationBus).bump(childrenAnyTag());
     await settle();
 
     const freshReq = http.expectOne('/api/pages/parent-race/children?include=properties&limit=200');
@@ -475,23 +465,17 @@ describe('BoardView', () => {
     expect(body.properties.owner).toEqual({ type: 'string', value: 'Dean' });
 
     updateReq.flush({
-      guid: 'card-opt', title: 'Optimistic Card', content: '', folderId: 'f', tags: [],
-      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
+      guid: 'card-opt', title: 'Optimistic Card', content: '', folderId: 'parent-optimistic', tags: [],
+      status: 'published', boardOrder: 1000,
+      properties: { ...draggedCard.properties, state: { type: 'string', value: 'Done' } },
+      createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '2026-06-01T00:00:00Z',
     });
     await dropped;
     await settle();
 
-    // updatePage bumps children:any, so the board's children-with-properties
-    // resource re-requests page one — reconcile with the server's state
-    // without any visible jump (the optimistic move already showed "Done").
-    http.expectOne('/api/pages/parent-optimistic/children?include=properties&limit=200').flush({
-      children: [{
-        ...draggedCard,
-        properties: { ...draggedCard.properties, state: { type: 'string', value: 'Done' } },
-      }],
-      hasMore: false,
-    });
-    await settle();
+    // The PUT result is applied through PageUpserts — the server's copy of
+    // the card replaces the optimistic one in place, with no board refetch.
+    http.expectNone((r) => r.url.includes('/children'));
 
     expect(columnCount('Done')).toBe('1');
     expect(screen.queryByText('To Do')).not.toBeInTheDocument();
@@ -634,7 +618,7 @@ describe('BoardView', () => {
     expect(screen.getByRole('button', { name: /load more cards/i })).toBeEnabled();
   });
 
-  it('does not blank the board with the loading placeholder while the post-drop reload is in flight', async () => {
+  it('does not blank the board with the loading placeholder while a reload after a drop is in flight', async () => {
     const { fixture } = await render(BoardView, {
       providers: baseProviders(),
       inputs: { parentGuid: 'parent-no-blank' },
@@ -665,9 +649,12 @@ describe('BoardView', () => {
     await dropped;
     await settle();
 
-    // The success bumped `children:any`, so page one is re-fetching right
-    // now — but the optimistically-moved card must stay on screen rather
-    // than the whole board unmounting behind "Loading board…".
+    // Something else bumps `children:any` (e.g. a page moved elsewhere), so
+    // page one is re-fetching right now — but the optimistically-moved card
+    // must stay on screen rather than the whole board unmounting behind
+    // "Loading board…".
+    TestBed.inject(InvalidationBus).bump(childrenAnyTag());
+    await settle();
     const reload = http.expectOne('/api/pages/parent-no-blank/children?include=properties&limit=200');
     expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument();
     expect(columnCount('Done')).toBe('1');
@@ -716,19 +703,9 @@ describe('BoardView', () => {
     await settle();
     expect(columnCount('To Do')).toBe('2');
 
-    // A same-column drag of card B above card A — enough to bump
-    // `children:any` and trigger the page-one reset that used to collapse
-    // the accumulator back to page one.
-    const instance = fixture.componentInstance;
-    const dropped = instance.onCardDropped({ card: cardB, targetState: 'To Do', targetIndex: 0 });
-    await settle();
-    const putReq = http.expectOne('/api/pages/card-b');
-    expect(putReq.request.body).toEqual({ boardOrder: 0 }); // 1000 - 1000
-    putReq.flush({
-      guid: 'card-b', title: 'Card B', content: '', folderId: 'f', tags: [],
-      status: 'published', createdBy: '', modifiedBy: '', createdAt: '', modifiedAt: '',
-    });
-    await dropped;
+    // A coarse `children:any` bump (e.g. a page moved elsewhere) triggers the
+    // page-one reset that used to collapse the accumulator back to page one.
+    TestBed.inject(InvalidationBus).bump(childrenAnyTag());
     await settle();
 
     // The reset re-fetches page one only…
@@ -901,11 +878,7 @@ describe('BoardView', () => {
     });
     await dropped;
     await settle();
-    http.expectOne('/api/pages/parent-reorder/children?include=properties&limit=200').flush({
-      children: [cardA, { ...mover, boardOrder: 1500 }, cardB],
-      hasMore: false,
-    });
-    await settle();
+    http.expectNone((r) => r.url.includes('/children'));
   });
 
   it('cross-column drop carries both state and boardOrder in one PUT', async () => {
@@ -950,11 +923,7 @@ describe('BoardView', () => {
     });
     await dropped;
     await settle();
-    http.expectOne('/api/pages/parent-cross/children?include=properties&limit=200').flush({
-      children: [{ ...moving, boardOrder: 0, properties: { state: { type: 'string', value: 'Done' } } }, doneCard],
-      hasMore: false,
-    });
-    await settle();
+    http.expectNone((r) => r.url.includes('/children'));
   });
 
   it('renumbers the whole column and PUTs only the cards whose boardOrder actually changed', async () => {

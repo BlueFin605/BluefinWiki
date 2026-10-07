@@ -937,8 +937,8 @@ export class PageDetail {
    * The probe's children, RETAINED across reloads.
    *
    * `eligibilityChildrenResource` keys on the invalidation bus's
-   * `children:any`, so EVERY successful board drop and Card Summary save
-   * re-fetches it (their PUT bodies carry `properties`/`boardOrder`). A
+   * `children:any`, so every move, delete, create or draft save re-fetches
+   * it (published saves patch lists through `PageUpserts` and don't). A
    * params change puts an Angular `resource()` back into `'loading'` with its
    * value cleared — reading `status() === 'resolved' ? children : []`
    * directly therefore made {@link boardEligible} flicker `false` for the
