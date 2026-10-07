@@ -2,6 +2,10 @@ import { test, expect, createPage } from '../fixtures/page-tree';
 import type { Locator, Page } from '@playwright/test';
 import { dragToRowZone } from './helpers';
 
+// "Immediately" means without a reload, not within the default 5 s: under
+// the parallel full run the write behind it can take longer.
+const REFLECT_MS = 15_000;
+
 /**
  * Drags `source` onto `target` (a stable, non-sibling drop zone — see the
  * doc comment below for why this avoids row-to-row drops). Playwright's
@@ -81,7 +85,7 @@ test.describe('Reparenting via drag-and-drop', () => {
     // Root: `indent = level * 16 + 8` (page-tree-item.ts), so a level-0 row's
     // padding-left is 8px, distinct from the level-2 nesting it started at.
     // Exactly one row, at the top level (see `rowIndents`).
-    await expect.poll(() => rowIndents(movedRow)).toEqual(['8px']);
+    await expect.poll(() => rowIndents(movedRow), { timeout: REFLECT_MS }).toEqual(['8px']);
 
     // Persists.
     await page.reload();
@@ -113,6 +117,11 @@ test.describe('Reparenting via drag-and-drop', () => {
       const movedGuid = await createPage(request, movedTitle, { parentGuid: pageTree.childGuid });
 
       try {
+        // Realtime off: other workers add and delete root pages, and live
+        // tree refreshes would shift the rows under the drag, landing the
+        // drop on the wrong row. The app's `/ws` is answered here instead.
+        await page.routeWebSocket(/\/ws(\?|$)/, () => {});
+
         await page.goto(`/pages/${pageTree.rootGuid}`);
         const rootRow = page.getByRole('treeitem', { name: `${pageTree.runId} Root` });
         await rootRow.getByRole('button', { name: 'Expand' }).click();
@@ -138,7 +147,7 @@ test.describe('Reparenting via drag-and-drop', () => {
         await dragToRowZone(page, movedRow, rootRow, zone);
 
         expect((await moveRequest).postDataJSON()).toEqual({ newParentGuid: null });
-        await expect.poll(() => rowIndents(movedRow)).toEqual(['8px']);
+        await expect.poll(() => rowIndents(movedRow), { timeout: REFLECT_MS }).toEqual(['8px']);
 
         await page.reload();
         await expect(page.getByRole('treeitem', { name: movedTitle })).toHaveCSS('padding-left', '8px');

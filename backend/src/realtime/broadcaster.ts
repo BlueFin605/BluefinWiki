@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { currentOrigin } from './request-origin.js';
 import { ApiGwBroadcaster } from './apigw-broadcaster.js';
 
@@ -49,12 +50,34 @@ function tripBreaker(what: 'failed' | 'timed out', detail?: unknown): void {
   console.warn(`realtime publish ${what}; skipping publishes for ${BREAKER_OPEN_MS} ms`, detail ?? '');
 }
 
+const collecting = new AsyncLocalStorage<Set<string>>();
+
+/**
+ * Run `fn` with publishes collected instead of sent, then publish the union
+ * of their tags once (also when `fn` throws, for the writes that landed).
+ * For handlers that write many pages, e.g. pages-reorder's per-sibling saves.
+ */
+export async function collectChanges<T>(fn: () => Promise<T>): Promise<T> {
+  const tags = new Set<string>();
+  try {
+    return await collecting.run(tags, fn);
+  } finally {
+    await publishChange([...tags]);
+  }
+}
+
 /**
  * Publish an invalidation for `tags`. Never throws; waits at most 1 s, and
- * not at all while the circuit breaker is open.
+ * not at all while the circuit breaker is open. Inside {@link collectChanges}
+ * the tags are collected for one publish at the end instead.
  */
 export async function publishChange(tags: string[]): Promise<void> {
   if (tags.length === 0) return;
+  const batch = collecting.getStore();
+  if (batch) {
+    for (const t of tags) batch.add(t);
+    return;
+  }
   if (Date.now() < breakerOpenUntil) return;
   const event: RealtimeEvent = { type: 'invalidate', tags, origin: currentOrigin() };
   const TIMED_OUT = Symbol('timeout');

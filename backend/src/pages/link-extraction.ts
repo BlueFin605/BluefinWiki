@@ -7,6 +7,7 @@
 
 import { DynamoDBClient, PutItemCommand, QueryCommand, BatchWriteItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
+import { publishChange } from '../realtime/broadcaster.js';
 
 const dynamoClient = new DynamoDBClient({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -175,6 +176,10 @@ export async function updatePageLinks(
   for (const link of validLinks) {
     await saveLinkRelationship(sourceGuid, link.targetGuid, link.linkText);
   }
+
+  // The page save already published backlinks:any, but before this index
+  // changed; publish again so other tabs refetch backlinks from the new links.
+  await publishChange(['backlinks:any']);
 }
 
 /**

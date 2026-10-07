@@ -1,6 +1,6 @@
 import { test, expect, createPage } from '../fixtures/page-tree';
 import { createPageType, deletePageType, allowChildTypes } from '../fixtures/page-types';
-import { toggleInspector, inspector } from './helpers';
+import { expandRow, toggleInspector, inspector } from './helpers';
 
 test.describe('Property inheritance on page creation', () => {
   test('creating a child page under a typed parent copies the parent\'s matching property values', async ({
@@ -31,10 +31,7 @@ test.describe('Property inheritance on page creation', () => {
       // parentGuid is a child of pageTree.rootGuid, not a root-level page —
       // expand Root to reveal its row (the tree does not auto-expand
       // ancestors of the active page, by design).
-      await page
-        .getByRole('treeitem', { name: `${pageTree.runId} Root` })
-        .getByRole('button', { name: 'Expand' })
-        .click();
+      await expandRow(page.getByRole('treeitem', { name: `${pageTree.runId} Root` }));
       await page.getByRole('treeitem', { name: parentTitle }).click({ button: 'right' });
       await page.getByRole('menuitem', { name: 'New child page' }).click();
 

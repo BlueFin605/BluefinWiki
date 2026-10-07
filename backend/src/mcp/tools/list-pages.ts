@@ -5,10 +5,8 @@
  * Only published pages are returned.
  */
 
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
-
-const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
-const bucket = process.env.PAGES_BUCKET!;
+import { ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { pagesBucket, pagesS3 } from '../pages-s3.js';
 
 interface PageEntry {
   title: string;
@@ -39,8 +37,8 @@ function parseFrontmatter(content: string): { title: string; status: string } {
  */
 async function getPageMeta(key: string): Promise<{ title: string; status: string } | null> {
   try {
-    const result = await s3.send(new GetObjectCommand({
-      Bucket: bucket,
+    const result = await pagesS3().send(new GetObjectCommand({
+      Bucket: pagesBucket(),
       Key: key,
       Range: 'bytes=0-2047',
     }));
@@ -58,8 +56,8 @@ async function getPageMeta(key: string): Promise<{ title: string; status: string
 export async function listPages(prefix?: string): Promise<PageEntry[]> {
   const listPrefix = prefix ? `${prefix}/` : '';
 
-  const result = await s3.send(new ListObjectsV2Command({
-    Bucket: bucket,
+  const result = await pagesS3().send(new ListObjectsV2Command({
+    Bucket: pagesBucket(),
     Prefix: listPrefix,
     Delimiter: '/',
   }));
@@ -81,8 +79,8 @@ export async function listPages(prefix?: string): Promise<PageEntry[]> {
       if (!meta || meta.status !== 'published') return null;
 
       // Check if this page has children by listing one level deeper
-      const childResult = await s3.send(new ListObjectsV2Command({
-        Bucket: bucket,
+      const childResult = await pagesS3().send(new ListObjectsV2Command({
+        Bucket: pagesBucket(),
         Prefix: folderPrefix,
         Delimiter: '/',
         MaxKeys: 2, // Just need to know if there are subfolders

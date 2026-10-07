@@ -31,6 +31,12 @@ export interface PageMetadata {
 export interface PageDraft {
   content: string;
   metadata: PageMetadata;
+  /**
+   * The server `modifiedAt` this draft's edits are based on (a remote change
+   * the user hasn't acknowledged doesn't count). On restore, a newer server
+   * page raises the "changed elsewhere" banner. Absent on older drafts.
+   */
+  baseModifiedAt?: string;
 }
 
 const STORAGE_PREFIX = 'bluefinwiki:draft:';

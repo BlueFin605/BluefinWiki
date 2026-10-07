@@ -76,6 +76,17 @@ test.describe('Board Settings — boardable type filtering', () => {
     });
     await deletePageType(request, typeGuid);
 
+    // Other specs running in parallel (and leftovers from an interrupted run)
+    // may hold state-bearing types, so hide them from this page's type list
+    // rather than relying on the system-wide list being empty.
+    await page.route(/\/page-types(\?.*)?$/, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const res = await route.fetch();
+      const body = (await res.json()) as { pageTypes: { properties?: { name: string }[] }[] };
+      body.pageTypes = body.pageTypes.filter((t) => !(t.properties ?? []).some((p) => p.name === 'state'));
+      await route.fulfill({ response: res, json: body });
+    });
+
     await page.goto(`/pages/${parentGuid}`);
     await page.getByRole('button', { name: 'Board settings' }).click();
     await expect(page.getByText(/No page types define a "state" property/)).toBeVisible();

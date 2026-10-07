@@ -1,4 +1,5 @@
 import { test, expect, createPage } from '../fixtures/page-tree';
+import { expandRow } from './helpers';
 import { createPageType, deletePageType, allowChildTypes } from '../fixtures/page-types';
 import { API_BASE_URL, AUTH_HEADER } from '../fixtures/api';
 
@@ -45,10 +46,7 @@ test.describe('Scoped child creation', () => {
       // expand Root to reveal its row (the tree does not auto-expand
       // ancestors of the active page, by design; see
       // property-inheritance.spec.ts).
-      await page
-        .getByRole('treeitem', { name: `${pageTree.runId} Root` })
-        .getByRole('button', { name: 'Expand' })
-        .click();
+      await expandRow(page.getByRole('treeitem', { name: `${pageTree.runId} Root` }));
 
       const parentRow = page.getByRole('treeitem', { name: parentTitle });
       await parentRow.click({ button: 'right' });

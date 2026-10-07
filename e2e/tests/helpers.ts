@@ -210,3 +210,13 @@ export async function dragCardToColumn(
   await page.waitForTimeout(150);
   await page.mouse.up();
 }
+
+/**
+ * Expand a tree row unless it is already open. The tree expands the open
+ * page's ancestors itself, so an unconditional Expand click would wait for a
+ * button that now reads Collapse.
+ */
+export async function expandRow(row: Locator): Promise<void> {
+  const toggle = row.getByRole('button', { name: /^(Expand|Collapse)$/ }).first();
+  if ((await toggle.getAttribute('aria-label')) === 'Expand') await toggle.click();
+}

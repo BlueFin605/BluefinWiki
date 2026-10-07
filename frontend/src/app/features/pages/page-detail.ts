@@ -11,7 +11,6 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
@@ -82,6 +81,7 @@ import {
 import { Auth } from '../../core/auth/auth';
 import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
 import { EditorErrorState } from '../../core/error/editor-error-state';
+import { httpStatusOf, isApiError } from '../../core/api/api.types';
 import type {
   BoardConfig,
   PageChildDetail,
@@ -168,6 +168,14 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
   return JSON.stringify(m.properties ?? {}) !== JSON.stringify(page.properties ?? {});
 }
 
+/** Whether two server pages differ in a field only Save writes (body, title, tags, status). */
+function editableFieldsDiffer(a: PageContent, b: PageContent): boolean {
+  return (a.content ?? '') !== (b.content ?? '')
+    || a.title !== b.title
+    || a.status !== b.status
+    || JSON.stringify(a.tags ?? []) !== JSON.stringify(b.tags ?? []);
+}
+
 /**
  * Unified page screen. A single component backs both `/pages/:guid` (view) and
  * `/pages/:guid/edit` (edit) — the `:guid/edit` route carries `data.editMode`.
@@ -235,6 +243,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
               mat-icon-button
               type="button"
               (click)="openBoardSettings()"
+              [disabled]="!boardSettingsReady()"
               aria-label="Board settings"
               title="Board settings"
             >
@@ -341,7 +350,7 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
         <div class="banner remote-change" role="status">
           <span class="banner-msg">This page was changed elsewhere.</span>
           <button mat-button type="button" (click)="onRemoteReload()">Reload</button>
-          <button mat-button type="button" (click)="pageContext.remoteChange.set(false)">Dismiss</button>
+          <button mat-button type="button" (click)="dismissRemoteChange()">Dismiss</button>
         </div>
       }
 
@@ -815,6 +824,21 @@ export class PageDetail {
       this.pageTypesResource.status() === 'resolved' ? (this.pageTypesResource.value() ?? []) : null,
     computation: (resolved, previous) => resolved ?? previous?.value ?? [],
   });
+  /** Latches true once the page-type list has resolved (it stays kept through reloads). */
+  private readonly pageTypesLoaded = linkedSignal<boolean, boolean>({
+    source: () => this.pageTypesResource.status() === 'resolved',
+    computation: (resolved, previous) => resolved || (previous?.value ?? false),
+  });
+
+  /**
+   * Board settings needs the page's type (for its defaults) before it opens:
+   * without it the dialog saves the raw effective config, pinning every group
+   * as an override and hiding Reset / Save as default.
+   */
+  protected readonly boardSettingsReady = computed<boolean>(
+    () => !this.settledPage()?.pageType || this.pageTypesLoaded(),
+  );
+
   private readonly pageTypesMap = computed<Record<string, PageTypeDefinition>>(() =>
     Object.fromEntries(this.pageTypesList().map((t) => [t.guid, t])),
   );
@@ -856,7 +880,7 @@ export class PageDetail {
   protected readonly backgroundLoadError = computed<'deleted' | 'failed' | null>(() => {
     const err = this.resource.error();
     if (!err || !this.settledPage()) return null;
-    return err instanceof HttpErrorResponse && err.status === 404 ? 'deleted' : 'failed';
+    return httpStatusOf(err) === 404 ? 'deleted' : 'failed';
   });
 
   /**
@@ -999,6 +1023,14 @@ export class PageDetail {
    * this tab's own change, not a change made elsewhere.
    */
   private readonly ownModifiedAts = new Set<string>();
+
+  /**
+   * The server `modifiedAt` the working copy is based on, as far as the user
+   * knows: it follows {@link base} except while a "changed elsewhere" banner is
+   * unacknowledged. Stored in drafts as `baseModifiedAt`, so a View/Edit toggle
+   * (which clears the banner) re-raises it when the draft is restored.
+   */
+  private syncedModifiedAt: string | null = null;
 
   /** Whether the working copy diverges from the server page it was synced to. */
   protected readonly dirty = computed<boolean>(() => {
@@ -1143,7 +1175,7 @@ export class PageDetail {
       this.cancelAutosave();
       this.autosaveTimer = setTimeout(() => {
         this.autosaveTimer = null;
-        if (this.dirty()) this.drafts.set(g, { content: c, metadata: m });
+        if (this.dirty()) this.writeDraft(g, c, m);
       }, DRAFT_DEBOUNCE_MS);
     });
 
@@ -1211,8 +1243,17 @@ export class PageDetail {
     const g = this.guid();
     const m = this.metadata();
     if (g && m && this.dirty()) {
-      this.drafts.set(g, { content: this.content(), metadata: m });
+      this.writeDraft(g, this.content(), m);
     }
+  }
+
+  /** Persist a draft, stamped with the server version its edits are based on. */
+  private writeDraft(guid: string, content: string, metadata: PageMetadata): void {
+    this.drafts.set(guid, {
+      content,
+      metadata,
+      ...(this.syncedModifiedAt ? { baseModifiedAt: this.syncedModifiedAt } : {}),
+    });
   }
 
   /**
@@ -1250,6 +1291,15 @@ export class PageDetail {
       if (draft.content !== (page.content ?? '')) {
         this._editorMode.set('split');
       }
+
+      // The page moved on since the draft was stashed (e.g. a remote change
+      // landed, then a View/Edit toggle cleared the banner): raise it again,
+      // and keep the draft's base until the user acknowledges it.
+      if (draft.baseModifiedAt && draft.baseModifiedAt !== page.modifiedAt
+          && workingCopyDiverges(this.content(), this.metadata()!, page)) {
+        this.syncedModifiedAt = draft.baseModifiedAt;
+        this.pageContext.remoteChange.set(true);
+      }
     }
   }
 
@@ -1263,7 +1313,11 @@ export class PageDetail {
    *   change shows and no stale draft is stashed later;
    * - dirty → keep the working copy untouched and move the baseline to the new
    *   page. If the server `modifiedAt` moved and that isn't one of this tab's
-   *   own writes, the page changed elsewhere: raise the banner.
+   *   own writes, the page changed elsewhere: raise the banner. An own write
+   *   counts only if the fields our partial writes never touch (body, title,
+   *   tags, status) are unchanged, so a remote edit that landed just before
+   *   our page-type or board write still raises it. (A Save re-baselines at
+   *   once, so its own reload compares equal here.)
    */
   private onPageReResolved(page: PageContent, currentGuid: string): void {
     const base = this.base();
@@ -1274,10 +1328,18 @@ export class PageDetail {
       this.resetWorkingCopyToServer(page);
       return;
     }
-    if (page.modifiedAt !== base.page.modifiedAt && !this.ownModifiedAts.has(page.modifiedAt)) {
+    const ownWrite = this.ownModifiedAts.has(page.modifiedAt) && !editableFieldsDiffer(base.page, page);
+    if (page.modifiedAt !== base.page.modifiedAt && !ownWrite) {
       this.pageContext.remoteChange.set(true);
     }
+    if (!this.pageContext.remoteChange()) this.syncedModifiedAt = page.modifiedAt;
     this.base.set({ guid: currentGuid, page });
+  }
+
+  /** Banner Dismiss: the user has seen the remote change and keeps their copy. */
+  dismissRemoteChange(): void {
+    this.pageContext.remoteChange.set(false);
+    this.syncedModifiedAt = this.base()?.page.modifiedAt ?? this.syncedModifiedAt;
   }
 
   /** Remember the `modifiedAt` of a write this component made itself. */
@@ -1294,6 +1356,7 @@ export class PageDetail {
   private resetWorkingCopyToServer(page: PageContent): void {
     const g = this.guid();
     if (g) this.base.set({ guid: g, page });
+    this.syncedModifiedAt = page.modifiedAt;
     this.metadata.set({
       title: page.title,
       tags: page.tags ?? [],
@@ -1553,7 +1616,7 @@ export class PageDetail {
       // Keep a live draft in step with what was just persisted so a reload
       // can't resurrect the previous type from localStorage.
       if (this.drafts.hasDraft(g)) {
-        this.drafts.set(g, { content: this.content(), metadata: nextMeta });
+        this.writeDraft(g, this.content(), nextMeta);
       }
     } catch {
       this.snack.open('Failed to change page type.', 'Dismiss', { duration: 4000 });
@@ -1745,7 +1808,7 @@ export class PageDetail {
     // The settled page, not `resource.value()`: the button stays mounted
     // while the resource is errored, and `value()` throws then.
     const page = this.settledPage();
-    if (!page) return;
+    if (!page || !this.boardSettingsReady()) return;
     // Reuse the field-level resource (constructed in an injection context at
     // class-init time), not `this.pageTypes.pageTypesResource()` called fresh
     // here -- `rxResource()` calls `inject()` internally, and invoking the
@@ -1785,6 +1848,15 @@ export class PageDetail {
     );
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
+    if (result.action === 'saveAsDefault' && type) {
+      const confirm: ConfirmDialogData = {
+        title: `Save as the ${type.name} default?`,
+        message: `Every ${type.icon} ${type.name} page that hasn't overridden these settings will use them.`,
+        confirmLabel: 'Save as default',
+      };
+      const ok = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data: confirm });
+      if (!(await firstValueFrom(ok.afterClosed()))) return;
+    }
     // `keyPrefix` is page-only: strip it from anything diffed against or
     // written to the type defaults, then re-apply it to the page's config.
     try {
@@ -1826,9 +1898,23 @@ export class PageDetail {
     const m = this.metadata();
     if (!g || !m) return;
 
+    // Last writer wins, but not silently: Save would overwrite the change
+    // the banner is warning about.
+    if (this.pageContext.remoteChange()) {
+      const data: ConfirmDialogData = {
+        title: 'This page changed elsewhere',
+        message: 'Saving replaces the other change with your version. Save anyway?',
+        confirmLabel: 'Save anyway',
+        cancelLabel: 'Cancel',
+        destructive: true,
+      };
+      const ref = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data });
+      if (!(await firstValueFrom(ref.afterClosed()))) return;
+    }
+
     const content = this.content();
     // Persist a draft before the API call so a thrown request can't lose work.
-    this.drafts.set(g, { content, metadata: m });
+    this.writeDraft(g, content, m);
 
     this.saving.set(true);
     this.saveError.set(null);
@@ -1862,15 +1948,21 @@ export class PageDetail {
           },
         });
       }
+      if (saved?.modifiedAt) this.syncedModifiedAt = saved.modifiedAt;
+      this.pageContext.remoteChange.set(false);
       this.drafts.clear(g);
       // updatePage bumps the pages version, so the view reload picks up the save.
       await this.router.navigate(['/pages', ref]);
     } catch (err) {
-      // Prefer the server-supplied body message; fall back to a real
-      // Error.message, then a generic sentence. Never surface the raw
-      // HttpErrorResponse.message ("Http failure response for /api/… 500 …"),
-      // which leaks the internal request path into user-facing copy.
-      const serverMessage = (err as { error?: { message?: string } })?.error?.message;
+      // Prefer the server-supplied message (errorInterceptor carries it in
+      // ApiError.message); fall back to a real Error.message, then a generic
+      // sentence. Never surface the raw HttpErrorResponse.message ("Http
+      // failure response for /api/… 500 …"), which the interceptor also falls
+      // back to and which leaks the internal request path into user copy.
+      const serverMessage =
+        isApiError(err) && !/^Http failure/i.test(err.message)
+          ? err.message
+          : (err as { error?: { message?: string } })?.error?.message;
       const message =
         serverMessage || (err instanceof Error ? err.message : '') || 'Save failed. Try again.';
       // Store the resolved message — the banner template composes the

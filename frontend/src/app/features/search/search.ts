@@ -7,10 +7,11 @@
  * as readable error messages.
  */
 
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { RateLimiter } from './rate-limiter';
+import { httpStatusOf } from '../../core/api/api.types';
 import type { WikiSearchQuery, WikiSearchResult, WikiSearchResultSet } from './search.types';
 
 const SEARCH_PATH = '/api/search';
@@ -104,8 +105,11 @@ export class Search {
         this.http.get<WikiSearchResultSet>(SEARCH_PATH, { params }),
       );
     } catch (error) {
-      if (error instanceof HttpErrorResponse && error.status) {
-        throw new Error(`Search failed: ${error.status}`, { cause: error });
+      // errorInterceptor rethrows HTTP errors as an ApiError ({ status, … }),
+      // so match on the status, not the HttpErrorResponse class.
+      const status = httpStatusOf(error);
+      if (status) {
+        throw new Error(`Search failed: ${status}`, { cause: error });
       }
       throw error;
     }

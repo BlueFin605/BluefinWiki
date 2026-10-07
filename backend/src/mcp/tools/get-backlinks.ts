@@ -6,14 +6,13 @@
  */
 
 import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { pagesBucket, pagesS3 } from '../pages-s3.js';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 
 const dynamodb = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
-const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 const linksTable = process.env.PAGE_LINKS_TABLE!;
-const bucket = process.env.PAGES_BUCKET!;
 
 interface BacklinkResult {
   sourceGuid: string;
@@ -27,8 +26,8 @@ async function getPageTitle(guid: string): Promise<string> {
   // Try root-level first
   const rootKey = `${guid}/${guid}.md`;
   try {
-    const result = await s3.send(new GetObjectCommand({
-      Bucket: bucket,
+    const result = await pagesS3().send(new GetObjectCommand({
+      Bucket: pagesBucket(),
       Key: rootKey,
       Range: 'bytes=0-2047',
     }));
