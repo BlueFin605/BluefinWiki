@@ -82,6 +82,7 @@ import { Auth } from '../../core/auth/auth';
 import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
 import { EditorErrorState } from '../../core/error/editor-error-state';
 import { httpStatusOf, isApiError } from '../../core/api/api.types';
+import { toWireProperties } from './merge-schema';
 import type {
   BoardConfig,
   PageChildDetail,
@@ -1913,6 +1914,7 @@ export class PageDetail {
     }
 
     const content = this.content();
+    const properties = m.properties ? toWireProperties(m.properties) : undefined;
     // Persist a draft before the API call so a thrown request can't lose work.
     this.writeDraft(g, content, m);
 
@@ -1926,7 +1928,7 @@ export class PageDetail {
         tags: m.tags,
         status: m.status,
         ...(m.pageType !== undefined ? { pageType: m.pageType || null } : {}),
-        ...(m.properties ? { properties: m.properties } : {}),
+        ...(properties ? { properties } : {}),
       });
       this.recordOwnWrite(saved);
       // What was sent is now the server state: re-baseline at once, so the
@@ -1943,7 +1945,7 @@ export class PageDetail {
             tags: m.tags ?? [],
             status: m.status,
             pageType: m.pageType,
-            properties: m.properties,
+            properties,
             ...(saved?.modifiedAt ? { modifiedAt: saved.modifiedAt } : {}),
           },
         });

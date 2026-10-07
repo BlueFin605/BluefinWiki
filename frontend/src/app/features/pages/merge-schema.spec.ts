@@ -1,4 +1,4 @@
-import { mergeSchema } from './merge-schema';
+import { mergeSchema, toWireProperties } from './merge-schema';
 import type { PageProperty, PageTypeProperty } from './page.types';
 
 function field(over: Partial<PageTypeProperty> & Pick<PageTypeProperty, 'name' | 'type'>): PageTypeProperty {
@@ -152,5 +152,39 @@ describe('mergeSchema', () => {
     const result2 = mergeSchema(existing2, schema);
     (result2['labels'].value as string[]).push('c');
     expect(existingLabels).toEqual(['a', 'b']);
+  });
+});
+
+describe('toWireProperties', () => {
+  it('coerces values to their declared type and drops unset number/date', () => {
+    expect(
+      toWireProperties({
+        state: { type: 'string', value: [] },
+        note: { type: 'string', value: ['a', 'b'] },
+        due: { type: 'date', value: '' },
+        when: { type: 'date', value: '2026-10-08' },
+        count: { type: 'number', value: '3' },
+        blank: { type: 'number', value: '' },
+        junk: { type: 'number', value: 'abc' },
+        genre: { type: 'tags', value: 'drama' },
+        none: { type: 'tags', value: '' },
+        rated: { type: 'tags', value: ['pg'] },
+      }),
+    ).toEqual({
+      state: { type: 'string', value: '' },
+      note: { type: 'string', value: 'a, b' },
+      when: { type: 'date', value: '2026-10-08' },
+      count: { type: 'number', value: 3 },
+      genre: { type: 'tags', value: ['drama'] },
+      none: { type: 'tags', value: [] },
+      rated: { type: 'tags', value: ['pg'] },
+    });
+  });
+
+  it('does not mutate its input', () => {
+    const props = { rated: { type: 'tags' as const, value: ['pg'] } };
+    const out = toWireProperties(props);
+    expect(out.rated.value).not.toBe(props.rated.value);
+    expect(props).toEqual({ rated: { type: 'tags', value: ['pg'] } });
   });
 });

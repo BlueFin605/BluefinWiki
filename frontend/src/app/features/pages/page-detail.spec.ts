@@ -458,6 +458,40 @@ describe('PageDetail', () => {
     expect(drafts.hasDraft('g1')).toBe(false);
   });
 
+  it('save() sends draft properties in their declared types (stale [] string, unset date)', async () => {
+    // A draft written before the backend's empty-string parse fix carries
+    // `state: []`; PUT /pages rejects a string property holding an array.
+    localStorage.setItem(
+      'bluefinwiki:draft:g1',
+      JSON.stringify({
+        content: '# Draft Content',
+        metadata: {
+          title: serverPage.title, tags: [], status: serverPage.status,
+          properties: {
+            state: { type: 'string', value: [] },
+            due: { type: 'date', value: '' },
+            genre: { type: 'tags', value: ['drama'] },
+          },
+          createdBy: 'u', modifiedBy: 'u', createdAt: '', modifiedAt: '', guid: 'g1',
+        },
+      }),
+    );
+    const { http, fixture } = await renderDetail({ editMode: true });
+    jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    http.expectOne('/api/pages/g1').flush(serverPage);
+    await settle();
+    fixture.detectChanges();
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+    const req = http.expectOne('/api/pages/g1');
+    expect((req.request.body as { properties: unknown }).properties).toEqual({
+      state: { type: 'string', value: '' },
+      genre: { type: 'tags', value: ['drama'] },
+    });
+    req.flush(serverPage);
+    await settle();
+  });
+
   it('routes an editor-action throw into EditorErrorState, not a snackbar', async () => {
     const { http, fixture } = await renderDetail({ editMode: true });
     http.expectOne('/api/pages/g1').flush(serverPage);

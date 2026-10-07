@@ -99,3 +99,41 @@ export function withoutUnsetTypedProps(
     ),
   );
 }
+
+/**
+ * A property set as the update `PUT` must receive: each value coerced to its
+ * declared `type`, then {@link withoutUnsetTypedProps}.
+ *
+ * Values can drift from their type outside the editor's control — notably a
+ * local draft written while the backend loaded an empty string property
+ * (`value: ""`) as `[]`. The backend's `PagePropertySchema.refine()` rejects a
+ * `string`/`date` holding an array (or `tags` holding a string) with a bare
+ * "Validation failed" 400, and since a failed save keeps the draft, every
+ * retry resent the same bad value.
+ */
+export function toWireProperties(
+  props: Record<string, PageProperty>,
+): Record<string, PageProperty> {
+  const coerced: Record<string, PageProperty> = {};
+  for (const [name, prop] of Object.entries(props)) {
+    coerced[name] = { type: prop.type, value: coerceValue(prop) };
+  }
+  return withoutUnsetTypedProps(coerced);
+}
+
+function coerceValue(prop: PageProperty): PageProperty['value'] {
+  const { type, value } = prop;
+  if (type === 'tags') {
+    if (Array.isArray(value)) return [...value];
+    return value === '' ? [] : [String(value)];
+  }
+  if (type === 'number') {
+    if (typeof value === 'number') return value;
+    const text = Array.isArray(value) ? value.join('') : value;
+    const n = Number(text);
+    // '' is "unset" — withoutUnsetTypedProps drops it.
+    return text.trim() === '' || Number.isNaN(n) ? '' : n;
+  }
+  // string / date
+  return Array.isArray(value) ? value.join(', ') : String(value);
+}
