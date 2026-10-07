@@ -1,10 +1,11 @@
 /**
- * Storage decorator that publishes real-time invalidation tags after writes.
+ * Storage decorator that publishes real-time updates after writes.
  *
  * Every StoragePlugin method delegates to the wrapped plugin. Write methods
- * additionally `publishChange(...)` once the inner call has resolved — never
- * when it rejects (the error propagates untouched). `publishChange` never
- * throws and waits at most 1 s, so publishing can't fail or stall a write.
+ * additionally publish (`publishUpsert` for page saves, `publishChange`
+ * otherwise) once the inner call has resolved — never when it rejects (the
+ * error propagates untouched). Publishing never throws and waits at most 1 s,
+ * so it can't fail or stall a write.
  */
 
 import { StoragePlugin } from './StoragePlugin.js';
@@ -17,7 +18,8 @@ import {
   AttachmentMetadata,
   Comment,
 } from '../types/index.js';
-import { publishChange } from '../realtime/broadcaster.js';
+import { publishChange, publishUpsert } from '../realtime/broadcaster.js';
+import { toPageSummary } from '../realtime/page-summary.js';
 import {
   tagsForSavePage,
   tagsForDeletePage,
@@ -38,9 +40,18 @@ export class BroadcastingStoragePlugin implements StoragePlugin {
 
   // --- writes: delegate, then publish ---------------------------------------
 
+  /**
+   * A visible page is broadcast as its summary so clients patch it in place.
+   * Drafts are per-user (see filterDrafts) so their data must not be
+   * broadcast, and archived/deleted pages leave lists — both get coarse tags.
+   */
   async savePage(guid: string, parentGuid: string | null, content: PageContent): Promise<void> {
     await this.inner.savePage(guid, parentGuid, content);
-    await publishChange(tagsForSavePage(guid, parentGuid));
+    if (content.status === 'draft' || content.status === 'archived' || content.status === 'deleted') {
+      await publishChange(tagsForSavePage(guid, parentGuid));
+    } else {
+      await publishUpsert({ ...toPageSummary(content, parentGuid), guid });
+    }
   }
 
   async deletePage(guid: string, recursive?: boolean): Promise<void> {
