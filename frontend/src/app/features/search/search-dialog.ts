@@ -278,7 +278,7 @@ const DEBOUNCE_MS = 200;
     .search-dialog {
       display: flex;
       flex-direction: column;
-      min-width: 480px;
+      min-width: 0; /* the pane sets the width: 640px card, or full-bleed on a phone */
       max-width: 640px;
       max-height: 70vh;
     }
@@ -298,6 +298,7 @@ const DEBOUNCE_MS = 200;
     }
     .scope-row {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 0.5rem;

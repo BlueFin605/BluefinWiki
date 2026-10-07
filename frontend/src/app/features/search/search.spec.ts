@@ -1,10 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { RateLimitExceededError, Search, hasMoreResults } from './search';
+import { errorInterceptor } from '../../core/api/error-interceptor';
 import type { WikiSearchQuery, WikiSearchResultSet } from './search.types';
 
 const baseQuery: WikiSearchQuery = {
@@ -36,7 +37,8 @@ describe('Search service', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      // The app's errorInterceptor, so errors arrive as the ApiError the app sees.
+      providers: [provideHttpClient(withInterceptors([errorInterceptor])), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
     search = TestBed.inject(Search);

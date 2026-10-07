@@ -62,7 +62,8 @@ export function withoutPageOnly(cfg: BoardConfig): BoardConfig {
 function normalised(cfg: BoardConfig, g: BoardGroup): BoardConfig {
   switch (g) {
     case 'columns': return { columns: cfg.columns ?? [] };
-    case 'colors': return { colors: cfg.colors ?? {} };
+    // Keys sorted: the comparison is a JSON.stringify, which is key-order sensitive.
+    case 'colors': return { colors: Object.fromEntries(Object.entries(cfg.colors ?? {}).sort(([a], [b]) => a.localeCompare(b))) };
     case 'cards':
       if (cfg.leafTypes) return { leafTypes: true };
       return configuredTypeGuids(cfg).length ? { targetTypeGuids: configuredTypeGuids(cfg) } : { leafTypes: false };

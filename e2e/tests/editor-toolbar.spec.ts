@@ -111,8 +111,25 @@ test.describe('Editor bar + markdown toolbar (Phase 1b matrix items 16-22)', () 
     await page.goto(`/pages/${pageTree.rootGuid}/edit`);
     const row = page.locator('wiki-markdown-toolbar .toolbar');
     await expect(row).toHaveCSS('flex-wrap', 'nowrap');
-    const overflowsHorizontally = await row.evaluate((el) => el.scrollWidth > el.clientWidth);
-    expect(overflowsHorizontally).toBe(true);
+    await expect(row).toHaveCSS('overflow-x', 'auto');
+    // The compact set fits in 360px today, so force more content than fits
+    // rather than relying on the button count: it must stay one scrolling row.
+    const result = await row.evaluate((el) => {
+      const extra = document.createElement('button');
+      extra.style.cssText = 'flex: none; width: 400px';
+      el.appendChild(extra);
+      // One row: every visible child overlaps the same horizontal band
+      // (children differ in height, so compare ranges, not tops).
+      const rects = Array.from(el.children)
+        .map((c) => c.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0);
+      const maxTop = Math.max(...rects.map((r) => r.top));
+      const minBottom = Math.min(...rects.map((r) => r.bottom));
+      const out = { overflows: el.scrollWidth > el.clientWidth, rows: maxTop < minBottom ? 1 : 2 };
+      extra.remove();
+      return out;
+    });
+    expect(result).toEqual({ overflows: true, rows: 1 });
   });
 
   test('item 20: the heading menu opens upward and stays fully on-screen above the pinned bar', async ({

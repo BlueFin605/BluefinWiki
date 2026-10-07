@@ -250,7 +250,12 @@ const COLOR_PALETTE = [
     </mat-dialog-actions>
   `,
   styles: [`
-    :host { display: block; min-width: 460px; max-width: 540px; }
+    /* 460px wide on desktop; on a phone, the dialog surface minus its padding. */
+    :host { display: block; min-width: min(460px, calc(100vw - 96px)); max-width: 540px; }
+    /* Toggle rows share the width and wrap their labels rather than overflow. */
+    mat-button-toggle-group { display: inline-flex; max-width: 100%; }
+    mat-button-toggle { flex: 1 1 auto; min-width: 0; }
+    :host ::ng-deep .mat-button-toggle-label-content { white-space: normal; line-height: 1.2; padding-top: 0.375rem; padding-bottom: 0.375rem; }
     .section { margin-bottom: 1.25rem; }
     .section h3 { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.5rem; }
     .muted { color: #6b7280; font-size: 0.8125rem; margin: 0 0 0.5rem; }

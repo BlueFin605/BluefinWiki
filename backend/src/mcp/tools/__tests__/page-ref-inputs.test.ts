@@ -70,7 +70,10 @@ import { addComment } from '../add-comment.js';
 import { updateComment } from '../update-comment.js';
 import { deleteComment } from '../delete-comment.js';
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubEnv('PAGES_BUCKET', 'pages-bucket');
+});
 
 describe('MCP tools accept ticket keys as page references', () => {
   it('update_page', async () => {

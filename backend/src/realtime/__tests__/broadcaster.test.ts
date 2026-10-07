@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { publishChange, setBroadcaster } from '../broadcaster.js';
+import { collectChanges, publishChange, setBroadcaster } from '../broadcaster.js';
 import { runWithOrigin, originFromHeaders } from '../request-origin.js';
 
 afterEach(() => setBroadcaster(null));
@@ -90,5 +90,46 @@ describe('originFromHeaders', () => {
     expect(originFromHeaders({ 'x-client-id': 'abc' })).toBe('abc');
     expect(originFromHeaders({ 'x-client-id': 'x'.repeat(65) })).toBeNull();
     expect(originFromHeaders(null)).toBeNull();
+  });
+});
+
+describe('collectChanges', () => {
+  it('publishes the union of the tags once, after fn', async () => {
+    const publish = vi.fn().mockResolvedValue(undefined);
+    setBroadcaster({ publish });
+    const result = await runWithOrigin('tab-1', () =>
+      collectChanges(async () => {
+        await publishChange(['page:a', 'children:p']);
+        await publishChange(['page:b', 'children:p']);
+        expect(publish).not.toHaveBeenCalled();
+        return 'done';
+      }),
+    );
+    expect(result).toBe('done');
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0][0]).toEqual({
+      type: 'invalidate',
+      tags: ['page:a', 'children:p', 'page:b'],
+      origin: 'tab-1',
+    });
+  });
+
+  it('publishes nothing when fn published nothing', async () => {
+    const publish = vi.fn().mockResolvedValue(undefined);
+    setBroadcaster({ publish });
+    await collectChanges(async () => {});
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('still publishes what was collected when fn throws', async () => {
+    const publish = vi.fn().mockResolvedValue(undefined);
+    setBroadcaster({ publish });
+    await expect(
+      collectChanges(async () => {
+        await publishChange(['page:a']);
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+    expect(publish).toHaveBeenCalledTimes(1);
   });
 });

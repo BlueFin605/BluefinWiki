@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { convertToParamMap, type ParamMap } from '@angular/router';
 import { By } from '@angular/platform-browser';
@@ -28,6 +28,7 @@ import { BoardView } from '../board/board-view';
 import { AttachmentUploader } from '../attachments/attachment-uploader';
 import { buildAttachmentMarkdown } from '../attachments/attachment.types';
 import { Drafts } from './drafts';
+import { errorInterceptor } from '../../core/api/error-interceptor';
 import { Layout } from '../../core/layout/layout';
 import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 import { ResizeDivider } from '../../shared/components/resize-divider';
@@ -96,7 +97,9 @@ async function renderDetail(
   const result = await render(PageDetail, {
     providers: [
       opts.noopAnimations ? provideNoopAnimations() : provideAnimationsAsync(),
-      provideHttpClient(),
+      // The app's errorInterceptor, so HTTP errors reach the component as the
+      // ApiError it really sees, not a raw HttpErrorResponse.
+      provideHttpClient(withInterceptors([errorInterceptor])),
       provideHttpClientTesting(),
       provideRouter([]),
       routeStub(guid, opts.editMode),
@@ -1097,6 +1100,37 @@ describe('PageDetail', () => {
     expect((put.request.body as { boardConfig: unknown }).boardConfig).toBeNull();
     put.flush({ ...serverPage, pageType: 'pt-init' });
     await done;
+  });
+
+  it('saveAsDefault asks first, and Cancel writes nothing', async () => {
+    const { http, fixture } = await renderDetail();
+    await loadInitiative(http, fixture, { boardConfig: { columns: ['Mine'] } });
+    const open = jest
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValueOnce({ afterClosed: () => of({ action: 'saveAsDefault', config: { columns: ['Mine'] } }) } as never)
+      .mockReturnValueOnce({ afterClosed: () => of(false) } as never);
+    await (fixture.componentInstance as unknown as BoardHost).openBoardSettings();
+    await settle();
+    expect(open).toHaveBeenCalledTimes(2);
+    expect((open.mock.calls[1][1] as { data: { message: string } }).data.message).toMatch(/every .*Initiative page/i);
+    http.expectNone((r) => r.method === 'PUT');
+  });
+
+  it('Board settings stays disabled until the page types have loaded', async () => {
+    const { http, fixture } = await renderDetail();
+    http.expectOne('/api/pages/g1').flush({
+      ...serverPage,
+      pageType: 'pt-init',
+      boardConfig: { targetTypeGuid: 'pt-task', defaultView: 'board' },
+    });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByRole('button', { name: 'Board settings' })).toBeDisabled();
+
+    for (const r of http.match('/api/page-types')) r.flush({ pageTypes: [INITIATIVE, TASK] });
+    await settle();
+    fixture.detectChanges();
+    expect(screen.getByRole('button', { name: 'Board settings' })).toBeEnabled();
   });
 
   it('saveAsDefault says the defaults were saved when only clearing the page overrides fails', async () => {
@@ -2844,6 +2878,25 @@ describe('PageDetail', () => {
       expect(fixture.componentInstance.content()).toBe('# My draft');
     });
 
+    it('an own page-type write that carries a remote content change still raises the banner', async () => {
+      const { fixture, http } = await load();
+      const ctx = TestBed.inject(PageContext);
+      await typeEdit(fixture, '# My draft');
+
+      ctx.emitPageTypeChange({ pageType: 'pt-task', properties: {} });
+      await settle();
+      // Someone else's edit landed between our base and this partial write.
+      const saved = { ...serverPage, content: '# Theirs', pageType: 'pt-task', modifiedAt: '2026-03-03T00:00:00Z' };
+      http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush(saved);
+      await settle();
+      http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(saved);
+      await settle();
+      fixture.detectChanges();
+
+      expect(ctx.remoteChange()).toBe(true);
+      expect(fixture.componentInstance.content()).toBe('# My draft');
+    });
+
     it('a successful save re-baselines at once, so nothing is stashed while the page reloads', async () => {
       const { fixture, http } = await load();
       jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -2996,6 +3049,118 @@ describe('PageDetail', () => {
       expect(comp.viewMode()).toBe('board');
       // No second probe was needed: the same parent stays enabled through the reload.
       expect(http.match('/api/pages/g1/children?include=properties&limit=50')).toHaveLength(0);
+    });
+
+    describe('Save while the banner is showing', () => {
+      async function dirtyWithBanner() {
+        const r = await load();
+        jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        await typeEdit(r.fixture, '# Mine');
+        TestBed.inject(PageContext).remoteChange.set(true);
+        r.fixture.detectChanges();
+        return r;
+      }
+
+      it('asks first, and Cancel sends nothing', async () => {
+        const { fixture, http } = await dirtyWithBanner();
+        const open = jest
+          .spyOn(TestBed.inject(MatDialog), 'open')
+          .mockReturnValue({ afterClosed: () => of(false) } as never);
+
+        await fixture.componentInstance.save();
+
+        expect(open).toHaveBeenCalledTimes(1);
+        expect((open.mock.calls[0][1] as { data: { title: string } }).data.title).toMatch(/changed elsewhere/i);
+        http.expectNone((r) => r.method === 'PUT');
+        expect(fixture.componentInstance.content()).toBe('# Mine');
+      });
+
+      it('Save anyway saves and clears the banner', async () => {
+        const { fixture, http } = await dirtyWithBanner();
+        jest
+          .spyOn(TestBed.inject(MatDialog), 'open')
+          .mockReturnValue({ afterClosed: () => of(true) } as never);
+
+        const done = fixture.componentInstance.save();
+        await settle();
+        http
+          .expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1')
+          .flush({ ...serverPage, content: '# Mine', modifiedAt: '2026-03-03T00:00:00Z' });
+        await done;
+
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(false);
+      });
+
+      it('no prompt without the banner', async () => {
+        const { fixture } = await load();
+        jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        await typeEdit(fixture, '# Mine');
+        const open = jest.spyOn(TestBed.inject(MatDialog), 'open');
+
+        void fixture.componentInstance.save();
+        await settle();
+
+        expect(open).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('stashed draft over a newer server page', () => {
+      const T1 = serverPage.modifiedAt;
+      const T2 = '2026-02-02T00:00:00Z';
+      const stash = (baseModifiedAt?: string) =>
+        localStorage.setItem('bluefinwiki:draft:g1', JSON.stringify({
+          content: '# My draft',
+          metadata: { ...serverPage, tags: [] },
+          ...(baseModifiedAt ? { baseModifiedAt } : {}),
+        }));
+
+      it('raises the banner when the draft was based on an older modifiedAt', async () => {
+        stash(T1);
+        const { fixture } = await load({ page: { content: '# Theirs', modifiedAt: T2 } });
+
+        expect(fixture.componentInstance.content()).toBe('# My draft');
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(true);
+        expect(screen.getByText(BANNER)).toBeInTheDocument();
+      });
+
+      it('no banner when the draft was based on the current modifiedAt', async () => {
+        stash(T2);
+        await load({ page: { content: '# Theirs', modifiedAt: T2 } });
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(false);
+      });
+
+      it('no banner for a legacy draft with no baseModifiedAt', async () => {
+        stash();
+        await load({ page: { content: '# Theirs', modifiedAt: T2 } });
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(false);
+      });
+
+      it('an unacknowledged remote change survives a View/Edit toggle', async () => {
+        const { fixture, http } = await load();
+        await typeEdit(fixture, '# My draft');
+        await bumpPage(fixture);
+        http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Theirs', modifiedAt: T2 });
+        await settle();
+        fixture.detectChanges();
+        expect(TestBed.inject(PageContext).remoteChange()).toBe(true);
+
+        fixture.destroy(); // the toggle recreates the component; reset() clears the banner
+        expect(TestBed.inject(Drafts).get('g1')?.baseModifiedAt).toBe(T1);
+      });
+
+      it('Dismiss acknowledges the remote change, so the stashed draft is based on it', async () => {
+        const { fixture, http } = await load();
+        await typeEdit(fixture, '# My draft');
+        await bumpPage(fixture);
+        http.expectOne('/api/pages/g1').flush({ ...serverPage, content: '# Theirs', modifiedAt: T2 });
+        await settle();
+        fixture.detectChanges();
+
+        await userEvent.click(screen.getByRole('button', { name: /^dismiss$/i }));
+        await settle();
+        fixture.destroy();
+        expect(TestBed.inject(Drafts).get('g1')?.baseModifiedAt).toBe(T2);
+      });
     });
 
     describe('failed background refetch', () => {
