@@ -118,7 +118,11 @@ export async function saveLinkRelationship(
  * @param sourceGuid - GUID of the page whose links should be removed
  */
 export async function removePageLinks(sourceGuid: string): Promise<void> {
-  // Query all existing links for this source page
+  await deleteLinkRecords(await queryPageLinks(sourceGuid));
+}
+
+/** All link records originating from a source page. */
+async function queryPageLinks(sourceGuid: string): Promise<PageLinkRecord[]> {
   const queryCommand = new QueryCommand({
     TableName: getPageLinksTable(),
     KeyConditionExpression: 'sourceGuid = :sourceGuid',
@@ -126,16 +130,13 @@ export async function removePageLinks(sourceGuid: string): Promise<void> {
       ':sourceGuid': sourceGuid,
     }),
   });
-  
+
   const queryResult = await dynamoClient.send(queryCommand);
-  
-  if (!queryResult.Items || queryResult.Items.length === 0) {
-    return; // No links to remove
-  }
-  
-  // Delete all existing links in batch (max 25 per batch)
-  const items = queryResult.Items.map(item => unmarshall(item) as PageLinkRecord);
-  
+  return (queryResult.Items ?? []).map(item => unmarshall(item) as PageLinkRecord);
+}
+
+async function deleteLinkRecords(items: PageLinkRecord[]): Promise<void> {
+  // Delete in batches (max 25 per batch)
   for (let i = 0; i < items.length; i += 25) {
     const batch = items.slice(i, i + 25);
     
@@ -158,8 +159,9 @@ export async function removePageLinks(sourceGuid: string): Promise<void> {
 
 /**
  * Update all link relationships for a page
- * Removes stale links and adds new ones
- * 
+ * Removes stale links and adds new ones — or does nothing when the page's
+ * resolved links (target + text) are unchanged, the common case for saves.
+ *
  * @param sourceGuid - GUID of the page being updated
  * @param newLinks - Array of new wiki links to save
  */
@@ -167,19 +169,29 @@ export async function updatePageLinks(
   sourceGuid: string,
   newLinks: WikiLink[]
 ): Promise<void> {
-  // Remove all existing links first
-  await removePageLinks(sourceGuid);
-  
-  // Add new links (only those with resolved GUIDs)
+  const existing = await queryPageLinks(sourceGuid);
+
+  // Only links with resolved GUIDs are stored
   const validLinks = newLinks.filter(link => link.targetGuid && link.targetGuid.length > 0);
-  
+
+  if (sameLinks(existing, validLinks)) return;
+
+  await deleteLinkRecords(existing);
+
   for (const link of validLinks) {
     await saveLinkRelationship(sourceGuid, link.targetGuid, link.linkText);
   }
 
-  // The page save already published backlinks:any, but before this index
-  // changed; publish again so other tabs refetch backlinks from the new links.
+  // Visible page saves publish an upsert, not backlinks:any, so this is the
+  // signal for other tabs to refetch backlinks — sent once the index is written.
   await publishChange(['backlinks:any']);
+}
+
+/** Same targets with the same text. Later duplicates win, as the PutItems would. */
+function sameLinks(existing: PageLinkRecord[], next: WikiLink[]): boolean {
+  const want = new Map(next.map(link => [link.targetGuid, link.linkText ?? '']));
+  return existing.length === want.size &&
+    existing.every(record => want.get(record.targetGuid) === (record.linkText ?? ''));
 }
 
 /**
