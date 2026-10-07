@@ -7,8 +7,8 @@ import { Auth } from '../../core/auth/auth';
     <main style="padding:2rem; text-align:center;">
       @if (failed()) {
         <p>
-          Sign-in is unavailable — this looks like a configuration problem.
-          Please contact the site administrator.
+          Sign-in is unavailable — this looks like a configuration problem. Please contact the site
+          administrator.
         </p>
       } @else {
         <p>Redirecting to sign in…</p>

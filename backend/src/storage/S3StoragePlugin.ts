@@ -289,15 +289,25 @@ export class S3StoragePlugin extends BaseStoragePlugin {
           } else if (indent >= 4 && trimmed.includes(':')) {
             const key = trimmed.substring(0, trimmed.indexOf(':')).trim();
             let val = trimmed.substring(trimmed.indexOf(':') + 1).trim();
-            // Remove quotes
-            if ((val.startsWith('"') && val.endsWith('"')) ||
-                (val.startsWith("'") && val.endsWith("'"))) {
+            // Remove quotes. A quoted value is always a scalar: `value: ""` is
+            // an empty string, not the start of a multi-line array.
+            const quoted = val.length >= 2 &&
+              ((val.startsWith('"') && val.endsWith('"')) ||
+               (val.startsWith("'") && val.endsWith("'")));
+            if (quoted) {
               val = val.substring(1, val.length - 1);
             }
             if (key === 'type') {
               currentProp.type = val as PageProperty['type'];
             } else if (key === 'value') {
-              if (val.startsWith('[') && val.endsWith(']')) {
+              if (quoted && currentProp.type !== 'number') {
+                currentProp.value = val;
+              } else if ((currentProp.type === 'string' || currentProp.type === 'date') &&
+                         (val === '' || val === '[]')) {
+                // Heals pages that round-tripped an empty string through the
+                // old parser and were saved back as `value: []`.
+                currentProp.value = '';
+              } else if (val.startsWith('[') && val.endsWith(']')) {
                 // Inline array
                 currentProp.value = val.substring(1, val.length - 1)
                   .split(',')

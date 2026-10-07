@@ -209,6 +209,53 @@ This is a test.`;
       expect(page.status).toBe('published');
     });
 
+    it('keeps quoted string property values as strings, even empty or bracketed', async () => {
+      const guid = uuidv4();
+      const markdownContent = `---
+title: "Typed Page"
+guid: "${guid}"
+folderId: ""
+status: "published"
+properties:
+  state:
+    type: string
+    value: ""
+  note:
+    type: string
+    value: "[draft]"
+  rated:
+    type: tags
+    value: []
+  owner:
+    type: string
+    value: []
+  genre:
+    type: tags
+    value:
+      - drama
+createdBy: "user-123"
+modifiedBy: "user-123"
+createdAt: "2026-02-10T12:00:00Z"
+modifiedAt: "2026-02-10T12:00:00Z"
+---
+
+Body`;
+
+      s3Mock.on(GetObjectCommand).resolves({ Body: createMockStream(markdownContent)() as any });
+      s3Mock.on(HeadObjectCommand).resolves({ ContentLength: 100, LastModified: new Date() });
+
+      const page = await plugin.loadPage(guid);
+
+      expect(page.properties).toEqual({
+        state: { type: 'string', value: '' },
+        note: { type: 'string', value: '[draft]' },
+        rated: { type: 'tags', value: [] },
+        // written as `value: []` by a save that round-tripped the old parse
+        owner: { type: 'string', value: '' },
+        genre: { type: 'tags', value: ['drama'] },
+      });
+    });
+
     it('should throw error if page not found', async () => {
       s3Mock.on(HeadObjectCommand).rejects({ name: 'NotFound' });
 
