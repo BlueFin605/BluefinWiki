@@ -10,7 +10,9 @@ import {
 } from '../api/invalidation';
 import { Auth } from '../auth/auth';
 import { PageContext } from '../../features/pages/page-context';
+import { PageUpsert } from '../../features/pages/page.types';
 import { clientId } from './client-id';
+import { PageUpserts } from './page-upserts';
 
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30000;
@@ -22,10 +24,14 @@ const SLOW_FIRST_OPEN_MS = 3000;
 /**
  * Live invalidation over a WebSocket.
  *
- * The server pushes `{type:'invalidate', tags, origin}` after every write; this
+ * The server pushes `{type:'invalidate', tags, origin}` after most writes; this
  * bumps those tags on the {@link InvalidationBus} so the matching resources
- * refetch. Messages whose `origin` is this tab's {@link clientId} are echoes of
- * our own writes (already invalidated locally) and are dropped.
+ * refetch. A visible page save arrives as `{type:'upsert', pages, tags, origin}`
+ * instead: the page summaries go out on {@link PageUpserts} for lists to patch
+ * in place, and only `page:<guid>` of each (for open page bodies) plus the
+ * extra `tags` are bumped. Messages whose `origin` is this tab's
+ * {@link clientId} are echoes of our own writes (already applied locally) and
+ * are dropped.
  *
  * Hold-back: while the open page is in edit mode with unsaved changes
  * (`PageContext.dirty`), its `page:<guid>` tag is NOT bumped — a refetch would
@@ -49,6 +55,7 @@ export class Realtime {
   private readonly bus = inject(InvalidationBus);
   private readonly auth = inject(Auth);
   private readonly ctx = inject(PageContext);
+  private readonly upserts = inject(PageUpserts);
 
   private started = false;
   private ws: WebSocket | null = null;
@@ -162,16 +169,30 @@ export class Realtime {
       console.warn('[realtime] bad message', err);
       return;
     }
-    if (!isInvalidate(msg) || msg.origin === clientId()) return;
+    if (isUpsertType(msg) && !isUpsert(msg)) {
+      console.warn('[realtime] malformed upsert', msg);
+      return;
+    }
+    if (!(isInvalidate(msg) || isUpsert(msg)) || msg.origin === clientId()) return;
     untracked(() => {
-      const held = this.heldBackTag();
-      let rest = msg.tags;
-      if (held !== null && rest.includes(held)) {
-        rest = rest.filter((t) => t !== held);
-        this.ctx.remoteChange.set(true);
+      if (msg.type === 'upsert') {
+        this.upserts.emit(msg.pages, 'remote');
+        this.bumpTags([...msg.pages.map((p) => pageTag(p.guid)), ...msg.tags]);
+      } else {
+        this.bumpTags(msg.tags);
       }
-      if (rest.length > 0) this.bus.bumpMany(rest);
     });
+  }
+
+  /** Bump `tags`, holding back the open dirty page's tag (see class doc). */
+  private bumpTags(tags: string[]): void {
+    const held = this.heldBackTag();
+    let rest = tags;
+    if (held !== null && rest.includes(held)) {
+      rest = rest.filter((t) => t !== held);
+      this.ctx.remoteChange.set(true);
+    }
+    if (rest.length > 0) this.bus.bumpMany(rest);
   }
 
   /**
@@ -228,13 +249,40 @@ interface InvalidateMessage {
   origin?: string;
 }
 
+interface UpsertMessage {
+  type: 'upsert';
+  pages: PageUpsert[];
+  tags: string[];
+  origin?: string;
+}
+
+const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((t) => typeof t === 'string');
+
 function isInvalidate(m: unknown): m is InvalidateMessage {
   if (typeof m !== 'object' || m === null) return false;
   const o = m as Record<string, unknown>;
+  return o['type'] === 'invalidate' && isStringArray(o['tags']);
+}
+
+function isUpsertType(m: unknown): boolean {
+  return typeof m === 'object' && m !== null && (m as Record<string, unknown>)['type'] === 'upsert';
+}
+
+function isUpsert(m: unknown): m is UpsertMessage {
+  if (!isUpsertType(m)) return false;
+  const o = m as Record<string, unknown>;
+  return isStringArray(o['tags']) && Array.isArray(o['pages']) && o['pages'].every(isPageUpsert);
+}
+
+/** The fields consumers key and place on; the rest are optional or patched as-is. */
+function isPageUpsert(p: unknown): p is PageUpsert {
+  if (typeof p !== 'object' || p === null) return false;
+  const o = p as Record<string, unknown>;
   return (
-    o['type'] === 'invalidate' &&
-    Array.isArray(o['tags']) &&
-    o['tags'].every((t) => typeof t === 'string')
+    typeof o['guid'] === 'string' &&
+    typeof o['title'] === 'string' &&
+    (o['parentGuid'] === null || typeof o['parentGuid'] === 'string') &&
+    typeof o['status'] === 'string'
   );
 }
 

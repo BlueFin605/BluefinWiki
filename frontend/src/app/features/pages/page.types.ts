@@ -100,6 +100,13 @@ export interface PageChildDetail extends PageSummary {
   parentTitle?: string; // Populated for deep board fetches — title of the immediate parent
 }
 
+/**
+ * A saved page pushed by a realtime `upsert` (or applied from our own PUT).
+ * Same fields as a child summary, minus what isn't known at save time —
+ * `hasChildren` and `parentTitle`; consumers keep their existing values.
+ */
+export type PageUpsert = Omit<PageChildDetail, 'hasChildren' | 'parentTitle'> & { createdBy?: string };
+
 /** Board view configuration — stored as first-class frontmatter field on parent page */
 export interface BoardConfig {
   columns?: string[];
