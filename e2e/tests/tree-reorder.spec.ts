@@ -1,5 +1,9 @@
 import { test, expect, createPage } from '../fixtures/page-tree';
 
+// "Immediately" means without a reload, not within the default 5 s: under
+// the parallel full run the write behind it can take longer.
+const REFLECT_MS = 15_000;
+
 test.describe('Reordering tree children', () => {
   test('Sort children A-Z / Z-A reorders siblings and the tree reflects it immediately', async ({
     page,
@@ -33,16 +37,16 @@ test.describe('Reordering tree children', () => {
     // Reflected immediately — no reload — and Root must stay expanded (the
     // reorder bumps the same coarse `children:any` tag a rename does; this
     // exercises the tree-collapse fix from page-tree.ts/page-tree-item.ts).
-    await expect.poll(orderOf).toEqual([appleTitle, mangoTitle, zebraTitle]);
+    await expect.poll(orderOf, { timeout: REFLECT_MS }).toEqual([appleTitle, mangoTitle, zebraTitle]);
     await expect(rootRow).toHaveAttribute('aria-expanded', 'true');
 
     await rootRow.click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Sort children Z-A' }).click();
-    await expect.poll(orderOf).toEqual([zebraTitle, mangoTitle, appleTitle]);
+    await expect.poll(orderOf, { timeout: REFLECT_MS }).toEqual([zebraTitle, mangoTitle, appleTitle]);
 
     // Persists — a real reorder, not just an optimistic local splice.
     await page.reload();
     await rootRow.getByRole('button', { name: 'Expand' }).click();
-    await expect.poll(orderOf).toEqual([zebraTitle, mangoTitle, appleTitle]);
+    await expect.poll(orderOf, { timeout: REFLECT_MS }).toEqual([zebraTitle, mangoTitle, appleTitle]);
   });
 });

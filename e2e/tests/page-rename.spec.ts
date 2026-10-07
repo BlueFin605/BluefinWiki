@@ -1,4 +1,5 @@
 import { test, expect, createPage } from '../fixtures/page-tree';
+import { expandRow } from './helpers';
 
 test.describe('Renaming a page', () => {
   test('renaming the open page updates the tree row immediately and persists after reload', async ({
@@ -19,10 +20,7 @@ test.describe('Renaming a page', () => {
 
     // The tree does not auto-expand ancestors of the active page (by design) —
     // expand Root to reveal Child.
-    await page
-      .getByRole('treeitem', { name: `${pageTree.runId} Root` })
-      .getByRole('button', { name: 'Expand' })
-      .click();
+    await expandRow(page.getByRole('treeitem', { name: `${pageTree.runId} Root` }));
 
     await page.getByRole('treeitem', { name: oldName }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Rename' }).click();
@@ -53,10 +51,7 @@ test.describe('Renaming a page', () => {
     await page.reload();
     await expect(page.locator('.page-detail .bar .title')).toHaveText(newName);
     // A reload resets local tree UI state too — re-expand Root to check the row.
-    await page
-      .getByRole('treeitem', { name: `${pageTree.runId} Root` })
-      .getByRole('button', { name: 'Expand' })
-      .click();
+    await expandRow(page.getByRole('treeitem', { name: `${pageTree.runId} Root` }));
     await expect(page.getByRole('treeitem', { name: newName })).toBeVisible();
   });
 
@@ -64,14 +59,8 @@ test.describe('Renaming a page', () => {
     const oldName = `E2E-${pageTree.runId} Grandchild`;
     await page.goto(`/pages/${pageTree.rootGuid}`);
 
-    await page
-      .getByRole('treeitem', { name: `${pageTree.runId} Root` })
-      .getByRole('button', { name: 'Expand' })
-      .click();
-    await page
-      .getByRole('treeitem', { name: `${pageTree.runId} Child` })
-      .getByRole('button', { name: 'Expand' })
-      .click();
+    await expandRow(page.getByRole('treeitem', { name: `${pageTree.runId} Root` }));
+    await expandRow(page.getByRole('treeitem', { name: `${pageTree.runId} Child` }));
 
     await page.getByRole('treeitem', { name: oldName }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Rename' }).click();

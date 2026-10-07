@@ -1,6 +1,6 @@
 import { test, expect, createPage, updatePage, deletePageRecursive } from '../fixtures/page-tree';
 import { createPageType, deletePageType, allowChildTypes } from '../fixtures/page-types';
-import { toggleInspector, inspector } from './helpers';
+import { expandRow, toggleInspector, inspector } from './helpers';
 
 /**
  * Mirrors the real page-type shapes configured on the wiki (TV Kanban -> TV
@@ -100,14 +100,8 @@ test.describe('TV Shows board (real page-type shapes)', () => {
       // the reported bug's actual repro path. Expand Root -> Tracker to
       // reach Severance's tree row (the tree does not auto-expand ancestors
       // of the active page).
-      await page
-        .getByRole('treeitem', { name: `${pageTree.runId} Root` })
-        .getByRole('button', { name: 'Expand' })
-        .click();
-      await page
-        .getByRole('treeitem', { name: trackerTitle })
-        .getByRole('button', { name: 'Expand' })
-        .click();
+      await expandRow(page.getByRole('treeitem', { name: `${pageTree.runId} Root` }));
+      await expandRow(page.getByRole('treeitem', { name: trackerTitle }));
       await page.getByRole('treeitem', { name: severanceTitle }).click({ button: 'right' });
       await page.getByRole('menuitem', { name: 'New child page' }).click();
 
