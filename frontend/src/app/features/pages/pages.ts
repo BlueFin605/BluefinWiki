@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, type Signal, inject } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { Injectable, type Signal, inject, untracked } from '@angular/core';
+import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { PageUpserts } from '../../core/realtime/page-upserts';
 import { firstValueFrom, map } from 'rxjs';
 import {
   InvalidationBus,
@@ -17,6 +18,7 @@ import type {
   PageContent,
   PageSummary,
   PageChildDetail,
+  PageUpsert,
   UpdatePageRequest,
   MovePageRequest,
   ReorderRequest,
@@ -90,6 +92,7 @@ export const SKIP_CHILDREN_FETCH: unique symbol = Symbol('SKIP_CHILDREN_FETCH');
 export class Pages {
   private readonly http = inject(HttpClient);
   private readonly bus = inject(InvalidationBus);
+  private readonly upserts = inject(PageUpserts);
 
   /**
    * Reactive children resource. `parentGuid` is a signal so consumers can
@@ -100,9 +103,14 @@ export class Pages {
    *
    * Invalidation: keys on `children:<parentGuid|root>` plus the coarse
    * `children:any` (bumped by move/delete, whose owning parent is unknown).
+   *
+   * Page upserts patch the loaded list in place (see {@link patchChildList});
+   * a new child of this parent refetches it via `children:<parentGuid|root>`.
+   * A patched value leaves the resource in `'local'` status — consumers read
+   * it through `hasValue()`, not `status() === 'resolved'`.
    */
   childrenResource(parentGuid: Signal<string | null | typeof SKIP_CHILDREN_FETCH>) {
-    return rxResource({
+    const resource = rxResource({
       params: () => {
         const pg = parentGuid();
         return {
@@ -127,6 +135,15 @@ export class Pages {
           .pipe(map((r) => r.children ?? []));
       },
     });
+    this.upserts.batches$.pipe(takeUntilDestroyed()).subscribe(({ pages }) => {
+      const pg = untracked(parentGuid);
+      if (pg === SKIP_CHILDREN_FETCH || !resource.hasValue()) return;
+      const list = untracked(resource.value);
+      const { next, missing } = patchChildList(list, pages, pg);
+      if (next !== list) resource.value.set(next);
+      if (missing) this.bus.bump(childrenTag(pg));
+    });
+    return resource;
   }
 
   /**
@@ -156,9 +173,13 @@ export class Pages {
    * (bumped by move/rename, whose affected descendant guids are unknown at the
    * mutation site — a folder rename must still refresh every descendant's
    * breadcrumb).
+   *
+   * A page upsert renaming an ancestor patches its title in place (visible
+   * saves no longer bump `ancestors:any`); like `childrenResource`, a patched
+   * value is `'local'`, so consumers read it through `hasValue()`.
    */
   ancestorsResource(guid: Signal<string | null>) {
-    return rxResource({
+    const resource = rxResource({
       params: () => {
         const g = guid();
         return {
@@ -174,6 +195,14 @@ export class Pages {
           .pipe(map((r) => r.ancestors ?? []));
       },
     });
+    this.upserts.batches$.pipe(takeUntilDestroyed()).subscribe(({ pages }) => {
+      if (!resource.hasValue()) return;
+      const titles = new Map(pages.map((p) => [p.guid, p.title]));
+      const chain = untracked(resource.value);
+      if (!chain.some((a) => titles.has(a.guid) && titles.get(a.guid) !== a.title)) return;
+      resource.value.set(chain.map((a) => (titles.has(a.guid) ? { ...a, title: titles.get(a.guid)! } : a)));
+    });
+    return resource;
   }
 
   backlinksResource(guid: Signal<string | null>) {
@@ -339,31 +368,35 @@ export class Pages {
   }
 
   /**
-   * Invalidation is derived from which keys the request body carries (it only
-   * sends changed fields):
+   * A visible (published) result is applied to lists through the same path as
+   * a remote save: its summary goes out on {@link PageUpserts} as `'local'`,
+   * and the board, tree rows and breadcrumbs patch in place — no list
+   * refetch. Invalidation is then derived from which keys the request body
+   * carries (it only sends changed fields):
    * - `page:<guid>` always.
-   * - `children:<result.folderId>` AND the coarse `children:any` when ANY tree-
-   *   or board-visible field (`title` / `status` / `pageType` / `properties` /
-   *   `boardOrder`) is present — `PageContent.folderId` is the owning parent
-   *   guid, and a deep board aggregates descendants of some *other* parent and
-   *   renders their titles/state, so it must refresh on a descendant card's
-   *   title/status/pageType edit just as on a property/order edit.
-   * - `ancestors:any` additionally when `title` is in the body — a folder
-   *   rename changes the ancestor chain shown in every descendant's breadcrumb
-   *   (precise per-descendant invalidation is not available at this layer).
-   * - `backlinks:any` additionally when `content` is in the body — a body edit
-   *   changes the link-graph edges into the pages it links to (precise
-   *   per-target invalidation would need a link resolver we lack here).
-   * - `page-tags:list` additionally when `tags` is in the body — the backend
+   * - `backlinks:any` when `content` is in the body — a body edit changes the
+   *   link-graph edges into the pages it links to.
+   * - `page-tags:list` when `tags` is in the body — the backend
    *   auto-registers page tags on write, growing the shared vocabulary.
+   *
+   * A draft or archived result isn't upserted (drafts are per-user and
+   * archived pages leave lists, same rule as the server): any tree- or
+   * board-visible field (`title` / `status` / `pageType` / `properties` /
+   * `boardOrder`) instead bumps `children:<result.folderId>` and the coarse
+   * `children:any` (a deep board aggregates descendants of some other parent),
+   * and `title` bumps `ancestors:any` (every descendant's breadcrumb).
    */
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
     const tags = [pageTag(guid)];
-    const treeVisible = 'title' in body || 'status' in body || 'pageType' in body;
-    const boardVisible = 'properties' in body || 'boardOrder' in body;
-    if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId), childrenAnyTag());
-    if ('title' in body) tags.push(ancestorsAnyTag());
+    if (result.status === 'published') {
+      this.upserts.emit([pageToUpsert(result)], 'local');
+    } else {
+      const treeVisible = 'title' in body || 'status' in body || 'pageType' in body;
+      const boardVisible = 'properties' in body || 'boardOrder' in body;
+      if (treeVisible || boardVisible) tags.push(childrenTag(result.folderId), childrenAnyTag());
+      if ('title' in body) tags.push(ancestorsAnyTag());
+    }
     if ('content' in body) tags.push(backlinksAnyTag());
     // The backend auto-registers page-level tags on write, so the shared
     // vocabulary that feeds the Tags inspector autocomplete may have grown.
@@ -409,4 +442,67 @@ export class Pages {
     await firstValueFrom(this.http.delete<void>(`/api/pages/${guid}`, { body }));
     this.bus.bumpMany([childrenAnyTag(), pageTag(guid), backlinksAnyTag()]);
   }
+}
+
+/**
+ * Apply page upserts to one parent's child list. A row the batch updates is
+ * replaced by the summary (keeping `hasChildren`, which a save can't know) —
+ * or dropped if the summary places it under another parent — and the list
+ * re-sorted the way the backend sorts it. Upserts older than the row are
+ * ignored. `missing` = a page now under this parent isn't in the list yet
+ * (newly created), so the caller refetches. Returns the same `list` when
+ * nothing changed.
+ */
+export function patchChildList(
+  list: PageSummary[],
+  pages: readonly PageUpsert[],
+  listParent: string | null,
+): { next: PageSummary[]; missing: boolean } {
+  const byGuid = new Map(pages.map((p) => [p.guid, p]));
+  let changed = false;
+  const kept: PageSummary[] = [];
+  for (const row of list) {
+    const p = byGuid.get(row.guid);
+    byGuid.delete(row.guid);
+    if (!p || p.modifiedAt < row.modifiedAt) {
+      kept.push(row);
+      continue;
+    }
+    changed = true;
+    if (p.parentGuid === listParent) kept.push({ ...p, hasChildren: row.hasChildren });
+  }
+  const missing = [...byGuid.values()].some((p) => p.parentGuid === listParent);
+  return { next: changed ? kept.sort(compareSiblings) : list, missing };
+}
+
+/** Matches S3StoragePlugin.listChildren: sortOrder first (unordered last), then title. */
+function compareSiblings(a: PageSummary, b: PageSummary): number {
+  const aHas = a.sortOrder !== undefined;
+  const bHas = b.sortOrder !== undefined;
+  if (aHas && bHas) return a.sortOrder! - b.sortOrder!;
+  if (aHas !== bHas) return aHas ? -1 : 1;
+  return a.title.localeCompare(b.title);
+}
+
+/**
+ * A saved page as lists see it — mirrors the backend's `toPageSummary`
+ * (`backend/src/realtime/page-summary.ts`): no `content`, `folderId` becomes
+ * `parentGuid` (`''` → `null`), empty `tags`/`properties` omitted.
+ */
+export function pageToUpsert(page: PageContent): PageUpsert {
+  return {
+    guid: page.guid,
+    title: page.title,
+    parentGuid: page.folderId || null,
+    status: page.status,
+    ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
+    ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
+    ...(page.ticketKey ? { ticketKey: page.ticketKey } : {}),
+    createdBy: page.createdBy,
+    modifiedAt: page.modifiedAt,
+    modifiedBy: page.modifiedBy,
+    ...(page.pageType ? { pageType: page.pageType } : {}),
+    ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
+    ...(page.tags?.length ? { tags: page.tags } : {}),
+  };
 }

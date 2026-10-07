@@ -646,7 +646,7 @@ export class PagesView {
   private readonly activeAncestors = this.pages.ancestorsResource(this.activeGuid);
   protected readonly revealTarget = computed<TreeRevealTarget | null>(() => {
     const guid = this.activeGuid();
-    if (!guid || this.activeAncestors.status() !== 'resolved') return null;
+    if (!guid || !this.activeAncestors.hasValue()) return null;
     return { guid, ancestors: (this.activeAncestors.value() ?? []).map((a) => a.guid) };
   });
 

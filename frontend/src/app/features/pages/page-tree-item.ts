@@ -305,7 +305,7 @@ export class PageTreeItem {
   /**
    * `children`, RETAINED across an invalidation-driven reload. `children`
    * keys on the coarse `children:any` tag (invalidation.ts) — ANY
-   * tree-visible edit ANYWHERE (a rename, a status/type change, a reorder…)
+   * structural edit ANYWHERE (a move, delete, create, draft save, reorder…)
    * bumps it, and Angular's `resource()` clears `value()`/`status()` back to
    * `'loading'` with no retained-value API. Reading `children.value()`
    * directly in the template therefore blanked this row's child list for the
@@ -316,11 +316,11 @@ export class PageTreeItem {
    * `eligibilityChildren`, one level down.
    *
    * `value()` throws on an errored resource (including the deliberate
-   * `SKIP_CHILDREN_FETCH` "error" while collapsed) — only read it once
-   * resolved.
+   * `SKIP_CHILDREN_FETCH` "error" while collapsed) — only read it once it
+   * has a value (resolved, or patched in place by a page upsert).
    */
   protected readonly displayedChildren = linkedSignal<PageSummary[] | undefined, PageSummary[] | undefined>({
-    source: () => (this.children.status() === 'resolved' ? this.children.value() : undefined),
+    source: () => (this.children.hasValue() ? this.children.value() : undefined),
     computation: (value, previous) => value ?? previous?.value,
   });
 

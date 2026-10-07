@@ -12,6 +12,7 @@ Built with: Node.js 20 + TypeScript, AWS SDK v3 clients (S3, DynamoDB, Cognito, 
 - `src/storage/` — the pluggable storage abstraction (`StoragePlugin` interface) that all page/attachment persistence goes through; ships an S3 implementation. Pages are Markdown + YAML frontmatter, GUID-named, with children stored under a `{parent-guid}/` directory — this is the on-disk contract any new storage backend must preserve. Full interface and error-code reference: `src/storage/PLUGIN-DEVELOPER-GUIDE.md`; design rationale: `src/storage/S3-STORAGE-ARCHITECTURE.md`.
 - `src/search/`, `src/tags/`, `src/page-types/` — handlers for full-text search indexing, the tag registry, and page-type schema management.
 - `src/mcp/` — an MCP server (`mcp-handler.ts` + `tools/`) exposing wiki operations as tools for AI clients. `tools/kanban/` adds the `kanban_*` tools that treat an Initiative page and its Epic/Story/Task descendants as a dev Kanban board (used by the `bluefin-kanban` skill).
+- `src/realtime/` — realtime publishing (`upsert` / `invalidate` messages) and the WebSocket connection Lambdas; `src/storage/BroadcastingStoragePlugin.ts` publishes after every storage write. The message contract is in the root `../SYSDOC.md` "Realtime updates" section.
 - `src/middleware/` — shared Lambda middleware (auth plus other cross-cutting concerns).
 - `src/local-server.ts` — Express entry point used only for local dev via Aspire; not used in production.
 

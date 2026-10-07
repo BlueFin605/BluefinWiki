@@ -7,6 +7,7 @@ import { By } from '@angular/platform-browser';
 import { PageTree } from './page-tree';
 import { PageTreeItem } from './page-tree-item';
 import { Pages } from './pages';
+import { PageUpserts } from '../../core/realtime/page-upserts';
 import type { PageTypeDefinition } from './page.types';
 
 const providers = [provideHttpClient(), provideHttpClientTesting()];
@@ -47,6 +48,32 @@ describe('PageTree', () => {
     fixture.detectChanges();
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('Beta')).toBeInTheDocument();
+    http.verify();
+  });
+
+  it('renames a root row from a page upsert without refetching', async () => {
+    const { fixture } = await render(PageTree, { providers, inputs: { activeGuid: null, pageTypesMap: {} } });
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/pages/root/children').flush({
+      children: [
+        { guid: 'a', title: 'Alpha', parentGuid: null, status: 'published', modifiedAt: '', modifiedBy: '', hasChildren: false },
+      ],
+    });
+    const settle = async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      TestBed.tick();
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      fixture.detectChanges();
+    };
+    await settle();
+
+    TestBed.inject(PageUpserts).emit(
+      [{ guid: 'a', title: 'Alpha renamed', parentGuid: null, status: 'published', modifiedAt: 't', modifiedBy: 'u' }],
+      'remote',
+    );
+    await settle();
+
+    expect(screen.getByText('Alpha renamed')).toBeInTheDocument();
     http.verify();
   });
 

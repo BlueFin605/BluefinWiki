@@ -14,7 +14,9 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Pages, type ChildrenWithPropertiesOptions } from '../pages/pages';
 import { PageTypes } from '../page-types/page-types';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { InvalidationBus, childrenTag, pageTypesListTag } from '../../core/api/invalidation';
+import { PageUpserts } from '../../core/realtime/page-upserts';
 import { BoardColumn } from './board-column';
 import { CardSummaryDialog, type CardSummaryDialogData } from './card-summary-dialog';
 import { computeBoardOrder } from './compute-board-order';
@@ -25,6 +27,7 @@ import type {
   PageChildDetail,
   PageProperty,
   PageTypeDefinition,
+  PageUpsert,
   UpdatePageRequest,
 } from '../pages/page.types';
 
@@ -129,6 +132,7 @@ export class BoardView {
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
   private readonly bus = inject(InvalidationBus);
+  private readonly upserts = inject(PageUpserts);
 
   readonly parentGuid = input.required<string>();
   readonly boardConfig = input<BoardConfig | null>(null);
@@ -229,11 +233,11 @@ export class BoardView {
   private lastBasisKey: string | null = null;
 
   /**
-   * Show the "Loading board…" placeholder only on a genuine first load. Every
-   * successful drop and Card Summary save bumps `children:any`, which puts
-   * `childrenResource` back into a loading state — blanking the whole board
-   * there would unmount every column and erase the optimistic patch that
-   * steps 5.3/5.4 exist to produce. With something already accumulated we
+   * Show the "Loading board…" placeholder only on a genuine first load. Any
+   * `children:*` bump (a move, delete, create, draft save or manual Refresh)
+   * puts `childrenResource` back into a loading state — blanking the whole
+   * board there would unmount every column and erase any optimistic patch
+   * steps 5.3/5.4 produced. With something already accumulated we
    * keep painting the last-good grouping until the reload lands.
    */
   protected readonly showInitialLoading = computed(
@@ -266,6 +270,51 @@ export class BoardView {
       const value = this.childrenResource.value() ?? null;
       untracked(() => this.onPageOneResolved(value));
     });
+
+    this.upserts.batches$.pipe(takeUntilDestroyed()).subscribe(({ pages }) => this.applyUpserts(pages));
+  }
+
+  /**
+   * Patch cards from saved-page summaries (realtime or our own PUTs) instead
+   * of refetching the board. A card that still belongs is replaced in place —
+   * `groupByState` re-groups and re-sorts it — keeping only the list-only
+   * fields the summary can't carry (`hasChildren`, `parentTitle`); absent
+   * optional fields mean cleared, since the server omits empty ones. A card
+   * that no longer belongs is dropped. A page we don't have that could belong
+   * (it may be a deep descendant we can't place) refetches this board once.
+   * An upsert older than the card it would replace (e.g. racing an optimistic
+   * drag) is ignored.
+   */
+  private applyUpserts(pages: readonly PageUpsert[]): void {
+    const parentGuid = this.parentGuidSig();
+    if (!parentGuid) return;
+    const types = this.options()?.targetTypeGuids ?? null;
+    const belongs = (p: PageUpsert): boolean =>
+      types ? p.pageType !== undefined && types.includes(p.pageType) : p.parentGuid === parentGuid;
+
+    const byGuid = new Map(pages.map((p) => [p.guid, p]));
+    const current = this.accumulated();
+    let changed = false;
+    const next: PageChildDetail[] = [];
+    for (const c of current) {
+      const p = byGuid.get(c.guid);
+      byGuid.delete(c.guid);
+      if (!p || p.modifiedAt < c.modifiedAt) {
+        next.push(c);
+        continue;
+      }
+      changed = true;
+      if (belongs(p)) {
+        next.push({
+          ...p,
+          hasChildren: c.hasChildren,
+          ...(c.parentTitle !== undefined ? { parentTitle: c.parentTitle } : {}),
+        });
+      }
+    }
+    if (changed) this.accumulated.set(next);
+    // What's left in byGuid isn't on the board.
+    if ([...byGuid.values()].some(belongs)) this.bus.bump(childrenTag(parentGuid));
   }
 
   /** Parent + query options that `accumulated` is currently built against. */
@@ -514,12 +563,11 @@ export class BoardView {
         return this.pages.updatePage(guid, body);
       }),
     );
-    // Success: each successful `updatePage` bumps `children:any` (see its
-    // doc comment), which re-fetches page one and resets `accumulated` via
-    // the constructor effect above — that reconciles the affected cards with
-    // the server's authoritative state. Nothing further to do for those:
-    // the optimistic patch already shows them in place, so there's no
-    // visible jump when the reset lands.
+    // Success: each successful `updatePage` emits the saved card on
+    // PageUpserts (see its doc comment), and {@link applyUpserts} swaps the
+    // server's copy in over the optimistic one — no board refetch. Nothing
+    // further to do for those: the optimistic patch already shows them in
+    // place, so there's no visible jump.
 
     const failures = settled
       .map((r, i) => ({ r, guid: entries[i] }))

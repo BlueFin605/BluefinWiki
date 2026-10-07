@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BroadcastingStoragePlugin } from '../BroadcastingStoragePlugin.js';
-import { setBroadcaster } from '../../realtime/broadcaster.js';
+import { collectChanges, setBroadcaster } from '../../realtime/broadcaster.js';
+import { runWithOrigin } from '../../realtime/request-origin.js';
+import { toPageSummary } from '../../realtime/page-summary.js';
 import type { StoragePlugin } from '../StoragePlugin.js';
+import type { PageContent } from '../../types/index.js';
 
 afterEach(() => setBroadcaster(null));
 
@@ -16,13 +19,60 @@ function tagsOf(publish: ReturnType<typeof vi.fn>): string[][] {
 }
 
 describe('BroadcastingStoragePlugin', () => {
-  it('publishes after a successful savePage', async () => {
+  const page = (over: Partial<PageContent> = {}): PageContent => ({
+    guid: 'g',
+    title: 'Card',
+    content: '# secret body',
+    folderId: 'f',
+    tags: ['dean'],
+    status: 'published',
+    boardOrder: 2,
+    properties: { state: { type: 'string', value: 'Ready' } },
+    createdBy: 'u1',
+    modifiedBy: 'u2',
+    createdAt: '2026-10-01T00:00:00.000Z',
+    modifiedAt: '2026-10-07T00:00:00.000Z',
+    ...over,
+  });
+
+  it('publishes an upsert with the page summary (no content) after a published savePage', async () => {
     const publish = vi.fn().mockResolvedValue(undefined);
     setBroadcaster({ publish });
     const p = new BroadcastingStoragePlugin(inner());
-    await p.savePage('g', 'f', {} as never);
-    expect(publish.mock.calls[0][0].tags).toContain('page:g');
-    expect(publish.mock.calls[0][0].tags).toContain('children:f');
+    await runWithOrigin('tab-9', () => p.savePage('g', 'f', page()));
+    expect(publish).toHaveBeenCalledTimes(1);
+    const event = publish.mock.calls[0][0];
+    expect(event).toEqual({
+      type: 'upsert',
+      pages: [toPageSummary(page(), 'f')],
+      tags: [],
+      origin: 'tab-9',
+    });
+    expect(JSON.stringify(event)).not.toContain('secret body');
+  });
+
+  it.each(['draft', 'archived', 'deleted'] as const)('publishes coarse invalidate tags for a %s savePage', async (status) => {
+    const publish = vi.fn().mockResolvedValue(undefined);
+    setBroadcaster({ publish });
+    const p = new BroadcastingStoragePlugin(inner());
+    await p.savePage('g', 'f', page({ status }));
+    const event = publish.mock.calls[0][0];
+    expect(event.type).toBe('invalidate');
+    expect(event.tags).toEqual(expect.arrayContaining(['page:g', 'children:f']));
+    expect(JSON.stringify(event)).not.toContain('Card');
+  });
+
+  it('batches savePage upserts inside collectChanges', async () => {
+    const publish = vi.fn().mockResolvedValue(undefined);
+    setBroadcaster({ publish });
+    const p = new BroadcastingStoragePlugin(inner());
+    await collectChanges(async () => {
+      await p.savePage('a', 'f', page({ guid: 'a' }));
+      await p.savePage('b', 'f', page({ guid: 'b' }));
+      await p.savePage('c', 'f', page({ guid: 'c' }));
+    });
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0][0].pages.map((s: { guid: string }) => s.guid)).toEqual(['a', 'b', 'c']);
   });
 
   it('passes savePage arguments through unchanged', async () => {

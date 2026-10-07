@@ -98,7 +98,7 @@ export class PageTree {
   /**
    * `rootChildren`, RETAINED across an invalidation-driven reload.
    * `rootChildren` keys on the coarse `children:any` tag (invalidation.ts) —
-   * ANY tree-visible edit ANYWHERE (a rename, a status/type change, a
+   * ANY structural edit ANYWHERE (a move, delete, create, draft save,
    * reorder…) bumps it, and Angular's `resource()` clears `value()`/
    * `status()` back to `'loading'` with no retained-value API. Reading
    * `rootChildren.value()` directly in the template therefore replaced the
@@ -110,10 +110,11 @@ export class PageTree {
    * `eligibilityChildren` ("keep painting the last-good data through a
    * reload", also `BoardView.showInitialLoading`'s rule).
    *
-   * `value()` throws on an errored resource — only read it once resolved.
+   * `value()` throws on an errored resource — only read it once it has a value
+   * (resolved, or patched in place by a page upsert — status `'local'`).
    */
   protected readonly displayedRoot = linkedSignal<PageSummary[] | undefined, PageSummary[] | undefined>({
-    source: () => (this.rootChildren.status() === 'resolved' ? this.rootChildren.value() : undefined),
+    source: () => (this.rootChildren.hasValue() ? this.rootChildren.value() : undefined),
     computation: (value, previous) => value ?? previous?.value,
   });
 

@@ -36,6 +36,7 @@ This isn't a bolt-on task tracker — it's built directly on the wiki's page typ
 - **Keyboard shortcuts** — Ctrl+S to save, Ctrl+B for bold, Ctrl+I for italic
 - **Mermaid diagrams** rendered in preview
 - **Draft persistence** — unsaved edits are stashed when navigating away and restored when you return
+- **Live updates** — edits made in another tab or by another family member show up straight away; if you are mid-edit on the same page you get a banner instead of losing your work
 - **Syntax highlighting** in code blocks
 
 ### File Attachments
@@ -106,21 +107,25 @@ bluefinwiki/
 
 ### Production Stack
 
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│  CloudFront │────▶│  S3 (static) │     │   API Gateway    │
-│    (CDN)    │     │  Angular SPA │     │   REST API       │
-└─────────────┘     └──────────────┘     └────────┬────────┘
-                                                   │
-                                          ┌────────▼────────┐
-                                          │  Lambda (Node)   │
-                                          │  Backend Logic   │
-                                          └──┬─────┬─────┬──┘
-                                             │     │     │
-                                    ┌────────▼┐ ┌──▼──┐ ┌▼────────┐
-                                    │ DynamoDB │ │ S3  │ │ Cognito │
-                                    │ Metadata │ │Pages│ │  Auth   │
-                                    └─────────┘ └─────┘ └─────────┘
+```mermaid
+flowchart LR
+    Browser["Browser<br/>Angular SPA"]
+    CF["CloudFront CDN"]
+    Static["S3<br/>static site"]
+    REST["API Gateway<br/>REST API"]
+    WSAPI["API Gateway<br/>WebSocket API"]
+    Lambda["Lambda (Node.js)<br/>one handler per endpoint"]
+    Pages["S3<br/>page content"]
+    Dynamo["DynamoDB<br/>metadata and indexes"]
+    Cognito["Cognito<br/>auth"]
+
+    Browser --> CF --> Static
+    Browser -->|REST calls| REST --> Lambda
+    Browser <-->|live updates| WSAPI
+    Lambda --> Pages
+    Lambda --> Dynamo
+    Lambda --> Cognito
+    Lambda -->|push changes| WSAPI
 ```
 
 - **Frontend**: Angular SPA served via CloudFront CDN
@@ -128,6 +133,7 @@ bluefinwiki/
 - **Storage**: S3 for page content (Markdown + YAML frontmatter), DynamoDB for metadata, indexes, page types, tags, user profiles, invitations, and activity logs
 - **Auth**: AWS Cognito with invite-only registration and optional Google login
 - **Search**: Client-side full-text index built from backend data, with background refresh
+- **Live updates**: every change is pushed to open tabs over an API Gateway WebSocket, so boards, the page tree and breadcrumbs update without a reload
 
 ### Local Development
 
@@ -142,23 +148,17 @@ No AWS account needed for local development.
 
 The application never talks to S3 directly — it talks to the `StoragePlugin` interface:
 
-```
-┌─────────────────────────────────────────┐
-│   Application Layer (Lambda Functions)  │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│      StoragePlugin Interface            │
-│  (savePage, loadPage, deletePage, etc.) │
-└──────────────┬──────────────────────────┘
-               │
-      ┌────────┴────────┬──────────┐
-      ▼                 ▼          ▼
-┌───────────┐   ┌─────────────┐  ┌────────────┐
-│ S3Storage │   │  Your Own   │  │  Your Own  │
-│  Plugin   │   │   Plugin    │  │   Plugin   │
-└───────────┘   └─────────────┘  └────────────┘
+```mermaid
+flowchart TD
+    App["Application layer<br/>Lambda functions"]
+    Iface["StoragePlugin interface<br/>savePage, loadPage, deletePage, ..."]
+    S3P["S3StoragePlugin<br/>ships production-ready"]
+    Own1["Your own plugin<br/>e.g. GitHub"]
+    Own2["Your own plugin<br/>e.g. local filesystem"]
+    App --> Iface
+    Iface --> S3P
+    Iface --> Own1
+    Iface --> Own2
 ```
 
 The S3 plugin ships production-ready. To add a new backend (GitHub, Azure Blob, local filesystem), implement the `StoragePlugin` interface and register it — no changes to the rest of the system. Pages are stored as Markdown with YAML frontmatter using GUID-based paths, so hierarchy and metadata work identically regardless of backend.

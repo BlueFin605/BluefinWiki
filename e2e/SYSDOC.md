@@ -1,6 +1,6 @@
 # E2E — BlueFinWiki
 
-What this is: a real-browser Playwright suite (34 spec files) covering the Angular frontend end to end — boards, editor, admin, invitations, AI features, page tree, etc. Runs against an already-running Aspire dev stack rather than starting its own (see `e2e/README.md`'s "Why no webServer" section) and seeds/tears down its own fixture data via the backend API.
+What this is: a real-browser Playwright suite (42 spec files) covering the Angular frontend end to end — boards, editor, admin, invitations, AI features, page tree, etc. Runs against an already-running Aspire dev stack rather than starting its own (see `e2e/README.md`'s "Why no webServer" section) and seeds/tears down its own fixture data via the backend API.
 
 Built with: Playwright + TypeScript.
 

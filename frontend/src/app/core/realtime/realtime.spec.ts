@@ -5,6 +5,8 @@ import { clientId } from './client-id';
 import { InvalidationBus } from '../api/invalidation';
 import { Auth } from '../auth/auth';
 import { PageContext } from '../../features/pages/page-context';
+import type { PageUpsertBatch } from './page-upserts';
+import { PageUpserts } from './page-upserts';
 import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 import { environment } from '../../../environments/environment';
 
@@ -215,6 +217,83 @@ describe('Realtime', () => {
 
     expect(bump).not.toHaveBeenCalled();
     expect(ctx.remoteChange()).toBe(true);
+  });
+
+  describe('upsert messages', () => {
+    const card = (guid: string) => ({
+      guid,
+      title: `Card ${guid}`,
+      parentGuid: 'board',
+      status: 'published',
+      boardOrder: 1,
+      properties: { state: { type: 'string', value: 'Done' } },
+      modifiedAt: 't',
+      modifiedBy: 'u',
+    });
+
+    function collect(): PageUpsertBatch[] {
+      const seen: PageUpsertBatch[] = [];
+      TestBed.inject(PageUpserts).batches$.subscribe((b) => seen.push(b));
+      return seen;
+    }
+
+    it('emits the pages as remote and bumps page:<guid> for each plus the extra tags', async () => {
+      const { rt, bump } = setup();
+      const seen = collect();
+      rt.start();
+      await flush();
+      last().open();
+      last().msg({ type: 'upsert', pages: [card('a'), card('b')], tags: ['comments:a'], origin: 'other' });
+
+      expect(seen).toEqual([{ pages: [card('a'), card('b')], source: 'remote' }]);
+      expect(bump).toHaveBeenCalledTimes(1);
+      expect(bump).toHaveBeenCalledWith(['page:a', 'page:b', 'comments:a']);
+    });
+
+    it("ignores this tab's own upsert echoes", async () => {
+      const { rt, bump } = setup();
+      const seen = collect();
+      rt.start();
+      await flush();
+      last().open();
+      last().msg({ type: 'upsert', pages: [card('a')], tags: [], origin: clientId() });
+
+      expect(seen).toEqual([]);
+      expect(bump).not.toHaveBeenCalled();
+    });
+
+    it('holds back page:<guid> for a dirty edited page but still emits it (only the body is held)', async () => {
+      const { rt, ctx, bump } = setup();
+      const seen = collect();
+      ctx.guid.set('a');
+      ctx.mode.set('edit');
+      ctx.dirty.set(true);
+      rt.start();
+      await flush();
+      last().open();
+      last().msg({ type: 'upsert', pages: [card('a'), card('b')], tags: [], origin: 'other' });
+
+      expect(ctx.remoteChange()).toBe(true);
+      expect(bump).toHaveBeenCalledWith(['page:b']);
+      expect(seen).toEqual([{ pages: [card('a'), card('b')], source: 'remote' }]);
+    });
+
+    it('ignores malformed upserts with a warning', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const { rt, bump } = setup();
+      const seen = collect();
+      rt.start();
+      await flush();
+      last().open();
+      last().msg({ type: 'upsert', pages: 'nope', tags: [], origin: 'other' });
+      last().msg({ type: 'upsert', pages: [{ title: 'no guid', parentGuid: null }], tags: [], origin: 'other' });
+      last().msg({ type: 'upsert', pages: [card('a')], tags: 'comments:a', origin: 'other' });
+
+      expect(seen).toEqual([]);
+      expect(bump).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(3);
+      warn.mockRestore();
+    });
   });
 
   it('reconnects with exponential backoff capped at 30 s, reset after a successful open', async () => {

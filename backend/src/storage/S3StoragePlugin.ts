@@ -88,6 +88,7 @@ import {
   AttachmentMetadata,
   Comment,
 } from '../types/index.js';
+import { toPageSummary } from '../realtime/page-summary.js';
 
 interface S3StorageConfig {
   type?: 's3';
@@ -1034,20 +1035,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
             // Only include pages that are actually root pages (folderId is null or empty)
             if (page.folderId && page.folderId !== '') return null;
             return {
-              guid: page.guid,
-              title: page.title,
-              parentGuid: null,
-              status: page.status === 'deleted' ? 'archived' : page.status,
-              ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
-              ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
-              ...(page.ticketKey ? { ticketKey: page.ticketKey } : {}),
-              createdBy: page.createdBy,
-              modifiedAt: page.modifiedAt,
-              modifiedBy: page.modifiedBy,
+              ...toPageSummary(page, null),
               hasChildren: await this.hasChildrenDirect(guid),
-              ...(page.pageType ? { pageType: page.pageType } : {}),
-              ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
-              ...(page.tags?.length ? { tags: page.tags } : {}),
             };
           } catch (err) {
             // Skip pages that can't be loaded
@@ -1116,20 +1105,8 @@ export class S3StoragePlugin extends BaseStoragePlugin {
             if (actualFolder !== `${parentFolder}${guid}/`) return null;
             const page = await this.loadPage(guid);
             return {
-              guid: page.guid,
-              title: page.title,
-              parentGuid: parentGuid,
-              status: page.status === 'deleted' ? 'archived' : page.status,
-              ...(page.sortOrder !== undefined ? { sortOrder: page.sortOrder } : {}),
-              ...(page.boardOrder !== undefined ? { boardOrder: page.boardOrder } : {}),
-              ...(page.ticketKey ? { ticketKey: page.ticketKey } : {}),
-              createdBy: page.createdBy,
-              modifiedAt: page.modifiedAt,
-              modifiedBy: page.modifiedBy,
+              ...toPageSummary(page, parentGuid),
               hasChildren: await this.hasChildrenDirect(guid),
-              ...(page.pageType ? { pageType: page.pageType } : {}),
-              ...(page.properties && Object.keys(page.properties).length > 0 ? { properties: page.properties } : {}),
-              ...(page.tags?.length ? { tags: page.tags } : {}),
             };
           } catch (err) {
             console.warn(`Failed to load page ${guid}:`, err);
