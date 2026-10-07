@@ -10,7 +10,7 @@ import {
 } from '../api/invalidation';
 import { Auth } from '../auth/auth';
 import { PageContext } from '../../features/pages/page-context';
-import { PageUpsert } from '../../features/pages/page.types';
+import type { PageUpsert } from '../../features/pages/page.types';
 import { clientId } from './client-id';
 import { PageUpserts } from './page-upserts';
 

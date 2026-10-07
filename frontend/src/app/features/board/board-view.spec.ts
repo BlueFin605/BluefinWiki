@@ -669,7 +669,7 @@ describe('BoardView', () => {
   });
 
   it('restores the loaded multi-page window after an invalidation-triggered reset', async () => {
-    const { fixture } = await render(BoardView, {
+    await render(BoardView, {
       providers: baseProviders(),
       inputs: { parentGuid: 'parent-window' },
     });

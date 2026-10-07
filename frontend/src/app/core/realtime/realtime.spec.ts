@@ -5,7 +5,8 @@ import { clientId } from './client-id';
 import { InvalidationBus } from '../api/invalidation';
 import { Auth } from '../auth/auth';
 import { PageContext } from '../../features/pages/page-context';
-import { PageUpserts, PageUpsertBatch } from './page-upserts';
+import type { PageUpsertBatch } from './page-upserts';
+import { PageUpserts } from './page-upserts';
 import { provideBreakpointStub } from '../../testing/breakpoint-stub';
 import { environment } from '../../../environments/environment';
 

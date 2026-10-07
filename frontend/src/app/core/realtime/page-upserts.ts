@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
-import { Observable, Subject } from 'rxjs';
+import type { Observable} from 'rxjs';
+import { Subject } from 'rxjs';
 
-import { PageUpsert } from '../../features/pages/page.types';
+import type { PageUpsert } from '../../features/pages/page.types';
 
 export interface PageUpsertBatch {
   pages: PageUpsert[];

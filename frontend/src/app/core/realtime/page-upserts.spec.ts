@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 
-import { PageUpserts, PageUpsertBatch } from './page-upserts';
-import { PageUpsert } from '../../features/pages/page.types';
+import type { PageUpsertBatch } from './page-upserts';
+import { PageUpserts } from './page-upserts';
+import type { PageUpsert } from '../../features/pages/page.types';
 
 const page = (guid: string): PageUpsert => ({
   guid,
