@@ -5,12 +5,10 @@
  * Only published pages are returned.
  */
 
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { pagesBucket, pagesS3 } from '../pages-s3.js';
 import { getStoragePlugin } from '../../storage/StoragePluginRegistry.js';
 import { isTicketKey, resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
-
-const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
-const bucket = process.env.PAGES_BUCKET!;
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,8 +29,8 @@ async function toS3Key(ref: string): Promise<string> {
 export async function getPage(ref: string): Promise<string> {
   const s3Key = await toS3Key(ref.trim());
   try {
-    const result = await s3.send(new GetObjectCommand({
-      Bucket: bucket,
+    const result = await pagesS3().send(new GetObjectCommand({
+      Bucket: pagesBucket(),
       Key: s3Key,
     }));
 

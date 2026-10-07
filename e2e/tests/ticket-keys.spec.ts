@@ -17,10 +17,15 @@ const expect = baseExpect.configure({ timeout: 15_000 });
 
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Expand tree rows by title, outermost first. */
+/**
+ * Expand tree rows by title, outermost first. The tree may already have
+ * expanded a row itself (it expands down to the open page), so only click
+ * the rows still showing Expand.
+ */
 async function expandTree(page: Page, titles: string[]): Promise<void> {
   for (const title of titles) {
-    await page.getByRole('treeitem', { name: title }).getByRole('button', { name: 'Expand' }).click();
+    const toggle = page.getByRole('treeitem', { name: title }).getByRole('button', { name: /^(Expand|Collapse)$/ }).first();
+    if ((await toggle.getAttribute('aria-label')) === 'Expand') await toggle.click();
   }
 }
 
@@ -75,8 +80,8 @@ test.describe('Ticket keys', () => {
       expect(guidLine).toMatch(/^Guid: [0-9a-f-]{36}$/);
       const newTaskGuid = guidLine.slice('Guid: '.length);
 
-      // The generic MCP tools take the key too. (get_page reads S3 directly via
-      // PAGES_BUCKET, which the local stack doesn't set, so comments stand in.)
+      // The generic MCP tools take the key too.
+      expect(await callTool(request, 'get_page', { s3Key: key(3).toLowerCase() })).toContain(t('New task'));
       await callTool(request, 'add_comment', { pageGuid: key(3).toLowerCase(), body: 'via key' });
       expect(await callTool(request, 'list_comments', { pageGuid: key(3) })).toContain('via key');
 
