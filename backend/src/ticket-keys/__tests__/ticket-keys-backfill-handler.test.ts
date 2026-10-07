@@ -1,10 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { withRoleSpy } = vi.hoisted(() => ({
-  withRoleSpy: vi.fn((_roles: string[], fn: unknown) => fn),
-}));
+// withRole runs at import time; record its roles outside the mock, since
+// vitest clears mock call history before each test (clearMocks default).
+const { withRoleCalls } = vi.hoisted(() => ({ withRoleCalls: [] as string[][] }));
 
-vi.mock('../../middleware/auth.js', () => ({ withAuth: (fn: any) => fn, withRole: withRoleSpy }));
+vi.mock('../../middleware/auth.js', () => ({
+  withAuth: (fn: any) => fn,
+  withRole: (roles: string[], fn: unknown) => {
+    withRoleCalls.push(roles);
+    return fn;
+  },
+}));
 vi.mock('../ticket-keys-backfill.js', async (orig) => {
   const actual = await orig<typeof import('../ticket-keys-backfill.js')>();
   return { ...actual, backfillTicketKeys: vi.fn() };
@@ -23,7 +29,7 @@ describe('ticket-keys-backfill-handler', () => {
   });
 
   it('is wrapped with withRole([Admin])', () => {
-    expect(withRoleSpy).toHaveBeenCalledWith(['Admin'], expect.any(Function));
+    expect(withRoleCalls).toEqual([['Admin']]);
   });
 
   it('200 with the backfill result', async () => {
