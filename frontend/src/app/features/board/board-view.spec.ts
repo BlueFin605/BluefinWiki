@@ -9,7 +9,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { BoardView } from './board-view';
 import { errorInterceptor } from '../../core/api/error-interceptor';
 import { InvalidationBus, childrenAnyTag, pageTypesListTag } from '../../core/api/invalidation';
-import type { PageChildDetail } from '../pages/page.types';
+import { PageUpserts } from '../../core/realtime/page-upserts';
+import type { PageChildDetail, PageUpsert } from '../pages/page.types';
 
 function card(over: Partial<PageChildDetail> = {}): PageChildDetail {
   return {
@@ -1536,6 +1537,118 @@ describe('BoardView', () => {
       expect(within(screen.getByText('Done').closest('wiki-board-column') as HTMLElement)
         .getByRole('button', { name: /leaf a/i })).toBeInTheDocument();
       expect(http.match((r) => r.url.includes('/children')).length).toBe(0);
+    });
+  });
+
+  describe('realtime upserts', () => {
+    const STATE = [{ name: 'state', type: 'string' as const, required: true }];
+    const TASK_TYPE = {
+      guid: 'pt-task', name: 'Task', icon: 'x', properties: STATE, allowedChildTypes: [],
+      allowWikiPageChildren: false, allowedParentTypes: [], allowAnyParent: true,
+      createdBy: 'u', createdAt: '', updatedAt: '',
+    };
+    const URL = '/api/pages/p1/children?include=properties&limit=200';
+    const TYPED_URL = '/api/pages/p1/children?include=properties&type=pt-task&depth=10&limit=200';
+    const state = (value: string) => ({ state: { type: 'string' as const, value } });
+
+    /** What a remote save of `c` would push: the card minus list-only fields. */
+    function upsertOf(c: PageChildDetail, over: Partial<PageUpsert> = {}): PageUpsert {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { hasChildren, parentTitle, ...rest } = c;
+      return { ...rest, modifiedAt: '2026-02-01T00:00:00Z', ...over };
+    }
+
+    async function loadedBoard(typed: boolean, cards: PageChildDetail[]) {
+      const view = await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'p1', ...(typed ? { boardConfig: { targetTypeGuids: ['pt-task'] } } : {}) },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      for (const r of http.match('/api/page-types')) r.flush({ pageTypes: [TASK_TYPE] });
+      await settle();
+      http.expectOne(typed ? TYPED_URL : URL).flush({ children: cards, hasMore: false });
+      await settle();
+      view.fixture.detectChanges();
+      const accumulated = () =>
+        (view.fixture.componentInstance as unknown as { accumulated: () => PageChildDetail[] }).accumulated();
+      const emit = async (pages: PageUpsert[]) => {
+        TestBed.inject(PageUpserts).emit(pages, 'remote');
+        await settle();
+        view.fixture.detectChanges();
+      };
+      return { http, accumulated, emit, fixture: view.fixture };
+    }
+
+    it('moves a card to its new column in place, keeping list-only fields, with no HTTP call', async () => {
+      const a = card({ guid: 'a', title: 'Card A', properties: state('To Do'), parentTitle: 'Story', hasChildren: true });
+      const b = card({ guid: 'b', title: 'Card B', properties: state('Done') });
+      const { http, accumulated, emit } = await loadedBoard(false, [a, b]);
+
+      await emit([upsertOf(a, { properties: state('Done'), boardOrder: 5 })]);
+
+      http.expectNone((r) => r.url.includes('/api/pages'));
+      expect(columnCount('Done')).toBe('2');
+      const patched = accumulated().find((c) => c.guid === 'a')!;
+      expect(patched).toMatchObject({ properties: state('Done'), boardOrder: 5, parentTitle: 'Story', hasChildren: true });
+    });
+
+    it('removes a card whose type changed away from the board types', async () => {
+      const a = card({ guid: 'a', title: 'Card A', pageType: 'pt-task', properties: state('To Do') });
+      const b = card({ guid: 'b', title: 'Card B', pageType: 'pt-task', properties: state('To Do') });
+      const { http, accumulated, emit } = await loadedBoard(true, [a, b]);
+
+      await emit([upsertOf(a, { pageType: 'pt-other' })]);
+
+      http.expectNone((r) => r.url.includes('/children'));
+      expect(accumulated().map((c) => c.guid)).toEqual(['b']);
+    });
+
+    it('removes a card on a direct-children board that moved to another parent', async () => {
+      const a = card({ guid: 'a', properties: state('To Do') });
+      const { accumulated, emit } = await loadedBoard(false, [a]);
+      await emit([upsertOf(a, { parentGuid: 'elsewhere' })]);
+      expect(accumulated()).toEqual([]);
+    });
+
+    it('refetches this board once for an unknown page that belongs (direct child)', async () => {
+      const { http, emit } = await loadedBoard(false, [card({ guid: 'a', properties: state('To Do') })]);
+      await emit([
+        upsertOf(card({ guid: 'new1', parentGuid: 'p1' })),
+        upsertOf(card({ guid: 'new2', parentGuid: 'p1' })),
+      ]);
+      http.expectOne(URL).flush({ children: [], hasMore: false });
+    });
+
+    it('refetches this board once for an unknown page of a board type (possible descendant)', async () => {
+      const { http, emit } = await loadedBoard(true, []);
+      await emit([upsertOf(card({ guid: 'deep', parentGuid: 'story-9', pageType: 'pt-task' }))]);
+      http.expectOne(TYPED_URL).flush({ children: [], hasMore: false });
+    });
+
+    it('ignores an unrelated page', async () => {
+      const a = card({ guid: 'a', properties: state('To Do') });
+      const { http, accumulated, emit } = await loadedBoard(false, [a]);
+      const before = accumulated();
+      await emit([upsertOf(card({ guid: 'x', parentGuid: 'other-parent' }))]);
+      http.expectNone((r) => r.url.includes('/children'));
+      expect(accumulated()).toBe(before);
+    });
+
+    it('treats fields missing from the upsert as cleared (server omits empty tags)', async () => {
+      const a = card({ guid: 'a', properties: state('To Do'), tags: ['dean'] });
+      const { accumulated, emit } = await loadedBoard(false, [a]);
+      const { tags: _dropped, ...noTags } = upsertOf(a);
+      void _dropped;
+      await emit([noTags]);
+      expect(accumulated()[0].tags).toBeUndefined();
+    });
+
+    it('ignores an upsert older than the card it would replace', async () => {
+      const a = card({ guid: 'a', properties: state('Done'), modifiedAt: '2026-03-01T00:00:00Z' });
+      const { accumulated, emit } = await loadedBoard(false, [a]);
+      await emit([upsertOf(a, { properties: state('To Do'), modifiedAt: '2026-02-01T00:00:00Z' })]);
+      expect(accumulated()[0].properties).toEqual(state('Done'));
     });
   });
 });
