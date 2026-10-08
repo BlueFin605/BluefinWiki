@@ -372,6 +372,13 @@ describe('PagesView', () => {
     return { ...result, http };
   }
 
+  it('shows the build version next to the toolbar title', async () => {
+    const { fixture } = await renderShell();
+    fixture.detectChanges();
+    const build = (fixture.nativeElement as HTMLElement).querySelector('.topbar .build');
+    expect(build?.textContent?.trim()).toBe('dev'); // environment.ts default
+  });
+
   it('does NOT render the inspector while PageContext has no page', async () => {
     const { fixture } = await renderShell();
     fixture.detectChanges();

@@ -28,6 +28,7 @@ import { SearchDialog } from '../search/search-dialog';
 import { AiButton } from '../ai/ai-button';
 import { AiSidebar } from '../ai/ai-sidebar';
 import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'wiki-pages-view',
@@ -61,6 +62,9 @@ import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
           </button>
         }
         <span class="title">BluefinWiki</span>
+        @if (buildVersion) {
+          <span class="build">{{ buildVersion }}</span>
+        }
         <span class="spacer"></span>
         @if (bp.isDesktop() || !aiOpen()) {
           <button
@@ -307,6 +311,7 @@ import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
       border-bottom: 1px solid #e5e7eb;
     }
     .title { font-weight: 600; color: #101828; }
+    .build { margin-left: 0.5rem; font-size: 0.75rem; color: #667085; white-space: nowrap; }
     .spacer { flex: 1; }
 
     /*
@@ -484,6 +489,7 @@ import { TicketKeys, isTicketKey } from '../ticket-keys/ticket-keys';
   `],
 })
 export class PagesView {
+  protected readonly buildVersion = environment.buildVersion;
   private readonly router = inject(Router);
   private readonly pages = inject(Pages);
   private readonly layout = inject(Layout);

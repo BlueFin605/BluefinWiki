@@ -13,4 +13,5 @@ export const environment: Environment = {
   disableAuth: true, // local dev default; flip to false to exercise real Cognito
   aiAllowDestructive: true,
   realtimeUrl: '/ws',
+  buildVersion: 'dev',
 };
