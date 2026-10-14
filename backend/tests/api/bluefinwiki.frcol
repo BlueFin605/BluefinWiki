@@ -1,0 +1,63 @@
+{
+    "collectionGuid": "867ce59b-fe66-45fd-9b26-eb00c5fc35e6",
+    "collectionEnvironment": {
+        "name": "",
+        "id": "",
+        "variables": [],
+        "secrets": [],
+        "auth": {
+            "authentication": "inherit",
+            "awsSig": {
+                "signUrl": false,
+                "accessKey": "",
+                "secretKey": "",
+                "sessionToken": "",
+                "awsRegion": "eu-central-1",
+                "serviceName": ""
+            },
+            "basicAuth": {
+                "userName": "",
+                "password": ""
+            },
+            "bearerToken": {
+                "token": ""
+            }
+        },
+        "headers": []
+    },
+    "environments": [
+        {
+            "name": "local",
+            "id": "6c38361a-d75b-4936-b64a-95eeb433685e",
+            "variables": [
+                {
+                    "variable": "baseUrl",
+                    "value": "localhost:3000",
+                    "active": true,
+                    "id": "4df28fc5-fee0-422e-acc1-99b81a3a0d35"
+                }
+            ],
+            "secrets": [],
+            "auth": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "headers": []
+        }
+    ],
+    "selectedEnvironmentId": "6c38361a-d75b-4936-b64a-95eeb433685e"
+}
