@@ -1,0 +1,40 @@
+{
+    "id": "0db0a5cb-ca17-4b5a-8f47-055ae3860837",
+    "name": "get health",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/health",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"status\": { \"type\": \"string\", \"const\": \"healthy\" },\n    \"timestamp\": { \"type\": \"string\", \"format\": \"date-time\" },\n    \"environment\": { \"type\": \"string\", \"minLength\": 1 }\n  },\n  \"required\": [\"status\", \"timestamp\", \"environment\"]\n}"
+        }
+    }
+}
