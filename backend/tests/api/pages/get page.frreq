@@ -1,0 +1,160 @@
+{
+    "id": "2ed176d7-f969-4a2a-9d5b-a3603c550f2e",
+    "name": "get page",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{pageGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "42fbeac9-00cb-4912-a8b3-0ec15ea34de5",
+            "name": "invalid guid",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageGuid",
+                    "value": "not-a-uuid",
+                    "active": true,
+                    "id": "fa9cf2aa-8aff-4fa7-98a3-1abd850ebfcb"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"error\"],\n    \"properties\": {\n        \"error\": { \"const\": \"Invalid GUID format\" }\n    }\n}"
+                }
+            }
+        },
+        {
+            "id": "3af8669c-74ab-4d15-aab0-ed46327e9c89",
+            "name": "not found",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageGuid",
+                    "value": "00000000-0000-4000-8000-000000000000",
+                    "active": true,
+                    "id": "1c4d1db5-0b0d-43d5-b2c4-431774442c86"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"error\", \"code\"],\n    \"properties\": {\n        \"error\": { \"type\": \"string\" },\n        \"code\": { \"const\": \"PAGE_NOT_FOUND\" }\n    }\n}"
+                }
+            }
+        },
+        {
+            "id": "e873f9ba-e53e-4b8e-b938-2d9cb4cb2291",
+            "name": "existing page",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"title\": \"PageContent\",\n    \"type\": \"object\",\n    \"required\": [\"guid\", \"title\", \"content\", \"folderId\", \"tags\", \"status\", \"createdBy\", \"modifiedBy\", \"createdAt\", \"modifiedAt\"],\n    \"properties\": {\n        \"guid\": { \"type\": \"string\", \"pattern\": \"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$\" },\n        \"title\": { \"type\": \"string\", \"minLength\": 1 },\n        \"content\": { \"type\": \"string\" },\n        \"folderId\": { \"type\": \"string\" },\n        \"tags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n        \"status\": { \"enum\": [\"draft\", \"published\", \"archived\", \"deleted\"] },\n        \"sortOrder\": { \"type\": \"number\" },\n        \"boardOrder\": { \"type\": \"number\" },\n        \"ticketKey\": { \"type\": \"string\" },\n        \"description\": { \"type\": \"string\" },\n        \"pageType\": { \"type\": \"string\" },\n        \"properties\": { \"type\": \"object\" },\n        \"boardConfig\": { \"type\": \"object\" },\n        \"createdBy\": { \"type\": \"string\" },\n        \"modifiedBy\": { \"type\": \"string\" },\n        \"createdAt\": { \"type\": \"string\" },\n        \"modifiedAt\": { \"type\": \"string\" }\n    }\n}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"title\": \"PageContent\",\n    \"type\": \"object\",\n    \"required\": [\"guid\", \"title\", \"content\", \"folderId\", \"tags\", \"status\", \"createdBy\", \"modifiedBy\", \"createdAt\", \"modifiedAt\"],\n    \"properties\": {\n        \"guid\": { \"type\": \"string\", \"pattern\": \"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$\" },\n        \"title\": { \"type\": \"string\", \"minLength\": 1 },\n        \"content\": { \"type\": \"string\" },\n        \"folderId\": { \"type\": \"string\" },\n        \"tags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n        \"status\": { \"enum\": [\"draft\", \"published\", \"archived\", \"deleted\"] },\n        \"sortOrder\": { \"type\": \"number\" },\n        \"boardOrder\": { \"type\": \"number\" },\n        \"ticketKey\": { \"type\": \"string\" },\n        \"description\": { \"type\": \"string\" },\n        \"pageType\": { \"type\": \"string\" },\n        \"properties\": { \"type\": \"object\" },\n        \"boardConfig\": { \"type\": \"object\" },\n        \"createdBy\": { \"type\": \"string\" },\n        \"modifiedBy\": { \"type\": \"string\" },\n        \"createdAt\": { \"type\": \"string\" },\n        \"modifiedAt\": { \"type\": \"string\" }\n    }\n}"
+        }
+    }
+}

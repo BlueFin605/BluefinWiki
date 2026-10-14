@@ -1,0 +1,160 @@
+{
+    "id": "983f2cd5-d709-4eb9-915c-c885b3800336",
+    "name": "list children",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/children",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "0093d464-da7e-4806-a0ae-7412606b4c6b",
+            "name": "include properties",
+            "parameters": [
+                {
+                    "key": "include",
+                    "value": "properties",
+                    "active": true,
+                    "id": "4f86f106-23f9-4952-8d41-774694d4ad40"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"title\": \"PageChildrenResponse (include=properties)\",\n    \"type\": \"object\",\n    \"required\": [\"parentGuid\", \"children\", \"count\", \"hasMore\", \"nextCursor\"],\n    \"properties\": {\n        \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n        \"count\": { \"type\": \"integer\", \"minimum\": 0 },\n        \"hasMore\": { \"type\": \"boolean\" },\n        \"nextCursor\": { \"type\": [\"string\", \"null\"] },\n        \"children\": {\n            \"type\": \"array\",\n            \"items\": {\n                \"type\": \"object\",\n                \"required\": [\"guid\", \"title\", \"parentGuid\", \"status\", \"createdBy\", \"modifiedAt\", \"modifiedBy\", \"hasChildren\"],\n                \"properties\": {\n                    \"guid\": { \"type\": \"string\", \"pattern\": \"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$\" },\n                    \"title\": { \"type\": \"string\", \"minLength\": 1 },\n                    \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n                    \"status\": { \"enum\": [\"draft\", \"published\", \"archived\"] },\n                    \"sortOrder\": { \"type\": \"number\" },\n                    \"boardOrder\": { \"type\": \"number\" },\n                    \"ticketKey\": { \"type\": \"string\" },\n                    \"createdBy\": { \"type\": \"string\" },\n                    \"modifiedAt\": { \"type\": \"string\" },\n                    \"modifiedBy\": { \"type\": \"string\" },\n                    \"hasChildren\": { \"type\": \"boolean\" },\n                    \"pageType\": { \"type\": \"string\" },\n                    \"parentTitle\": { \"type\": \"string\" },\n                    \"properties\": { \"type\": \"object\" },\n                    \"tags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n                }\n            }\n        }\n    }\n}"
+                }
+            }
+        },
+        {
+            "id": "fd3decb0-552f-4bdb-82be-63c57628fcf5",
+            "name": "invalid cursor",
+            "parameters": [
+                {
+                    "key": "cursor",
+                    "value": "not-a-cursor",
+                    "active": true,
+                    "id": "ca8996ca-3b95-4187-8034-2bed5bb7106d"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"error\"],\n    \"properties\": {\n        \"error\": { \"const\": \"Invalid cursor format\" }\n    }\n}"
+                }
+            }
+        },
+        {
+            "id": "b5879c6a-70db-4fc6-803b-568f8db8fe2e",
+            "name": "root",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"title\": \"PageChildrenResponse\",\n    \"type\": \"object\",\n    \"required\": [\"parentGuid\", \"children\", \"count\", \"hasMore\", \"nextCursor\"],\n    \"properties\": {\n        \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n        \"count\": { \"type\": \"integer\", \"minimum\": 0 },\n        \"hasMore\": { \"type\": \"boolean\" },\n        \"nextCursor\": { \"type\": [\"string\", \"null\"] },\n        \"children\": {\n            \"type\": \"array\",\n            \"minItems\": 1,\n            \"items\": {\n                \"type\": \"object\",\n                \"required\": [\"guid\", \"title\", \"parentGuid\", \"status\", \"createdBy\", \"modifiedAt\", \"modifiedBy\", \"hasChildren\"],\n                \"not\": { \"required\": [\"properties\"] },\n                \"properties\": {\n                    \"guid\": { \"type\": \"string\", \"pattern\": \"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$\" },\n                    \"title\": { \"type\": \"string\", \"minLength\": 1 },\n                    \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n                    \"status\": { \"enum\": [\"draft\", \"published\", \"archived\"] },\n                    \"sortOrder\": { \"type\": \"number\" },\n                    \"boardOrder\": { \"type\": \"number\" },\n                    \"ticketKey\": { \"type\": \"string\" },\n                    \"createdBy\": { \"type\": \"string\" },\n                    \"modifiedAt\": { \"type\": \"string\" },\n                    \"modifiedBy\": { \"type\": \"string\" },\n                    \"hasChildren\": { \"type\": \"boolean\" },\n                    \"pageType\": { \"type\": \"string\" },\n                    \"tags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n                }\n            }\n        }\n    }\n}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"title\": \"PageChildrenResponse\",\n    \"type\": \"object\",\n    \"required\": [\"parentGuid\", \"children\", \"count\", \"hasMore\", \"nextCursor\"],\n    \"properties\": {\n        \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n        \"count\": { \"type\": \"integer\", \"minimum\": 0 },\n        \"hasMore\": { \"type\": \"boolean\" },\n        \"nextCursor\": { \"type\": [\"string\", \"null\"] },\n        \"children\": {\n            \"type\": \"array\",\n            \"items\": {\n                \"type\": \"object\",\n                \"required\": [\"guid\", \"title\", \"parentGuid\", \"status\", \"createdBy\", \"modifiedAt\", \"modifiedBy\", \"hasChildren\"],\n                \"not\": { \"required\": [\"properties\"] },\n                \"properties\": {\n                    \"guid\": { \"type\": \"string\", \"pattern\": \"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$\" },\n                    \"title\": { \"type\": \"string\", \"minLength\": 1 },\n                    \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n                    \"status\": { \"enum\": [\"draft\", \"published\", \"archived\"] },\n                    \"sortOrder\": { \"type\": \"number\" },\n                    \"boardOrder\": { \"type\": \"number\" },\n                    \"ticketKey\": { \"type\": \"string\" },\n                    \"createdBy\": { \"type\": \"string\" },\n                    \"modifiedAt\": { \"type\": \"string\" },\n                    \"modifiedBy\": { \"type\": \"string\" },\n                    \"hasChildren\": { \"type\": \"boolean\" },\n                    \"pageType\": { \"type\": \"string\" },\n                    \"tags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n                }\n            }\n        }\n    }\n}"
+        }
+    }
+}

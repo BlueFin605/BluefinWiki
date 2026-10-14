@@ -6,7 +6,7 @@
         "variables": [],
         "secrets": [],
         "auth": {
-            "authentication": "inherit",
+            "authentication": "bearertoken",
             "awsSig": {
                 "signUrl": false,
                 "accessKey": "",
@@ -20,7 +20,7 @@
                 "password": ""
             },
             "bearerToken": {
-                "token": ""
+                "token": "{{devToken}}"
             }
         },
         "headers": []
@@ -35,6 +35,18 @@
                     "value": "localhost:3000",
                     "active": true,
                     "id": "4df28fc5-fee0-422e-acc1-99b81a3a0d35"
+                },
+                {
+                    "variable": "devToken",
+                    "value": "mock-jwt-token",
+                    "active": true,
+                    "id": "f2c77f18-198d-4594-9404-7207cc92275e"
+                },
+                {
+                    "variable": "pageGuid",
+                    "value": "44b703fb-fcf9-4692-ab88-a6a7bcd0cea7",
+                    "active": true,
+                    "id": "1b092481-9513-4b2a-b16c-3d7bb6855b9c"
                 }
             ],
             "secrets": [],
