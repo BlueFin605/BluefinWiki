@@ -27,6 +27,13 @@ export interface UpdatePageInput {
   status?: 'published' | 'archived';
   pageType?: string | null;
   properties?: Record<string, PageProperty | null>;
+  /**
+   * Position within a board column. Set this alongside a `state` property
+   * change so a moved card lands at a defined slot in its destination
+   * column — a card left with no `boardOrder` forces the frontend into a
+   * full-column renumber on the next drag. See pages/board-order.ts.
+   */
+  boardOrder?: number;
 }
 
 export interface UpdatePageResult {
@@ -37,7 +44,7 @@ export interface UpdatePageResult {
 }
 
 export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResult> {
-  const { pageGuid: pageRef, title, content, tags, status, pageType, properties } = input;
+  const { pageGuid: pageRef, title, content, tags, status, pageType, properties, boardOrder } = input;
   const pageGuid = pageRef ? await resolvePageRef(pageRef) : pageRef;
 
   // Validate GUID format
@@ -47,9 +54,17 @@ export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResu
 
   // Check at least one update field is provided
   const hasUpdates = title !== undefined || content !== undefined || tags !== undefined
-    || status !== undefined || pageType !== undefined || properties !== undefined;
+    || status !== undefined || pageType !== undefined || properties !== undefined
+    || boardOrder !== undefined;
   if (!hasUpdates) {
     throw new Error('At least one field to update is required');
+  }
+
+  // boardOrder is persisted as an integer (the REST schema declares it
+  // z.number().int()); reject anything else rather than writing a value the
+  // other write paths would refuse.
+  if (boardOrder !== undefined && !Number.isInteger(boardOrder)) {
+    throw new Error('boardOrder must be an integer');
   }
 
   // Validate title length
@@ -140,6 +155,7 @@ export async function updatePage(input: UpdatePageInput): Promise<UpdatePageResu
     ...(content !== undefined ? { content } : {}),
     ...(tags !== undefined ? { tags } : {}),
     ...(status !== undefined ? { status } : {}),
+    ...(boardOrder !== undefined ? { boardOrder } : {}),
     ...(mergedProperties ? { properties: mergedProperties } : {}),
     ...(effectivePageType ? { pageType: effectivePageType } : {}),
     modifiedBy: 'mcp-client',
