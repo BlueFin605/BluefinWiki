@@ -55,6 +55,8 @@ function tree(cards: CardSpec[]) {
     parent === ROOT ? cards.map(summary) : [],
   );
   loadPage.mockImplementation(async (guid: string) => {
+    // The root itself is loaded first, to validate it exists.
+    if (guid === ROOT) return content({ guid: ROOT });
     const c = byGuid.get(guid);
     if (!c) throw new Error(`no page ${guid}`);
     return content(c);
@@ -200,5 +202,23 @@ describe('backfillBoardOrder', () => {
     tree([{ guid: 'a', state: 'Ready', boardOrder: 1000 }]);
     await backfillBoardOrder(ROOT);
     expect(savePage).not.toHaveBeenCalled();
+  });
+
+  it('rejects a root that does not exist instead of reporting success', async () => {
+    // Without this the handler answers 200 {updated:0,examined:0} for a
+    // typo'd guid — it looks like the backfill ran and found nothing to do,
+    // so the operator never learns they pointed it at nothing.
+    loadPage.mockRejectedValue(Object.assign(new Error('nope'), { code: 'PAGE_NOT_FOUND' }));
+
+    await expect(backfillBoardOrder(ROOT)).rejects.toMatchObject({
+      code: 'PAGE_NOT_FOUND',
+    });
+    expect(savePage).not.toHaveBeenCalled();
+  });
+
+  it('validates the root before walking, so a bad guid costs no listChildren', async () => {
+    loadPage.mockRejectedValue(Object.assign(new Error('nope'), { code: 'PAGE_NOT_FOUND' }));
+    await expect(backfillBoardOrder(ROOT)).rejects.toThrow();
+    expect(listChildren).not.toHaveBeenCalled();
   });
 });

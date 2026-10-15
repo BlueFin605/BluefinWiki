@@ -72,6 +72,15 @@ function byBoardPosition(a: PageSummary, b: PageSummary): number {
 
 export async function backfillBoardOrder(rootGuid: string): Promise<BoardOrderBackfillResult> {
   const storage = getStoragePlugin();
+
+  // Validate the root before walking. The walk itself only ever calls
+  // listChildren, which answers an empty list for a guid that doesn't exist
+  // — so without this a typo'd guid returns a cheerful
+  // `{updated: 0, examined: 0}` and the operator believes the backfill ran
+  // and found nothing to do. Let the PAGE_NOT_FOUND propagate; the handler
+  // turns it into a 404.
+  await storage.loadPage(rootGuid);
+
   let updated = 0;
   let examined = 0;
 
