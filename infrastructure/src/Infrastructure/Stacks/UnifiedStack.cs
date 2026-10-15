@@ -1376,6 +1376,21 @@ namespace Infrastructure.Stacks
                 Description = "Assign/repair ticket keys under an Initiative (admin only)"
             });
 
+            var boardOrderBackfillFunction = new LambdaFunction(this, "BoardOrderBackfillFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-pages-board-order-backfill",
+                Runtime = lambdaProps.Runtime,
+                Handler = "pages/board-order-backfill-handler.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = Duration.Minutes(5),
+                MemorySize = 1024,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "Backfill boardOrder for cards beneath a page (admin only)"
+            });
+
             var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-upload",
@@ -1968,6 +1983,13 @@ namespace Infrastructure.Stacks
 
             // POST /pages/{guid}/ticket-keys/backfill - Assign/repair ticket keys under an Initiative (admin only)
             pageGuidResource.AddResource("ticket-keys").AddResource("backfill").AddMethod("POST", new LambdaIntegration(ticketKeysBackfillFunction), new MethodOptions
+            {
+                AuthorizationType = AuthorizationType.COGNITO,
+                Authorizer = cognitoAuthorizer
+            });
+
+            // POST /pages/{guid}/board-order/backfill - Backfill boardOrder for cards beneath a page (admin only)
+            pageGuidResource.AddResource("board-order").AddResource("backfill").AddMethod("POST", new LambdaIntegration(boardOrderBackfillFunction), new MethodOptions
             {
                 AuthorizationType = AuthorizationType.COGNITO,
                 Authorizer = cognitoAuthorizer

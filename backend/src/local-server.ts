@@ -33,6 +33,7 @@ import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
 import { handler as pagesAncestors } from './pages/pages-ancestors.js';
 import { handler as ticketKeysResolve } from './ticket-keys/ticket-keys-resolve.js';
 import { handler as ticketKeysBackfill } from './ticket-keys/ticket-keys-backfill-handler.js';
+import { handler as boardOrderBackfill } from './pages/board-order-backfill-handler.js';
 import {
   pagesAttachmentsUpload,
   pagesAttachmentsDownload,
@@ -233,6 +234,7 @@ app.put('/pages/:guid/move', wrapLambdaHandler(pagesMove));
 app.get('/pages/:guid/ancestors', wrapLambdaHandler(pagesAncestors));
 app.get('/ticket-keys/:key', wrapLambdaHandler(ticketKeysResolve));
 app.post('/pages/:guid/ticket-keys/backfill', wrapLambdaHandler(ticketKeysBackfill));
+app.post('/pages/:guid/board-order/backfill', wrapLambdaHandler(boardOrderBackfill));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
 app.get('/pages/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
@@ -610,6 +612,7 @@ async function startServer() {
   console.log('   GET    /pages/:guid/ancestors');
   console.log('   GET    /ticket-keys/:key');
   console.log('   POST   /pages/:guid/ticket-keys/backfill');
+  console.log('   POST   /pages/:guid/board-order/backfill');
   console.log('   GET    /pages/:guid/backlinks');
   console.log('   GET    /pages/search');
   console.log('   GET    /search');
