@@ -9,6 +9,11 @@ vi.mock('../../storage/StoragePluginRegistry.js', () => ({
   getStoragePlugin: () => ({ listChildren, loadPage, savePage }),
 }));
 
+const collectChanges = vi.fn(async (fn: () => Promise<unknown>) => fn());
+vi.mock('../../realtime/broadcaster.js', () => ({
+  collectChanges: (fn: () => Promise<unknown>) => collectChanges(fn),
+}));
+
 import { backfillBoardOrder } from '../board-order-backfill.js';
 
 const ROOT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -77,6 +82,7 @@ describe('backfillBoardOrder', () => {
     loadPage.mockResolvedValue(content({ guid: ROOT }));
     listChildren.mockResolvedValue([]);
     savePage.mockResolvedValue(undefined);
+    collectChanges.mockImplementation(async (fn: () => Promise<unknown>) => fn());
   });
 
   it('numbers an all-unordered column 1000, 2000, 3000 in modifiedAt-descending order', async () => {
@@ -202,6 +208,27 @@ describe('backfillBoardOrder', () => {
     tree([{ guid: 'a', state: 'Ready', boardOrder: 1000 }]);
     await backfillBoardOrder(ROOT);
     expect(savePage).not.toHaveBeenCalled();
+  });
+
+  it('batches the whole walk into one realtime publish', async () => {
+    // BroadcastingStoragePlugin.savePage publishes an upsert per save, so an
+    // unbatched backfill sends one WebSocket message per written card — on a
+    // large subtree that is hundreds of broadcasts to every open browser,
+    // i.e. the refresh storm this epic exists to kill. pages-reorder wraps
+    // its loop for the same reason.
+    tree([
+      { guid: 'a', state: 'Ready' },
+      { guid: 'b', state: 'Ready' },
+      { guid: 'c', state: 'Done' },
+    ]);
+
+    await backfillBoardOrder(ROOT);
+
+    expect(collectChanges).toHaveBeenCalledTimes(1);
+    // Every write must happen inside that one batch, not around it.
+    expect(savePage.mock.calls.length).toBeGreaterThan(1);
+    expect(collectChanges.mock.invocationCallOrder[0])
+      .toBeLessThan(savePage.mock.invocationCallOrder[0]);
   });
 
   it('rejects a root that does not exist instead of reporting success', async () => {

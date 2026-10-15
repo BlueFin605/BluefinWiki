@@ -39,6 +39,7 @@
 
 import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import { BOARD_ORDER_STEP } from './board-order.js';
+import { collectChanges } from '../realtime/broadcaster.js';
 import type { PageSummary } from '../types/index.js';
 
 /** Column for a card with no usable `state` — matches group-by-state.ts. */
@@ -121,6 +122,18 @@ export async function backfillBoardOrder(rootGuid: string): Promise<BoardOrderBa
     }
   };
 
-  await normalise(rootGuid);
+  // One realtime publish for the whole backfill, not one per written card —
+  // the same reason pages-reorder wraps its loop. BroadcastingStoragePlugin
+  // publishes an upsert on every savePage, so an unbatched walk would send
+  // one WebSocket message per card: on a large subtree, hundreds of
+  // broadcasts to every open browser, each prompting a refetch. That is the
+  // refresh storm this whole epic exists to remove, and it would be
+  // self-inflicted by the tool meant to cure it.
+  //
+  // A batch bigger than MAX_UPSERT_BYTES degrades to a single coarse
+  // `invalidate` instead of a huge `upsert`, which is the right outcome here:
+  // clients refetch once rather than being handed every row.
+  await collectChanges(() => normalise(rootGuid));
+
   return { updated, examined };
 }
