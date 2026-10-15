@@ -424,6 +424,34 @@ export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
+    // A GET on the MCP endpoint is the client opening the standalone
+    // server-to-client SSE stream. The transport holds that stream open
+    // indefinitely and never produces a Response, so the invocation never
+    // settles: Lambda reports
+    //   Runtime.NodeJsExit: ...most commonly caused by a Promise that was
+    //   never settled
+    // and kills the container, forcing a cold start on the next MCP call.
+    // (That churn is also the likely cause of kanban_initiatives /
+    // kanban_board intermittently hitting API Gateway's 29s cap.)
+    //
+    // A stateless Lambda cannot serve a long-lived stream — the invocation
+    // has to return — so decline it the way the streamable-HTTP spec
+    // provides for: 405 with an Allow header tells the client this server
+    // offers no standalone SSE stream, and clients fall back to plain
+    // request/response over POST. Everything the tools need is
+    // request/response already; nothing here pushes to the client.
+    if (event.httpMethod === 'GET') {
+      return {
+        statusCode: 405,
+        headers: { 'Content-Type': 'application/json', Allow: 'POST, DELETE' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'This server does not offer an SSE stream; use POST.' },
+          id: null,
+        }),
+      };
+    }
+
     const server = createServer();
 
     const transport = new WebStandardStreamableHTTPServerTransport({
