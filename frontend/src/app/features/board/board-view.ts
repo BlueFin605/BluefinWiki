@@ -22,6 +22,15 @@ import { CardSummaryDialog, type CardSummaryDialogData } from './card-summary-di
 import { computeBoardOrder } from './compute-board-order';
 import { getColumnColor, groupByState } from './group-by-state';
 import { resolveCardTypes } from './card-types';
+import { pooledAllSettled } from './pooled-all-settled';
+
+/**
+ * How many card PUTs a single drop may have in flight at once. Chosen well
+ * under the AWS account's 50-concurrent-execution Lambda ceiling, which the
+ * whole account shares — a drop must not be able to consume it, nor to starve
+ * the page's other requests. See pooled-all-settled.ts.
+ */
+const CARD_WRITE_CONCURRENCY = 4;
 import type {
   BoardConfig,
   PageChildDetail,
@@ -553,16 +562,22 @@ export class BoardView {
     );
 
     const entries = [...affectedGuids];
-    const settled = await Promise.allSettled(
-      entries.map((guid) => {
-        const isMover = guid === card.guid;
-        const boardOrder = boardOrderByGuid.get(guid);
-        const body: UpdatePageRequest = {};
-        if (boardOrder !== undefined) body.boardOrder = boardOrder;
-        if (isMover && moverProperties) body.properties = moverProperties;
-        return this.pages.updatePage(guid, body);
-      }),
-    );
+    // Bounded, not `Promise.allSettled`: a renumber needs one PUT per card in
+    // the column, and this account's Lambda ceiling is 50 *concurrent
+    // executions*. An unbounded 30-50 request burst pins that ceiling, Lambda
+    // throttles the overflow, and API Gateway returns a bare 500 — which is
+    // what produced the drag-drop failures. `pooledAllSettled` keeps the
+    // results index-aligned with `entries`, which the rollback below relies
+    // on. No retry on failure: the renumber should now be rare, and retrying
+    // would hide a recurrence instead of surfacing it.
+    const settled = await pooledAllSettled(entries, CARD_WRITE_CONCURRENCY, (guid) => {
+      const isMover = guid === card.guid;
+      const boardOrder = boardOrderByGuid.get(guid);
+      const body: UpdatePageRequest = {};
+      if (boardOrder !== undefined) body.boardOrder = boardOrder;
+      if (isMover && moverProperties) body.properties = moverProperties;
+      return this.pages.updatePage(guid, body);
+    });
     // Success: each successful `updatePage` emits the saved card on
     // PageUpserts (see its doc comment), and {@link applyUpserts} swaps the
     // server's copy in over the optimistic one — no board refetch. Nothing
