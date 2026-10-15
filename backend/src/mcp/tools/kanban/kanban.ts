@@ -9,6 +9,7 @@
  */
 
 import { PageContent, PageSummary } from '../../../types/index.js';
+import { nextBoardOrder } from '../../../pages/board-order.js';
 import { KanbanDeps, KanbanPageType } from './deps.js';
 
 /** `Waiting for Action` = a manual (#dean) ticket that is due now — Dean's to-do list. */
@@ -19,6 +20,8 @@ const SKIP_SUBTREE = new Set(['Waiting for Action', 'Blocked', 'Done']);
 
 interface Ticket {
   guid: string;
+  /** Owning parent guid — needed to place the ticket when claiming moves it. */
+  folderId?: string;
   key?: string;
   title: string;
   type: string;
@@ -98,6 +101,10 @@ async function buildTree(deps: KanbanDeps, types: TypeInfo, page: PageSummary | 
   const children = await ticketChildren(deps, types, page.guid);
   return {
     guid: page.guid,
+    // The root arrives as a PageContent (`folderId`), descendants as
+    // PageSummary from listChildren (`parentGuid`). Normalise both, and treat
+    // the empty-string root folderId as "no parent".
+    folderId: ('folderId' in page ? page.folderId : page.parentGuid) || undefined,
     ...(page.ticketKey ? { key: page.ticketKey } : {}),
     title: page.title,
     type: types.byGuid.get(page.pageType!)!.name,
@@ -118,8 +125,39 @@ function descendants(t: Ticket): Ticket[] {
   return t.children.flatMap(c => [c, ...descendants(c)]);
 }
 
-async function setStateOn(deps: KanbanDeps, guid: string, state: string): Promise<void> {
-  await deps.updatePage({ pageGuid: guid, properties: { state: { type: 'string', value: state } } });
+/**
+ * The `boardOrder` to give a ticket that is moving into a new column, or
+ * `undefined` when there is no parent to measure against (a root page).
+ *
+ * A state change *is* a column change on the board, so the card needs a slot
+ * in the destination. Keeping its old value would drop it at whatever rank it
+ * held in its previous column, and leaving it unset is worse still: an
+ * unordered card makes the frontend renumber the whole column on the next
+ * drag, which throttles against the account's Lambda ceiling and surfaces as
+ * a 500. Appending puts it at the bottom of its new column — the right
+ * semantics for a transition (a freshly-Done ticket belongs at the end of
+ * Done) and only ever one write.
+ */
+async function appendBoardOrder(
+  deps: KanbanDeps,
+  parentGuid: string | null | undefined,
+): Promise<number | undefined> {
+  if (!parentGuid) return undefined;
+  return nextBoardOrder(await deps.listChildren(parentGuid));
+}
+
+async function setStateOn(
+  deps: KanbanDeps,
+  guid: string,
+  state: string,
+  parentGuid: string | null | undefined,
+): Promise<void> {
+  const boardOrder = await appendBoardOrder(deps, parentGuid);
+  await deps.updatePage({
+    pageGuid: guid,
+    properties: { state: { type: 'string', value: state } },
+    ...(boardOrder !== undefined ? { boardOrder } : {}),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +261,7 @@ export async function kanbanNext(
 
   if (input.claim) {
     for (const t of chain) {
-      if (t.state === 'Ready' || t.state === 'Backlog') await setStateOn(deps, t.guid, 'In Progress');
+      if (t.state === 'Ready' || t.state === 'Backlog') await setStateOn(deps, t.guid, 'In Progress', t.folderId);
     }
   }
   return kanbanGet(deps, { guid: chain[chain.length - 1].guid });
@@ -337,10 +375,18 @@ export async function kanbanSetState(
   if (tagsChanged) {
     tags = [...tags, ...addTags.filter(t => !tags.includes(t))].filter(t => !removeTags.includes(t));
   }
+  // Only re-place the card when it is actually changing column. A no-op
+  // state write (or a tags-only call) must not move it, and must not pay for
+  // the sibling read.
+  const boardOrder = stateOf(page) === input.state
+    ? undefined
+    : await appendBoardOrder(deps, page.folderId);
+
   await deps.updatePage({
     pageGuid: page.guid,
     properties: { state: { type: 'string', value: input.state } },
     ...(tagsChanged ? { tags } : {}),
+    ...(boardOrder !== undefined ? { boardOrder } : {}),
   });
   if (input.comment?.trim()) await deps.addComment(page.guid, input.comment);
 
@@ -361,7 +407,7 @@ export async function kanbanSetState(
       out.push(`closeable: ${summary}`);
       break;
     }
-    await setStateOn(deps, parent.guid, 'Done');
+    await setStateOn(deps, parent.guid, 'Done', parent.folderId);
     await deps.addComment(parent.guid, 'Auto-closed: all children Done');
     out.push(`closed: ${summary}`);
     parentGuid = parent.folderId;

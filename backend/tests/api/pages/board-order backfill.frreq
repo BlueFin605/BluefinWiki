@@ -1,0 +1,153 @@
+{
+    "id": "0fe6a93a-154e-4db5-a6a4-67b7acd150a0",
+    "name": "board-order backfill",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{pageGuid}}/board-order/backfill",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "7946e7da-94b6-4a3c-8c36-a8ebfcfd7a98",
+            "name": "existing page",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"updated\", \"examined\"],\n    \"additionalProperties\": false,\n    \"properties\": {\n        \"updated\": {\n            \"type\": \"integer\",\n            \"minimum\": 0,\n            \"description\": \"Cards whose boardOrder was written.\"\n        },\n        \"examined\": {\n            \"type\": \"integer\",\n            \"minimum\": 0,\n            \"description\": \"Cards inspected, written or not. Never less than updated.\"\n        }\n    }\n}"
+                }
+            }
+        },
+        {
+            "id": "2cacd677-3a69-452f-ba4c-ac814728e9fd",
+            "name": "not found",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageGuid",
+                    "value": "00000000-0000-4000-8000-000000000000",
+                    "active": true,
+                    "id": "0ec6cd32-0e73-4204-bd86-e3b5f8475616"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"error\"],\n    \"properties\": {\n        \"error\": {\n            \"type\": \"string\",\n            \"const\": \"Page not found\",\n            \"description\": \"A root guid that does not exist must 404, not report a successful no-op backfill.\"\n        }\n    }\n}"
+                }
+            }
+        },
+        {
+            "id": "a56bd4e1-a902-473a-8a17-05bd9b848b3d",
+            "name": "unauthenticated",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"error\"],\n    \"properties\": {\n        \"error\": {\n            \"type\": \"string\",\n            \"const\": \"Missing authorization token\",\n            \"description\": \"The backfill is Admin-only; it must never run unauthenticated.\"\n        }\n    }\n}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"updated\", \"examined\"],\n    \"additionalProperties\": false,\n    \"properties\": {\n        \"updated\": { \"type\": \"integer\", \"minimum\": 0 },\n        \"examined\": { \"type\": \"integer\", \"minimum\": 0 }\n    }\n}"
+        }
+    }
+}

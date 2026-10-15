@@ -8,6 +8,7 @@ import { extractWikiLinks, updatePageLinks } from './link-extraction.js';
 import { autoRegisterTagsFromProperties, autoRegisterPageTags } from '../tags/tags-service.js';
 import { validatePageType, validateChildTypeConstraint } from './page-type-validation.js';
 import { keyForNewPage, recordKey } from '../ticket-keys/ticket-keys-service.js';
+import { nextBoardOrder } from './board-order.js';
 
 // Property validation schema
 const PagePropertySchema = z.object({
@@ -124,6 +125,12 @@ export const handler = withAuth(async (
     }, -1000);
     const sortOrder = maxSortOrder + 1000;
 
+    // ...and boardOrder, from the same already-fetched siblings. Every page
+    // gets one: it costs nothing for pages that never appear on a board, and
+    // leaving it undefined is what forces a full-column renumber (and the
+    // Lambda-throttle 500s that follow) on the next drag. See board-order.ts.
+    const boardOrder = nextBoardOrder(siblings);
+
     // Jira-style key for tickets under a prefixed Initiative; never blocks creation.
     const ticketKey = await keyForNewPage(parentGuid, pageType);
 
@@ -136,6 +143,7 @@ export const handler = withAuth(async (
       tags,
       status,
       sortOrder,
+      boardOrder,
       ...(ticketKey ? { ticketKey } : {}),
       ...(pageType ? { pageType } : {}),
       ...(properties ? { properties } : {}),

@@ -1620,4 +1620,150 @@ describe('BoardView', () => {
       expect(accumulated()[0].properties).toEqual(state('Done'));
     });
   });
+
+  describe('drag write concurrency', () => {
+    // A renumber needs one PUT per card in the column. Unbounded, a long
+    // column pins the AWS account's 50-concurrent-execution Lambda ceiling,
+    // Lambda throttles the overflow, and API Gateway returns a bare 500 with
+    // nothing in the function log. These guard the cap that prevents that.
+    const COLUMN_SIZE = 20;
+    const LIMIT = 4;
+
+    /** COLUMN_SIZE cards with no boardOrder — forces the renumber branch. */
+    function unorderedColumn(): PageChildDetail[] {
+      return Array.from({ length: COLUMN_SIZE }, (_, i) =>
+        card({
+          guid: `card-${i}`,
+          title: `Card ${i}`,
+          modifiedAt: `2026-01-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
+          properties: { state: { type: 'string', value: 'To Do' } },
+        }),
+      );
+    }
+
+    function flushCardPut(req: {
+      request: { url: string; body: unknown };
+    }): Record<string, unknown> {
+      return {
+        guid: req.request.url.split('/').pop(),
+        // Echo the saved value back, as the real handler does — the success
+        // path swaps the server's copy in over the optimistic one.
+        boardOrder: (req.request.body as { boardOrder?: number }).boardOrder,
+        title: 'Card',
+        content: '',
+        folderId: 'parent-pool',
+        tags: [],
+        status: 'published',
+        createdBy: '',
+        modifiedBy: '',
+        createdAt: '',
+        modifiedAt: '',
+      };
+    }
+
+    it('keeps at most four card PUTs in flight at once', async () => {
+      const { fixture } = await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'parent-pool' },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      flushPageTypes(http);
+
+      const children = unorderedColumn();
+      http
+        .expectOne('/api/pages/parent-pool/children?include=properties&limit=200')
+        .flush({ children, hasMore: false });
+      await settle();
+
+      // Cards with no boardOrder display in modifiedAt-descending order, so
+      // children[0] is the oldest and renders LAST. Dragging it to the top is
+      // a real move (dragging children[19] there would be a no-op), and the
+      // renumber then rewrites every card in the column.
+      const dropped = fixture.componentInstance.onCardDropped({
+        card: children[0],
+        targetState: 'To Do',
+        targetIndex: 0,
+      });
+      await settle();
+
+      let flushedTotal = 0;
+      let peakOpen = 0;
+      // Drain in waves — each wave is whatever the pool currently has open,
+      // so the peak across waves is the real in-flight ceiling.
+      for (let wave = 0; wave < COLUMN_SIZE + LIMIT; wave++) {
+        const open = http.match(
+          (r) => r.method === 'PUT' && r.url.startsWith('/api/pages/card-'),
+        );
+        if (open.length === 0) break;
+        peakOpen = Math.max(peakOpen, open.length);
+        for (const r of open) {
+          flushedTotal++;
+          r.flush(flushCardPut(r));
+        }
+        await settle();
+      }
+      await dropped;
+
+      expect(peakOpen).toBeLessThanOrEqual(LIMIT);
+      // Sanity: the renumber really did fan out, so the cap is what bounded
+      // it rather than there having been nothing to bound.
+      expect(flushedTotal).toBeGreaterThan(LIMIT);
+    });
+
+    it('rolls back only the card whose own PUT failed, despite the pooling', async () => {
+      const { fixture } = await render(BoardView, {
+        providers: baseProviders(),
+        inputs: { parentGuid: 'parent-pool' },
+      });
+      const http = TestBed.inject(HttpTestingController);
+      await settle();
+      flushPageTypes(http);
+
+      const children = unorderedColumn();
+      http
+        .expectOne('/api/pages/parent-pool/children?include=properties&limit=200')
+        .flush({ children, hasMore: false });
+      await settle();
+
+      const dropped = fixture.componentInstance.onCardDropped({
+        card: children[0],
+        targetState: 'To Do',
+        targetIndex: 0,
+      });
+      await settle();
+
+      // Fail exactly one card, succeed the rest. Results must stay aligned
+      // with their guids or the wrong card would be reverted.
+      const failed = 'card-5';
+      let sawFailed = false;
+      for (let wave = 0; wave < COLUMN_SIZE + LIMIT; wave++) {
+        const open = http.match(
+          (r) => r.method === 'PUT' && r.url.startsWith('/api/pages/card-'),
+        );
+        if (open.length === 0) break;
+        for (const r of open) {
+          if (r.request.url.endsWith(`/${failed}`)) {
+            sawFailed = true;
+            r.flush({ message: 'Internal server error' }, { status: 500, statusText: 'Error' });
+          } else {
+            r.flush(flushCardPut(r));
+          }
+        }
+        await settle();
+      }
+      await dropped;
+      await settle();
+
+      expect(sawFailed).toBe(true);
+      const accumulated = fixture.componentInstance.accumulated();
+      const reverted = accumulated.find((c) => c.guid === failed);
+      // The failed card goes back to having no boardOrder at all, which is
+      // what it had before the drop.
+      expect(reverted?.boardOrder).toBeUndefined();
+      // ...and a card that succeeded keeps its new value.
+      const kept = accumulated.find((c) => c.guid === 'card-0');
+      expect(kept?.boardOrder).toBeDefined();
+    });
+  });
 });

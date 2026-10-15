@@ -13,6 +13,7 @@ import { validateChildTypeConstraint } from '../../pages/page-type-validation.js
 import { PageContent, PageProperty } from '../../types/index.js';
 import { keyForNewPage, recordKey, resolvePageRef } from '../../ticket-keys/ticket-keys-service.js';
 import { validatePropertiesForCreate } from './mcp-property-validation.js';
+import { nextBoardOrder } from '../../pages/board-order.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -115,6 +116,12 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
   }, -1000);
   const sortOrder = maxSortOrder + 1000;
 
+  // ...and boardOrder, from the same already-fetched siblings. A kanban card
+  // created here with no boardOrder forces a full-column renumber on the next
+  // drag, which throttles against the account's 50-concurrency ceiling and
+  // surfaces as a 500. See board-order.ts.
+  const boardOrder = nextBoardOrder(siblings);
+
   // Build PageContent
   const guid = uuidv4();
   const now = new Date().toISOString();
@@ -130,6 +137,7 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
     tags,
     status,
     sortOrder,
+    boardOrder,
     ...(ticketKey ? { ticketKey } : {}),
     ...(pageType ? { pageType } : {}),
     ...(validatedProperties && Object.keys(validatedProperties).length > 0 ? { properties: validatedProperties } : {}),
