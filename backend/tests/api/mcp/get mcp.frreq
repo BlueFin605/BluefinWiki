@@ -1,0 +1,80 @@
+{
+    "id": "3e02ab63-29db-4446-9e59-e1ee2b70c43d",
+    "name": "get mcp",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/mcp",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "b1beb3be-8d98-44e9-8346-216e3be0d8dc",
+            "name": "GET not routed locally",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "HeadersBody",
+                "headers": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json; charset=utf-8",
+                        "active": true,
+                        "id": "3897222e-d5cd-4b6e-8d3f-ec908309b979"
+                    }
+                ],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"const\":\"Not Found\"},\"message\":{\"type\":\"string\",\"pattern\":\"GET /mcp\"}},\"required\":[\"error\",\"message\"]}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

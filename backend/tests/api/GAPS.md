@@ -99,3 +99,11 @@
 ## Ticket 2627ae20 (WebSocket event tests)
 - Blocked: no websocket request type in the FullyRested MCP tools available (no set_type/set_message/set_expect); it exists only on the unmerged FullyRested branch feature/websocket-support. `backend/tests/api/ws` holds only `.gitkeep`; no websocket case was faked as HTTP.
 - To write once merged: connect `ws://localhost:3000/ws?token=mock-jwt-token`, trigger `POST /pages`, assert an `upsert {pages, tags, origin}` message and an `invalidate {tags, origin}` message with their tags; the server sends nothing on connect and ignores client messages.
+
+## Ticket ecdf556c (mcp smoke requests)
+- FullyRested has no MCP-client request type: /mcp is smoked as raw JSON-RPC over POST with the body in a `{{rpc}}` run variable (no initialize/session handling, no tools/call result decoding beyond a JSON Schema on the text content); friction worth an fr-gap ticket.
+- Local /mcp has no auth at all (prod is guarded by an API Gateway API key, not Cognito/Bearer): there is no 401 to test locally; run `tools list no token` asserts 200 as the documented local behaviour, and the prod API-key 403 is untested.
+- `GET /mcp` is not routed locally (Express 404 `{error, message}`); the handler's 405 with `Allow: POST, DELETE` only exists behind Lambda/API Gateway, so run `GET not routed locally` asserts the local 404 and the 405 is untested.
+- Malformed JSON on POST /mcp returns Express HTML 400 before the handler runs, so the JSON-RPC parse error (-32700) is never reachable locally (header check in `malformed body` run).
+- `call bad arguments` (get_backlinks with no pageGuid) returns isError with a raw JS message "Cannot read properties of undefined (reading 'trim')" rather than a validation message; asserted only as isError true.
+- `call get_page` hard-codes the fixture guid `0ea160d4-...` in the rpc variable (nested variables are not expanded).
