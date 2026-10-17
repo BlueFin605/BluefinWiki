@@ -42,3 +42,13 @@
 - Known failure: `POST /pages/:guid/board-order/backfill` with a non-GUID returns 500 "Failed to backfill boardOrder" instead of 400.
 - `pages/board-order backfill > existing page` still fails (seeded `pageGuid` 404 locally); `crud fixture page` runs cover the 200 and idempotency instead.
 - Reorder 400 on empty `orderedGuids` returns zod `details` as an array while move returns it as an object (inconsistent shape).
+
+## Ticket 59c17563 (comments requests)
+- No capture of a created comment id into later requests, so GET/PUT/DELETE use hand-created fixture comments in env variables `commentId` (top-level, on `crudPageGuid`) and `replyCommentId` (reply to it); re-create via POST if the local stack is reset. The reply-to-reply run hard-codes the reply id (nested variables are not expanded).
+- DELETE 200 is not covered (it consumes the fixture comment and needs a fresh id per run); semantics confirmed by curl: a comment with replies is soft-deleted (body blanked, deletedAt set, stays in the list, later PUT/DELETE give 404 COMMENT_NOT_FOUND); a comment without replies is removed outright; admin may delete others' comments.
+- Soft-deleted parent tombstones are never purged once its replies are deleted (observed via curl: empty-body deleted row remains in GET list).
+- The `created top-level` and `created reply` runs leak one comment each per run on the fixture page (no cleanup without captured ids).
+- "Request body is required" 400 on POST/PUT comments is untested (runs cannot send an empty body).
+- Empty body `{"body":""}` returns zod `Validation failed` with details (the INVALID_COMMENT code only fires for whitespace-only bodies): two different 400 shapes for the same mistake.
+- PUT/DELETE comments on a non-existent page are not asserted precisely (update `page not found` accepts PAGE_NOT_FOUND or COMMENT_NOT_FOUND 404).
+- Malformed JSON on POST comments returns Express HTML 400 rather than the JSON error shape (header check in `malformed body` run).
