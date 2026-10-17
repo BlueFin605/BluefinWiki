@@ -78,6 +78,19 @@ describe('pages-comments-create', () => {
     expect(result.statusCode).toBe(400);
   });
 
+  it.each(['', '   ', '\n\t'])('returns the INVALID_COMMENT 400 shape for body %j', async (text) => {
+    const event = {
+      pathParameters: { pageGuid: PAGE_GUID },
+      body: JSON.stringify({ body: text }),
+    } as unknown as APIGatewayProxyEvent;
+
+    const result = await createHandler(event, {} as any);
+
+    expect(result.statusCode).toBe(400);
+    expect(JSON.parse(result.body)).toEqual({ error: 'Comment body is required', code: 'INVALID_COMMENT' });
+    expect(commentsService.addComment).not.toHaveBeenCalled();
+  });
+
   it('creates a comment authored as the signed-in user', async () => {
     (commentsService.addComment as any).mockResolvedValue({ id: 'new-comment' });
     const event = {
@@ -106,6 +119,19 @@ describe('pages-comments-update', () => {
 
     const result = await updateHandler(event, {} as any);
     expect(result.statusCode).toBe(400);
+  });
+
+  it.each(['', '   ', '\n\t'])('returns the INVALID_COMMENT 400 shape for body %j', async (text) => {
+    const event = {
+      pathParameters: { pageGuid: PAGE_GUID, commentId: COMMENT_GUID },
+      body: JSON.stringify({ body: text }),
+    } as unknown as APIGatewayProxyEvent;
+
+    const result = await updateHandler(event, {} as any);
+
+    expect(result.statusCode).toBe(400);
+    expect(JSON.parse(result.body)).toEqual({ error: 'Comment body is required', code: 'INVALID_COMMENT' });
+    expect(commentsService.updateComment).not.toHaveBeenCalled();
   });
 
   it('maps a NOT_COMMENT_AUTHOR service error to 403', async () => {

@@ -6,7 +6,7 @@ import { updateComment } from './comments-service.js';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const UpdateCommentRequestSchema = z.object({
-  body: z.string().min(1, 'Comment body is required'),
+  body: z.string(),
 });
 
 /**
@@ -45,6 +45,15 @@ export const handler = withAuth(async (
           error: 'Validation failed',
           details: validationResult.error.format(),
         }),
+      };
+    }
+
+    // Empty and whitespace-only bodies share one 400 shape ({ error, code }).
+    if (!validationResult.data.body.trim()) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Comment body is required', code: 'INVALID_COMMENT' }),
       };
     }
 

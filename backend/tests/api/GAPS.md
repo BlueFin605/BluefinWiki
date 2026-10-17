@@ -48,7 +48,6 @@
 - Soft-deleted parent tombstones are never purged once its replies are deleted (observed via curl: empty-body deleted row remains in GET list).
 - The `created top-level` and `created reply` runs leak one comment each per run on the fixture page (no cleanup without captured ids).
 - "Request body is required" 400 on POST/PUT comments is untested (runs cannot send an empty body).
-- Empty body `{"body":""}` returns zod `Validation failed` with details (the INVALID_COMMENT code only fires for whitespace-only bodies): two different 400 shapes for the same mistake.
 - PUT/DELETE comments on a non-existent page are not asserted precisely (update `page not found` accepts PAGE_NOT_FOUND or COMMENT_NOT_FOUND 404).
 - Malformed JSON on POST comments returns Express HTML 400 rather than the JSON error shape (header check in `malformed body` run).
 

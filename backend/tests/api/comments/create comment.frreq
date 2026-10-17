@@ -151,7 +151,7 @@
                 "body": "JsonSchema",
                 "httpCode": 400,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"details\"],\"properties\":{\"error\":{\"const\":\"Validation failed\"},\"details\":{\"type\":\"object\",\"required\":[\"body\"]}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"const\":\"Comment body is required\"},\"code\":{\"const\":\"INVALID_COMMENT\"}}}"
                 }
             }
         },
@@ -193,7 +193,7 @@
                 "body": "JsonSchema",
                 "httpCode": 400,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"INVALID_COMMENT\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"const\":\"Comment body is required\"},\"code\":{\"const\":\"INVALID_COMMENT\"}}}"
                 }
             }
         },
