@@ -103,7 +103,7 @@
 - Local /mcp has no auth at all (prod is guarded by an API Gateway API key, not Cognito/Bearer): there is no 401 to test locally; run `tools list no token` asserts 200 as the documented local behaviour, and the prod API-key 403 is untested.
 - `GET /mcp` is not routed locally (Express 404 `{error, message}`); the handler's 405 with `Allow: POST, DELETE` only exists behind Lambda/API Gateway, so run `GET not routed locally` asserts the local 404 and the 405 is untested.
 - Malformed JSON on POST /mcp returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`), so the JSON-RPC parse error (-32700) is never reachable locally (schema check in `malformed body` run).
-- `call bad arguments` (get_backlinks with no pageGuid) returns isError with a raw JS message "Cannot read properties of undefined (reading 'trim')" rather than a validation message; asserted only as isError true.
+- FIXED (kanban 348b5267): `call bad arguments` (get_backlinks with no pageGuid) returned isError with a raw JS message "Cannot read properties of undefined (reading 'trim')"; every MCP tool call is now checked against its inputSchema (required, types, enums) and answers isError with `Missing required argument: pageGuid`; the run asserts that exact text.
 - `call get_page` hard-codes the fixture guid `0ea160d4-...` in the rpc variable (nested variables are not expanded).
 
 ## Ticket 9a7e5b90 (ws cases rewritten through MCP, full run)

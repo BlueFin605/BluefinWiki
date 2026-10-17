@@ -31,6 +31,7 @@ import { addComment, AddCommentInput } from './tools/add-comment.js';
 import { updateComment, UpdateCommentInput } from './tools/update-comment.js';
 import { deleteComment, DeleteCommentInput } from './tools/delete-comment.js';
 import { KANBAN_TOOLS, callKanbanTool } from './tools/kanban/index.js';
+import { validateToolArgs } from './validate-args.js';
 
 const TOOLS = [
   {
@@ -305,7 +306,16 @@ function createServer(): Server {
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
+    const { name, arguments: rawArgs } = request.params;
+
+    const tool = TOOLS.find((t) => t.name === name);
+    if (tool) {
+      const problem = validateToolArgs(tool, rawArgs);
+      if (problem) {
+        return { content: [{ type: 'text', text: problem }], isError: true };
+      }
+    }
+    const args = rawArgs ?? {};
 
     try {
       switch (name) {
