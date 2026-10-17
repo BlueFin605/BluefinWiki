@@ -1,0 +1,73 @@
+{
+    "id": "24d3e0df-cc67-4d64-b3b2-e8ecf65f03fa",
+    "name": "06 revoke unused invitation 200",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations/{{inviteCodeB}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "b6dd5a2d-f612-45ca-93ea-934d3ea87dd7",
+            "name": "revoke unused invitation 200",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"message\"],\"properties\":{\"message\":{\"const\":\"Invitation revoked successfully\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

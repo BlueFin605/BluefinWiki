@@ -1,0 +1,74 @@
+{
+    "id": "da8cc2d5-76f0-4076-a778-076da0b42733",
+    "name": "19 update display name 200",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/users/{{newUserId}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"displayName\":\"API Suite Renamed\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "8549360b-d50a-4e3c-bd9f-db2c81a722e7",
+            "name": "update display name 200",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"message\"],\"properties\":{\"message\":{\"const\":\"User updated successfully\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

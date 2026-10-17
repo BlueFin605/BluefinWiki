@@ -1,0 +1,73 @@
+{
+    "id": "ca521d40-92f1-471b-99fd-91ce267ae4cc",
+    "name": "07 revoke again 409",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations/{{inviteCodeB}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "9b1c3f0b-fd32-44fd-84e8-547ebeacd7c3",
+            "name": "revoke again 409",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 409,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invitation is already revoked\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

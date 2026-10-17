@@ -1,0 +1,73 @@
+{
+    "id": "d9e87e29-710a-4a07-85b5-cad647e775b8",
+    "name": "20 promoted user is admin",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/users/{{newUserId}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "a3bd300c-7e3d-4484-b440-bd2e4d28146e",
+            "name": "promoted user is admin",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"role\",\"displayName\"],\"properties\":{\"role\":{\"const\":\"Admin\"},\"displayName\":{\"const\":\"API Suite Renamed\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

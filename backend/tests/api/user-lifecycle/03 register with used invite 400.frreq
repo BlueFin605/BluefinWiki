@@ -1,0 +1,81 @@
+{
+    "id": "70a165e8-0088-4561-b9a1-41a7327de5d7",
+    "name": "03 register with used invite 400",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/auth/register",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"inviteCode\":\"{{inviteCodeA}}\",\"email\":\"{{otherEmail}}\",\"displayName\":\"Second\",\"password\":\"password-{{$guid}}\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "950e3126-a360-440c-bad6-d793214292eb",
+            "name": "register with used invite 400",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "otherEmail",
+                    "value": "api-suite-other-{{$guid}}@example.com",
+                    "active": true,
+                    "id": "87361a13-8467-418a-aa6f-d62816d76f60"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invitation code has already been used\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

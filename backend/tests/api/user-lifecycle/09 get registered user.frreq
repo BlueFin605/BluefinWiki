@@ -1,0 +1,73 @@
+{
+    "id": "06e1bf71-4fd7-4588-a276-e6ee278cb6d3",
+    "name": "09 get registered user",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/users/{{newUserId}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "712a31a3-e78d-41d9-a346-666f761a1327",
+            "name": "get registered user",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"userId\",\"email\",\"displayName\",\"role\",\"status\"],\"properties\":{\"userId\":{\"type\":\"string\"},\"email\":{\"type\":\"string\",\"pattern\":\"^api-suite-.+@example\\\\.com$\"},\"displayName\":{\"const\":\"API Suite User\"},\"role\":{\"const\":\"Standard\"},\"status\":{\"const\":\"active\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

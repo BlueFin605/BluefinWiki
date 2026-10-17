@@ -83,6 +83,12 @@
                     "value": "154136cb-4ab5-48f7-8d99-b8739c62f33b",
                     "active": true,
                     "id": "c7a457d7-8cd6-4723-a51d-1567109e2afe"
+                },
+                {
+                    "variable": "ghostAdminToken",
+                    "value": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJnaG9zdC1hZG1pbi1pZCIsImVtYWlsIjoiZ2hvc3RAZXhhbXBsZS5jb20iLCJjdXN0b206cm9sZSI6IkFkbWluIiwiY3VzdG9tOmRpc3BsYXlOYW1lIjoiR2hvc3QgQWRtaW4ifQ.x",
+                    "active": true,
+                    "id": "a7c42230-77cb-456c-93e2-6104ca6a3eff"
                 }
             ],
             "secrets": [],

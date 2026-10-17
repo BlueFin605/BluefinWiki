@@ -49,6 +49,7 @@ import {
 } from './pages/index.js';
 import { handler as linksResolve } from './pages/links-resolve.js';
 import { handler as authRegister } from './auth/auth-register.js';
+import { seedLocalDevUser } from './auth/seed-local-user.js';
 import { handler as authMe } from './auth/auth-me.js';
 import { handler as adminCreateInvitation } from './auth/admin-create-invitation.js';
 import { handler as adminListInvitations } from './auth/admin-list-invitations.js';
@@ -570,6 +571,11 @@ async function startServer() {
         } else {
           console.log(`✅ DynamoDB table '${name}' already exists`);
         }
+      }
+
+      // Seed the profile behind mock-jwt-token (email, role Admin, status active)
+      if (await seedLocalDevUser(dynamoClient, process.env.USER_PROFILES_TABLE || 'bluefinwiki-user-profiles-local')) {
+        console.log('✅ Seeded local-dev-user-id profile');
       }
     } catch (error) {
       console.warn('⚠️  Could not verify/create DynamoDB tables:', error);

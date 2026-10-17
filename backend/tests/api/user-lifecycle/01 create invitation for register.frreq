@@ -1,0 +1,82 @@
+{
+    "id": "3d6971a8-44ec-425f-8491-4c1cb52caddf",
+    "name": "01 create invitation for register",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"role\":\"Standard\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "aaa560bb-6af6-4d25-8e83-f6f94be7f2f6",
+            "name": "create invitation for register",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 201,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"inviteCode\",\"role\"],\"properties\":{\"inviteCode\":{\"type\":\"string\",\"minLength\":8,\"maxLength\":8},\"role\":{\"const\":\"Standard\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    },
+    "capture": [
+        {
+            "variable": "inviteCodeA",
+            "from": "body",
+            "path": "$.inviteCode",
+            "id": "56703665-5238-4a71-a4b9-dec35252b0a7"
+        }
+    ]
+}

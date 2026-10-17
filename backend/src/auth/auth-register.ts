@@ -1,8 +1,10 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { CognitoIdentityProviderClient, AdminCreateUserCommand, AdminSetUserPasswordCommand, MessageActionType } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { isLocalMode } from './local-mode.js';
 
 // Environment variables
 const USER_POOL_ID = process.env.USER_POOL_ID!;
@@ -89,6 +91,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       displayName: validatedData.displayName,
       role: invitation.role,
       inviteCode: validatedData.inviteCode,
+      // No post-confirmation trigger runs locally, so activate here
+      status: isLocalMode() ? 'active' : 'pending',
     });
 
     // Step 4: Mark invitation as used
@@ -202,6 +206,10 @@ async function createCognitoUser(
   role: 'Admin' | 'Standard',
   password: string
 ): Promise<string> {
+  if (isLocalMode()) {
+    return createLocalUser(email);
+  }
+
   // Create user with AdminCreateUser
   const createUserCommand = new AdminCreateUserCommand({
     UserPoolId: USER_POOL_ID,
@@ -244,6 +252,27 @@ async function createCognitoUser(
 }
 
 /**
+ * Local-mode stand-in for Cognito AdminCreateUser: no pool exists locally, so
+ * the "user" is just a fresh sub. Reproduces the one Cognito behaviour callers
+ * depend on, a duplicate email raising UsernameExistsException (-> 409), by
+ * looking for a live profile with that email.
+ */
+async function createLocalUser(email: string): Promise<string> {
+  const existing = await dynamoClient.send(new QueryCommand({
+    TableName: USER_PROFILES_TABLE,
+    IndexName: 'email-index',
+    KeyConditionExpression: 'email = :email',
+    ExpressionAttributeValues: { ':email': email },
+  }));
+  if ((existing.Items ?? []).some((item) => item.status !== 'deleted')) {
+    const error = new Error('An account with the given email already exists.');
+    error.name = 'UsernameExistsException';
+    throw error;
+  }
+  return randomUUID();
+}
+
+/**
  * Create user profile in DynamoDB
  */
 async function createUserProfile(data: {
@@ -252,6 +281,7 @@ async function createUserProfile(data: {
   displayName: string;
   role: 'Admin' | 'Standard';
   inviteCode: string;
+  status: UserProfileRecord['status'];
 }): Promise<void> {
   const now = new Date().toISOString();
 
@@ -260,7 +290,7 @@ async function createUserProfile(data: {
     email: data.email,
     displayName: data.displayName,
     role: data.role,
-    status: 'pending', // Will be updated to 'active' by post-confirmation trigger
+    status: data.status, // 'pending' is set to 'active' by the post-confirmation trigger
     inviteCode: data.inviteCode,
     createdAt: now,
     updatedAt: now,

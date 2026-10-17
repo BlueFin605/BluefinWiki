@@ -18,7 +18,7 @@
 - `new_request` with a `{{baseUrl}}/...` url defaults to https; `set_url` with an `http://` prefix is needed to get protocol http.
 - `set_body` contentType `json` sends a literal `Content-Type: json` header; `application/json` is needed.
 - An empty variable cannot produce an empty request body (it was sent as `""`), so the register "Request body is required" 400 is untested.
-- No capture of a created invite code into a later request, so register 201 and 409 are not written; locally POST /auth/register with a valid invite also returns 500 (no Cognito user pool in the local stack).
+- FIXED (kanban WSS-1, 60920384): locally POST /auth/register with a valid invite returned 500 because the handler called real Cognito (no pool, no endpoint override). It now uses a local-mode stub (`auth/local-mode.ts` `isLocalMode()`: NODE_ENV=development or a `local_` pool id, and never when `AWS_LAMBDA_FUNCTION_NAME` is set): fresh uuid as the user id, a duplicate live email raises UsernameExistsException (409), and the profile is stored `active` (no post-confirmation trigger locally). Deployed behaviour is unchanged and unit-tested. Register 201, 409 and used-invite 400 are covered by `user-lifecycle` using FullyRested capture (invite codes, user id, email).
 - Express used to return an HTML 400 for a malformed JSON body on POST /auth/register (FIXED, kanban 763fc0e6: now JSON 400 `{error: "Invalid JSON", code: "INVALID_JSON"}`); the `malformed body` run sends an empty variable (a bare `""`), which is rejected by the JSON parser the same way, and asserts the new shape.
 
 ## Ticket 2b07e530 (pages CRUD)
@@ -64,9 +64,9 @@
 - Download/list/delete/upload on a non-existent page: list returns 404 PAGE_NOT_FOUND and presign 404; other routes' unknown-page behaviour is not asserted.
 
 ## Ticket 794284c5 (admin invitations and users requests)
-- No throwaway users: register returns 500 locally (no Cognito pool), so suspend/activate success, already-suspended/already-active, delete 200, already-deleted, last-admin guards (update role, delete) and PUT 200 are untested; only the self-guards (never mutating `local-dev-user-id`) and 404s are covered.
-- Local `local-dev-user-id` profile has no email, role or status (only userId, displayName, updatedAt), so `activate` on it would flip status and the role/status filters on GET /admin/users match nothing.
-- No capture of a created invite code into later requests, so DELETE /admin/invitations/:code 200/409/404 and revoke-then-list-revoked are untested; create runs leak one pending invitation each.
+- RESOLVED (kanban WSS-1): throwaway users now exist (local register stub, below), so suspend/activate success and repeats, delete 200 and already-deleted, last-admin guards (update role, delete) and PUT 200 are covered by the `user-lifecycle` folder; the self-guard and 404 runs in `admin/` remain.
+- FIXED (kanban WSS-1): the local server now seeds `local-dev-user-id` (dev@example.com, Admin, active, only filling missing attributes) at startup, so the role/status filters match it.
+- Invitation revoke 200, already-revoked 409 and used 409 are now covered in `user-lifecycle` (captured codes); revoke-then-list-revoked is still untested, and the `admin/create invitation` runs still leak one pending invitation each.
 - FIXED (7727ee02): `DELETE /admin/invitations/:invitationCode` param mismatch; the unknown-code 404 and malformed-code 400 runs now pass.
 - FIXED (kanban 2680a20e): Zod 400 "Validation error" from the admin handlers (and auth-profile-update) had no `details` because they read `error.errors`, which zod 4 does not provide; they now return `error.issues` (deployed Lambdas were affected too). Schemas now require a non-empty `details` array.
 - Create invitation with `email` (SES path, emailSent/emailError) is untested to avoid sending mail; "Request body is required" 400 is untested (runs cannot send an empty body); PUT /admin/users/:userId with an empty body hits zod 400 instead.
@@ -113,3 +113,9 @@
 - `new_run` takes `request` (not `action` like run/show_request), an inconsistent parameter name across tools.
 - `new_request` has no websocket option: it creates an http request and needs a separate `set_type`; a `ws://` url is accepted but the file keeps `protocol: https`.
 - `set_expect` cannot be seen back (no show of expect in `tree`/`settings`), so a ws case's expect is only checkable by reading the .frreq or running it.
+
+## Tickets WSS-1 and 60920384 (register stub, dev seed, user lifecycle)
+- Remaining gaps: the local register stub never exercises Cognito password policy or the real AdminCreateUser attributes, and suspend/activate/delete skip Cognito locally (no pool id is set), so the Cognito side is covered only by unit tests of the deployed path.
+- `user-lifecycle` cases are order-dependent (captures), so a single request run alone fails on an unresolved variable; run the folder.
+- The last-admin cases rely on `local-dev-user-id` being the only live Admin locally; an extra Admin profile in the local table would turn their 400s into real changes to the dev profile.
+- Requests cannot hold variables (only runs, folders, environments, the collection), so each user-lifecycle request has one run named after the case.

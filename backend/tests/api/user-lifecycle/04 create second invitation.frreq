@@ -1,0 +1,82 @@
+{
+    "id": "0e5bb76d-6094-45ab-9274-57aa3ded9b87",
+    "name": "04 create second invitation",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"role\":\"Standard\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "d03e4ecf-5326-443c-8501-38b2e019e719",
+            "name": "create second invitation",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 201,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"inviteCode\"],\"properties\":{\"inviteCode\":{\"type\":\"string\",\"minLength\":8,\"maxLength\":8}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    },
+    "capture": [
+        {
+            "variable": "inviteCodeB",
+            "from": "body",
+            "path": "$.inviteCode",
+            "id": "1a2bec46-7262-4ee9-933e-e2fd124f6b86"
+        }
+    ]
+}

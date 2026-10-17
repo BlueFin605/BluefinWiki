@@ -1,0 +1,95 @@
+{
+    "id": "7c1e05b9-e499-407f-9101-61712fa47b8c",
+    "name": "02 register 201",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/auth/register",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"inviteCode\":\"{{inviteCodeA}}\",\"email\":\"{{newEmail}}\",\"displayName\":\"API Suite User\",\"password\":\"password-{{$guid}}\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "78f1a593-159f-4f4b-8767-f49bd8cde68c",
+            "name": "register 201",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "newEmail",
+                    "value": "api-suite-{{$guid}}@example.com",
+                    "active": true,
+                    "id": "3bfcf42f-1df6-4884-a525-5ef4eedfcdf3"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 201,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"message\",\"userId\",\"email\",\"role\"],\"properties\":{\"message\":{\"const\":\"User registered successfully\"},\"userId\":{\"type\":\"string\",\"minLength\":8},\"email\":{\"type\":\"string\",\"pattern\":\"^api-suite-.+@example\\\\.com$\"},\"role\":{\"const\":\"Standard\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    },
+    "capture": [
+        {
+            "variable": "newUserId",
+            "from": "body",
+            "path": "$.userId",
+            "id": "1ee80263-423c-449e-afba-be1095cde880"
+        },
+        {
+            "variable": "newUserEmail",
+            "from": "body",
+            "path": "$.email",
+            "id": "01dd42da-9a70-4dd1-8dde-1bb104f394f6"
+        }
+    ]
+}
