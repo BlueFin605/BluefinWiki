@@ -71,6 +71,18 @@
                     "value": "7ad41068-c7e3-4f62-864e-479afce1a7f0",
                     "active": true,
                     "id": "4c029f4c-09e4-4722-b560-62941e174cf3"
+                },
+                {
+                    "variable": "pageTypeGuid",
+                    "value": "6673d002-fed2-4af2-887d-e68f1c70c88a",
+                    "active": true,
+                    "id": "82bffc40-0cea-48db-b23e-1a0dc2146479"
+                },
+                {
+                    "variable": "childTypeGuid",
+                    "value": "154136cb-4ab5-48f7-8d99-b8739c62f33b",
+                    "active": true,
+                    "id": "c7a457d7-8cd6-4723-a51d-1567109e2afe"
                 }
             ],
             "secrets": [],

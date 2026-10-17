@@ -73,3 +73,15 @@
 - Zod 400 "Validation error" from admin handlers has no `details` (handler reads `error.errors`, which zod 4 does not provide), unlike the intended shape; schemas assert only `error`.
 - Create invitation with `email` (SES path, emailSent/emailError) is untested to avoid sending mail; "Request body is required" 400 is untested (runs cannot send an empty body); PUT /admin/users/:userId with an empty body hits zod 400 instead.
 - Malformed JSON on POST /admin/invitations and PUT /admin/users/:userId returns Express HTML 400 (header check in `malformed body` runs).
+
+## Ticket 1166ac1c (tags and page-types requests)
+- `{{$guid}}` and other dynamic values are not expanded in run variables, so `POST /tags` 201 cannot use a unique tag name; the 201 run was dropped because a fixed name returns 409 on the second run (201 untested; 409 is covered against hand-created fixture tag `api-suite-fixture` in scope `api-suite`).
+- A request with no runs is sent bare, so adding `delete page type` / `update page type` before their runs existed deleted the fixture page type; there is no way to mark a request as "runs only".
+- No capture of a created page-type guid: GET/PUT/DELETE use hand-created fixtures (env `pageTypeGuid` = `api-suite-fixture-type`, hard-coded guids of `api-suite-fixture-child` and `api-suite-fixture-parent`, the latter with the child allowed); re-create via POST /page-types and update the env variable and the hard-coded guids in the get/list/allowed-children/update schemas if the local stack is reset.
+- DELETE /page-types/:guid 200 is untested (it consumes the fixture and needs a fresh guid per run); the `created *` runs leak three page types per run (no cleanup without captured guids).
+- Page-type routes do no guid validation: a non-GUID returns 404 "Page type not found" (covered as `non-guid is not found`), not 400.
+- No tag delete endpoint, so tag fixtures and the stray literal `api-suite-{{$guid}}` tag in scope `api-suite` cannot be cleaned up.
+- GET /tags has no 400/404 cases: any scope string is accepted and an unknown scope returns 200 with an empty list.
+- "Request body is required" 400 on POST /tags, POST /page-types and PUT /page-types/:guid is untested (runs cannot send an empty body).
+- Malformed JSON on POST /tags, POST /page-types and PUT /page-types/:guid returns Express HTML 400 (header check in `malformed body` runs).
+- Zod 400 on tags/page-types includes `details` (zod format object), unlike admin handlers which omit it (inconsistent shape).
