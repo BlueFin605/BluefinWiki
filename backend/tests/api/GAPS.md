@@ -95,3 +95,7 @@
 - imdb lookup by `imdbId` is untested (same upstream dependency as `query`).
 - fetch-url "Request body is required" 400 is untested (runs cannot send an empty body); malformed JSON returns Express HTML 400 (header check in `malformed body` run).
 - Unknown-route 404 body is `{error: "Not Found", message}` (differs from the `{error}`-only shape elsewhere).
+
+## Ticket 2627ae20 (WebSocket event tests)
+- Blocked: no websocket request type in the FullyRested MCP tools available (no set_type/set_message/set_expect); it exists only on the unmerged FullyRested branch feature/websocket-support. `backend/tests/api/ws` holds only `.gitkeep`; no websocket case was faked as HTTP.
+- To write once merged: connect `ws://localhost:3000/ws?token=mock-jwt-token`, trigger `POST /pages`, assert an `upsert {pages, tags, origin}` message and an `invalidate {tags, origin}` message with their tags; the server sends nothing on connect and ignores client messages.
