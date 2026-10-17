@@ -1,6 +1,6 @@
 # BlueFinWiki API suite
 
-FullyRested collection (`bluefinwiki.frcol`) covering the REST API, run against the local stack. Folders mirror the API areas (`admin`, `attachments`, `pages`, `search-and-utilities`, `mcp`, ...); `ws` holds two websocket tests; each has a FullyRested trigger (an http request in the same folder, fired repeatedly during the run) that provokes the pushed message, so no helper script is needed.
+FullyRested collection (`bluefinwiki.frcol`) covering the REST API, run against the local stack. Folders mirror the API areas (`admin`, `attachments`, `pages`, `search-and-utilities`, `mcp`, ...); `ws` holds three websocket tests (upsert on publish, invalidate on archive, invalidate on move); each has a FullyRested trigger (an http request in the same folder, fired repeatedly during the run) that provokes the pushed message, so no helper script is needed. The triggers are idempotent writes on the captured 00-setup fixture page, so the ws folder creates no pages.
 
 ## Run it
 
@@ -17,7 +17,7 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 398 passed, 0 failed (398 cases), verified by a full run against localhost:3000 on 2026-10-18 with the rebuilt FullyRested CLI; the two ws test requests and their two trigger requests are among the passes. Any failure is a regression. There are no known failures at present.
+Baseline: 400 passed, 0 failed (400 cases), verified by two consecutive full runs against localhost:3000 on 2026-10-18 with the rebuilt FullyRested CLI; the three ws test requests and their three trigger requests are among the passes. Any failure is a regression. There are no known failures at present.
 
 Any case named `KNOWN FAILURE` would assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 
@@ -35,7 +35,7 @@ None at present. When a bug is found, add a case named `KNOWN FAILURE ...` asser
 - `mcp/` uses the FullyRested `mcp` request type; `GET /mcp` 404, malformed JSON and the missing-Accept 406 stay plain http.
 - `user-lifecycle/` is a numbered, order-dependent flow (see its cases); it ends by soft-deleting its throwaway user. Local `POST /auth/register` needs no Cognito (local mode); the server seeds the `local-dev-user-id` profile (dev@example.com, Admin, active) on startup.
 - The last-admin cases send `ghostAdminToken` (an unsigned Admin JWT for a sub with no profile); they pass only while `local-dev-user-id` is the sole non-deleted Admin profile locally.
-- Still leaks per run: one tag in scope `api-suite` (no tag delete endpoint), one tombstone for the soft-deleted parent comments, revoked (not deleted) invitations, and 1-3 pages from each ws trigger (FullyRested websocket triggers do not receive captured values, so they create their own page).
+- Still leaks per run: one tag in scope `api-suite` (no tag delete endpoint), one tombstone for the soft-deleted parent comments, and revoked (not deleted) invitations. No pages leak.
 
 ## Gaps
 

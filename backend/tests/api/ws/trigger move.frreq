@@ -1,0 +1,38 @@
+{
+    "id": "45d839bc-af18-40b9-bd07-ef774dc9cf16",
+    "name": "trigger move",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/move",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"newParentGuid\":null}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "ResponseCode",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

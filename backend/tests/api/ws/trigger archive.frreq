@@ -1,14 +1,14 @@
 {
     "id": "ad66396e-2a06-4216-b51b-862c8cf460bb",
     "name": "trigger archive",
-    "verb": "post",
+    "verb": "put",
     "protocol": "http",
-    "url": "{{baseUrl}}/pages",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}",
     "headers": [],
     "parameters": [],
     "body": {
         "contentType": "application/json",
-        "body": "{\"title\":\"api-suite ws invalidate {{$guid}}\",\"content\":\"created by the ws invalidate trigger\",\"status\":\"archived\"}"
+        "body": "{\"title\":\"api-suite crud fixture\",\"content\":\"archived by the api suite ws trigger\",\"tags\":[\"api-suite\"],\"status\":\"archived\"}"
     },
     "authentication": {
         "authentication": "inherit",
@@ -33,6 +33,6 @@
         "type": "ResponseCode",
         "headers": [],
         "body": "None",
-        "httpCode": 201
+        "httpCode": 200
     }
 }

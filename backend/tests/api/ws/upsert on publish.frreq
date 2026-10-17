@@ -31,7 +31,7 @@
     "runs": [
         {
             "id": "d48114c7-ff57-4b27-a048-e895291a8728",
-            "name": "published create pushes upsert",
+            "name": "published save pushes upsert",
             "parameters": [],
             "headers": [],
             "variables": [],
@@ -74,7 +74,7 @@
         "count": 1,
         "match": "any",
         "schema": {
-            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"pages\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"upsert\"},\"pages\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"title\"]}},\"tags\":{\"type\":\"array\"},\"origin\":{\"type\":[\"string\",\"null\"]}}}"
+            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"pages\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"upsert\"},\"pages\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"title\"]},\"contains\":{\"type\":\"object\",\"required\":[\"guid\",\"status\"],\"properties\":{\"guid\":{\"const\":\"{{crudPageGuid}}\"},\"title\":{\"const\":\"api-suite crud fixture\"},\"status\":{\"const\":\"published\"}}}},\"tags\":{\"type\":\"array\"},\"origin\":{\"type\":[\"string\",\"null\"]}}}"
         },
         "extras": "ignore",
         "timeout": 10000,
