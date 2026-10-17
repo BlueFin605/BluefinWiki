@@ -27,7 +27,82 @@
             "token": ""
         }
     },
-    "runs": [],
+    "runs": [
+        {
+            "id": "1904f77f-2f41-4278-9f56-327555f399d2",
+            "name": "no auth",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "HeadersBody",
+                "headers": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json; charset=utf-8",
+                        "active": true,
+                        "id": "abab0a33-d302-4669-9c2d-ae411103973a"
+                    }
+                ],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\",\"const\":\"healthy\"},\"timestamp\":{\"type\":\"string\",\"format\":\"date-time\"},\"environment\":{\"type\":\"string\",\"minLength\":1}},\"required\":[\"status\",\"timestamp\",\"environment\"]}"
+                }
+            }
+        },
+        {
+            "id": "a66a0414-be63-4b97-a628-09f99a03082e",
+            "name": "with auth",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Inherit",
+                "headers": [],
+                "body": "None",
+                "httpCode": 200
+            }
+        }
+    ],
     "validation": {
         "type": "Body",
         "headers": [],

@@ -1,0 +1,175 @@
+{
+    "id": "2b5d39e2-565f-465b-b172-b7143d4baf3e",
+    "name": "register",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/auth/register",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{{payload}}"
+    },
+    "authentication": {
+        "authentication": "none",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "267a310b-9a10-4685-8d57-0d2074964020",
+            "name": "validation error",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"inviteCode\":\"short\",\"email\":\"not-an-email\",\"displayName\":\"\",\"password\":\"x\"}",
+                    "active": true,
+                    "id": "9c6c0322-6640-4298-bd28-d8b37b25c0cf"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation error\"},\"details\":{\"type\":\"array\",\"minItems\":4,\"items\":{\"type\":\"object\",\"required\":[\"field\",\"message\"]}}},\"required\":[\"error\",\"details\"]}"
+                }
+            }
+        },
+        {
+            "id": "4350d9ad-b2b1-4ce4-b279-a7cd41e7296b",
+            "name": "invalid invite",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"inviteCode\":\"ZZZZZZZZ\",\"email\":\"nobody@example.com\",\"displayName\":\"Nobody\",\"password\":\"password123\"}",
+                    "active": true,
+                    "id": "4b8f8213-4de1-462d-a359-977d4338204e"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Invitation code not found\"}},\"required\":[\"error\"]}"
+                }
+            }
+        },
+        {
+            "id": "c2b8c489-fb59-453c-a8d9-323380c25636",
+            "name": "malformed body",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "",
+                    "active": true,
+                    "id": "86962289-43ed-4cbd-acad-8981d460b915"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Headers",
+                "headers": [
+                    {
+                        "key": "Content-Type",
+                        "value": "text/html; charset=utf-8",
+                        "active": true,
+                        "id": "7b6fc3ec-48f5-4a8a-a7cb-d7f5f993c36d"
+                    }
+                ],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Request body is required\"}},\"required\":[\"error\"]}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 400,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Request body is required\"}},\"required\":[\"error\"]}"
+        }
+    }
+}

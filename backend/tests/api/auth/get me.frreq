@@ -1,0 +1,143 @@
+{
+    "id": "a3875692-584f-4d0f-9043-769d25c06286",
+    "name": "get me",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/auth/me",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "f25c4dd4-55e1-4107-8c04-379aab6a6b8a",
+            "name": "missing token",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Missing authorization token\"}},\"required\":[\"error\"]}"
+                }
+            }
+        },
+        {
+            "id": "7ee5d3c9-43cb-4d84-bc49-36fb4c18601f",
+            "name": "bad token",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "bearertoken",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": "garbage"
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Invalid or expired token\"}},\"required\":[\"error\"]}"
+                }
+            }
+        },
+        {
+            "id": "6fd0ae93-f7c5-4482-8957-f5147cd68d3a",
+            "name": "valid token",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Inherit",
+                "headers": [],
+                "body": "None",
+                "httpCode": 200
+            }
+        }
+    ],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"properties\":{\"userId\":{\"type\":\"string\",\"minLength\":1},\"email\":{\"type\":\"string\",\"minLength\":1},\"displayName\":{\"type\":\"string\"},\"role\":{\"type\":\"string\",\"enum\":[\"Admin\",\"Standard\"]}},\"required\":[\"userId\",\"email\",\"displayName\",\"role\"]}"
+        }
+    }
+}
