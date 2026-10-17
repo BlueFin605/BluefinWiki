@@ -7,7 +7,7 @@
 - No MCP-client request type, so the `mcp` folder cannot hold real MCP smoke calls (only raw JSON-RPC over POST /mcp if supported).
 
 ## BlueFinWiki behaviour (confirmed by request against localhost:3000)
-- CONFIRMED: `GET /pages/search?q=a` returns 400 "Invalid GUID format" (route shadowed by `GET /pages/:guid`).
+- FIXED (f13484d3, 9eed3d0f): `GET /pages/search` was shadowed by `GET /pages/:guid` in the local server (400 "Invalid GUID format"); the search route is now registered first. Deployed API Gateway was never affected (static resource wins over {guid}).
 - CONFIRMED: `DELETE /admin/invitations/<code>` returns 400 "Invitation code is required" (param not passed to handler).
 - FIXED (d40def49): `POST /admin/rebuild-page-index` was unauthenticated locally; now routed through the deployed withAuth+withRole handler (401/401/403 asserted).
 - `pages/board-order backfill` has an unauthenticated case; confirm that route's auth expectation when the pages ticket is done.
@@ -36,7 +36,7 @@
 - `GET /ticket-keys/:key` 200, `POST /pages/:guid/ticket-keys/backfill` 200 and idempotency are untested (need an Initiative with keyPrefix and a captured key); only 400/401/403/404 are covered.
 - `GET /pages/:guid/backlinks` 200 only asserts an empty list (no way to create a linking page and capture its guid).
 - Empty request body (400 "Request body is required") on PUT /pages/:guid/move and PUT /pages/reorder is untested (runs cannot send an empty body).
-- Known failure: `GET /pages/search` shadowed by `GET /pages/:guid` (400 "Invalid GUID format"); both search runs (results, missing q) fail until the route order is fixed.
+- FIXED: `GET /pages/search` shadowing (see above); both search runs now pass.
 - Known failure: `GET /pages/:guid/ancestors` returns 200 `{ancestors: []}` for an unknown guid and for a non-GUID string (no 400/404).
 - Known failure: `POST /pages/:guid/board-order/backfill` with a non-GUID returns 500 "Failed to backfill boardOrder" instead of 400.
 - `pages/board-order backfill > existing page` still fails (seeded `pageGuid` 404 locally); `crud fixture page` runs cover the 200 and idempotency instead.
@@ -89,7 +89,7 @@
 - Fixed (d40def49): `POST /admin/rebuild-page-index` was unauthenticated in local-server.ts; it now uses the deployed handler (withAuth + withRole Admin), and the three cases assert 401/401/403.
 - Known failure: `GET /imdb/show-details` is not routed locally (404 "Route GET ... not found"); local-server registers `POST /imdb/show-details` while the handler (and its doc comment) reads query-string params as a GET, so the POST must carry `?query=` and a JSON body is ignored. Run `KNOWN FAILURE GET not routed locally` expects the handler's 400.
 - `GET /search?q=<non-empty>` returns 500 "Search unavailable" locally (Bedrock embeddings not supported by LocalStack), so result shape, `scope`, `limit` and `offset` paging are untested; only empty/missing/sanitised-to-empty q (200 empty) and auth are covered. The 500 is asserted as the documented local behaviour.
-- `GET /pages/search` cases stay in the pages folder (route shadowed by `GET /pages/:guid`); nothing duplicated here.
+- `GET /pages/search` cases stay in the pages folder (shadowing fixed); nothing duplicated here.
 - fetch-url 200, 502 and imdb 200/404 hit the public internet (example.com, TVmaze/IMDb) so they can fail offline; 502 from redirect/oversize/unsupported-content-type/timeout and the local `ALLOW_HTTP` path are untested (no controllable upstream); an unresolvable host and a non-https scheme return 400, not 502.
 - imdb lookup by `imdbId` is untested (same upstream dependency as `query`).
 - fetch-url "Request body is required" 400 is untested (runs cannot send an empty body); malformed JSON returns Express HTML 400 (header check in `malformed body` run).

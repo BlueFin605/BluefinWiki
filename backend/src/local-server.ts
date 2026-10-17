@@ -227,8 +227,11 @@ app.post('/pages', wrapLambdaHandler(pagesCreate));
 app.get('/pages/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages
 app.get('/pages/root/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages alias
 app.put('/pages/reorder', wrapLambdaHandler(pagesReorder));
+// Static GET segments must be registered before '/pages/:guid' or Express captures them as a guid
+// (API Gateway already prefers static resources over {guid}, so this only affects the local server).
+app.get('/pages/search', wrapLambdaHandler(pagesSearch));
 app.get('/pages/:guid', wrapLambdaHandler(pagesGet));
-app.put('/pages/:guid', wrapLambdaHandler(pagesUpdate));
+app.put('/pages/:guid',wrapLambdaHandler(pagesUpdate));
 app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));
 app.get('/pages/:guid/children', wrapLambdaHandler(pagesListChildren));
 app.put('/pages/:guid/move', wrapLambdaHandler(pagesMove));
@@ -237,7 +240,6 @@ app.get('/ticket-keys/:key', wrapLambdaHandler(ticketKeysResolve));
 app.post('/pages/:guid/ticket-keys/backfill', wrapLambdaHandler(ticketKeysBackfill));
 app.post('/pages/:guid/board-order/backfill', wrapLambdaHandler(boardOrderBackfill));
 app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
-app.get('/pages/search', wrapLambdaHandler(pagesSearch));
 app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
 app.post('/pages/:pageGuid/attachments/presign', wrapLambdaHandler(pagesAttachmentsPresign));
 app.post('/pages/:pageGuid/attachments/confirm', wrapLambdaHandler(pagesAttachmentsConfirm));

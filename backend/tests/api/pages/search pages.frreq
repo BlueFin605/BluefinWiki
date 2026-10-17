@@ -30,7 +30,7 @@
     "runs": [
         {
             "id": "c4ae0f8e-b25c-480a-84ca-45c0b8a24aa8",
-            "name": "KNOWN FAILURE shadowed by guid route",
+            "name": "search returns results",
             "parameters": [
                 {
                     "key": "q",
@@ -72,7 +72,7 @@
         },
         {
             "id": "556a5f6c-45ac-4904-8f38-5eaff3f1515b",
-            "name": "KNOWN FAILURE missing q should be 400 missing q",
+            "name": "missing q returns 400",
             "parameters": [],
             "headers": [],
             "variables": [],
