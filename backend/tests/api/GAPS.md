@@ -19,7 +19,7 @@
 - `set_body` contentType `json` sends a literal `Content-Type: json` header; `application/json` is needed.
 - An empty variable cannot produce an empty request body (it was sent as `""`), so the register "Request body is required" 400 is untested.
 - No capture of a created invite code into a later request, so register 201 and 409 are not written; locally POST /auth/register with a valid invite also returns 500 (no Cognito user pool in the local stack).
-- Express returns an HTML 400 (not JSON) for a malformed JSON body on POST /auth/register; covered by the `malformed body` run with a header check.
+- Express used to return an HTML 400 for a malformed JSON body on POST /auth/register (FIXED, kanban 763fc0e6: now JSON 400 `{error: "Invalid JSON", code: "INVALID_JSON"}`); the `malformed body` run sends an empty variable (a bare `""`), which is rejected by the JSON parser the same way, and asserts the new shape.
 
 ## Ticket 2b07e530 (pages CRUD)
 - No capture of a created guid into later requests, so the suite cannot create-then-GET/PUT/DELETE: GET/PUT 200 use an env variable `crudPageGuid` holding a hand-created fixture page (like `pageGuid`; it must be re-created if the local stack is reset), and the create runs leak one page each (remove them by hand).
@@ -27,7 +27,7 @@
 - Runs cannot send an empty request body, so the "Request body is required" 400 on POST /pages and PUT /pages/:guid is untested.
 - A Standard-role 403 case uses an unsigned JWT in env variable `standardToken` (not a secret); the local backend decodes it without verifying and gives it role Standard, so it works.
 - PUT /pages/:guid 404 returns only `{error}` without `code`, while GET returns `code: PAGE_NOT_FOUND` (inconsistent error shape).
-- Malformed JSON on POST /pages returns Express HTML 400, not the JSON error shape (header check in `malformed body` run).
+- Malformed JSON on POST /pages returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`) (schema check in `malformed body` run).
 - The seeded `pageGuid` was no longer present locally (404), so `board-order backfill > existing page` fails until it is re-seeded.
 
 ## Ticket 07f68685 (pages tree, search and ticket-key requests)
@@ -49,7 +49,7 @@
 - The `created top-level` and `created reply` runs leak one comment each per run on the fixture page (no cleanup without captured ids).
 - "Request body is required" 400 on POST/PUT comments is untested (runs cannot send an empty body).
 - PUT/DELETE comments on a non-existent page are not asserted precisely (update `page not found` accepts PAGE_NOT_FOUND or COMMENT_NOT_FOUND 404).
-- Malformed JSON on POST comments returns Express HTML 400 rather than the JSON error shape (header check in `malformed body` run).
+- Malformed JSON on POST comments returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`) (schema check in `malformed body` run).
 
 ## Ticket 52e19d59 (attachments requests)
 - Multipart upload 201/415/413 on `POST /pages/:guid/attachments` is not expressible: the body is text and the handler requires CRLF line breaks, but `set_body` text is stored with LF, so a hand-written multipart body gets 500 "No file found in multipart payload"; there is also no file/binary part type, so the oversize (10MB image / 50MB document) upload cases cannot be built.
@@ -59,7 +59,7 @@
 - Confirm 413 (stored object over the limit) is untested: needs an oversize object put into storage. Real DELETE of an existing attachment is untested (it would consume the fixture and cannot be re-created inside the suite).
 - FIXED (kanban 83760b81): the presigned PUT URL embedded `x-amz-checksum-crc32=AAAAAA==` (empty-body CRC32) because the SDK defaults to `requestChecksumCalculation: WHEN_SUPPORTED`; this affected deployed S3 too, not just LocalStack. `S3StoragePlugin` now sets `WHEN_REQUIRED`. Verified manually (presign -> PUT 200 -> confirm 200 -> delete 200). Still not expressible in the suite: a run cannot capture `uploadUrl` from the presign response into a later PUT to an absolute URL, so the non-empty PUT leg is covered by the backend unit test `S3StoragePlugin.presign-checksum.test.ts` and the presign cases only.
 - `DELETE /pages/:guid/attachments/:filename` for a missing file returns 200 success (idempotent), not 404; covered as `missing file is idempotent 200`.
-- Malformed JSON on presign/confirm returns Express HTML 400 with a stack trace including local file paths (header check in `malformed body` runs); wrong Content-Type on the upload route (JSON) is parsed by body-parser first, so the handler's "Content-Type must be multipart/form-data" 400 is only reachable with a non-JSON type (run uses text/plain).
+- FIXED (kanban 763fc0e6): malformed JSON on presign/confirm returned Express HTML 400 with a stack trace including local file paths; the local server now has a four-argument error handler (`local-error-handler.ts`) returning JSON 400 `{error: "Invalid JSON", code: "INVALID_JSON"}` (and a generic JSON 500 with no message or stack for any other unhandled error). Deployed Lambda was never affected (API Gateway hands handlers the raw body; they return JSON). The `malformed body` runs now assert the JSON shape. Wrong Content-Type on the upload route (JSON) is parsed by body-parser first, so the handler's "Content-Type must be multipart/form-data" 400 is only reachable with a non-JSON type (run uses text/plain).
 - "Request body is required" 400 on presign/confirm is untested (runs cannot send an empty body).
 - Download/list/delete/upload on a non-existent page: list returns 404 PAGE_NOT_FOUND and presign 404; other routes' unknown-page behaviour is not asserted.
 
@@ -70,7 +70,7 @@
 - FIXED (7727ee02): `DELETE /admin/invitations/:invitationCode` param mismatch; the unknown-code 404 and malformed-code 400 runs now pass.
 - Zod 400 "Validation error" from admin handlers has no `details` (handler reads `error.errors`, which zod 4 does not provide), unlike the intended shape; schemas assert only `error`.
 - Create invitation with `email` (SES path, emailSent/emailError) is untested to avoid sending mail; "Request body is required" 400 is untested (runs cannot send an empty body); PUT /admin/users/:userId with an empty body hits zod 400 instead.
-- Malformed JSON on POST /admin/invitations and PUT /admin/users/:userId returns Express HTML 400 (header check in `malformed body` runs).
+- Malformed JSON on POST /admin/invitations and PUT /admin/users/:userId returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`) (schema check in `malformed body` runs).
 
 ## Ticket 1166ac1c (tags and page-types requests)
 - `{{$guid}}` and other dynamic values are not expanded in run variables, so `POST /tags` 201 cannot use a unique tag name; the 201 run was dropped because a fixed name returns 409 on the second run (201 untested; 409 is covered against hand-created fixture tag `api-suite-fixture` in scope `api-suite`).
@@ -81,7 +81,7 @@
 - No tag delete endpoint, so tag fixtures and the stray literal `api-suite-{{$guid}}` tag in scope `api-suite` cannot be cleaned up.
 - GET /tags has no 400/404 cases: any scope string is accepted and an unknown scope returns 200 with an empty list.
 - "Request body is required" 400 on POST /tags, POST /page-types and PUT /page-types/:guid is untested (runs cannot send an empty body).
-- Malformed JSON on POST /tags, POST /page-types and PUT /page-types/:guid returns Express HTML 400 (header check in `malformed body` runs).
+- Malformed JSON on POST /tags, POST /page-types and PUT /page-types/:guid returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`) (schema check in `malformed body` runs).
 - Zod 400 on tags/page-types includes `details` (zod format object), unlike admin handlers which omit it (inconsistent shape).
 
 ## Ticket 78935bf7 (search, fetch-url, imdb and admin rebuild requests)
@@ -91,7 +91,7 @@
 - `GET /pages/search` cases stay in the pages folder (shadowing fixed); nothing duplicated here.
 - fetch-url 200, 502 and imdb 200/404 hit the public internet (example.com, TVmaze/IMDb) so they can fail offline; 502 from redirect/oversize/unsupported-content-type/timeout and the local `ALLOW_HTTP` path are untested (no controllable upstream); an unresolvable host and a non-https scheme return 400, not 502.
 - imdb lookup by `imdbId` is untested (same upstream dependency as `query`).
-- fetch-url "Request body is required" 400 is untested (runs cannot send an empty body); malformed JSON returns Express HTML 400 (header check in `malformed body` run).
+- fetch-url "Request body is required" 400 is untested (runs cannot send an empty body); malformed JSON returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`) (schema check in `malformed body` run).
 - Unknown-route 404 body is `{error: "Not Found", message}` (differs from the `{error}`-only shape elsewhere).
 
 ## Ticket 2627ae20 (WebSocket event tests)
@@ -102,7 +102,7 @@
 - FullyRested has no MCP-client request type: /mcp is smoked as raw JSON-RPC over POST with the body in a `{{rpc}}` run variable (no initialize/session handling, no tools/call result decoding beyond a JSON Schema on the text content); friction worth an fr-gap ticket.
 - Local /mcp has no auth at all (prod is guarded by an API Gateway API key, not Cognito/Bearer): there is no 401 to test locally; run `tools list no token` asserts 200 as the documented local behaviour, and the prod API-key 403 is untested.
 - `GET /mcp` is not routed locally (Express 404 `{error, message}`); the handler's 405 with `Allow: POST, DELETE` only exists behind Lambda/API Gateway, so run `GET not routed locally` asserts the local 404 and the 405 is untested.
-- Malformed JSON on POST /mcp returns Express HTML 400 before the handler runs, so the JSON-RPC parse error (-32700) is never reachable locally (header check in `malformed body` run).
+- Malformed JSON on POST /mcp returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`), so the JSON-RPC parse error (-32700) is never reachable locally (schema check in `malformed body` run).
 - `call bad arguments` (get_backlinks with no pageGuid) returns isError with a raw JS message "Cannot read properties of undefined (reading 'trim')" rather than a validation message; asserted only as isError true.
 - `call get_page` hard-codes the fixture guid `0ea160d4-...` in the rpc variable (nested variables are not expanded).
 

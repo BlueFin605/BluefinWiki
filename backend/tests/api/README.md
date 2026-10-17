@@ -17,7 +17,7 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 293 passed, 2 failed (295 cases; verified by a full run against localhost:3000 on 2026-10-17 after the 37db7698 fix; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 2 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
+Baseline: 293 passed, 2 failed (295 cases; verified by a full run against localhost:3000 on 2026-10-17 after the 37db7698 and 763fc0e6 (JSON error handler, all `malformed body` runs assert `{error, code: INVALID_JSON}`) fixes; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 2 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
 
 Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 

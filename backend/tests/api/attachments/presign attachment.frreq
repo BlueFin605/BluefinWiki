@@ -446,17 +446,13 @@
                 }
             },
             "validation": {
-                "type": "Headers",
-                "headers": [
-                    {
-                        "key": "Content-Type",
-                        "value": "text/html; charset=utf-8",
-                        "active": true,
-                        "id": "db612c21-8e5e-44ae-b7c1-9aff6c3e9115"
-                    }
-                ],
-                "body": "None",
-                "httpCode": 400
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Invalid JSON\"},\"code\":{\"type\":\"string\",\"const\":\"INVALID_JSON\"}},\"required\":[\"error\",\"code\"]}"
+                }
             }
         },
         {

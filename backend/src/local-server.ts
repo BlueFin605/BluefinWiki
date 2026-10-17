@@ -12,6 +12,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import http from 'node:http';
+import { localErrorHandler } from './local-error-handler.js';
 import { attachRealtime, originMiddleware } from './realtime/local-ws.js';
 import { APIGatewayProxyEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 import { initializeStoragePlugin, StoragePluginRegistry } from './storage/index.js';
@@ -349,13 +350,7 @@ app.use((req, res) => {
 // Error Handler
 // ============================================================================
 
-app.use((err: Error, _req: Request, res: Response) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message,
-  });
-});
+app.use(localErrorHandler);
 
 // ============================================================================
 // Start Server
