@@ -1,0 +1,41 @@
+{
+    "id": "32e4ba8d-812b-46c5-a28a-311d0347f7e5",
+    "name": "14-reorder hierarchy children",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/reorder",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"parentGuid\":\"{{hierParent}}\",\"orderedGuids\":[\"{{hierChildB}}\",\"{{hierChildA}}\"]}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"updated\"],\"additionalProperties\":false,\"properties\":{\"updated\":{\"const\":2}}}"
+        }
+    }
+}

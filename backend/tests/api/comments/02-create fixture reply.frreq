@@ -1,0 +1,49 @@
+{
+    "id": "f786a3a3-743a-4130-bb60-e1e4a46bb6c9",
+    "name": "02-create fixture reply",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"body\":\"api-suite fixture reply\",\"parentId\":\"{{commentId}}\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"body\",\"editedAt\",\"deletedAt\"],\"properties\":{\"parentId\":{\"const\":\"{{commentId}}\"},\"authorId\":{\"const\":\"local-dev-user-id\"},\"body\":{\"const\":\"api-suite fixture reply\"},\"editedAt\":{\"type\":\"null\"},\"deletedAt\":{\"type\":\"null\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "replyCommentId",
+            "from": "body",
+            "path": "$.id",
+            "id": "5237eec4-143d-440f-9d80-eb9ec46ae24c"
+        }
+    ]
+}

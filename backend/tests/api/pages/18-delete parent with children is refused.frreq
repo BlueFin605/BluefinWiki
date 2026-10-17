@@ -1,0 +1,40 @@
+{
+    "id": "5844aad0-881b-4604-a2ba-8d3525ddfb43",
+    "name": "18-delete parent with children is refused",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{hierParent}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 400,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"HAS_CHILDREN\"}}}"
+        }
+    }
+}

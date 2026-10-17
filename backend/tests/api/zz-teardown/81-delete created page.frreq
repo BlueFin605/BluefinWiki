@@ -1,0 +1,40 @@
+{
+    "id": "f46053d4-9c90-418d-9ea6-d2dfec98833a",
+    "name": "81-delete created page",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{createdPageGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"deleted\"],\"properties\":{\"deleted\":{\"const\":true}}}"
+        }
+    }
+}

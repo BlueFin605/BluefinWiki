@@ -1,0 +1,40 @@
+{
+    "id": "377008d5-65a8-41ed-8be2-cfeacd896e05",
+    "name": "31-delete page 200",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{deletePageGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"deleted\",\"recursive\",\"deletedCount\"],\"properties\":{\"guid\":{\"const\":\"{{deletePageGuid}}\"},\"deleted\":{\"const\":true},\"recursive\":{\"const\":false},\"deletedCount\":{\"const\":1}}}"
+        }
+    }
+}

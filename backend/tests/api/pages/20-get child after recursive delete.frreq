@@ -1,0 +1,40 @@
+{
+    "id": "00683aa8-6b78-4ef5-b544-bc304d410c1b",
+    "name": "20-get child after recursive delete",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{hierChildA}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 404,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"PAGE_NOT_FOUND\"}}}"
+        }
+    }
+}

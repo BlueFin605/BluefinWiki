@@ -1,0 +1,49 @@
+{
+    "id": "f4339844-e7cc-4138-bd55-3f1b1c51792e",
+    "name": "30-create page to delete",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"title\":\"api-suite page to delete\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"title\",\"parentGuid\"],\"properties\":{\"guid\":{\"type\":\"string\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "deletePageGuid",
+            "from": "body",
+            "path": "$.guid",
+            "id": "75253cf9-aaf5-48b2-8303-a7512cd6110f"
+        }
+    ]
+}

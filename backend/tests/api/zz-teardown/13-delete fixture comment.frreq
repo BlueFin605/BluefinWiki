@@ -1,0 +1,40 @@
+{
+    "id": "d0eb016f-bbd2-4282-b0b4-0a78f730d1d1",
+    "name": "13-delete fixture comment",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments/{{commentId}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"success\"],\"properties\":{\"success\":{\"const\":true}}}"
+        }
+    }
+}

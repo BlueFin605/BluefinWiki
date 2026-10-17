@@ -1,0 +1,41 @@
+{
+    "id": "86ff8647-20e5-4e1e-8433-bf7d5b44c38c",
+    "name": "17-move parent under its own child",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{hierParent}}/move",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"newParentGuid\":\"{{hierChildA}}\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 400,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Cannot move page under its own descendant (circular reference)\"}}}"
+        }
+    }
+}

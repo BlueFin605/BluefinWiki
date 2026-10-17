@@ -1,0 +1,40 @@
+{
+    "id": "09692cb7-fc19-4359-9345-178b1116383d",
+    "name": "12-delete comment again 404",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments/{{delCommentId}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 404,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"COMMENT_NOT_FOUND\"}}}"
+        }
+    }
+}

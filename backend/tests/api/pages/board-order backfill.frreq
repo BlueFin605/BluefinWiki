@@ -68,14 +68,7 @@
             "name": "not found",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "0ec6cd32-0e73-4204-bd86-e3b5f8475616"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -103,7 +96,8 @@
                 "jsonSchema": {
                     "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"error\"],\n    \"properties\": {\n        \"error\": {\n            \"type\": \"string\",\n            \"const\": \"Page not found\",\n            \"description\": \"A root guid that does not exist must 404, not report a successful no-op backfill.\"\n        }\n    }\n}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000000/board-order/backfill"
         },
         {
             "id": "a56bd4e1-a902-473a-8a17-05bd9b848b3d",
@@ -145,14 +139,7 @@
             "name": "non-admin forbidden",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageGuid",
-                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
-                    "active": true,
-                    "id": "38b3d547-6f1c-495e-910c-b8c5b8b1fb95"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "bearertoken",
@@ -180,21 +167,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Forbidden\"},\"message\":{\"type\":\"string\",\"pattern\":\"Admin\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/{{crudPageGuid}}/board-order/backfill"
         },
         {
             "id": "f13227ec-3dc7-4ee9-90f3-dcaf99a09425",
             "name": "invalid guid returns 400",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageGuid",
-                    "value": "not-a-uuid",
-                    "active": true,
-                    "id": "b6dd483d-ea12-4b01-a7ee-d6f361cde524"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -222,21 +203,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"pattern\":\"GUID\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-uuid/board-order/backfill"
         },
         {
             "id": "daebcba1-e74f-4322-8343-aca081c0e513",
             "name": "crud fixture page",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageGuid",
-                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
-                    "active": true,
-                    "id": "73b72ddc-1eb0-4d5e-a827-d29703f8231c"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -264,21 +239,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"updated\",\"examined\"],\"additionalProperties\":false,\"properties\":{\"updated\":{\"type\":\"integer\",\"minimum\":0},\"examined\":{\"type\":\"integer\",\"minimum\":0}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/{{crudPageGuid}}/board-order/backfill"
         },
         {
             "id": "611345b6-7998-40a7-acff-2a39b395dd54",
             "name": "crud fixture page repeat is idempotent",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageGuid",
-                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
-                    "active": true,
-                    "id": "e0f8bd44-9b99-4468-8b3f-451bf3a907be"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -306,7 +275,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"updated\",\"examined\"],\"properties\":{\"updated\":{\"const\":0},\"examined\":{\"type\":\"integer\",\"minimum\":0}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/{{crudPageGuid}}/board-order/backfill"
         }
     ],
     "validation": {

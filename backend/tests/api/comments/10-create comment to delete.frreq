@@ -1,0 +1,49 @@
+{
+    "id": "ef4a2c46-4d90-4c8b-8f0d-4bce88529762",
+    "name": "10-create comment to delete",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"body\":\"api-suite comment to delete\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"authorName\",\"body\",\"createdAt\",\"editedAt\",\"deletedAt\"],\"properties\":{\"id\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$\"},\"parentId\":{\"type\":\"null\"},\"authorId\":{\"const\":\"local-dev-user-id\"},\"body\":{\"const\":\"api-suite comment to delete\"},\"editedAt\":{\"type\":\"null\"},\"deletedAt\":{\"type\":\"null\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "delCommentId",
+            "from": "body",
+            "path": "$.id",
+            "id": "86f0b01f-7a8a-4e99-be95-9b187ca51cd8"
+        }
+    ]
+}

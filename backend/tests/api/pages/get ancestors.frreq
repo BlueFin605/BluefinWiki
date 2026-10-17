@@ -68,14 +68,7 @@
             "name": "unknown page",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "b2c423f2-19a0-4e81-b00c-6c8838761bcd"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -103,7 +96,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Page not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000000/ancestors"
         },
         {
             "id": "41306c18-269b-4e66-b569-e3ed3692ad7d",

@@ -1,0 +1,40 @@
+{
+    "id": "b0c42490-a2b2-43ed-8728-5efb8c93e916",
+    "name": "16-get child ancestors",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{hierChildA}}/ancestors",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"ancestors\"],\"properties\":{\"guid\":{\"const\":\"{{hierChildA}}\"},\"ancestors\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":1,\"prefixItems\":[{\"required\":[\"guid\"],\"properties\":{\"guid\":{\"const\":\"{{hierParent}}\"}}}]}}}"
+        }
+    }
+}

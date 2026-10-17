@@ -76,14 +76,7 @@
             "name": "self move",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"newParentGuid\":\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927\"}",
-                    "active": true,
-                    "id": "32e79640-b6cf-4e97-81fd-8f1dea3fa8a5"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -111,6 +104,10 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Cannot move page to itself\"}}}"
                 }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"newParentGuid\":\"{{crudPageGuid}}\"}"
             }
         },
         {
@@ -166,12 +163,6 @@
                     "value": "{\"newParentGuid\":null}",
                     "active": true,
                     "id": "ff9f4789-1c9f-459c-9f08-656a6cdabf2c"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "6773ed1a-24c8-46e0-85b3-3d7f80be9bdc"
                 }
             ],
             "secrets": [],
@@ -201,7 +192,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Page not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000000/move"
         },
         {
             "id": "0f76ab13-0805-4895-8161-b8b3fb8587a2",
@@ -214,12 +206,6 @@
                     "value": "{\"newParentGuid\":null}",
                     "active": true,
                     "id": "35040c93-c8bd-4987-95cd-ad329befa239"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-uuid",
-                    "active": true,
-                    "id": "a9b81fe6-6867-4330-9820-e41d00052000"
                 }
             ],
             "secrets": [],
@@ -249,7 +235,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-uuid/move"
         },
         {
             "id": "dcaca1aa-b40e-48c5-8902-537f9e3c8ef1",

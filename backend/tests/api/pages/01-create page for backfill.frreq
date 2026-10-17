@@ -1,0 +1,49 @@
+{
+    "id": "f125b32f-f915-4aef-8e96-d0d93294a3e9",
+    "name": "01-create page for backfill",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"title\":\"api-suite board-order backfill page\",\"status\":\"published\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\"],\"properties\":{\"guid\":{\"type\":\"string\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "pageGuid",
+            "from": "body",
+            "path": "$.guid",
+            "id": "67170775-6b9b-4eba-918c-8e31baad5816"
+        }
+    ]
+}

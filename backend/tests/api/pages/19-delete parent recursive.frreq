@@ -1,0 +1,47 @@
+{
+    "id": "0fbd4848-3149-4964-a281-2f2c368fc036",
+    "name": "19-delete parent recursive",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{hierParent}}",
+    "headers": [],
+    "parameters": [
+        {
+            "key": "recursive",
+            "value": "true",
+            "active": true,
+            "id": "6bda572c-902e-433c-8c43-05482e9a41e8"
+        }
+    ],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"deleted\",\"recursive\",\"deletedCount\"],\"properties\":{\"guid\":{\"const\":\"{{hierParent}}\"},\"deleted\":{\"const\":true},\"recursive\":{\"const\":true},\"deletedCount\":{\"const\":3}}}"
+        }
+    }
+}

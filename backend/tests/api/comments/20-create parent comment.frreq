@@ -1,0 +1,49 @@
+{
+    "id": "3c7b24ac-edd5-44ac-aab8-f3b37db35863",
+    "name": "20-create parent comment",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"body\":\"api-suite soft-delete parent\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"authorName\",\"body\",\"createdAt\",\"editedAt\",\"deletedAt\"],\"properties\":{\"id\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$\"},\"parentId\":{\"type\":\"null\"},\"authorId\":{\"const\":\"local-dev-user-id\"},\"body\":{\"const\":\"api-suite soft-delete parent\"},\"editedAt\":{\"type\":\"null\"},\"deletedAt\":{\"type\":\"null\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "softParentId",
+            "from": "body",
+            "path": "$.id",
+            "id": "b5c44ed0-2594-4be5-be4c-1c8ade09d3e1"
+        }
+    ]
+}

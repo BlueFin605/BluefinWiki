@@ -1,0 +1,40 @@
+{
+    "id": "23f492c5-fc4b-4a24-a613-bab6dc05dbce",
+    "name": "23-list shows tombstone and reply",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"comments\"],\"properties\":{\"comments\":{\"type\":\"array\",\"allOf\":[{\"contains\":{\"type\":\"object\",\"required\":[\"id\",\"body\",\"deletedAt\"],\"properties\":{\"id\":{\"const\":\"{{softParentId}}\"},\"body\":{\"const\":\"\"},\"deletedAt\":{\"type\":\"string\"}}}},{\"contains\":{\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"body\",\"deletedAt\"],\"properties\":{\"id\":{\"const\":\"{{softReplyId}}\"},\"parentId\":{\"const\":\"{{softParentId}}\"},\"body\":{\"const\":\"api-suite soft-delete reply\"},\"deletedAt\":{\"type\":\"null\"}}}}]}}}"
+        }
+    }
+}

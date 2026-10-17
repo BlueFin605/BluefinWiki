@@ -1,0 +1,49 @@
+{
+    "id": "aa810929-a687-470b-b53c-a3aff8010c1b",
+    "name": "1-create fixture page",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"title\":\"api-suite crud fixture\",\"content\":\"api suite fixture\",\"tags\":[\"api-suite\"],\"status\":\"published\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"title\"],\"properties\":{\"guid\":{\"type\":\"string\"},\"title\":{\"const\":\"api-suite crud fixture\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "crudPageGuid",
+            "from": "body",
+            "path": "$.guid",
+            "id": "62d2dd52-cfaf-406d-a2be-bd557cafb257"
+        }
+    ]
+}

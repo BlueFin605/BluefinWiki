@@ -1,0 +1,115 @@
+{
+    "id": "cf856eae-4abb-4036-aca2-da5f08ef40bd",
+    "name": "13-list hierarchy children",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{hierParent}}/children",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "b9b37e5c-58d1-4fb8-8fa7-395b0185d2b4",
+            "name": "both children in creation order",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"children\",\"count\"],\"properties\":{\"count\":{\"const\":2},\"hasMore\":{\"const\":false},\"children\":{\"type\":\"array\",\"minItems\":2,\"maxItems\":2,\"prefixItems\":[{\"properties\":{\"guid\":{\"const\":\"{{hierChildA}}\"}}},{\"properties\":{\"guid\":{\"const\":\"{{hierChildB}}\"}}}]}}}"
+                }
+            }
+        },
+        {
+            "id": "91896c4f-e7e9-4a51-86ae-26aba8f33fa4",
+            "name": "limit 1 pages the children",
+            "parameters": [
+                {
+                    "key": "limit",
+                    "value": "1",
+                    "active": true,
+                    "id": "4262ccdb-03cd-4aec-a3a5-0b9d27baa431"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"children\",\"count\",\"hasMore\",\"nextCursor\"],\"properties\":{\"count\":{\"const\":1},\"hasMore\":{\"const\":true},\"nextCursor\":{\"type\":\"string\"},\"children\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":1,\"prefixItems\":[{\"properties\":{\"guid\":{\"const\":\"{{hierChildA}}\"}}}]}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "ResponseCode",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

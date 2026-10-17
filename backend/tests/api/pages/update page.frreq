@@ -124,12 +124,6 @@
                     "value": "{\"title\":\"x\"}",
                     "active": true,
                     "id": "cbdb14f3-cdec-4f19-a76c-f72fe85b85ee"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-uuid",
-                    "active": true,
-                    "id": "ee03a541-5d21-4cff-8b10-d8e49763c72c"
                 }
             ],
             "secrets": [],
@@ -159,7 +153,8 @@
                 "jsonSchema": {
                     "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-uuid"
         },
         {
             "id": "9d876094-e557-46d5-9126-3826fb624467",
@@ -172,12 +167,6 @@
                     "value": "{\"title\":\"x\"}",
                     "active": true,
                     "id": "7158c37c-b010-40e2-b194-c7ec9bfb2da2"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "e7f0e7e5-96ae-442f-a04f-574eb1fb0cd1"
                 }
             ],
             "secrets": [],
@@ -207,7 +196,8 @@
                 "jsonSchema": {
                     "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000000"
         },
         {
             "id": "08e6a387-6564-4eb8-8117-54e20d8283d8",

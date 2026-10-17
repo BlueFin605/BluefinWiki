@@ -34,14 +34,7 @@
             "name": "unchanged order",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"parentGuid\":null,\"orderedGuids\":[\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927\"]}",
-                    "active": true,
-                    "id": "b126c74a-683c-4dfc-814b-0f6f1f45a44b"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -69,6 +62,10 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"updated\"],\"additionalProperties\":false,\"properties\":{\"updated\":{\"type\":\"integer\",\"minimum\":0}}}"
                 }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"parentGuid\":null,\"orderedGuids\":[\"{{crudPageGuid}}\"]}"
             }
         },
         {
@@ -76,14 +73,7 @@
             "name": "parent not found",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"parentGuid\":\"00000000-0000-4000-8000-000000000000\",\"orderedGuids\":[\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927\"]}",
-                    "active": true,
-                    "id": "5f98ab22-af53-4880-ad63-946b4490ec89"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -111,6 +101,10 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Parent page not found\"}}}"
                 }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"parentGuid\":\"00000000-0000-4000-8000-000000000000\",\"orderedGuids\":[\"{{crudPageGuid}}\"]}"
             }
         },
         {
@@ -202,14 +196,7 @@
             "name": "unauthenticated",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"parentGuid\":null,\"orderedGuids\":[\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927\"]}",
-                    "active": true,
-                    "id": "63cf72d3-f87a-4bec-bfd0-d2b71c484283"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "none",
@@ -237,6 +224,10 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Missing authorization token\"}}}"
                 }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"parentGuid\":null,\"orderedGuids\":[\"{{crudPageGuid}}\"]}"
             }
         },
         {

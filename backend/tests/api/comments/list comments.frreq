@@ -59,7 +59,7 @@
                 "body": "JsonSchema",
                 "httpCode": 200,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"comments\"],\"properties\":{\"comments\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"properties\":{\"id\":{\"const\":\"fcb6f1e3-13ed-4e66-bcd8-1470f93343e0\"}},\"required\":[\"id\"]},\"items\":{\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"authorName\",\"body\",\"createdAt\",\"editedAt\",\"deletedAt\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"parentId\":{\"type\":[\"string\",\"null\"]},\"authorId\":{\"type\":\"string\"},\"authorName\":{\"type\":\"string\"},\"body\":{\"type\":\"string\"},\"createdAt\":{\"type\":\"string\"},\"editedAt\":{\"type\":[\"string\",\"null\"]},\"deletedAt\":{\"type\":[\"string\",\"null\"]}}}}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"comments\"],\"properties\":{\"comments\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"properties\":{\"id\":{\"const\":\"{{commentId}}\"}},\"required\":[\"id\"]},\"items\":{\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"authorName\",\"body\",\"createdAt\",\"editedAt\",\"deletedAt\"],\"properties\":{\"id\":{\"type\":\"string\",\"format\":\"uuid\"},\"parentId\":{\"type\":[\"string\",\"null\"]},\"authorId\":{\"type\":\"string\"},\"authorName\":{\"type\":\"string\"},\"body\":{\"type\":\"string\"},\"createdAt\":{\"type\":\"string\"},\"editedAt\":{\"type\":[\"string\",\"null\"]},\"deletedAt\":{\"type\":[\"string\",\"null\"]}}}}}}"
                 }
             }
         },
@@ -68,14 +68,7 @@
             "name": "invalid page guid",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "38835f62-8a43-4564-9c46-bf38b1117d13"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -103,21 +96,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid page GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-guid/comments"
         },
         {
             "id": "ab51311d-e416-4398-b9c0-4f19e74921de",
             "name": "page not found",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "00000000-0000-4000-8000-000000000001",
-                    "active": true,
-                    "id": "0006641f-c053-460c-aebf-8cb11d685826"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -145,7 +132,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"PAGE_NOT_FOUND\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000001/comments"
         },
         {
             "id": "f407627f-7789-45ae-8525-4d1b4a4dfcc1",

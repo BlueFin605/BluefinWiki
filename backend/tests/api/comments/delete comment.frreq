@@ -33,14 +33,7 @@
             "name": "invalid comment id",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "commentId",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "c05b9376-1c7f-4bfd-959b-032fbbf539a2"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -68,21 +61,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments/not-a-guid"
         },
         {
             "id": "576c03a3-0e4d-4b82-a9a6-3836973e3a4a",
             "name": "invalid page guid",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "01813ce2-6bf8-4921-ba3a-89f8fa8506b8"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -110,21 +97,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-guid/comments/{{commentId}}"
         },
         {
             "id": "710f55d6-32ed-479e-aea3-1c634927bbe5",
             "name": "comment not found",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "commentId",
-                    "value": "00000000-0000-4000-8000-000000000002",
-                    "active": true,
-                    "id": "06daba1e-b2be-4c5f-a6f8-0435419b8516"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -152,7 +133,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"COMMENT_NOT_FOUND\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments/00000000-0000-4000-8000-000000000002"
         },
         {
             "id": "16cadd31-f465-4ce4-8699-fa8451509cb8",
@@ -230,5 +212,6 @@
         "headers": [],
         "body": "None",
         "httpCode": 200
-    }
+    },
+    "runsOnly": true
 }

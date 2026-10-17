@@ -1,0 +1,40 @@
+{
+    "id": "614e867c-3301-4089-846f-86400138aed4",
+    "name": "15-list children after reorder",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{hierParent}}/children",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"children\",\"count\"],\"properties\":{\"count\":{\"const\":2},\"children\":{\"type\":\"array\",\"minItems\":2,\"maxItems\":2,\"prefixItems\":[{\"properties\":{\"guid\":{\"const\":\"{{hierChildB}}\"}}},{\"properties\":{\"guid\":{\"const\":\"{{hierChildA}}\"}}}]}}}"
+        }
+    }
+}

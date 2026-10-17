@@ -33,14 +33,7 @@
             "name": "invalid guid",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-uuid",
-                    "active": true,
-                    "id": "a4b2258b-ae1b-4028-9654-078de443e823"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -68,21 +61,15 @@
                 "jsonSchema": {
                     "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-uuid"
         },
         {
             "id": "05e8f979-bb40-45f5-94a3-f97f15ec9276",
             "name": "not found",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "ceaf8201-8193-4f98-a9e7-eddeea351207"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -110,7 +97,8 @@
                 "jsonSchema": {
                     "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000000"
         },
         {
             "id": "d9be209a-03db-47de-8e6c-bb7bb3eac1f9",
@@ -124,14 +112,7 @@
                 }
             ],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "3201b396-8c6e-4426-b203-9169bf4e4499"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -159,21 +140,15 @@
                 "jsonSchema": {
                     "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000000"
         },
         {
             "id": "01bb1426-9530-47a9-adeb-e4b1cffcd7e7",
             "name": "non-admin forbidden",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "11111111-1111-4111-8111-111111111111",
-                    "active": true,
-                    "id": "ea9470fd-33ae-4e75-b7df-3c47e1e2f782"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "bearertoken",
@@ -201,21 +176,15 @@
                 "jsonSchema": {
                     "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Only Admin users can delete pages\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/11111111-1111-4111-8111-111111111111"
         },
         {
             "id": "0ff06826-8a2c-4959-a526-6a3fa6820592",
             "name": "unauthenticated",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "11111111-1111-4111-8111-111111111111",
-                    "active": true,
-                    "id": "a035ff64-a217-487c-af6f-bcc298740c63"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "none",
@@ -243,7 +212,8 @@
                 "jsonSchema": {
                     "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Missing authorization token\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/11111111-1111-4111-8111-111111111111"
         }
     ],
     "validation": {
@@ -251,5 +221,6 @@
         "headers": [],
         "body": "None",
         "httpCode": 200
-    }
+    },
+    "runsOnly": true
 }

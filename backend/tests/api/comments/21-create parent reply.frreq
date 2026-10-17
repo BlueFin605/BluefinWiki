@@ -1,0 +1,49 @@
+{
+    "id": "f66c1d0a-46d7-4e37-a0e1-7ad7df06b90f",
+    "name": "21-create parent reply",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/comments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"body\":\"api-suite soft-delete reply\",\"parentId\":\"{{softParentId}}\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"body\",\"editedAt\",\"deletedAt\"],\"properties\":{\"parentId\":{\"const\":\"{{softParentId}}\"},\"authorId\":{\"const\":\"local-dev-user-id\"},\"body\":{\"const\":\"api-suite soft-delete reply\"},\"editedAt\":{\"type\":\"null\"},\"deletedAt\":{\"type\":\"null\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "softReplyId",
+            "from": "body",
+            "path": "$.id",
+            "id": "9340140e-ee00-4c95-8778-278384407491"
+        }
+    ]
+}

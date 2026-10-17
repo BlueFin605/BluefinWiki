@@ -69,7 +69,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"title\",\"parentGuid\",\"createdAt\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$\"},\"title\":{\"const\":\"api-suite create happy\"},\"parentGuid\":{\"type\":\"null\"},\"createdAt\":{\"type\":\"string\",\"minLength\":20}}}"
                 }
-            }
+            },
+            "capture": [
+                {
+                    "variable": "createdPageGuid",
+                    "from": "body",
+                    "path": "$.guid",
+                    "id": "8579dedd-9ddc-45c2-91e6-19b781c5a19f"
+                }
+            ]
         },
         {
             "id": "05819528-982b-400e-aa33-b43074d13b4f",
@@ -111,7 +119,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"title\",\"createdAt\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$\"},\"title\":{\"const\":\"api-suite create props\"}}}"
                 }
-            }
+            },
+            "capture": [
+                {
+                    "variable": "createdPropsPageGuid",
+                    "from": "body",
+                    "path": "$.guid",
+                    "id": "870beb3b-05f0-41a4-95cb-2a75f7d3a50a"
+                }
+            ]
         },
         {
             "id": "9bad015c-b979-42ac-b2bd-62aa4d061368",

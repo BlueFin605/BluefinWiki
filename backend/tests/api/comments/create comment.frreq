@@ -69,21 +69,22 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"authorName\",\"body\",\"createdAt\",\"editedAt\",\"deletedAt\"],\"properties\":{\"id\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$\"},\"parentId\":{\"type\":\"null\"},\"authorId\":{\"const\":\"local-dev-user-id\"},\"body\":{\"const\":\"api-suite top-level comment\"},\"editedAt\":{\"type\":\"null\"},\"deletedAt\":{\"type\":\"null\"}}}"
                 }
-            }
+            },
+            "capture": [
+                {
+                    "variable": "createdCommentId",
+                    "from": "body",
+                    "path": "$.id",
+                    "id": "9c6d5cd2-3b93-4003-b9a8-8521340cdff5"
+                }
+            ]
         },
         {
             "id": "f15f2fd3-d506-4461-bb14-31ce216892f3",
             "name": "created reply",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"body\":\"  api-suite reply  \",\"parentId\":\"fcb6f1e3-13ed-4e66-bcd8-1470f93343e0\"}",
-                    "active": true,
-                    "id": "b1243b46-e270-468d-901f-c5a04567c00a"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -109,9 +110,21 @@
                 "body": "JsonSchema",
                 "httpCode": 201,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"body\",\"editedAt\",\"deletedAt\"],\"properties\":{\"parentId\":{\"const\":\"fcb6f1e3-13ed-4e66-bcd8-1470f93343e0\"},\"authorId\":{\"const\":\"local-dev-user-id\"},\"body\":{\"const\":\"api-suite reply\"},\"editedAt\":{\"type\":\"null\"},\"deletedAt\":{\"type\":\"null\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"id\",\"parentId\",\"authorId\",\"body\",\"editedAt\",\"deletedAt\"],\"properties\":{\"parentId\":{\"const\":\"{{commentId}}\"},\"authorId\":{\"const\":\"local-dev-user-id\"},\"body\":{\"const\":\"api-suite reply\"},\"editedAt\":{\"type\":\"null\"},\"deletedAt\":{\"type\":\"null\"}}}"
                 }
-            }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"body\":\"  api-suite reply  \",\"parentId\":\"{{commentId}}\"}"
+            },
+            "capture": [
+                {
+                    "variable": "createdReplyId",
+                    "from": "body",
+                    "path": "$.id",
+                    "id": "ba80915a-aaec-49db-89d7-993368b22b1f"
+                }
+            ]
         },
         {
             "id": "df84e9b9-46cb-4e61-99ac-f0fa1f3fbe6b",
@@ -328,14 +341,7 @@
             "name": "reply to reply",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"body\":\"x\",\"parentId\":\"7ad41068-c7e3-4f62-864e-479afce1a7f0\"}",
-                    "active": true,
-                    "id": "b0c50f0b-4b0c-4918-953d-c7800e3a3c0f"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -363,6 +369,10 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"REPLY_TOO_DEEP\"}}}"
                 }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"body\":\"x\",\"parentId\":\"{{replyCommentId}}\"}"
             }
         },
         {
@@ -376,12 +386,6 @@
                     "value": "{\"body\":\"x\"}",
                     "active": true,
                     "id": "5596f302-e84c-4a27-90f1-2ec0a52d3e7e"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "e0625b44-013c-45b6-8837-e813b658f37a"
                 }
             ],
             "secrets": [],
@@ -411,7 +415,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid page GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-guid/comments"
         },
         {
             "id": "37e8f886-6fbc-4b94-92ad-fdaebfddf1e8",
@@ -424,12 +429,6 @@
                     "value": "{\"body\":\"x\"}",
                     "active": true,
                     "id": "87f84c06-8e41-4e83-88e1-e1828ab1ea3d"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "00000000-0000-4000-8000-000000000001",
-                    "active": true,
-                    "id": "605cee18-6389-419c-addb-83bcf94ba418"
                 }
             ],
             "secrets": [],
@@ -459,7 +458,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"code\":{\"const\":\"PAGE_NOT_FOUND\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/00000000-0000-4000-8000-000000000001/comments"
         },
         {
             "id": "5611a29a-012c-446c-84a3-d8dddcbb9489",

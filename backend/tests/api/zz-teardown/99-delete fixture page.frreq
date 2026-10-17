@@ -1,0 +1,47 @@
+{
+    "id": "cece2bb5-86da-473e-aa76-d9dc7ac94f23",
+    "name": "99-delete fixture page",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}",
+    "headers": [],
+    "parameters": [
+        {
+            "key": "recursive",
+            "value": "true",
+            "active": true,
+            "id": "8ac33056-c873-416f-b129-7e676e72cb64"
+        }
+    ],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"deleted\"],\"properties\":{\"deleted\":{\"const\":true}}}"
+        }
+    }
+}

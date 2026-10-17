@@ -1,0 +1,49 @@
+{
+    "id": "c1799dec-4df6-4def-b22c-615e5768ad9f",
+    "name": "12-create hierarchy child b",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"title\":\"api-suite child b\",\"parentGuid\":\"{{hierParent}}\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"parentGuid\"],\"properties\":{\"parentGuid\":{\"const\":\"{{hierParent}}\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "hierChildB",
+            "from": "body",
+            "path": "$.guid",
+            "id": "0ef6e972-053d-444c-af20-740ea06f0f82"
+        }
+    ]
+}
