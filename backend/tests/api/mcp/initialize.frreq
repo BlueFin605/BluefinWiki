@@ -1,0 +1,48 @@
+{
+    "id": "742046d3-267d-433d-b71a-767356d593d8",
+    "name": "initialize",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/mcp",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"jsonrpc\",\"id\",\"result\"],\"properties\":{\"jsonrpc\":{\"const\":\"2.0\"},\"id\":{\"const\":1},\"result\":{\"type\":\"object\",\"required\":[\"protocolVersion\",\"serverInfo\",\"capabilities\"],\"properties\":{\"protocolVersion\":{\"type\":\"string\"},\"serverInfo\":{\"type\":\"object\",\"required\":[\"name\"]}}}}}"
+        }
+    },
+    "type": "mcp",
+    "mcp": {
+        "method": "initialize",
+        "handshake": false,
+        "expect": {
+            "outcome": "result"
+        }
+    }
+}

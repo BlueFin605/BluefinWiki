@@ -1,0 +1,50 @@
+{
+    "id": "9a90f1c3-a006-45a8-aecc-a8d2ad0f3eb9",
+    "name": "call bad arguments",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/mcp",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"properties\":{\"jsonrpc\":{\"const\":\"2.0\"},\"id\":{\"const\":1},\"result\":{\"type\":\"object\",\"properties\":{\"isError\":{\"const\":true},\"content\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"text\"},\"text\":{\"type\":\"string\",\"pattern\":\"^Missing required argument: pageGuid$\"}},\"required\":[\"type\",\"text\"]}}},\"required\":[\"isError\",\"content\"]}},\"required\":[\"jsonrpc\",\"id\",\"result\"]}"
+        }
+    },
+    "type": "mcp",
+    "mcp": {
+        "method": "tools/call",
+        "params": "{\"name\":\"get_backlinks\",\"arguments\":{}}",
+        "handshake": false,
+        "expect": {
+            "outcome": "tool-error",
+            "text": "Missing required argument: pageGuid"
+        }
+    }
+}

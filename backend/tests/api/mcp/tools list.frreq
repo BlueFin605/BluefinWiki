@@ -1,0 +1,116 @@
+{
+    "id": "c72a32c2-0bdb-442f-b305-254f21bf0a01",
+    "name": "tools list",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/mcp",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "acacd3c4-5881-41bf-a219-25c8ffd8b2ab",
+            "name": "tools list",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"jsonrpc\":{\"const\":\"2.0\"},\"id\":{\"const\":1},\"result\":{\"type\":\"object\",\"properties\":{\"tools\":{\"type\":\"array\",\"minItems\":19,\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"minLength\":1},\"description\":{\"type\":\"string\"},\"inputSchema\":{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"name\",\"inputSchema\"]}}},\"required\":[\"tools\"]}},\"required\":[\"jsonrpc\",\"id\",\"result\"]}"
+                }
+            }
+        },
+        {
+            "id": "302ed1a8-f1e4-4059-9360-b9c20b838f9f",
+            "name": "tools list no token",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "bearertoken",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"properties\":{\"jsonrpc\":{\"const\":\"2.0\"},\"result\":{\"type\":\"object\",\"properties\":{\"tools\":{\"type\":\"array\",\"minItems\":19}},\"required\":[\"tools\"]}},\"required\":[\"jsonrpc\",\"result\"]}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "ResponseCode",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    },
+    "type": "mcp",
+    "mcp": {
+        "method": "tools/list",
+        "handshake": false,
+        "expect": {
+            "outcome": "result"
+        }
+    }
+}

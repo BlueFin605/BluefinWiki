@@ -1,0 +1,50 @@
+{
+    "id": "ce86a105-da47-4299-999a-de831ef85192",
+    "name": "call unknown tool",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/mcp",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"properties\":{\"jsonrpc\":{\"const\":\"2.0\"},\"id\":{\"const\":1},\"result\":{\"type\":\"object\",\"properties\":{\"isError\":{\"const\":true},\"content\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"text\"},\"text\":{\"const\":\"Unknown tool: no_such_tool\"}},\"required\":[\"type\",\"text\"]}}},\"required\":[\"isError\",\"content\"]}},\"required\":[\"jsonrpc\",\"id\",\"result\"]}"
+        }
+    },
+    "type": "mcp",
+    "mcp": {
+        "method": "tools/call",
+        "params": "{\"name\":\"no_such_tool\",\"arguments\":{}}",
+        "handshake": false,
+        "expect": {
+            "outcome": "tool-error",
+            "text": "Unknown tool: no_such_tool"
+        }
+    }
+}

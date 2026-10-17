@@ -1,0 +1,50 @@
+{
+    "id": "43c2fee2-7346-427f-b2ad-6557073d6015",
+    "name": "call get_page",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/mcp",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"properties\":{\"jsonrpc\":{\"const\":\"2.0\"},\"id\":{\"const\":1},\"result\":{\"type\":\"object\",\"properties\":{\"content\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"text\"},\"text\":{\"type\":\"string\",\"pattern\":\"^---\\\\n\"}},\"required\":[\"type\",\"text\"]}},\"isError\":{\"const\":false}},\"required\":[\"content\"]}},\"required\":[\"jsonrpc\",\"id\",\"result\"]}"
+        }
+    },
+    "type": "mcp",
+    "mcp": {
+        "method": "tools/call",
+        "params": "{\"name\":\"get_page\",\"arguments\":{\"s3Key\":\"{{crudPageGuid}}\"}}",
+        "handshake": false,
+        "expect": {
+            "outcome": "result",
+            "text": "title: \"api-suite crud fixture\""
+        }
+    }
+}

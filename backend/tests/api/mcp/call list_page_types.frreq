@@ -1,0 +1,49 @@
+{
+    "id": "ddd76bd3-cbb8-4a45-b883-8081a0c00ae1",
+    "name": "call list_page_types",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/mcp",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"properties\":{\"jsonrpc\":{\"const\":\"2.0\"},\"id\":{\"const\":1},\"result\":{\"type\":\"object\",\"properties\":{\"content\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"text\"},\"text\":{\"type\":\"string\",\"minLength\":2}},\"required\":[\"type\",\"text\"]}},\"isError\":{\"const\":false}},\"required\":[\"content\"]}},\"required\":[\"jsonrpc\",\"id\",\"result\"]}"
+        }
+    },
+    "type": "mcp",
+    "mcp": {
+        "method": "tools/call",
+        "params": "{\"name\":\"list_page_types\",\"arguments\":{}}",
+        "handshake": false,
+        "expect": {
+            "outcome": "result"
+        }
+    }
+}
