@@ -79,5 +79,11 @@
         "extras": "ignore",
         "timeout": 10000,
         "settle": 500
+    },
+    "trigger": {
+        "repeat": "until-done",
+        "interval": 1000,
+        "delay": 0,
+        "request": "ws/trigger publish.frreq"
     }
 }

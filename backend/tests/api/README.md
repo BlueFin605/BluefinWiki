@@ -1,6 +1,6 @@
 # BlueFinWiki API suite
 
-FullyRested collection (`bluefinwiki.frcol`) covering the REST API, run against the local stack. Folders mirror the API areas (`admin`, `attachments`, `pages`, `search-and-utilities`, `mcp`, ...); `ws` holds two websocket tests that need `ws-trigger.mjs` running alongside (see GAPS.md).
+FullyRested collection (`bluefinwiki.frcol`) covering the REST API, run against the local stack. Folders mirror the API areas (`admin`, `attachments`, `pages`, `search-and-utilities`, `mcp`, ...); `ws` holds two websocket tests; each has a FullyRested trigger (an http request in the same folder, fired repeatedly during the run) that provokes the pushed message, so no helper script is needed.
 
 ## Run it
 
@@ -17,7 +17,7 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 279 passed, 12 failed (all expected, listed below). Any other failure is a regression. Anything fewer than 12 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
+Baseline: 283 passed, 12 failed (all expected, listed below). Any other failure is a regression. Anything fewer than 12 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
 
 Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 

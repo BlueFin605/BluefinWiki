@@ -96,9 +96,9 @@
 - Unknown-route 404 body is `{error: "Not Found", message}` (differs from the `{error}`-only shape elsewhere).
 
 ## Ticket 2627ae20 (WebSocket event tests)
-- GAP (answers the key question): one FullyRested run cannot open the socket, trigger a REST write, then assert. A websocket request only sends its own `message` (the server ignores client frames) and blocks until count/timeout, and requests in a folder run strictly in sequence, so no HTTP request can fire while the socket is open. Worked around with `backend/tests/api/ws-trigger.mjs`, run beside the folder (`WS_TRIGGER_TOKEN=<bearer> node ws-trigger.mjs`): it loops create-published-page then delete, producing an upsert and an invalidate each second. Without it the two ws cases time out. Needs an fr-gap ticket (pre/post hooks or a concurrent trigger request).
+- RESOLVED by FullyRested websocket triggers (ticket 3b632605): each ws request names an http request in `ws/` (`trigger publish` PUT, `trigger move` PUT to root) that FullyRested fires repeatedly during the run; `ws-trigger.mjs` is gone. The triggers are idempotent writes on `crudPageGuid`, so nothing leaks. Remaining gap: a trigger cannot capture ids from its response, so cleanup-needs-capture (create a page, then delete it using its returned guid) is still not expressible; that is why the triggers reuse the fixture page instead of create/delete.
 - Covered: `upsert on publish` (upsert {pages, tags, origin}) and `invalidate on delete` (invalidate {tags, origin}), count 1, match any, extras ignore, timeout 10000.
-- Not covered: nothing-sent-on-connect (a test needs count >= 1), exact tag values per write type (comment, attachment, move, page-type), X-Client-Id as origin, MCP-write origin null; match-any with a schema cannot pin tags to a specific write when the trigger loops.
+- Not covered: nothing-sent-on-connect (a test needs count >= 1), exact tag values per write type (comment, attachment, move, page-type), X-Client-Id as origin, MCP-write origin null; match-any with a schema cannot pin tags to a specific write when the trigger repeats.
 ## Ticket ecdf556c (mcp smoke requests)
 - FullyRested has no MCP-client request type: /mcp is smoked as raw JSON-RPC over POST with the body in a `{{rpc}}` run variable (no initialize/session handling, no tools/call result decoding beyond a JSON Schema on the text content); friction worth an fr-gap ticket.
 - Local /mcp has no auth at all (prod is guarded by an API Gateway API key, not Cognito/Bearer): there is no 401 to test locally; run `tools list no token` asserts 200 as the documented local behaviour, and the prod API-key 403 is untested.
@@ -109,9 +109,8 @@
 
 ## Ticket 9a7e5b90 (ws cases rewritten through MCP, full run)
 - The ws requests were rewritten MCP-only (new_request, set_type, set_auth with placement `token`, set_message, set_expect, new_run); the token now comes from `{{devToken}}` instead of sitting in the URL.
-- NOT MCP-only end to end: the websocket cases still need `ws-trigger.mjs` started outside FullyRested, because a run cannot fire a REST write while the socket is open (the pre/post hook / concurrent trigger gap above is unchanged).
+- Superseded: the ws cases now use `set_trigger`, so authoring is MCP-only end to end (see ticket 2627ae20 note).
 - `new_run` takes `request` (not `action` like run/show_request), an inconsistent parameter name across tools.
 - `new_request` has no websocket option: it creates an http request and needs a separate `set_type`; a `ws://` url is accepted but the file keeps `protocol: https`.
 - `set_expect` cannot be seen back (no show of expect in `tree`/`settings`), so a ws case's expect is only checkable by reading the .frreq or running it.
-- A background node trigger started from the Bash tool with `&` outlives the shell wrapper (the reported `$!` pid was not the node pid), so it had to be found by command line and killed.
 - The `get ancestors > unknown page (known failure: returns 200)` run does not use the `KNOWN FAILURE` name prefix, so name-based known-failure filtering misses it.

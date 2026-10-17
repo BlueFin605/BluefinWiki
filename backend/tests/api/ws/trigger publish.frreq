@@ -1,0 +1,38 @@
+{
+    "id": "10aebea0-f35f-477f-a94a-f7a43b7f3597",
+    "name": "trigger publish",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"title\":\"api-suite crud fixture\",\"content\":\"updated by api suite\",\"tags\":[\"api-suite\"],\"status\":\"published\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "ResponseCode",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}
