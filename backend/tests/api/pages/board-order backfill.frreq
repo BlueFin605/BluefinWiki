@@ -184,7 +184,7 @@
         },
         {
             "id": "f13227ec-3dc7-4ee9-90f3-dcaf99a09425",
-            "name": "KNOWN FAILURE invalid guid returns 500",
+            "name": "invalid guid returns 400",
             "parameters": [],
             "headers": [],
             "variables": [

@@ -17,7 +17,7 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 291 passed, 4 failed (295 cases; re-verified by two consecutive full runs against localhost:3000 on 2026-10-17; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 4 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
+Baseline: 292 passed, 3 failed (295 cases; re-verified by two consecutive full runs against localhost:3000 on 2026-10-17; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 3 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
 
 Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 
@@ -25,7 +25,6 @@ Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki b
 
 Bug tickets are on the Kanban board (story "BlueFinWiki full API suite", WebSocket Support initiative).
 
-- `pages/board-order backfill > KNOWN FAILURE invalid guid returns 500` - 5ae81991-59f4-40c6-9ac0-07d50fc77b11
 - `pages/board-order backfill > existing page` - not a bug: seeded `pageGuid` is missing locally; c54a2220-2f4b-41e7-b16c-ef2d2636e36a (re-point off the seeded guid)
 - `attachments/upload attachment > KNOWN FAILURE LF-delimited multipart returns 500 not 400` - 37db7698-96e8-4473-8506-a4899cb46fb1
 - `search-and-utilities/imdb show details GET > KNOWN FAILURE GET not routed locally should be 400 missing params` - 8ac985b8-880d-4a84-ab3f-03ffa947d0a8

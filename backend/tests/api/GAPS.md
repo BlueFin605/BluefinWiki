@@ -38,7 +38,7 @@
 - Empty request body (400 "Request body is required") on PUT /pages/:guid/move and PUT /pages/reorder is untested (runs cannot send an empty body).
 - FIXED: `GET /pages/search` shadowing (see above); both search runs now pass.
 - FIXED (b59dd774): `GET /pages/:guid/ancestors` returned 200 `{ancestors: []}` for an unknown guid and for a non-GUID string; it now returns 404 `{error: "Page not found"}` for both (no 400 for a malformed guid).
-- Known failure: `POST /pages/:guid/board-order/backfill` with a non-GUID returns 500 "Failed to backfill boardOrder" instead of 400.
+- Fixed (5ae81991): `POST /pages/:guid/board-order/backfill` with a non-GUID now returns 400 "Invalid GUID format" (was 500); run `invalid guid returns 400` passes.
 - `pages/board-order backfill > existing page` still fails (seeded `pageGuid` 404 locally); `crud fixture page` runs cover the 200 and idempotency instead.
 - Reorder 400 on empty `orderedGuids` returns zod `details` as an array while move returns it as an object (inconsistent shape).
 

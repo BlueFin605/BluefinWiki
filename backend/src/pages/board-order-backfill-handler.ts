@@ -1,4 +1,5 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
+import { validate as validateUUID } from 'uuid';
 import { withAuth, withRole, AuthenticatedEvent } from '../middleware/auth.js';
 import { backfillBoardOrder } from './board-order-backfill.js';
 
@@ -23,6 +24,9 @@ export const handler = withAuth(withRole(['Admin'], async (
 
   const guid = event.pathParameters?.guid;
   if (!guid) return json(400, { error: 'Page GUID is required' });
+  // Same check the storage plugins apply. Without it a malformed guid reaches
+  // storage, throws INVALID_GUID and surfaces as a 500.
+  if (!validateUUID(guid)) return json(400, { error: 'Invalid GUID format' });
 
   try {
     const result = await backfillBoardOrder(guid);
