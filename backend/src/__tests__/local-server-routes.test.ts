@@ -27,3 +27,13 @@ describe('local-server imdb route', () => {
     expect(source).not.toContain("app.post('/imdb/show-details'");
   });
 });
+
+describe('local-server 404 handler', () => {
+  const source = readFileSync(join(__dirname, '..', 'local-server.ts'), 'utf8');
+
+  it('uses the shared { error, code } not-found handler before the error handler', () => {
+    const nf = source.indexOf('app.use(localNotFoundHandler)');
+    expect(nf).toBeGreaterThan(-1);
+    expect(nf).toBeLessThan(source.indexOf('app.use(localErrorHandler)'));
+  });
+});

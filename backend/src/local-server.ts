@@ -12,7 +12,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import http from 'node:http';
-import { localErrorHandler } from './local-error-handler.js';
+import { localErrorHandler, localNotFoundHandler } from './local-error-handler.js';
 import { attachRealtime, originMiddleware } from './realtime/local-ws.js';
 import { APIGatewayProxyEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 import { initializeStoragePlugin, StoragePluginRegistry } from './storage/index.js';
@@ -339,12 +339,7 @@ app.get('/health', (_req, res) => {
 // 404 Handler
 // ============================================================================
 
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.method} ${req.path} not found`,
-  });
-});
+app.use(localNotFoundHandler);
 
 // ============================================================================
 // Error Handler

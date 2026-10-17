@@ -59,7 +59,7 @@
                 "body": "JsonSchema",
                 "httpCode": 404,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"const\":\"Not Found\"},\"message\":{\"const\":\"Route GET /no-such-route not found\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"additionalProperties\":false,\"properties\":{\"error\":{\"const\":\"Route not found\"},\"code\":{\"const\":\"NOT_FOUND\"}}}"
                 }
             }
         },
@@ -94,7 +94,7 @@
                 "body": "JsonSchema",
                 "httpCode": 404,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"const\":\"Not Found\"},\"message\":{\"const\":\"Route GET /no-such-route not found\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"code\"],\"additionalProperties\":false,\"properties\":{\"error\":{\"const\":\"Route not found\"},\"code\":{\"const\":\"NOT_FOUND\"}}}"
                 }
             }
         }

@@ -2,7 +2,7 @@ import express from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { localErrorHandler } from '../local-error-handler.js';
+import { localErrorHandler, localNotFoundHandler } from '../local-error-handler.js';
 
 describe('localErrorHandler', () => {
   let server: http.Server;
@@ -16,6 +16,7 @@ describe('localErrorHandler', () => {
     app.get('/boom', () => {
       throw new Error('secret failure at C:/Users/dean/project/file.ts');
     });
+    app.use(localNotFoundHandler);
     app.use(localErrorHandler);
     server = http.createServer(app);
     await new Promise<void>((r) => server.listen(0, r));
@@ -52,6 +53,12 @@ describe('localErrorHandler', () => {
     expect(JSON.parse(text)).toEqual({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' });
     expect(text).not.toContain('secret failure');
     expect(text).not.toContain('C:');
+  });
+
+  it('returns a JSON 404 in the { error, code } shape for an unknown route', async () => {
+    const res = await fetch(`${base}/no-such-route`, { method: 'POST' });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'Route not found', code: 'NOT_FOUND' });
   });
 
   it('is registered as a four-argument error handler', () => {

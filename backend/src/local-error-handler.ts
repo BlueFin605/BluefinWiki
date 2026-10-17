@@ -8,6 +8,15 @@ interface HttpishError extends Error {
 }
 
 /**
+ * Catch-all for unmatched routes on the local dev server. Uses the project's
+ * `{ error, code }` shape. (Deployed, API Gateway answers unknown routes itself
+ * with 403 `{"message":"Missing Authentication Token"}`; there is no catch-all Lambda.)
+ */
+export function localNotFoundHandler(_req: Request, res: Response): void {
+  res.status(404).json({ error: 'Route not found', code: 'NOT_FOUND' });
+}
+
+/**
  * Express error-handling middleware for the local dev server.
  *
  * Must declare four parameters: Express only treats a function as an error
