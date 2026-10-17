@@ -113,6 +113,10 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     // Initialize S3 client
     this.s3Client = new S3Client({
       region: config.region || process.env.AWS_REGION || 'us-east-1',
+      // Presigned PUT URLs are signed before the body exists. With the SDK default
+      // (WHEN_SUPPORTED) it bakes the CRC32 of an empty body into the URL
+      // (x-amz-checksum-crc32=AAAAAA==), so S3 / LocalStack reject any real upload.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
       ...(config.endpoint && {
         endpoint: config.endpoint,
         forcePathStyle: true, // Required for LocalStack
