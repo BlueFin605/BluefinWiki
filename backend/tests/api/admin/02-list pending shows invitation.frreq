@@ -1,0 +1,47 @@
+{
+    "id": "9bd89bf7-81e3-459a-a958-9e53887a7d43",
+    "name": "02-list pending shows invitation",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations",
+    "headers": [],
+    "parameters": [
+        {
+            "key": "status",
+            "value": "pending",
+            "active": true,
+            "id": "5df4dd1e-c93c-4ce9-afda-fa70dc75a2c0"
+        }
+    ],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"invitations\"],\"properties\":{\"invitations\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"required\":[\"inviteCode\",\"status\"],\"properties\":{\"inviteCode\":{\"const\":\"{{revokeCode}}\"},\"status\":{\"const\":\"pending\"}}}}}}"
+        }
+    }
+}

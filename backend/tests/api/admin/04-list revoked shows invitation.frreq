@@ -1,0 +1,47 @@
+{
+    "id": "01258737-ed5c-4db0-bf71-60ab9f7cf3b7",
+    "name": "04-list revoked shows invitation",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations",
+    "headers": [],
+    "parameters": [
+        {
+            "key": "status",
+            "value": "revoked",
+            "active": true,
+            "id": "b7de6f30-3fe7-4ec8-b044-419d9ff2cc48"
+        }
+    ],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"invitations\"],\"properties\":{\"invitations\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"required\":[\"inviteCode\",\"status\"],\"properties\":{\"inviteCode\":{\"const\":\"{{revokeCode}}\"},\"status\":{\"const\":\"revoked\"}}}}}}"
+        }
+    }
+}

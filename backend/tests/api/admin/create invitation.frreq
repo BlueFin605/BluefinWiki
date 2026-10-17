@@ -69,7 +69,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"inviteCode\",\"role\",\"expiresAt\",\"registrationLink\",\"emailSent\"],\"properties\":{\"inviteCode\":{\"type\":\"string\",\"pattern\":\"^[A-Z0-9]{8}$\"},\"role\":{\"const\":\"Standard\"},\"expiresAt\":{\"type\":\"string\"},\"registrationLink\":{\"type\":\"string\",\"pattern\":\"/register\\\\?invite=[A-Z0-9]{8}$\"},\"emailSent\":{\"const\":false}}}"
                 }
-            }
+            },
+            "capture": [
+                {
+                    "variable": "createdStdInviteCode",
+                    "from": "body",
+                    "path": "$.inviteCode",
+                    "id": "7b2c0b7b-cd65-4278-9c9d-2f25fb1a16d5"
+                }
+            ]
         },
         {
             "id": "31c4f0e5-8f22-4101-9fb0-08435cf3ab36",
@@ -111,7 +119,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"inviteCode\",\"role\",\"expiresAt\",\"registrationLink\",\"emailSent\"],\"properties\":{\"inviteCode\":{\"type\":\"string\",\"pattern\":\"^[A-Z0-9]{8}$\"},\"role\":{\"const\":\"Admin\"},\"expiresAt\":{\"type\":\"string\"},\"emailSent\":{\"const\":false}}}"
                 }
-            }
+            },
+            "capture": [
+                {
+                    "variable": "createdAdminInviteCode",
+                    "from": "body",
+                    "path": "$.inviteCode",
+                    "id": "2b63ee94-b6b1-4044-a9a9-f67b3acaa133"
+                }
+            ]
         },
         {
             "id": "c2ba5f32-44d5-4141-ab1c-3d391a4cf99e",

@@ -1,0 +1,40 @@
+{
+    "id": "6ae3327c-cd01-4f8a-b7cf-aae7f17bbb51",
+    "name": "03-revoke invitation 200",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations/{{revokeCode}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"message\"],\"properties\":{\"message\":{\"const\":\"Invitation revoked successfully\"}}}"
+        }
+    }
+}

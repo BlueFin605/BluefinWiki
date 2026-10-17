@@ -1,0 +1,40 @@
+{
+    "id": "32fea5de-b6c4-4eb8-91b6-defc548c3dbb",
+    "name": "41-revoke created admin invitation",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations/{{createdAdminInviteCode}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"message\"],\"properties\":{\"message\":{\"const\":\"Invitation revoked successfully\"}}}"
+        }
+    }
+}

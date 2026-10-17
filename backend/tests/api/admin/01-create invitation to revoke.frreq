@@ -1,0 +1,49 @@
+{
+    "id": "16441f00-88e0-4977-8453-bc1012ea9c92",
+    "name": "01-create invitation to revoke",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"role\":\"Standard\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"inviteCode\",\"role\"],\"properties\":{\"inviteCode\":{\"type\":\"string\",\"pattern\":\"^[A-Z0-9]{8}$\"},\"role\":{\"const\":\"Standard\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "revokeCode",
+            "from": "body",
+            "path": "$.inviteCode",
+            "id": "b68b2cc5-a12b-42e1-bffa-b54ad9cb4d74"
+        }
+    ]
+}

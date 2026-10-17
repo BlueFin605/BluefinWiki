@@ -1,0 +1,40 @@
+{
+    "id": "2fa37194-8e8b-4281-a9e7-0b82c3edfc9d",
+    "name": "05-revoke invitation again 409",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations/{{revokeCode}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 409,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\"]}"
+        }
+    }
+}

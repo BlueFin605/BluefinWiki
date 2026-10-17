@@ -202,5 +202,6 @@
         "headers": [],
         "body": "None",
         "httpCode": 200
-    }
+    },
+    "runsOnly": true
 }
