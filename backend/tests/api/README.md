@@ -17,7 +17,7 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 322 passed, 1 failed (323 cases; includes the 23 `user-lifecycle` cases from WSS-1 / 60920384 (register 201/409, suspend/activate/update/delete, last-admin guards); verified by a full run against localhost:3000 on 2026-10-17; the earlier baseline of 296/1 (297 cases) included the page-type `non-guid is bad request` cases from 45bf3c1e; verified by a full run against localhost:3000 on 2026-10-17 after the 348b5267 (MCP argument validation; `call bad arguments` asserts the validation text), 8ac985b8 (GET /imdb/show-details routed locally; duplicate imdb GET request removed),  37db7698, 763fc0e6 (JSON error handler, all `malformed body` runs assert `{error, code: INVALID_JSON}`) and 2680a20e (admin/profile zod 400 now carries `details`; schemas require it) fixes; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 1 failure means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
+Baseline: 396 passed, 1 failed (397 cases), verified by two consecutive full runs against localhost:3000 on 2026-10-18 with the rebuilt FullyRested CLI. The one failure is the known failure below; the two ws test requests and their two trigger requests are among the passes. Any other failure is a regression. Fewer than 1 failure means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
 
 Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 
@@ -25,16 +25,17 @@ Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki b
 
 Bug tickets are on the Kanban board (story "BlueFinWiki full API suite", WebSocket Support initiative).
 
-- `pages/board-order backfill > existing page` - not a bug: seeded `pageGuid` is missing locally; c54a2220-2f4b-41e7-b16c-ef2d2636e36a (re-point off the seeded guid)
+- `attachments/delete attachment > KNOWN FAILURE page not found is 404` - `DELETE /pages/:guid/attachments/:filename` for a page that does not exist answers 500 `ATTACHMENT_DELETE_FAILED` ("Page not found") instead of 404.
 
 ## Fixtures and tokens
 
-- Fixture ids (`pageGuid`, `crudPageGuid`, `commentId`, `replyCommentId`, `pageTypeGuid`, ...) live in the `local` environment and some guids are hard-coded in request bodies. They must be re-created by hand if the local stack is reset.
+- No fixture ids are stored in the `local` environment any more. The suite creates what it needs and removes it: `00-setup/` creates the shared fixture page (captured `crudPageGuid`), each area creates its own comments, page types, tags, attachments and invitations (file-name prefixes `01-`, `10-`... order the flows; cases that must not be sent bare are `runs-only`), and `zz-teardown/` deletes/revokes what the earlier folders left. Order is tree order, so run the whole collection (`--all`); a single request alone has nothing captured.
 - Standard-role 403 cases use `standardToken`, an unsigned JWT in the `local` environment: the local backend decodes without verifying and gives it role Standard. Admin cases use `Bearer mock-jwt-token`.
-- `user-lifecycle/` is a numbered, order-dependent flow: it creates an invitation, registers a throwaway user (`{{$guid}}` email), captures the invite codes and user id, and ends by soft-deleting that user, so it leaks nothing but one used invitation. Run the folder as a whole (`-f user-lifecycle`); a single request alone has nothing captured.
-- Local `POST /auth/register` needs no Cognito: in local mode (`NODE_ENV=development` or a `local_` pool id, and never inside a Lambda) the handler skips Cognito, rejects a duplicate live email with 409 and stores the profile as `active`. The server seeds the `local-dev-user-id` profile (dev@example.com, Admin, active) on startup.
-- The last-admin cases send `ghostAdminToken` (an unsigned Admin JWT for a sub with no profile, like `standardToken`), so the caller is not the target; they pass only while `local-dev-user-id` is the sole non-deleted Admin profile locally.
-- Create runs leak pages, comments, invitations and page types on each run; remove them by hand.
+- `attachments/` runs presign -> PUT of 25 bytes to the captured `uploadUrl` -> confirm -> list -> download (fetch the captured url) -> delete, and a multipart upload -> delete. It needs LocalStack (S3) up.
+- `mcp/` uses the FullyRested `mcp` request type; `GET /mcp` 404, malformed JSON and the missing-Accept 406 stay plain http.
+- `user-lifecycle/` is a numbered, order-dependent flow (see its cases); it ends by soft-deleting its throwaway user. Local `POST /auth/register` needs no Cognito (local mode); the server seeds the `local-dev-user-id` profile (dev@example.com, Admin, active) on startup.
+- The last-admin cases send `ghostAdminToken` (an unsigned Admin JWT for a sub with no profile); they pass only while `local-dev-user-id` is the sole non-deleted Admin profile locally.
+- Still leaks per run: one tag in scope `api-suite` (no tag delete endpoint), one tombstone for the soft-deleted parent comments, revoked (not deleted) invitations, and 1-3 pages from each ws trigger (FullyRested websocket triggers do not receive captured values, so they create their own page).
 
 ## Gaps
 

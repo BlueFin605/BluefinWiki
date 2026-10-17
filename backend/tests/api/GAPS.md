@@ -119,3 +119,11 @@
 - `user-lifecycle` cases are order-dependent (captures), so a single request run alone fails on an unresolved variable; run the folder.
 - The last-admin cases rely on `local-dev-user-id` being the only live Admin locally; an extra Admin profile in the local table would turn their 400s into real changes to the dev profile.
 - Requests cannot hold variables (only runs, folders, environments, the collection), so each user-lifecycle request has one run named after the case.
+
+## Ticket 50c8bad9 (fixtures created inside the run)
+- RESOLVED by FullyRested capture, run body/url override, runs-only, {{$guid}}, multipart and the mcp type: no seeded or hand-set guids remain. The env variables pageGuid, crudPageGuid, commentId, replyCommentId, pageTypeGuid and childTypeGuid are gone; the board-order backfill 'existing page' run (c54a2220) uses a page created by pages/01-create page for backfill. Earlier notes above about hand-created fixtures, nested variables, leaked create runs, no delete 200 cases, missing multipart upload and the non-empty presign PUT are superseded. Still open from them: 'Request body is required' 400 cases other than fetch-url, GET /mcp 405 and mcp prod auth.
+- A captured value overrides a run's variable of the same name, so error runs that used to override crudPageGuid with a bad guid now override the run url instead.
+- FullyRested gap: a websocket trigger does not see captured variables (it fires with the environment only), so the ws tests cannot target the fixture page. The ws triggers now create a page each firing (leak of 1-3 pages per run) and the invalidate test is triggered by an archived-page create instead of a move.
+- Page delete with children answers 400 HAS_CHILDREN (earlier notes said 409); the suite asserts 400.
+- BlueFinWiki bug: DELETE /pages/:guid/attachments/:filename for a non-existent page returns 500 ATTACHMENT_DELETE_FAILED (KNOWN FAILURE case in attachments/delete attachment).
+- Backlinks 200 with a real linking page, ticket-keys backfill 200 and per-write-type ws tags stay untested.
