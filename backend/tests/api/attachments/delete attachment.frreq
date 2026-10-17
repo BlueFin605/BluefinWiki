@@ -154,6 +154,42 @@
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Missing authorization token\"}}}"
                 }
             }
+        },
+        {
+            "id": "b3fd56de-3b38-42b9-a698-e2d8364726e8",
+            "name": "KNOWN FAILURE page not found is 404",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"pattern\":\"Page not found\"}}}"
+                }
+            },
+            "url": "{{baseUrl}}/pages/11111111-1111-4111-8111-111111111111/attachments/nope.txt"
         }
     ],
     "validation": {

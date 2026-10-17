@@ -43,46 +43,10 @@
                     "id": "f2c77f18-198d-4594-9404-7207cc92275e"
                 },
                 {
-                    "variable": "pageGuid",
-                    "value": "44b703fb-fcf9-4692-ab88-a6a7bcd0cea7",
-                    "active": true,
-                    "id": "1b092481-9513-4b2a-b16c-3d7bb6855b9c"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
-                    "active": true,
-                    "id": "e0aa68e9-407d-4396-b2d6-99e5bd81aad7"
-                },
-                {
                     "variable": "standardToken",
                     "value": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJzdGQtdXNlci1pZCIsImVtYWlsIjoic3RkQGV4YW1wbGUuY29tIiwiY3VzdG9tOnJvbGUiOiJTdGFuZGFyZCIsImN1c3RvbTpkaXNwbGF5TmFtZSI6IlN0ZCJ9.x",
                     "active": true,
                     "id": "8a5cee92-f309-49f8-9cbe-7b0ef2fe380e"
-                },
-                {
-                    "variable": "commentId",
-                    "value": "fcb6f1e3-13ed-4e66-bcd8-1470f93343e0",
-                    "active": true,
-                    "id": "c28a8324-83ea-40c9-a799-1465f7bb36b1"
-                },
-                {
-                    "variable": "replyCommentId",
-                    "value": "7ad41068-c7e3-4f62-864e-479afce1a7f0",
-                    "active": true,
-                    "id": "4c029f4c-09e4-4722-b560-62941e174cf3"
-                },
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "6673d002-fed2-4af2-887d-e68f1c70c88a",
-                    "active": true,
-                    "id": "82bffc40-0cea-48db-b23e-1a0dc2146479"
-                },
-                {
-                    "variable": "childTypeGuid",
-                    "value": "154136cb-4ab5-48f7-8d99-b8739c62f33b",
-                    "active": true,
-                    "id": "c7a457d7-8cd6-4723-a51d-1567109e2afe"
                 },
                 {
                     "variable": "ghostAdminToken",

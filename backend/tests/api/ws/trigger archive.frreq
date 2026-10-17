@@ -1,14 +1,14 @@
 {
     "id": "ad66396e-2a06-4216-b51b-862c8cf460bb",
-    "name": "trigger move",
-    "verb": "put",
+    "name": "trigger archive",
+    "verb": "post",
     "protocol": "http",
-    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/move",
+    "url": "{{baseUrl}}/pages",
     "headers": [],
     "parameters": [],
     "body": {
         "contentType": "application/json",
-        "body": "{\"newParentGuid\":null}"
+        "body": "{\"title\":\"api-suite ws invalidate {{$guid}}\",\"content\":\"created by the ws invalidate trigger\",\"status\":\"archived\"}"
     },
     "authentication": {
         "authentication": "inherit",
@@ -33,6 +33,6 @@
         "type": "ResponseCode",
         "headers": [],
         "body": "None",
-        "httpCode": 200
+        "httpCode": 201
     }
 }

@@ -1,14 +1,14 @@
 {
     "id": "10aebea0-f35f-477f-a94a-f7a43b7f3597",
     "name": "trigger publish",
-    "verb": "put",
+    "verb": "post",
     "protocol": "http",
-    "url": "{{baseUrl}}/pages/{{crudPageGuid}}",
+    "url": "{{baseUrl}}/pages",
     "headers": [],
     "parameters": [],
     "body": {
         "contentType": "application/json",
-        "body": "{\"title\":\"api-suite crud fixture\",\"content\":\"updated by api suite\",\"tags\":[\"api-suite\"],\"status\":\"published\"}"
+        "body": "{\"title\":\"api-suite ws upsert {{$guid}}\",\"content\":\"created by the ws upsert trigger\",\"status\":\"published\"}"
     },
     "authentication": {
         "authentication": "inherit",
@@ -33,6 +33,6 @@
         "type": "ResponseCode",
         "headers": [],
         "body": "None",
-        "httpCode": 200
+        "httpCode": 201
     }
 }
