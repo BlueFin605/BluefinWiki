@@ -567,7 +567,7 @@
         },
         {
             "id": "3110c2ea-711a-49bc-b49e-7c92afc8af8a",
-            "name": "unsupported content type returns 500",
+            "name": "unsupported content type returns 502",
             "parameters": [],
             "headers": [],
             "variables": [
@@ -601,7 +601,7 @@
                 "type": "ResponseCode",
                 "headers": [],
                 "body": "None",
-                "httpCode": 500
+                "httpCode": 502
             }
         }
     ],

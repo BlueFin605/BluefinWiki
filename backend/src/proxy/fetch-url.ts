@@ -99,10 +99,21 @@ export const handler = withAuth(async (
       }),
     };
   } catch (err: unknown) {
+    if (err instanceof UnsupportedContentTypeError) {
+      return bad(502, err.message);
+    }
     console.error('fetch-url error:', err);
     return bad(500, 'Failed to fetch URL');
   }
 });
+
+/** Upstream answered with a content type we cannot read; surfaces as 502 like other upstream problems. */
+class UnsupportedContentTypeError extends Error {
+  constructor(contentType: string) {
+    super(`Upstream returned unsupported content-type: ${contentType || 'unknown'}`);
+    this.name = 'UnsupportedContentTypeError';
+  }
+}
 
 interface FetchResult {
   status: number;
@@ -137,7 +148,7 @@ function performRequest(target: URL, pinnedIp: string): Promise<FetchResult> {
 
         if (!contentType.includes('text/') && !contentType.includes('xhtml') && !contentType.includes('xml') && !contentType.includes('json')) {
           res.destroy();
-          reject(new Error(`Unsupported content-type: ${contentType || 'unknown'}`));
+          reject(new UnsupportedContentTypeError(contentType));
           return;
         }
 
