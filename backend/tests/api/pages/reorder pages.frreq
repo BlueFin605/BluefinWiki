@@ -1,0 +1,295 @@
+{
+    "id": "f9347ce9-7477-4ecf-9092-ef2f93dd57aa",
+    "name": "reorder pages",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/reorder",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{{payload}}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "e6128a89-bce3-4397-ab98-e4fc6e29512b",
+            "name": "unchanged order",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"parentGuid\":null,\"orderedGuids\":[\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927\"]}",
+                    "active": true,
+                    "id": "b126c74a-683c-4dfc-814b-0f6f1f45a44b"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"updated\"],\"additionalProperties\":false,\"properties\":{\"updated\":{\"type\":\"integer\",\"minimum\":0}}}"
+                }
+            }
+        },
+        {
+            "id": "c937e333-4a07-46f2-aba9-4ea9cf15bc00",
+            "name": "parent not found",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"parentGuid\":\"00000000-0000-4000-8000-000000000000\",\"orderedGuids\":[\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927\"]}",
+                    "active": true,
+                    "id": "5f98ab22-af53-4880-ad63-946b4490ec89"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Parent page not found\"}}}"
+                }
+            }
+        },
+        {
+            "id": "b42a4933-1a09-4c27-8d89-e74bd7aee3f6",
+            "name": "non-sibling guid",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"parentGuid\":null,\"orderedGuids\":[\"00000000-0000-4000-8000-000000000000\"]}",
+                    "active": true,
+                    "id": "d7fd2563-f70c-4b9d-ae19-de2552476b30"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"invalidGuids\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Some GUIDs are not children of the specified parent\"},\"invalidGuids\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"string\"}}}}"
+                }
+            }
+        },
+        {
+            "id": "295e0e0a-279a-41f6-90a0-0f98b5ac189d",
+            "name": "empty list",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"parentGuid\":null,\"orderedGuids\":[]}",
+                    "active": true,
+                    "id": "eea25415-98b0-4eea-af0b-d95bb41353e4"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"details\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation failed\"},\"details\":{\"type\":\"array\",\"minItems\":1}}}"
+                }
+            }
+        },
+        {
+            "id": "30d0f259-29a1-47f3-af08-b725c5600e5c",
+            "name": "unauthenticated",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"parentGuid\":null,\"orderedGuids\":[\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927\"]}",
+                    "active": true,
+                    "id": "63cf72d3-f87a-4bec-bfd0-d2b71c484283"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Missing authorization token\"}}}"
+                }
+            }
+        },
+        {
+            "id": "74d4d881-ba03-4b15-bc87-9ec312e74dd6",
+            "name": "malformed body",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"parentGuid\":",
+                    "active": true,
+                    "id": "a0b2d3a7-11a2-4457-8182-d132d8a8331d"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Headers",
+                "headers": [
+                    {
+                        "key": "Content-Type",
+                        "value": "text/html; charset=utf-8",
+                        "active": true,
+                        "id": "6fe2a7f6-9bb6-4916-956c-d3b4810e9810"
+                    }
+                ],
+                "body": "None",
+                "httpCode": 400
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

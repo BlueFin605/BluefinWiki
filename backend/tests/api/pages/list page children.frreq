@@ -1,0 +1,234 @@
+{
+    "id": "bb35b2f1-78d6-47c7-926c-6c9ad7a12d75",
+    "name": "list page children",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/children",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "a6eb7acf-4001-4440-8e91-f7fedc77c811",
+            "name": "leaf page",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"parentGuid\",\"children\",\"count\",\"hasMore\",\"nextCursor\"],\"properties\":{\"parentGuid\":{\"type\":\"string\"},\"children\":{\"type\":\"array\",\"maxItems\":0},\"count\":{\"const\":0},\"hasMore\":{\"const\":false},\"nextCursor\":{\"type\":\"null\"}}}"
+                }
+            }
+        },
+        {
+            "id": "b2591282-bad3-4c3e-b32d-68446ac1ea0a",
+            "name": "invalid parent guid",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "crudPageGuid",
+                    "value": "not-a-uuid",
+                    "active": true,
+                    "id": "9b5668a0-8f8b-4de9-8e81-4dc40cfb1c02"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Invalid parent GUID format\"}}}"
+                }
+            }
+        },
+        {
+            "id": "7146e85d-fee9-44c9-b46a-138c38e87b41",
+            "name": "parent not found",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "crudPageGuid",
+                    "value": "00000000-0000-4000-8000-000000000000",
+                    "active": true,
+                    "id": "7112ad22-60bb-436e-86bf-80bf907e2089"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Parent page not found\"}}}"
+                }
+            }
+        },
+        {
+            "id": "93f643d0-69a6-4335-a2b0-487622f40374",
+            "name": "invalid type guid",
+            "parameters": [
+                {
+                    "key": "type",
+                    "value": "not-a-uuid",
+                    "active": true,
+                    "id": "f5ac13e0-2439-40d8-9d5b-0ec9ce4c177e"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Invalid type GUID format\"}}}"
+                }
+            }
+        },
+        {
+            "id": "bd750d8c-2b1e-4c49-8f64-270779668903",
+            "name": "unauthenticated",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Missing authorization token\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

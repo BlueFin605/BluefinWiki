@@ -139,6 +139,174 @@
                     "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"type\": \"object\",\n    \"required\": [\"error\"],\n    \"properties\": {\n        \"error\": {\n            \"type\": \"string\",\n            \"const\": \"Missing authorization token\",\n            \"description\": \"The backfill is Admin-only; it must never run unauthenticated.\"\n        }\n    }\n}"
                 }
             }
+        },
+        {
+            "id": "bed49b0a-4774-4eaf-b7aa-2e46913c3d77",
+            "name": "non-admin forbidden",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageGuid",
+                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
+                    "active": true,
+                    "id": "38b3d547-6f1c-495e-910c-b8c5b8b1fb95"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "bearertoken",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": "{{standardToken}}"
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 403,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Forbidden\"},\"message\":{\"type\":\"string\",\"pattern\":\"Admin\"}}}"
+                }
+            }
+        },
+        {
+            "id": "f13227ec-3dc7-4ee9-90f3-dcaf99a09425",
+            "name": "KNOWN FAILURE invalid guid returns 500",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageGuid",
+                    "value": "not-a-uuid",
+                    "active": true,
+                    "id": "b6dd483d-ea12-4b01-a7ee-d6f361cde524"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"pattern\":\"GUID\"}}}"
+                }
+            }
+        },
+        {
+            "id": "daebcba1-e74f-4322-8343-aca081c0e513",
+            "name": "crud fixture page",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageGuid",
+                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
+                    "active": true,
+                    "id": "73b72ddc-1eb0-4d5e-a827-d29703f8231c"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"updated\",\"examined\"],\"additionalProperties\":false,\"properties\":{\"updated\":{\"type\":\"integer\",\"minimum\":0},\"examined\":{\"type\":\"integer\",\"minimum\":0}}}"
+                }
+            }
+        },
+        {
+            "id": "611345b6-7998-40a7-acff-2a39b395dd54",
+            "name": "crud fixture page repeat is idempotent",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageGuid",
+                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
+                    "active": true,
+                    "id": "e0f8bd44-9b99-4468-8b3f-451bf3a907be"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"updated\",\"examined\"],\"properties\":{\"updated\":{\"const\":0},\"examined\":{\"type\":\"integer\",\"minimum\":0}}}"
+                }
+            }
         }
     ],
     "validation": {

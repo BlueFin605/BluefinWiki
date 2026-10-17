@@ -30,3 +30,15 @@
 - PUT /pages/:guid 404 returns only `{error}` without `code`, while GET returns `code: PAGE_NOT_FOUND` (inconsistent error shape).
 - Malformed JSON on POST /pages returns Express HTML 400, not the JSON error shape (header check in `malformed body` run).
 - The seeded `pageGuid` was no longer present locally (404), so `board-order backfill > existing page` fails until it is re-seeded.
+
+## Ticket 07f68685 (pages tree, search and ticket-key requests)
+- A `{{variable}}` inside another variable's value (run `payload` holding `{{crudPageGuid}}`) is not expanded, so self-move, reorder and similar bodies hard-code the fixture guid `0ea160d4-...` (re-create and edit if the local stack is reset).
+- No hierarchy fixture without capture: circular move (move under own descendant), reorder 200 that changes order (`updated` > 0) and children paging (limit/cursor/depth with real children) are untested.
+- `GET /ticket-keys/:key` 200, `POST /pages/:guid/ticket-keys/backfill` 200 and idempotency are untested (need an Initiative with keyPrefix and a captured key); only 400/401/403/404 are covered.
+- `GET /pages/:guid/backlinks` 200 only asserts an empty list (no way to create a linking page and capture its guid).
+- Empty request body (400 "Request body is required") on PUT /pages/:guid/move and PUT /pages/reorder is untested (runs cannot send an empty body).
+- Known failure: `GET /pages/search` shadowed by `GET /pages/:guid` (400 "Invalid GUID format"); both search runs (results, missing q) fail until the route order is fixed.
+- Known failure: `GET /pages/:guid/ancestors` returns 200 `{ancestors: []}` for an unknown guid and for a non-GUID string (no 400/404).
+- Known failure: `POST /pages/:guid/board-order/backfill` with a non-GUID returns 500 "Failed to backfill boardOrder" instead of 400.
+- `pages/board-order backfill > existing page` still fails (seeded `pageGuid` 404 locally); `crud fixture page` runs cover the 200 and idempotency instead.
+- Reorder 400 on empty `orderedGuids` returns zod `details` as an array while move returns it as an object (inconsistent shape).
