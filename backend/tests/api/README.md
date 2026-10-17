@@ -17,7 +17,7 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 290 passed, 5 failed (295 cases; re-verified by two consecutive full runs against localhost:3000 on 2026-10-17; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 5 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
+Baseline: 291 passed, 4 failed (295 cases; re-verified by two consecutive full runs against localhost:3000 on 2026-10-17; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 4 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
 
 Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 
@@ -25,7 +25,6 @@ Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki b
 
 Bug tickets are on the Kanban board (story "BlueFinWiki full API suite", WebSocket Support initiative).
 
-- `pages/get ancestors > unknown page (known failure: returns 200)` - b59dd774-d086-4c13-bf9d-c2738a359150
 - `pages/board-order backfill > KNOWN FAILURE invalid guid returns 500` - 5ae81991-59f4-40c6-9ac0-07d50fc77b11
 - `pages/board-order backfill > existing page` - not a bug: seeded `pageGuid` is missing locally; c54a2220-2f4b-41e7-b16c-ef2d2636e36a (re-point off the seeded guid)
 - `attachments/upload attachment > KNOWN FAILURE LF-delimited multipart returns 500 not 400` - 37db7698-96e8-4473-8506-a4899cb46fb1

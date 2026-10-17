@@ -24,6 +24,22 @@ export const handler = withAuth(async (
     }
 
     const storagePlugin = getStoragePlugin();
+
+    // getAncestors swallows a missing page and returns [], so check existence
+    // first: an unknown guid is a 404, not a page with no ancestors.
+    try {
+      await storagePlugin.loadPage(guid);
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === 'PAGE_NOT_FOUND') {
+        return {
+          statusCode: 404,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'Page not found' }),
+        };
+      }
+      throw err;
+    }
+
     const ancestors = await storagePlugin.getAncestors(guid);
 
     return {

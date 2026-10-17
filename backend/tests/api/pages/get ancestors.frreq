@@ -65,7 +65,7 @@
         },
         {
             "id": "ba616f0d-0843-4eab-9800-8213b05e4c20",
-            "name": "unknown page (known failure: returns 200)",
+            "name": "unknown page",
             "parameters": [],
             "headers": [],
             "variables": [
@@ -101,7 +101,7 @@
                 "body": "JsonSchema",
                 "httpCode": 404,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Page not found\",\"description\":\"KNOWN FAILURE: backend returns 200 {guid, ancestors: []} for an unknown guid\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Page not found\"}}}"
                 }
             }
         },
