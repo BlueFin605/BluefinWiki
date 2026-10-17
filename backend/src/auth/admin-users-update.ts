@@ -157,13 +157,13 @@ export const handler = withAuth(withRole(['Admin'], async (event: AuthenticatedE
     };
   } catch (err: unknown) {
     console.error('Error updating user:', err);
-    const error = err as { name?: string; errors?: unknown[]; message?: string };
+    const error = err as { name?: string; issues?: unknown[]; message?: string };
 
     if (error.name === 'ZodError') {
       return {
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Validation error', details: error.errors }),
+        body: JSON.stringify({ error: 'Validation error', details: error.issues }),
       };
     }
 

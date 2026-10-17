@@ -67,7 +67,7 @@
                 "body": "JsonSchema",
                 "httpCode": 400,
                 "jsonSchema": {
-                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation error\"},\"details\":{\"type\":\"array\",\"minItems\":1}},\"required\":[\"error\"]}"
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation error\"},\"details\":{\"type\":\"array\",\"minItems\":1}},\"required\":[\"error\",\"details\"]}"
                 }
             }
         },
@@ -109,7 +109,7 @@
                 "body": "JsonSchema",
                 "httpCode": 400,
                 "jsonSchema": {
-                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation error\"},\"details\":{\"type\":\"array\",\"minItems\":1}},\"required\":[\"error\"]}"
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation error\"},\"details\":{\"type\":\"array\",\"minItems\":1}},\"required\":[\"error\",\"details\"]}"
                 }
             }
         },
@@ -151,7 +151,7 @@
                 "body": "JsonSchema",
                 "httpCode": 400,
                 "jsonSchema": {
-                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation error\"},\"details\":{\"type\":\"array\",\"minItems\":1}},\"required\":[\"error\"]}"
+                    "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Validation error\"},\"details\":{\"type\":\"array\",\"minItems\":1}},\"required\":[\"error\",\"details\"]}"
                 }
             }
         },

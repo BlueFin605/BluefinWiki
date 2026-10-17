@@ -68,7 +68,7 @@
 - Local `local-dev-user-id` profile has no email, role or status (only userId, displayName, updatedAt), so `activate` on it would flip status and the role/status filters on GET /admin/users match nothing.
 - No capture of a created invite code into later requests, so DELETE /admin/invitations/:code 200/409/404 and revoke-then-list-revoked are untested; create runs leak one pending invitation each.
 - FIXED (7727ee02): `DELETE /admin/invitations/:invitationCode` param mismatch; the unknown-code 404 and malformed-code 400 runs now pass.
-- Zod 400 "Validation error" from admin handlers has no `details` (handler reads `error.errors`, which zod 4 does not provide), unlike the intended shape; schemas assert only `error`.
+- FIXED (kanban 2680a20e): Zod 400 "Validation error" from the admin handlers (and auth-profile-update) had no `details` because they read `error.errors`, which zod 4 does not provide; they now return `error.issues` (deployed Lambdas were affected too). Schemas now require a non-empty `details` array.
 - Create invitation with `email` (SES path, emailSent/emailError) is untested to avoid sending mail; "Request body is required" 400 is untested (runs cannot send an empty body); PUT /admin/users/:userId with an empty body hits zod 400 instead.
 - Malformed JSON on POST /admin/invitations and PUT /admin/users/:userId returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`) (schema check in `malformed body` runs).
 
@@ -82,7 +82,7 @@
 - GET /tags has no 400/404 cases: any scope string is accepted and an unknown scope returns 200 with an empty list.
 - "Request body is required" 400 on POST /tags, POST /page-types and PUT /page-types/:guid is untested (runs cannot send an empty body).
 - Malformed JSON on POST /tags, POST /page-types and PUT /page-types/:guid returned Express HTML 400 (FIXED, kanban 763fc0e6: now JSON 400 `{error, code: INVALID_JSON}`) (schema check in `malformed body` runs).
-- Zod 400 on tags/page-types includes `details` (zod format object), unlike admin handlers which omit it (inconsistent shape).
+- Zod 400 `details` shape still varies by handler: tags/page-types use zod's format object, admin/profile/reorder/register use the issues array.
 
 ## Ticket 78935bf7 (search, fetch-url, imdb and admin rebuild requests)
 - Fixed (d40def49): `POST /admin/rebuild-page-index` was unauthenticated in local-server.ts; it now uses the deployed handler (withAuth + withRole Admin), and the three cases assert 401/401/403.
