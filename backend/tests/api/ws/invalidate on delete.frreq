@@ -1,0 +1,83 @@
+{
+    "id": "c4b048ee-7b68-4bcc-8e4a-170e9f89c307",
+    "name": "invalidate on delete",
+    "verb": "get",
+    "protocol": "https",
+    "url": "ws://localhost:3000/ws?token=mock-jwt-token",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        },
+        "placement": "header"
+    },
+    "runs": [
+        {
+            "id": "a5b674b3-af62-4830-9809-998a95214110",
+            "name": "delete pushes invalidate",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Inherit",
+                "headers": [],
+                "body": "None",
+                "httpCode": 200
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    },
+    "type": "websocket",
+    "message": "hello",
+    "expect": {
+        "count": 1,
+        "match": "any",
+        "schema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"invalidate\"},\"tags\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"string\"}},\"origin\":{\"type\":[\"string\",\"null\"]}}}\n"
+        },
+        "extras": "ignore",
+        "timeout": 10000,
+        "settle": 500
+    }
+}

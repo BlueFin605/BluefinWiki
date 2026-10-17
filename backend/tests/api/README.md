@@ -1,6 +1,6 @@
 # BlueFinWiki API suite
 
-FullyRested collection (`bluefinwiki.frcol`) covering the REST API, run against the local stack. Folders mirror the API areas (`admin`, `attachments`, `pages`, `search-and-utilities`, `mcp`, ...); `ws` is empty until FullyRested websocket support is merged.
+FullyRested collection (`bluefinwiki.frcol`) covering the REST API, run against the local stack. Folders mirror the API areas (`admin`, `attachments`, `pages`, `search-and-utilities`, `mcp`, ...); `ws` holds two websocket tests that need `ws-trigger.mjs` running alongside (see GAPS.md).
 
 ## Run it
 

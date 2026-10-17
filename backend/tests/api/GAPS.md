@@ -5,7 +5,6 @@
 - Collection variables vs environment variables: `pageGuid` is an env variable the seeded data must fill by hand; no documented way to capture a created guid from one response into later requests (to verify in later tickets; raise if awkward).
 - `tree` omits the selected environment and validation detail, so layout checks need `environments` as a second call.
 - No MCP-client request type, so the `mcp` folder cannot hold real MCP smoke calls (only raw JSON-RPC over POST /mcp if supported).
-- Websocket requests exist only on feature/websocket-support, so the `ws` folder stays empty until that branch is merged.
 
 ## BlueFinWiki behaviour (confirmed by request against localhost:3000)
 - CONFIRMED: `GET /pages/search?q=a` returns 400 "Invalid GUID format" (route shadowed by `GET /pages/:guid`).
@@ -97,9 +96,10 @@
 - Unknown-route 404 body is `{error: "Not Found", message}` (differs from the `{error}`-only shape elsewhere).
 
 ## Ticket 2627ae20 (WebSocket event tests)
-- Blocked: no websocket request type in the FullyRested MCP tools available (no set_type/set_message/set_expect); it exists only on the unmerged FullyRested branch feature/websocket-support. `backend/tests/api/ws` holds only `.gitkeep`; no websocket case was faked as HTTP.
-- To write once merged: connect `ws://localhost:3000/ws?token=mock-jwt-token`, trigger `POST /pages`, assert an `upsert {pages, tags, origin}` message and an `invalidate {tags, origin}` message with their tags; the server sends nothing on connect and ignores client messages.
-
+- Deviation: the FullyRested MCP tools in this session predate the websocket merge, so the ws requests were authored with the CLI (`edit set-type/set-message/set-expect`) and run with the CLI; everything else used MCP tools.
+- GAP (answers the key question): one FullyRested run cannot open the socket, trigger a REST write, then assert. A websocket request only sends its own `message` (the server ignores client frames) and blocks until count/timeout, and requests in a folder run strictly in sequence, so no HTTP request can fire while the socket is open. Worked around with `backend/tests/api/ws-trigger.mjs`, run beside the folder (`WS_TRIGGER_TOKEN=<bearer> node ws-trigger.mjs`): it loops create-published-page then delete, producing an upsert and an invalidate each second. Without it the two ws cases time out. Needs an fr-gap ticket (pre/post hooks or a concurrent trigger request).
+- Covered: `upsert on publish` (upsert {pages, tags, origin}) and `invalidate on delete` (invalidate {tags, origin}), count 1, match any, extras ignore, timeout 10000.
+- Not covered: nothing-sent-on-connect (a test needs count >= 1), exact tag values per write type (comment, attachment, move, page-type), X-Client-Id as origin, MCP-write origin null; match-any with a schema cannot pin tags to a specific write when the trigger loops.
 ## Ticket ecdf556c (mcp smoke requests)
 - FullyRested has no MCP-client request type: /mcp is smoked as raw JSON-RPC over POST with the body in a `{{rpc}}` run variable (no initialize/session handling, no tools/call result decoding beyond a JSON Schema on the text content); friction worth an fr-gap ticket.
 - Local /mcp has no auth at all (prod is guarded by an API Gateway API key, not Cognito/Bearer): there is no 401 to test locally; run `tools list no token` asserts 200 as the documented local behaviour, and the prod API-key 403 is untested.

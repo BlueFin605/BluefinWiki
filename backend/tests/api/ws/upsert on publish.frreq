@@ -1,0 +1,83 @@
+{
+    "id": "5c9ebc00-103b-4f1d-b6ca-39238e32dd63",
+    "name": "upsert on publish",
+    "verb": "get",
+    "protocol": "https",
+    "url": "ws://localhost:3000/ws?token=mock-jwt-token",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        },
+        "placement": "header"
+    },
+    "runs": [
+        {
+            "id": "25612b91-635a-490f-850f-f5b5b2723242",
+            "name": "published create pushes upsert",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Inherit",
+                "headers": [],
+                "body": "None",
+                "httpCode": 200
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    },
+    "type": "websocket",
+    "message": "hello",
+    "expect": {
+        "count": 1,
+        "match": "any",
+        "schema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"pages\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"upsert\"},\"pages\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"title\"]}},\"tags\":{\"type\":\"array\"},\"origin\":{\"type\":[\"string\",\"null\"]}}}\n"
+        },
+        "extras": "ignore",
+        "timeout": 10000,
+        "settle": 500
+    }
+}
