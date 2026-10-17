@@ -1,0 +1,241 @@
+{
+    "id": "ff3dcb49-bce1-4199-8846-a24030517d2e",
+    "name": "imdb show details",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/imdb/show-details",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "2dbf30a3-f175-4f93-8c5f-b014550025d7",
+            "name": "show found by query",
+            "parameters": [
+                {
+                    "key": "query",
+                    "value": "Breaking Bad",
+                    "active": true,
+                    "id": "63ebf06a-ec79-4832-a088-3e06de51fe7a"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"query\",\"imdbId\",\"title\",\"synopsis\",\"url\"],\"properties\":{\"query\":{\"const\":\"Breaking Bad\"},\"imdbId\":{\"type\":\"string\",\"pattern\":\"^tt[0-9]+$\"},\"title\":{\"type\":\"string\",\"minLength\":1},\"synopsis\":{\"type\":\"string\"},\"seasons\":{\"type\":[\"number\",\"null\"]},\"rating\":{\"type\":[\"number\",\"null\"]},\"votes\":{\"type\":[\"number\",\"null\"]},\"url\":{\"type\":\"string\"}}}"
+                }
+            }
+        },
+        {
+            "id": "413a05e6-e2ca-42db-94f5-712d9a0c1dc6",
+            "name": "no match",
+            "parameters": [
+                {
+                    "key": "query",
+                    "value": "zzqxjvkw9283zz",
+                    "active": true,
+                    "id": "bfa6a001-1932-46d5-a4c1-ac69213ee879"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"No IMDb TV show match found\"}}}"
+                }
+            }
+        },
+        {
+            "id": "a747912e-b5f3-4d14-a51b-4d1e4dec9a96",
+            "name": "missing query and imdbId",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Provide either \\\"query\\\" or \\\"imdbId\\\"\"}}}"
+                }
+            }
+        },
+        {
+            "id": "67f42bf1-0ec3-430e-8ff5-4dd6d528b9ec",
+            "name": "unauthenticated",
+            "parameters": [
+                {
+                    "key": "query",
+                    "value": "Breaking Bad",
+                    "active": true,
+                    "id": "9ef8edae-4247-4a1a-8200-877fbd591d44"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Missing authorization token\"}}}"
+                }
+            }
+        },
+        {
+            "id": "915b6cca-d33e-41b1-8743-77df1a930111",
+            "name": "invalid token",
+            "parameters": [
+                {
+                    "key": "query",
+                    "value": "Breaking Bad",
+                    "active": true,
+                    "id": "6b457c50-8f5c-43a3-9a5f-c8783cdfa592"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "bearertoken",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": "not-a-valid-token"
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid or expired token\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}
