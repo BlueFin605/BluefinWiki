@@ -8,7 +8,7 @@
 
 ## BlueFinWiki behaviour (confirmed by request against localhost:3000)
 - FIXED (f13484d3, 9eed3d0f): `GET /pages/search` was shadowed by `GET /pages/:guid` in the local server (400 "Invalid GUID format"); the search route is now registered first. Deployed API Gateway was never affected (static resource wins over {guid}).
-- CONFIRMED: `DELETE /admin/invitations/<code>` returns 400 "Invitation code is required" (param not passed to handler).
+- FIXED (7727ee02): `DELETE /admin/invitations/<code>` returned 400 "Invitation code is required" because the handler read `pathParameters.code` while both the local route and the API Gateway resource name the param `invitationCode`. Handler now reads `invitationCode` (the deployed path was affected too).
 - FIXED (d40def49): `POST /admin/rebuild-page-index` was unauthenticated locally; now routed through the deployed withAuth+withRole handler (401/401/403 asserted).
 - `pages/board-order backfill` has an unauthenticated case; confirm that route's auth expectation when the pages ticket is done.
 
@@ -68,7 +68,7 @@
 - No throwaway users: register returns 500 locally (no Cognito pool), so suspend/activate success, already-suspended/already-active, delete 200, already-deleted, last-admin guards (update role, delete) and PUT 200 are untested; only the self-guards (never mutating `local-dev-user-id`) and 404s are covered.
 - Local `local-dev-user-id` profile has no email, role or status (only userId, displayName, updatedAt), so `activate` on it would flip status and the role/status filters on GET /admin/users match nothing.
 - No capture of a created invite code into later requests, so DELETE /admin/invitations/:code 200/409/404 and revoke-then-list-revoked are untested; create runs leak one pending invitation each.
-- Known failure: `DELETE /admin/invitations/:invitationCode` always returns 400 "Invitation code is required" (route param `invitationCode` vs handler `pathParameters.code`); two runs fail (valid unknown code should be 404, malformed code should be 400 "Invalid invitation code format").
+- FIXED (7727ee02): `DELETE /admin/invitations/:invitationCode` param mismatch; the unknown-code 404 and malformed-code 400 runs now pass.
 - Zod 400 "Validation error" from admin handlers has no `details` (handler reads `error.errors`, which zod 4 does not provide), unlike the intended shape; schemas assert only `error`.
 - Create invitation with `email` (SES path, emailSent/emailError) is untested to avoid sending mail; "Request body is required" 400 is untested (runs cannot send an empty body); PUT /admin/users/:userId with an empty body hits zod 400 instead.
 - Malformed JSON on POST /admin/invitations and PUT /admin/users/:userId returns Express HTML 400 (header check in `malformed body` runs).

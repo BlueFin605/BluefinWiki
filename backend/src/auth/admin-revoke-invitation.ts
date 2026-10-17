@@ -40,7 +40,7 @@ export const handler = withAuth(withRole(['Admin'], async (event: AuthenticatedE
     const user = getUserContext(event);
 
     // Extract invite code from path parameters
-    const inviteCode = event.pathParameters?.code;
+    const inviteCode = event.pathParameters?.invitationCode;
     
     if (!inviteCode) {
       return {
