@@ -17,15 +17,15 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 396 passed, 1 failed (397 cases), verified by two consecutive full runs against localhost:3000 on 2026-10-18 with the rebuilt FullyRested CLI. The one failure is the known failure below; the two ws test requests and their two trigger requests are among the passes. Any other failure is a regression. Fewer than 1 failure means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
+Baseline: 398 passed, 0 failed (398 cases), verified by a full run against localhost:3000 on 2026-10-18 with the rebuilt FullyRested CLI; the two ws test requests and their two trigger requests are among the passes. Any failure is a regression. There are no known failures at present.
 
-Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
+Any case named `KNOWN FAILURE` would assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 
 ## Known failures
 
 Bug tickets are on the Kanban board (story "BlueFinWiki full API suite", WebSocket Support initiative).
 
-- `attachments/delete attachment > KNOWN FAILURE page not found is 404` - `DELETE /pages/:guid/attachments/:filename` for a page that does not exist answers 500 `ATTACHMENT_DELETE_FAILED` ("Page not found") instead of 404.
+None at present. When a bug is found, add a case named `KNOWN FAILURE ...` asserting the correct behaviour and list it here.
 
 ## Fixtures and tokens
 

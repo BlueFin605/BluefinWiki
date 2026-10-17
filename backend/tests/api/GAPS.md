@@ -127,3 +127,6 @@
 - Page delete with children answers 400 HAS_CHILDREN (earlier notes said 409); the suite asserts 400.
 - BlueFinWiki bug: DELETE /pages/:guid/attachments/:filename for a non-existent page returns 500 ATTACHMENT_DELETE_FAILED (KNOWN FAILURE case in attachments/delete attachment).
 - Backlinks 200 with a real linking page, ticket-keys backfill 200 and per-write-type ws tags stay untested.
+
+## Kanban WSS-4 (attachment page-not-found)
+- FIXED (WSS-4): `S3StoragePlugin` attachment methods re-wrapped `PAGE_NOT_FOUND` in a generic 500 (`ATTACHMENT_DELETE_FAILED` for DELETE; `ATTACHMENT_URL_FAILED` for download; `ATTACHMENT_METADATA_SAVE_FAILED` for confirm's metadata save, and the metadata load). They now rethrow it so the shared handlers answer 404 `PAGE_NOT_FOUND` (deployed Lambdas share the code). List, presign and upload already passed it through. Cases: `delete attachment > page not found is 404` (renamed from KNOWN FAILURE), new `download attachment > page not found is 404`; list and presign already had one. Confirm for a missing page still answers 404 "Attachment not found in storage" because the S3 head check runs first (correct status, not the page-not-found message).

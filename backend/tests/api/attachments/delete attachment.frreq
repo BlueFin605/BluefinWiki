@@ -157,7 +157,7 @@
         },
         {
             "id": "b3fd56de-3b38-42b9-a698-e2d8364726e8",
-            "name": "KNOWN FAILURE page not found is 404",
+            "name": "page not found is 404",
             "parameters": [],
             "headers": [],
             "variables": [],

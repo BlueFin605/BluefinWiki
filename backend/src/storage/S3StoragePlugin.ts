@@ -1501,7 +1501,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }));
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
-      if (error.code && ['INVALID_GUID', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
         throw err;
       }
 
@@ -1542,7 +1542,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       }));
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
-      if (error.code === 'INVALID_GUID') {
+      if (error.code === 'INVALID_GUID' || error.code === 'PAGE_NOT_FOUND') {
         throw err;
       }
 
@@ -1579,7 +1579,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
     } catch (err: unknown) {
       const error = err as { code?: string; name?: string; message?: string };
 
-      if (error.code === 'INVALID_GUID') {
+      if (error.code === 'INVALID_GUID' || error.code === 'PAGE_NOT_FOUND') {
         throw err;
       }
 
@@ -1808,7 +1808,7 @@ export class S3StoragePlugin extends BaseStoragePlugin {
       return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
-      if (error.code && ['INVALID_GUID', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
+      if (error.code && ['INVALID_GUID', 'PAGE_NOT_FOUND', 'ATTACHMENT_NOT_FOUND'].includes(error.code)) {
         throw err;
       }
 

@@ -114,6 +114,49 @@
             "url": "{{baseUrl}}/pages/not-a-guid/attachments/{{fileName}}"
         },
         {
+            "id": "11b79896-e375-48a8-a2d6-ea6a465eedce",
+            "name": "page not found is 404",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "fileName",
+                    "value": "x.txt",
+                    "active": true,
+                    "id": "b7d32723-06b6-4858-8300-16dab2290ef9"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"pattern\":\"Page not found\"},\"code\":{\"const\":\"PAGE_NOT_FOUND\"}}}"
+                }
+            },
+            "url": "{{baseUrl}}/pages/11111111-1111-4111-8111-111111111111/attachments/{{fileName}}"
+        },
+        {
             "id": "23e92a98-6920-4a30-a376-ccfe2c01bd9c",
             "name": "unauthenticated",
             "parameters": [],
