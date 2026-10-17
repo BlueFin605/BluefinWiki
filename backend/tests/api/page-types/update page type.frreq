@@ -246,6 +246,54 @@
             }
         },
         {
+            "id": "6570307b-23eb-41a1-bbde-29724dd761dd",
+            "name": "non-guid is bad request",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"name\":\"api-suite-ghost\"}",
+                    "active": true,
+                    "id": "be757bd8-7988-443c-b173-c0b0c006f5a8"
+                },
+                {
+                    "variable": "pageTypeGuid",
+                    "value": "not-a-guid",
+                    "active": true,
+                    "id": "c29163fc-c2b8-419e-a6c2-391cedfc4ede"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
+                }
+            }
+        },
+        {
             "id": "8241aed0-4406-455a-a955-ec8333fab6c1",
             "name": "non-creator forbidden",
             "parameters": [],

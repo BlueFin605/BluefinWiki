@@ -107,7 +107,7 @@
         },
         {
             "id": "d339547a-d18a-40d8-a9ca-475da05fb474",
-            "name": "non-guid is not found",
+            "name": "non-guid is bad request",
             "parameters": [],
             "headers": [],
             "variables": [
@@ -141,9 +141,9 @@
                 "type": "Body",
                 "headers": [],
                 "body": "JsonSchema",
-                "httpCode": 404,
+                "httpCode": 400,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page type not found\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
             }
         },

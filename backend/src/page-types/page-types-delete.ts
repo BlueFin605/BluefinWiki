@@ -1,5 +1,6 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { withAuth, AuthenticatedEvent, getUserContext, isAdmin } from '../middleware/auth.js';
+import { validate as validateUUID } from 'uuid';
 import { getPageType, deletePageType } from './page-types-service.js';
 
 /**
@@ -21,6 +22,13 @@ export const handler = withAuth(async (
         statusCode: 400,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Page type GUID is required' }),
+      };
+    }
+    if (!validateUUID(guid)) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid GUID format' }),
       };
     }
 

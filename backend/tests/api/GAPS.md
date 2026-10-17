@@ -77,7 +77,7 @@
 - A request with no runs is sent bare, so adding `delete page type` / `update page type` before their runs existed deleted the fixture page type; there is no way to mark a request as "runs only".
 - No capture of a created page-type guid: GET/PUT/DELETE use hand-created fixtures (env `pageTypeGuid` = `api-suite-fixture-type`, hard-coded guids of `api-suite-fixture-child` and `api-suite-fixture-parent`, the latter with the child allowed); re-create via POST /page-types and update the env variable and the hard-coded guids in the get/list/allowed-children/update schemas if the local stack is reset.
 - DELETE /page-types/:guid 200 is untested (it consumes the fixture and needs a fresh guid per run); the `created *` runs leak three page types per run (no cleanup without captured guids).
-- Page-type routes do no guid validation: a non-GUID returns 404 "Page type not found" (covered as `non-guid is not found`), not 400.
+- Page-type routes did no guid validation (non-GUID returned 404 instead of 400) (FIXED, kanban 45bf3c1e: GET/PUT/DELETE /page-types/:guid and /allowed-children now return 400 `Invalid GUID format`; covered as `non-guid is bad request` on get/update/delete/allowed children).
 - No tag delete endpoint, so tag fixtures and the stray literal `api-suite-{{$guid}}` tag in scope `api-suite` cannot be cleaned up.
 - GET /tags has no 400/404 cases: any scope string is accepted and an unknown scope returns 200 with an empty list.
 - "Request body is required" 400 on POST /tags, POST /page-types and PUT /page-types/:guid is untested (runs cannot send an empty body).

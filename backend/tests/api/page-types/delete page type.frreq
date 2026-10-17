@@ -71,6 +71,48 @@
             }
         },
         {
+            "id": "6945e42b-15bc-41b7-bb0e-5c0999e2a47a",
+            "name": "non-guid is bad request",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "pageTypeGuid",
+                    "value": "not-a-guid",
+                    "active": true,
+                    "id": "ea0e3cb5-d226-4b3f-9602-25b96afef58c"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
+                }
+            }
+        },
+        {
             "id": "de3d3410-af42-4c59-8c06-43d77e162763",
             "name": "non-creator forbidden",
             "parameters": [],
