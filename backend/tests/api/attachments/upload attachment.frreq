@@ -76,14 +76,7 @@
             "name": "invalid page guid",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "0478b7d9-6cd2-49c7-941c-2a54dafb9ebd"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -111,7 +104,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid page GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-guid/attachments"
         },
         {
             "id": "f3f2f74b-a4fe-4cc8-b751-9b186e262b55",
@@ -181,6 +175,104 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\"}}}"
                 }
+            }
+        },
+        {
+            "id": "40abf155-68a1-408f-a8e6-98ff63405d40",
+            "name": "image over 10MB returns 413",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 413,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"pattern\":\"10MB\"}}}"
+                }
+            },
+            "body": {
+                "contentType": "multipart/form-data",
+                "body": [
+                    {
+                        "key": "file",
+                        "value": "",
+                        "active": true,
+                        "id": "1277347c-e07f-41c4-ace3-7767e2069e68",
+                        "filename": "big.png",
+                        "contentType": "image/png",
+                        "size": 10485761
+                    }
+                ]
+            }
+        },
+        {
+            "id": "db385ed2-36e9-44ac-b74a-4963f1e97f4a",
+            "name": "unsupported type returns 415",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 415,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"type\":\"string\",\"pattern\":\"Unsupported file type\"}}}"
+                }
+            },
+            "body": {
+                "contentType": "multipart/form-data",
+                "body": [
+                    {
+                        "key": "file",
+                        "value": "",
+                        "active": true,
+                        "id": "68285350-7b5d-4109-9704-5941c1e9cd6a",
+                        "filename": "malware.exe",
+                        "contentType": "application/x-msdownload",
+                        "size": 100
+                    }
+                ]
             }
         }
     ],

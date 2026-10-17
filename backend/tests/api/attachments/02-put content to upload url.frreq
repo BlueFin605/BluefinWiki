@@ -1,0 +1,38 @@
+{
+    "id": "7d011085-9f01-4680-834f-d500775e5a76",
+    "name": "02-put content to upload url",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{uploadUrl}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "text/plain",
+        "body": "api-suite attachment body"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "ResponseCode",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

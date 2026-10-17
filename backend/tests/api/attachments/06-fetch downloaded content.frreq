@@ -1,0 +1,44 @@
+{
+    "id": "f6a637bb-2a6f-4d74-a297-b59ff6982f07",
+    "name": "06-fetch downloaded content",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{downloadUrl}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Headers",
+        "headers": [
+            {
+                "key": "content-length",
+                "value": "25",
+                "active": true,
+                "id": "0905a5e1-594f-4502-9c89-50b598633a49"
+            }
+        ],
+        "body": "None",
+        "httpCode": 200
+    }
+}

@@ -30,60 +30,11 @@
     },
     "runs": [
         {
-            "id": "17d12b16-2b75-4881-95e4-cc7573ee6393",
-            "name": "confirmed",
-            "parameters": [],
-            "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"filename\":\"api-suite-fixture.txt\",\"contentType\":\"text/plain\",\"size\":21,\"attachmentKey\":\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927/_attachments/api-suite-fixture.txt\"}",
-                    "active": true,
-                    "id": "ba08917b-8c9f-40cd-bb2d-520cb0000e3b"
-                }
-            ],
-            "secrets": [],
-            "authentication": {
-                "authentication": "inherit",
-                "awsSig": {
-                    "signUrl": false,
-                    "accessKey": "",
-                    "secretKey": "",
-                    "sessionToken": "",
-                    "awsRegion": "eu-central-1",
-                    "serviceName": ""
-                },
-                "basicAuth": {
-                    "userName": "",
-                    "password": ""
-                },
-                "bearerToken": {
-                    "token": ""
-                }
-            },
-            "validation": {
-                "type": "Body",
-                "headers": [],
-                "body": "JsonSchema",
-                "httpCode": 201,
-                "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"filename\",\"contentType\",\"size\",\"url\"],\"properties\":{\"filename\":{\"const\":\"api-suite-fixture.txt\"},\"contentType\":{\"type\":\"string\"},\"size\":{\"const\":21},\"url\":{\"type\":\"string\",\"pattern\":\"/api-suite-fixture\\\\.txt$\"}}}"
-                }
-            }
-        },
-        {
             "id": "8c1ad883-9ae1-4195-8b5b-e03c36e29641",
             "name": "not in storage",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"filename\":\"nope.txt\",\"contentType\":\"text/plain\",\"size\":10,\"attachmentKey\":\"0ea160d4-a8dd-46bc-b2e0-8236be2e0927/_attachments/nope.txt\"}",
-                    "active": true,
-                    "id": "4823d91e-0242-4a8e-8576-49a52fbc051b"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -111,6 +62,10 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Attachment not found in storage. Upload may have failed.\"}}}"
                 }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"filename\":\"nope.txt\",\"contentType\":\"text/plain\",\"size\":10,\"attachmentKey\":\"{{crudPageGuid}}/_attachments/nope.txt\"}"
             }
         },
         {
@@ -166,12 +121,6 @@
                     "value": "{\"filename\":\"a.txt\",\"contentType\":\"text/plain\",\"size\":10,\"attachmentKey\":\"x/_attachments/a.txt\"}",
                     "active": true,
                     "id": "80d96ed0-af4d-45d5-a23f-bb8e582e8cd6"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "b63974a3-fc72-4d70-ba01-3f6f5831cbbd"
                 }
             ],
             "secrets": [],
@@ -201,7 +150,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Valid page GUID is required\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-guid/attachments/confirm"
         },
         {
             "id": "37f4b80b-1098-4e92-ae9b-0fea841dfa44",

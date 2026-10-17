@@ -1,0 +1,41 @@
+{
+    "id": "4314b528-a5a0-4164-ae66-25f99ebfa577",
+    "name": "03-confirm flow attachment",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/attachments/confirm",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"filename\":\"api-suite-flow.txt\",\"contentType\":\"text/plain\",\"size\":25,\"attachmentKey\":\"{{attachmentKey}}\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"filename\",\"contentType\",\"size\",\"url\"],\"properties\":{\"filename\":{\"const\":\"api-suite-flow.txt\"},\"contentType\":{\"type\":\"string\"},\"size\":{\"const\":25},\"url\":{\"type\":\"string\",\"pattern\":\"/api-suite-flow\\\\.txt$\"}}}"
+        }
+    }
+}

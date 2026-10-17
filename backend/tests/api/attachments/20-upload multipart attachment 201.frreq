@@ -1,0 +1,51 @@
+{
+    "id": "b7a55c4b-89ed-48cc-8802-e4e91f14a8fb",
+    "name": "20-upload multipart attachment 201",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/attachments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "multipart/form-data",
+        "body": [
+            {
+                "key": "file",
+                "value": "",
+                "active": true,
+                "id": "727bdaeb-b96f-444f-aa21-29b643c62e86",
+                "filename": "api-suite-upload.txt",
+                "contentType": "text/plain",
+                "size": 18
+            }
+        ]
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"filename\",\"contentType\",\"size\",\"url\"],\"properties\":{\"filename\":{\"const\":\"api-suite-upload.txt\"},\"contentType\":{\"const\":\"text/plain\"},\"size\":{\"const\":18},\"url\":{\"type\":\"string\",\"pattern\":\"/api-suite-upload\\\\.txt$\"}}}"
+        }
+    }
+}

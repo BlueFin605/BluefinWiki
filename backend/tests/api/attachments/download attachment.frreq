@@ -29,48 +29,6 @@
     },
     "runs": [
         {
-            "id": "5c1727df-d3a9-4500-9e02-c0b5b27fd4dd",
-            "name": "existing file",
-            "parameters": [],
-            "headers": [],
-            "variables": [
-                {
-                    "variable": "fileName",
-                    "value": "api-suite-fixture.txt",
-                    "active": true,
-                    "id": "f96ac2ea-fa53-4b38-834b-87e82a93a5d1"
-                }
-            ],
-            "secrets": [],
-            "authentication": {
-                "authentication": "inherit",
-                "awsSig": {
-                    "signUrl": false,
-                    "accessKey": "",
-                    "secretKey": "",
-                    "sessionToken": "",
-                    "awsRegion": "eu-central-1",
-                    "serviceName": ""
-                },
-                "basicAuth": {
-                    "userName": "",
-                    "password": ""
-                },
-                "bearerToken": {
-                    "token": ""
-                }
-            },
-            "validation": {
-                "type": "Body",
-                "headers": [],
-                "body": "JsonSchema",
-                "httpCode": 200,
-                "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"url\",\"contentType\",\"filename\"],\"properties\":{\"url\":{\"type\":\"string\",\"pattern\":\"^https?://.*api-suite-fixture\\\\.txt\"},\"contentType\":{\"const\":\"text/plain\"},\"filename\":{\"const\":\"api-suite-fixture.txt\"}}}"
-                }
-            }
-        },
-        {
             "id": "7b9ae7e4-bc56-4e0c-bcf1-71f0d24d1a60",
             "name": "missing file",
             "parameters": [],
@@ -123,12 +81,6 @@
                     "value": "x.txt",
                     "active": true,
                     "id": "5bc201d9-211b-4169-a9a6-8004c9cb21c1"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "13df2241-b8e9-456f-8360-49c53547df6a"
                 }
             ],
             "secrets": [],
@@ -158,7 +110,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-guid/attachments/{{fileName}}"
         },
         {
             "id": "23e92a98-6920-4a30-a376-ccfe2c01bd9c",

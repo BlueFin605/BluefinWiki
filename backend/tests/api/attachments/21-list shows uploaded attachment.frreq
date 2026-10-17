@@ -1,0 +1,40 @@
+{
+    "id": "b009d538-c8cf-4136-8038-7409552d0a4e",
+    "name": "21-list shows uploaded attachment",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/attachments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"attachments\"],\"properties\":{\"attachments\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"required\":[\"filename\",\"contentType\",\"size\"],\"properties\":{\"filename\":{\"const\":\"api-suite-upload.txt\"},\"contentType\":{\"const\":\"text/plain\"},\"size\":{\"const\":18}}}}}}"
+        }
+    }
+}

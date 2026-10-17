@@ -1,0 +1,40 @@
+{
+    "id": "ef9b65ae-0d8d-40d1-973a-d687817265a8",
+    "name": "04-list shows flow attachment",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/attachments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"attachments\"],\"properties\":{\"attachments\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"required\":[\"filename\",\"contentType\",\"size\",\"uploadedAt\",\"uploadedBy\"],\"properties\":{\"filename\":{\"const\":\"api-suite-flow.txt\"},\"contentType\":{\"const\":\"text/plain\"},\"size\":{\"const\":25},\"uploadedBy\":{\"type\":\"string\"}}}}}}"
+        }
+    }
+}

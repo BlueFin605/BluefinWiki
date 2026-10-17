@@ -1,0 +1,55 @@
+{
+    "id": "cb849b19-5965-4850-bfde-53d666552a88",
+    "name": "01-presign flow attachment",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/attachments/presign",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"filename\":\"api-suite-flow.txt\",\"contentType\":\"text/plain\",\"size\":25}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"uploadUrl\",\"attachmentKey\",\"filename\"],\"properties\":{\"uploadUrl\":{\"type\":\"string\",\"pattern\":\"^https?://.*api-suite-flow\\\\.txt\\\\?\"},\"attachmentKey\":{\"type\":\"string\",\"pattern\":\"^{{crudPageGuid}}/_attachments/api-suite-flow\\\\.txt$\"},\"filename\":{\"const\":\"api-suite-flow.txt\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "uploadUrl",
+            "from": "body",
+            "path": "$.uploadUrl",
+            "id": "363d752e-52cd-4151-9555-e26f825556a1"
+        },
+        {
+            "variable": "attachmentKey",
+            "from": "body",
+            "path": "$.attachmentKey",
+            "id": "9f30c1a0-8fb5-4995-8102-9b9fcac0fb8f"
+        }
+    ]
+}

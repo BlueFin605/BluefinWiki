@@ -1,0 +1,40 @@
+{
+    "id": "1103d7ac-19b7-447d-94b3-39dc236a8326",
+    "name": "08-list no longer shows flow attachment",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/attachments",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"attachments\"],\"properties\":{\"attachments\":{\"type\":\"array\",\"not\":{\"contains\":{\"type\":\"object\",\"required\":[\"filename\"],\"properties\":{\"filename\":{\"const\":\"api-suite-flow.txt\"}}}}}}}"
+        }
+    }
+}

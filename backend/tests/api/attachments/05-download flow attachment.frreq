@@ -1,0 +1,48 @@
+{
+    "id": "83b1a289-ad67-436d-a0d1-ecf567649882",
+    "name": "05-download flow attachment",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}/attachments/api-suite-flow.txt",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"url\",\"contentType\",\"filename\"],\"properties\":{\"url\":{\"type\":\"string\",\"pattern\":\"^https?://.*api-suite-flow\\\\.txt\"},\"contentType\":{\"const\":\"text/plain\"},\"filename\":{\"const\":\"api-suite-flow.txt\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "downloadUrl",
+            "from": "body",
+            "path": "$.url",
+            "id": "99d49304-615a-4518-8221-f4abd0f19c5f"
+        }
+    ]
+}

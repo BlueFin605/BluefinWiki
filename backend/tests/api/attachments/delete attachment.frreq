@@ -81,12 +81,6 @@
                     "value": "x.txt",
                     "active": true,
                     "id": "85f0e3d3-52fb-41b5-a3bd-95d5f564d533"
-                },
-                {
-                    "variable": "crudPageGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "d69c231e-2b78-4bd7-b7b0-f83765e0bfa5"
                 }
             ],
             "secrets": [],
@@ -116,7 +110,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/pages/not-a-guid/attachments/{{fileName}}"
         },
         {
             "id": "a17ca9dd-3597-4866-9871-201fcd1d44d6",
@@ -166,5 +161,6 @@
         "headers": [],
         "body": "None",
         "httpCode": 200
-    }
+    },
+    "runsOnly": true
 }
