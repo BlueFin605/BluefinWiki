@@ -96,7 +96,6 @@
 - Unknown-route 404 body is `{error: "Not Found", message}` (differs from the `{error}`-only shape elsewhere).
 
 ## Ticket 2627ae20 (WebSocket event tests)
-- Deviation: the FullyRested MCP tools in this session predate the websocket merge, so the ws requests were authored with the CLI (`edit set-type/set-message/set-expect`) and run with the CLI; everything else used MCP tools.
 - GAP (answers the key question): one FullyRested run cannot open the socket, trigger a REST write, then assert. A websocket request only sends its own `message` (the server ignores client frames) and blocks until count/timeout, and requests in a folder run strictly in sequence, so no HTTP request can fire while the socket is open. Worked around with `backend/tests/api/ws-trigger.mjs`, run beside the folder (`WS_TRIGGER_TOKEN=<bearer> node ws-trigger.mjs`): it loops create-published-page then delete, producing an upsert and an invalidate each second. Without it the two ws cases time out. Needs an fr-gap ticket (pre/post hooks or a concurrent trigger request).
 - Covered: `upsert on publish` (upsert {pages, tags, origin}) and `invalidate on delete` (invalidate {tags, origin}), count 1, match any, extras ignore, timeout 10000.
 - Not covered: nothing-sent-on-connect (a test needs count >= 1), exact tag values per write type (comment, attachment, move, page-type), X-Client-Id as origin, MCP-write origin null; match-any with a schema cannot pin tags to a specific write when the trigger loops.
@@ -107,3 +106,12 @@
 - Malformed JSON on POST /mcp returns Express HTML 400 before the handler runs, so the JSON-RPC parse error (-32700) is never reachable locally (header check in `malformed body` run).
 - `call bad arguments` (get_backlinks with no pageGuid) returns isError with a raw JS message "Cannot read properties of undefined (reading 'trim')" rather than a validation message; asserted only as isError true.
 - `call get_page` hard-codes the fixture guid `0ea160d4-...` in the rpc variable (nested variables are not expanded).
+
+## Ticket 9a7e5b90 (ws cases rewritten through MCP, full run)
+- The ws requests were rewritten MCP-only (new_request, set_type, set_auth with placement `token`, set_message, set_expect, new_run); the token now comes from `{{devToken}}` instead of sitting in the URL.
+- NOT MCP-only end to end: the websocket cases still need `ws-trigger.mjs` started outside FullyRested, because a run cannot fire a REST write while the socket is open (the pre/post hook / concurrent trigger gap above is unchanged).
+- `new_run` takes `request` (not `action` like run/show_request), an inconsistent parameter name across tools.
+- `new_request` has no websocket option: it creates an http request and needs a separate `set_type`; a `ws://` url is accepted but the file keeps `protocol: https`.
+- `set_expect` cannot be seen back (no show of expect in `tree`/`settings`), so a ws case's expect is only checkable by reading the .frreq or running it.
+- A background node trigger started from the Bash tool with `&` outlives the shell wrapper (the reported `$!` pid was not the node pid), so it had to be found by command line and killed.
+- The `get ancestors > unknown page (known failure: returns 200)` run does not use the `KNOWN FAILURE` name prefix, so name-based known-failure filtering misses it.

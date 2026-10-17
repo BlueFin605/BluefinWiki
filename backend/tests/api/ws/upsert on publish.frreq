@@ -1,16 +1,16 @@
 {
-    "id": "5c9ebc00-103b-4f1d-b6ca-39238e32dd63",
+    "id": "ec51c206-a584-4354-bf97-4d2ee71d1d4c",
     "name": "upsert on publish",
     "verb": "get",
     "protocol": "https",
-    "url": "ws://localhost:3000/ws?token=mock-jwt-token",
+    "url": "ws://localhost:3000/ws",
     "headers": [],
     "parameters": [],
     "body": {
         "contentType": "none"
     },
     "authentication": {
-        "authentication": "inherit",
+        "authentication": "bearertoken",
         "awsSig": {
             "signUrl": false,
             "accessKey": "",
@@ -24,13 +24,13 @@
             "password": ""
         },
         "bearerToken": {
-            "token": ""
+            "token": "{{devToken}}"
         },
-        "placement": "header"
+        "placement": "token"
     },
     "runs": [
         {
-            "id": "25612b91-635a-490f-850f-f5b5b2723242",
+            "id": "d48114c7-ff57-4b27-a048-e895291a8728",
             "name": "published create pushes upsert",
             "parameters": [],
             "headers": [],
@@ -74,7 +74,7 @@
         "count": 1,
         "match": "any",
         "schema": {
-            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"pages\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"upsert\"},\"pages\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"title\"]}},\"tags\":{\"type\":\"array\"},\"origin\":{\"type\":[\"string\",\"null\"]}}}\n"
+            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"pages\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"upsert\"},\"pages\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"title\"]}},\"tags\":{\"type\":\"array\"},\"origin\":{\"type\":[\"string\",\"null\"]}}}"
         },
         "extras": "ignore",
         "timeout": 10000,

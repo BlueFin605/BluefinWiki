@@ -1,16 +1,16 @@
 {
-    "id": "c4b048ee-7b68-4bcc-8e4a-170e9f89c307",
+    "id": "f7be6f8b-50d3-489d-91f6-c6e97e0969bc",
     "name": "invalidate on delete",
     "verb": "get",
     "protocol": "https",
-    "url": "ws://localhost:3000/ws?token=mock-jwt-token",
+    "url": "ws://localhost:3000/ws",
     "headers": [],
     "parameters": [],
     "body": {
         "contentType": "none"
     },
     "authentication": {
-        "authentication": "inherit",
+        "authentication": "bearertoken",
         "awsSig": {
             "signUrl": false,
             "accessKey": "",
@@ -24,13 +24,13 @@
             "password": ""
         },
         "bearerToken": {
-            "token": ""
+            "token": "{{devToken}}"
         },
-        "placement": "header"
+        "placement": "token"
     },
     "runs": [
         {
-            "id": "a5b674b3-af62-4830-9809-998a95214110",
+            "id": "181c9fe8-2896-43cd-b10e-5017995665c2",
             "name": "delete pushes invalidate",
             "parameters": [],
             "headers": [],
@@ -74,7 +74,7 @@
         "count": 1,
         "match": "any",
         "schema": {
-            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"invalidate\"},\"tags\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"string\"}},\"origin\":{\"type\":[\"string\",\"null\"]}}}\n"
+            "schema": "{\"type\":\"object\",\"required\":[\"type\",\"tags\",\"origin\"],\"properties\":{\"type\":{\"const\":\"invalidate\"},\"tags\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"string\"}},\"origin\":{\"type\":[\"string\",\"null\"]}}}"
         },
         "extras": "ignore",
         "timeout": 10000,
