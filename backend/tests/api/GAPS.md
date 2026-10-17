@@ -97,7 +97,7 @@
 
 ## Ticket 2627ae20 (WebSocket event tests)
 - RESOLVED by FullyRested websocket triggers (ticket 3b632605): each ws request names an http request in `ws/` (`trigger publish` PUT, `trigger move` PUT to root) that FullyRested fires repeatedly during the run; `ws-trigger.mjs` is gone. The triggers are idempotent writes on `crudPageGuid`, so nothing leaks. Remaining gap: a trigger cannot capture ids from its response, so cleanup-needs-capture (create a page, then delete it using its returned guid) is still not expressible; that is why the triggers reuse the fixture page instead of create/delete.
-- Covered: `upsert on publish` (upsert {pages, tags, origin}) and `invalidate on delete` (invalidate {tags, origin}), count 1, match any, extras ignore, timeout 10000.
+- Covered: `upsert on publish` (upsert {pages, tags, origin}) and `invalidate on move` (invalidate {tags, origin}; triggered by a PUT move to root, not a delete: a delete would consume the fixture page and needs a captured guid, so the delete-time invalidate is untested), count 1, match any, extras ignore, timeout 10000.
 - Not covered: nothing-sent-on-connect (a test needs count >= 1), exact tag values per write type (comment, attachment, move, page-type), X-Client-Id as origin, MCP-write origin null; match-any with a schema cannot pin tags to a specific write when the trigger repeats.
 ## Ticket ecdf556c (mcp smoke requests)
 - FullyRested has no MCP-client request type: /mcp is smoked as raw JSON-RPC over POST with the body in a `{{rpc}}` run variable (no initialize/session handling, no tools/call result decoding beyond a JSON Schema on the text content); friction worth an fr-gap ticket.

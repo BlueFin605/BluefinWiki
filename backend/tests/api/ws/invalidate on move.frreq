@@ -1,6 +1,6 @@
 {
     "id": "f7be6f8b-50d3-489d-91f6-c6e97e0969bc",
-    "name": "invalidate on delete",
+    "name": "invalidate on move",
     "verb": "get",
     "protocol": "https",
     "url": "ws://localhost:3000/ws",
@@ -31,7 +31,7 @@
     "runs": [
         {
             "id": "181c9fe8-2896-43cd-b10e-5017995665c2",
-            "name": "delete pushes invalidate",
+            "name": "move pushes invalidate",
             "parameters": [],
             "headers": [],
             "variables": [],
