@@ -1,0 +1,206 @@
+{
+    "id": "f91a0132-8214-4c8b-ae2a-840574fff73a",
+    "name": "revoke invitation",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations/{{invitationCode}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "a9f6e479-306b-4ba4-800f-05071d18c6d4",
+            "name": "KNOWN FAILURE valid code should be 404 not found",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "invitationCode",
+                    "value": "ZZZZ9999",
+                    "active": true,
+                    "id": "f25ddec2-6705-4ae7-97e7-2c273e1be3b6"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invitation not found\"}}}"
+                }
+            }
+        },
+        {
+            "id": "561fd4b6-b983-4dd7-b554-47659b890b4f",
+            "name": "KNOWN FAILURE malformed code should be 400 invalid format",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "invitationCode",
+                    "value": "bad",
+                    "active": true,
+                    "id": "02634a7b-d8af-42f7-9fd4-fbf3f770ff3b"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid invitation code format\"}}}"
+                }
+            }
+        },
+        {
+            "id": "6fc5f743-16c5-44fc-a4c9-b90548ab6d5e",
+            "name": "unauthenticated",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "invitationCode",
+                    "value": "ZZZZ9999",
+                    "active": true,
+                    "id": "7e2f1e67-bc26-4d2d-998e-a0a2a33883cc"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Missing authorization token\"}}}"
+                }
+            }
+        },
+        {
+            "id": "08b48e52-f61b-4a85-8420-f14c334b2d83",
+            "name": "non-admin forbidden",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "invitationCode",
+                    "value": "ZZZZ9999",
+                    "active": true,
+                    "id": "17cbfedb-58e5-4d08-813a-962a2beeca2e"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "bearertoken",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": "{{standardToken}}"
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 403,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"const\":\"Forbidden\"},\"message\":{\"type\":\"string\",\"pattern\":\"Admin\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

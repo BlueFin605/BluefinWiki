@@ -1,0 +1,353 @@
+{
+    "id": "a8bf908a-c04f-4358-8702-4b29ac4f8423",
+    "name": "list invitations",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/invitations",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "688ea90c-a266-4acf-a3df-3510e0f7da37",
+            "name": "all",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"invitations\",\"total\"],\"properties\":{\"total\":{\"type\":\"integer\",\"minimum\":0},\"filter\":{\"const\":\"all\"},\"invitations\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"inviteCode\",\"role\",\"status\",\"createdAt\",\"expiresAt\",\"createdBy\"],\"properties\":{\"inviteCode\":{\"type\":\"string\",\"pattern\":\"^[A-Z0-9]{8}$\"},\"role\":{\"enum\":[\"Admin\",\"Standard\"]},\"status\":{\"enum\":[\"pending\",\"used\",\"revoked\",\"expired\"]},\"createdBy\":{\"type\":\"object\",\"required\":[\"userId\"]}}}}}}"
+                }
+            }
+        },
+        {
+            "id": "64396b96-45b4-4b79-be42-61288bdd461f",
+            "name": "filter pending",
+            "parameters": [
+                {
+                    "key": "status",
+                    "value": "pending",
+                    "active": true,
+                    "id": "17145720-52b7-4646-a04f-00ddec5c99c8"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"invitations\",\"total\"],\"properties\":{\"total\":{\"type\":\"integer\",\"minimum\":0},\"filter\":{\"const\":\"pending\"},\"invitations\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"inviteCode\",\"status\"],\"properties\":{\"status\":{\"const\":\"pending\"}}}}}}"
+                }
+            }
+        },
+        {
+            "id": "29dabef1-f697-4353-a991-e889c1d8992d",
+            "name": "filter used",
+            "parameters": [
+                {
+                    "key": "status",
+                    "value": "used",
+                    "active": true,
+                    "id": "7a264fbb-ddcf-49a3-8b12-2f98ab740e7f"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"invitations\",\"total\"],\"properties\":{\"total\":{\"type\":\"integer\",\"minimum\":0},\"filter\":{\"const\":\"used\"},\"invitations\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"inviteCode\",\"status\"],\"properties\":{\"status\":{\"const\":\"used\"}}}}}}"
+                }
+            }
+        },
+        {
+            "id": "4f3697dc-7c76-4e52-bd21-67d3ea99f178",
+            "name": "filter expired",
+            "parameters": [
+                {
+                    "key": "status",
+                    "value": "expired",
+                    "active": true,
+                    "id": "4f1dc6bb-bbe2-445f-bafd-7c2afa0ab32c"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"invitations\",\"total\"],\"properties\":{\"total\":{\"type\":\"integer\",\"minimum\":0},\"filter\":{\"const\":\"expired\"},\"invitations\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"inviteCode\",\"status\"],\"properties\":{\"status\":{\"const\":\"expired\"}}}}}}"
+                }
+            }
+        },
+        {
+            "id": "aaf9f0b2-a461-4290-a582-8516f0d70099",
+            "name": "filter revoked",
+            "parameters": [
+                {
+                    "key": "status",
+                    "value": "revoked",
+                    "active": true,
+                    "id": "4bf13c00-cc7f-4043-9780-49ed5285c3f2"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 200,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"invitations\",\"total\"],\"properties\":{\"total\":{\"type\":\"integer\",\"minimum\":0},\"filter\":{\"const\":\"revoked\"},\"invitations\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"inviteCode\",\"status\"],\"properties\":{\"status\":{\"const\":\"revoked\"}}}}}}"
+                }
+            }
+        },
+        {
+            "id": "b43303c4-c6a4-4715-aa77-2012d6da7eab",
+            "name": "invalid status",
+            "parameters": [
+                {
+                    "key": "status",
+                    "value": "bogus",
+                    "active": true,
+                    "id": "ed4ef1e8-f825-4411-aa88-b69f7920ac7b"
+                }
+            ],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Validation error\"}}}"
+                }
+            }
+        },
+        {
+            "id": "0325c73e-2fd9-4e37-bd46-21f74f018da5",
+            "name": "unauthenticated",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Missing authorization token\"}}}"
+                }
+            }
+        },
+        {
+            "id": "1a4992ee-aed1-48cf-bb4a-2dfab16e51d1",
+            "name": "non-admin forbidden",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "bearertoken",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": "{{standardToken}}"
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 403,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"const\":\"Forbidden\"},\"message\":{\"type\":\"string\",\"pattern\":\"Admin\"}}}"
+                }
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}

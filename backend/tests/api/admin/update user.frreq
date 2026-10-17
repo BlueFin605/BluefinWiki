@@ -1,0 +1,427 @@
+{
+    "id": "f0c6faa0-035c-47a9-aa99-cf84d7ec3297",
+    "name": "update user",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/admin/users/{{userId}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{{payload}}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [
+        {
+            "id": "9b9e00c6-e71e-4edb-8684-48e9d84b5e24",
+            "name": "self role change",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "local-dev-user-id",
+                    "active": true,
+                    "id": "5208cf7a-678a-49d9-906e-4cca229f9d12"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{\"role\":\"Standard\"}",
+                    "active": true,
+                    "id": "b67ac9ae-e5ab-4ff5-98bd-6cd604828d01"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Cannot change your own role\"}}}"
+                }
+            }
+        },
+        {
+            "id": "8e655280-71a7-499f-8536-997524d2778e",
+            "name": "empty object",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "local-dev-user-id",
+                    "active": true,
+                    "id": "f81cba90-2bca-4637-9475-d09d9282f7cd"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{}",
+                    "active": true,
+                    "id": "24503027-4af3-4f6a-9e82-808ea66e753c"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Validation error\"}}}"
+                }
+            }
+        },
+        {
+            "id": "593d43b9-3b06-4af9-8990-9a531ed4bee8",
+            "name": "invalid role",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "local-dev-user-id",
+                    "active": true,
+                    "id": "8632d165-fce3-4f7f-a6f6-fa15c917f8f1"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{\"role\":\"Root\"}",
+                    "active": true,
+                    "id": "fff08655-bbf1-4a27-b452-4f5cfa3e3d91"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Validation error\"}}}"
+                }
+            }
+        },
+        {
+            "id": "34903810-03a4-412e-831a-af2c54afbd29",
+            "name": "empty displayName",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "local-dev-user-id",
+                    "active": true,
+                    "id": "d4bc63c4-e7cf-4e5a-9a4f-d64954c85e2b"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{\"displayName\":\"\"}",
+                    "active": true,
+                    "id": "8832e198-a5d7-442b-a6fc-9d84845b7454"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 400,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Validation error\"}}}"
+                }
+            }
+        },
+        {
+            "id": "8ec58d88-a9b1-4c8f-9e78-94a5283611e9",
+            "name": "not found",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "no-such-user-id",
+                    "active": true,
+                    "id": "f3e49437-4510-4761-b124-12d3c911080b"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{\"displayName\":\"Nobody\"}",
+                    "active": true,
+                    "id": "2b7037a3-a70a-4591-8fdb-4b01b7f1a96a"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 404,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"User not found\"}}}"
+                }
+            }
+        },
+        {
+            "id": "e9acaa22-daab-450d-952f-11a1172a6968",
+            "name": "unauthenticated",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "local-dev-user-id",
+                    "active": true,
+                    "id": "72f73b76-b5b8-4887-9db7-5c3cd9383eef"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{\"displayName\":\"x\"}",
+                    "active": true,
+                    "id": "b1758f8d-5b99-4dba-a945-82f1cccfc2f3"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Missing authorization token\"}}}"
+                }
+            }
+        },
+        {
+            "id": "279d8a19-7690-43da-8bfa-e8a974d695f9",
+            "name": "non-admin forbidden",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "local-dev-user-id",
+                    "active": true,
+                    "id": "cfef5b3b-3cd6-440c-8202-628fc26d8200"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{\"displayName\":\"x\"}",
+                    "active": true,
+                    "id": "069a1f84-992a-4339-8cb0-9c3341b9b76b"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "bearertoken",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": "{{standardToken}}"
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 403,
+                "jsonSchema": {
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"const\":\"Forbidden\"},\"message\":{\"type\":\"string\",\"pattern\":\"Admin\"}}}"
+                }
+            }
+        },
+        {
+            "id": "2b9a2487-dd1b-47ea-af13-20c6c2be6524",
+            "name": "malformed body",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "userId",
+                    "value": "local-dev-user-id",
+                    "active": true,
+                    "id": "b4d6ee6b-9dba-46d2-9740-153a7fe440e3"
+                },
+                {
+                    "variable": "payload",
+                    "value": "{bad",
+                    "active": true,
+                    "id": "a1187320-61cc-4fc3-8f0f-11ff7b9906be"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Headers",
+                "headers": [
+                    {
+                        "key": "Content-Type",
+                        "value": "text/html; charset=utf-8",
+                        "active": true,
+                        "id": "ada65c8a-9774-4347-a043-2ab6f99e8402"
+                    }
+                ],
+                "body": "None",
+                "httpCode": 400
+            }
+        }
+    ],
+    "validation": {
+        "type": "None",
+        "headers": [],
+        "body": "None",
+        "httpCode": 200
+    }
+}
