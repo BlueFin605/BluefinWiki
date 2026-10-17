@@ -53,7 +53,7 @@
 
 ## Ticket 52e19d59 (attachments requests)
 - Multipart upload 201/415/413 on `POST /pages/:guid/attachments` is not expressible: the body is text and the handler requires CRLF line breaks, but `set_body` text is stored with LF, so a hand-written multipart body gets 500 "No file found in multipart payload"; there is also no file/binary part type, so the oversize (10MB image / 50MB document) upload cases cannot be built.
-- Known failure: malformed multipart (no parseable file part) returns 500 instead of 400 (run `KNOWN FAILURE LF-delimited multipart returns 500 not 400`).
+- FIXED (37db7698): malformed multipart (no parseable file part, missing body, missing boundary) returned 500; the upload handler now returns 400 with the parser's message. Same handler serves Lambda and local, so deployed was affected too. Run `LF-delimited multipart returns 400` passes.
 - A run cannot override the url, so invalid-guid runs override the `crudPageGuid` variable with `not-a-guid`.
 - `GET/POST/DELETE` attachment 200 cases depend on a hand-created fixture `api-suite-fixture.txt` (21 bytes, text/plain) on `crudPageGuid`, uploaded by curl multipart; re-create it if the local stack is reset. The `confirm > confirmed` run hard-codes the fixture page guid in `attachmentKey` (nested variables are not expanded).
 - Confirm 413 (stored object over the limit) is untested: needs an oversize object put into storage. Real DELETE of an existing attachment is untested (it would consume the fixture and cannot be re-created inside the suite).

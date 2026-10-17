@@ -38,6 +38,14 @@ export const DOCUMENT_EXTENSIONS = new Set([
 export const IMAGE_LIMIT_BYTES = 10 * 1024 * 1024;
 export const DOCUMENT_LIMIT_BYTES = 50 * 1024 * 1024;
 
+/** Thrown when the request body is not a usable multipart upload (client error, maps to 400). */
+export class MultipartParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MultipartParseError';
+  }
+}
+
 export interface ParsedMultipartFile {
   filename: string;
   contentType: string;
@@ -57,7 +65,7 @@ export function getHeader(headers: APIGatewayProxyEvent['headers'], key: string)
 
 export function getBodyBuffer(event: APIGatewayProxyEvent): Buffer {
   if (!event.body) {
-    throw new Error('Request body is required');
+    throw new MultipartParseError('Request body is required');
   }
 
   if (event.isBase64Encoded) {
@@ -76,7 +84,7 @@ export function parseSingleMultipartFile(bodyBuffer: Buffer, contentTypeHeader: 
   const boundary = (boundaryMatch?.[1] || boundaryMatch?.[2])?.trim();
 
   if (!boundary) {
-    throw new Error('Missing multipart boundary');
+    throw new MultipartParseError('Missing multipart boundary');
   }
 
   const boundaryMarker = `--${boundary}`;
@@ -120,7 +128,7 @@ export function parseSingleMultipartFile(bodyBuffer: Buffer, contentTypeHeader: 
     };
   }
 
-  throw new Error('No file found in multipart payload');
+  throw new MultipartParseError('No file found in multipart payload');
 }
 
 export function validateAttachment(file: ParsedMultipartFile): AttachmentValidationResult {

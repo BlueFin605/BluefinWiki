@@ -150,7 +150,7 @@
         },
         {
             "id": "4f656917-b83a-43d4-bea9-4ae34cedc1a2",
-            "name": "KNOWN FAILURE LF-delimited multipart returns 500 not 400",
+            "name": "LF-delimited multipart returns 400",
             "parameters": [],
             "headers": [],
             "variables": [],

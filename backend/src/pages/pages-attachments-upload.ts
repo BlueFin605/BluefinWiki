@@ -5,6 +5,7 @@ import { getStoragePlugin } from '../storage/StoragePluginRegistry.js';
 import {
   getBodyBuffer,
   getHeader,
+  MultipartParseError,
   parseSingleMultipartFile,
   validateAttachment,
 } from './attachments-utils.js';
@@ -36,8 +37,16 @@ export const handler = withAuth(async (
     }
 
     const user = getUserContext(event);
-    const bodyBuffer = getBodyBuffer(event);
-    const parsedFile = parseSingleMultipartFile(bodyBuffer, contentTypeHeader);
+    let parsedFile;
+    try {
+      const bodyBuffer = getBodyBuffer(event);
+      parsedFile = parseSingleMultipartFile(bodyBuffer, contentTypeHeader);
+    } catch (parseError) {
+      if (parseError instanceof MultipartParseError) {
+        return badRequest(parseError.message);
+      }
+      throw parseError;
+    }
 
     try {
       validateAttachment(parsedFile);
