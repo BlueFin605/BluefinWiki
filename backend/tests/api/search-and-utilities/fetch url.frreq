@@ -490,6 +490,119 @@
                     "schema": "{\"type\":\"object\",\"properties\":{\"error\":{\"type\":\"string\",\"const\":\"Invalid JSON\"},\"code\":{\"type\":\"string\",\"const\":\"INVALID_JSON\"}},\"required\":[\"error\",\"code\"]}"
                 }
             }
+        },
+        {
+            "id": "5ab21d41-13a9-40ac-9f5c-96d464ec5379",
+            "name": "empty body",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "ResponseCode",
+                "headers": [],
+                "body": "None",
+                "httpCode": 400
+            },
+            "body": {
+                "contentType": "none"
+            }
+        },
+        {
+            "id": "6cc3c77c-fe9a-4ac0-8249-294f44c383f3",
+            "name": "upstream redirect becomes 502",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"url\":\"https://httpbin.org/redirect-to?url=https://example.com\"}",
+                    "active": true,
+                    "id": "0e6848c5-e141-46ea-ad0d-d7ea228cc3c7"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "ResponseCode",
+                "headers": [],
+                "body": "None",
+                "httpCode": 502
+            }
+        },
+        {
+            "id": "3110c2ea-711a-49bc-b49e-7c92afc8af8a",
+            "name": "unsupported content type returns 500",
+            "parameters": [],
+            "headers": [],
+            "variables": [
+                {
+                    "variable": "payload",
+                    "value": "{\"url\":\"https://httpbin.org/image/png\"}",
+                    "active": true,
+                    "id": "05657147-a33a-418d-bf18-31d1d5a4410d"
+                }
+            ],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "ResponseCode",
+                "headers": [],
+                "body": "None",
+                "httpCode": 500
+            }
         }
     ],
     "validation": {
