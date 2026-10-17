@@ -3,7 +3,7 @@
     "name": "get page",
     "verb": "get",
     "protocol": "http",
-    "url": "{{baseUrl}}/pages/{{pageGuid}}",
+    "url": "{{baseUrl}}/pages/{{crudPageGuid}}",
     "headers": [],
     "parameters": [],
     "body": {
@@ -35,10 +35,10 @@
             "headers": [],
             "variables": [
                 {
-                    "variable": "pageGuid",
+                    "variable": "crudPageGuid",
                     "value": "not-a-uuid",
                     "active": true,
-                    "id": "fa9cf2aa-8aff-4fa7-98a3-1abd850ebfcb"
+                    "id": "4d4a9018-19b5-4c5e-811a-18213bb25a2e"
                 }
             ],
             "secrets": [],
@@ -77,10 +77,10 @@
             "headers": [],
             "variables": [
                 {
-                    "variable": "pageGuid",
+                    "variable": "crudPageGuid",
                     "value": "00000000-0000-4000-8000-000000000000",
                     "active": true,
-                    "id": "1c4d1db5-0b0d-43d5-b2c4-431774442c86"
+                    "id": "5fb832ce-4a98-41e8-afbb-ae1dd48ab5cf"
                 }
             ],
             "secrets": [],
@@ -144,6 +144,41 @@
                 "httpCode": 200,
                 "jsonSchema": {
                     "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"title\": \"PageContent\",\n    \"type\": \"object\",\n    \"required\": [\"guid\", \"title\", \"content\", \"folderId\", \"tags\", \"status\", \"createdBy\", \"modifiedBy\", \"createdAt\", \"modifiedAt\"],\n    \"properties\": {\n        \"guid\": { \"type\": \"string\", \"pattern\": \"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$\" },\n        \"title\": { \"type\": \"string\", \"minLength\": 1 },\n        \"content\": { \"type\": \"string\" },\n        \"folderId\": { \"type\": \"string\" },\n        \"tags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n        \"status\": { \"enum\": [\"draft\", \"published\", \"archived\", \"deleted\"] },\n        \"sortOrder\": { \"type\": \"number\" },\n        \"boardOrder\": { \"type\": \"number\" },\n        \"ticketKey\": { \"type\": \"string\" },\n        \"description\": { \"type\": \"string\" },\n        \"pageType\": { \"type\": \"string\" },\n        \"properties\": { \"type\": \"object\" },\n        \"boardConfig\": { \"type\": \"object\" },\n        \"createdBy\": { \"type\": \"string\" },\n        \"modifiedBy\": { \"type\": \"string\" },\n        \"createdAt\": { \"type\": \"string\" },\n        \"modifiedAt\": { \"type\": \"string\" }\n    }\n}"
+                }
+            }
+        },
+        {
+            "id": "4426ba57-4679-4594-98c5-7747f1ab781e",
+            "name": "unauthenticated",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "none",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 401,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Missing authorization token\"}}}"
                 }
             }
         }

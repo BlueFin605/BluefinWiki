@@ -47,6 +47,18 @@
                     "value": "44b703fb-fcf9-4692-ab88-a6a7bcd0cea7",
                     "active": true,
                     "id": "1b092481-9513-4b2a-b16c-3d7bb6855b9c"
+                },
+                {
+                    "variable": "crudPageGuid",
+                    "value": "0ea160d4-a8dd-46bc-b2e0-8236be2e0927",
+                    "active": true,
+                    "id": "e0aa68e9-407d-4396-b2d6-99e5bd81aad7"
+                },
+                {
+                    "variable": "standardToken",
+                    "value": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJzdGQtdXNlci1pZCIsImVtYWlsIjoic3RkQGV4YW1wbGUuY29tIiwiY3VzdG9tOnJvbGUiOiJTdGFuZGFyZCIsImN1c3RvbTpkaXNwbGF5TmFtZSI6IlN0ZCJ9.x",
+                    "active": true,
+                    "id": "8a5cee92-f309-49f8-9cbe-7b0ef2fe380e"
                 }
             ],
             "secrets": [],
