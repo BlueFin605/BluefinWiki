@@ -1,0 +1,40 @@
+{
+    "id": "3b39093d-c278-43fd-a409-89d832891c80",
+    "name": "30-delete page type created full",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types/{{createdFullTypeGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"deleted\",\"guid\"],\"properties\":{\"deleted\":{\"const\":true}}}"
+        }
+    }
+}

@@ -1,0 +1,40 @@
+{
+    "id": "20c9d9ea-8073-4fba-90ad-cf5a861e7ce2",
+    "name": "15-admin deletes standard users page type 200",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types/{{stdTypeGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"deleted\",\"guid\"],\"properties\":{\"deleted\":{\"const\":true},\"guid\":{\"const\":\"{{stdTypeGuid}}\"}}}"
+        }
+    }
+}

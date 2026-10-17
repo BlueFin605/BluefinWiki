@@ -1,0 +1,49 @@
+{
+    "id": "fcd87395-814e-48dd-9b1b-6e072bca1d82",
+    "name": "10-create page type to delete",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"name\":\"api-suite-type-to-delete\",\"icon\":\"flask\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"createdBy\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\"},\"name\":{\"const\":\"api-suite-type-to-delete\"},\"icon\":{\"const\":\"flask\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "delTypeGuid",
+            "from": "body",
+            "path": "$.guid",
+            "id": "a1573457-f9cf-426c-9e48-3a712dc65055"
+        }
+    ]
+}

@@ -59,7 +59,7 @@
                 "body": "JsonSchema",
                 "httpCode": 200,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"pageTypes\"],\"properties\":{\"pageTypes\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"properties\",\"allowedChildTypes\",\"createdBy\"]},\"allOf\":[{\"contains\":{\"type\":\"object\",\"properties\":{\"guid\":{\"const\":\"6673d002-fed2-4af2-887d-e68f1c70c88a\"},\"name\":{\"const\":\"api-suite-fixture-type\"}},\"required\":[\"guid\",\"name\"]}},{\"contains\":{\"type\":\"object\",\"properties\":{\"guid\":{\"const\":\"154136cb-4ab5-48f7-8d99-b8739c62f33b\"}},\"required\":[\"guid\"]}}]}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"pageTypes\"],\"properties\":{\"pageTypes\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"properties\",\"allowedChildTypes\",\"createdBy\"]},\"allOf\":[{\"contains\":{\"type\":\"object\",\"properties\":{\"guid\":{\"const\":\"{{pageTypeGuid}}\"},\"name\":{\"const\":\"api-suite-fixture-type\"}},\"required\":[\"guid\",\"name\"]}},{\"contains\":{\"type\":\"object\",\"properties\":{\"guid\":{\"const\":\"{{childTypeGuid}}\"}},\"required\":[\"guid\"]}}]}}}"
                 }
             }
         },

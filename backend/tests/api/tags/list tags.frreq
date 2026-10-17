@@ -65,7 +65,7 @@
         },
         {
             "id": "8dae3495-1c27-4882-8f14-c11acef102c2",
-            "name": "fixture scope contains fixture tag",
+            "name": "created tag is listed",
             "parameters": [
                 {
                     "key": "scope",
@@ -101,7 +101,7 @@
                 "body": "JsonSchema",
                 "httpCode": 200,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"tags\",\"scope\"],\"properties\":{\"scope\":{\"const\":\"api-suite\"},\"tags\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"required\":[\"tag\",\"scope\",\"createdBy\",\"usageCount\"],\"properties\":{\"tag\":{\"const\":\"api-suite-fixture\"},\"scope\":{\"const\":\"api-suite\"},\"createdBy\":{\"type\":\"string\"},\"usageCount\":{\"type\":\"integer\"}}}}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"tags\",\"scope\"],\"properties\":{\"scope\":{\"const\":\"api-suite\"},\"tags\":{\"type\":\"array\",\"contains\":{\"type\":\"object\",\"required\":[\"tag\",\"scope\",\"createdBy\",\"usageCount\"],\"properties\":{\"tag\":{\"const\":\"{{tagName}}\"},\"scope\":{\"const\":\"api-suite\"},\"createdBy\":{\"type\":\"string\"},\"usageCount\":{\"type\":\"integer\"}}}}}}"
                 }
             }
         },

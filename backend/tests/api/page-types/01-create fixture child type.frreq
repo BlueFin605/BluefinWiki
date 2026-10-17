@@ -1,0 +1,49 @@
+{
+    "id": "adbe97a1-976e-4428-9375-546c23af457e",
+    "name": "01-create fixture child type",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"name\":\"api-suite-fixture-child\",\"icon\":\"flask\"}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"createdBy\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\"},\"name\":{\"const\":\"api-suite-fixture-child\"},\"icon\":{\"const\":\"flask\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "childTypeGuid",
+            "from": "body",
+            "path": "$.guid",
+            "id": "d1213e63-4a35-4693-90ae-c04c3b95dd86"
+        }
+    ]
+}

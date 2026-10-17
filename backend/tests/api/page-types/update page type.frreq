@@ -67,7 +67,7 @@
                 "body": "JsonSchema",
                 "httpCode": 200,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"properties\",\"createdBy\",\"updatedAt\"],\"properties\":{\"guid\":{\"const\":\"6673d002-fed2-4af2-887d-e68f1c70c88a\"},\"name\":{\"const\":\"api-suite-fixture-type\"},\"icon\":{\"const\":\"flask\"},\"properties\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"const\":\"note\"},\"type\":{\"const\":\"string\"},\"required\":{\"const\":false}}}},\"createdBy\":{\"const\":\"local-dev-user-id\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"properties\",\"createdBy\",\"updatedAt\"],\"properties\":{\"guid\":{\"const\":\"{{pageTypeGuid}}\"},\"name\":{\"const\":\"api-suite-fixture-type\"},\"icon\":{\"const\":\"flask\"},\"properties\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"const\":\"note\"},\"type\":{\"const\":\"string\"},\"required\":{\"const\":false}}}},\"createdBy\":{\"const\":\"local-dev-user-id\"}}}"
                 }
             }
         },
@@ -208,12 +208,6 @@
                     "value": "{\"name\":\"api-suite-ghost\"}",
                     "active": true,
                     "id": "be757bd8-7988-443c-b173-c0b0c006f5a8"
-                },
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "9348ebef-bc30-4d03-9fcc-b0e593e2abca"
                 }
             ],
             "secrets": [],
@@ -243,7 +237,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page type not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/page-types/00000000-0000-4000-8000-000000000000"
         },
         {
             "id": "6570307b-23eb-41a1-bbde-29724dd761dd",
@@ -256,12 +251,6 @@
                     "value": "{\"name\":\"api-suite-ghost\"}",
                     "active": true,
                     "id": "be757bd8-7988-443c-b173-c0b0c006f5a8"
-                },
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "c29163fc-c2b8-419e-a6c2-391cedfc4ede"
                 }
             ],
             "secrets": [],
@@ -291,7 +280,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/page-types/not-a-guid"
         },
         {
             "id": "8241aed0-4406-455a-a955-ec8333fab6c1",

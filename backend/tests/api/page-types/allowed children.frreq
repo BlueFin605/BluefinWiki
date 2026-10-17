@@ -68,14 +68,7 @@
             "name": "with allowed child",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "481b4dcf-0664-4b9f-bf18-df0d60cf9887",
-                    "active": true,
-                    "id": "5b2ef6d9-1c03-49fe-a490-b8029af16f49"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -101,23 +94,17 @@
                 "body": "JsonSchema",
                 "httpCode": 200,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"allowedChildTypes\",\"allowWikiPageChildren\"],\"properties\":{\"allowWikiPageChildren\":{\"const\":false},\"allowedChildTypes\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":1,\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"name\"],\"properties\":{\"guid\":{\"const\":\"154136cb-4ab5-48f7-8d99-b8739c62f33b\"},\"name\":{\"const\":\"api-suite-fixture-child\"}}}}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"allowedChildTypes\",\"allowWikiPageChildren\"],\"properties\":{\"allowWikiPageChildren\":{\"const\":false},\"allowedChildTypes\":{\"type\":\"array\",\"minItems\":1,\"maxItems\":1,\"items\":{\"type\":\"object\",\"required\":[\"guid\",\"name\"],\"properties\":{\"guid\":{\"const\":\"{{childTypeGuid}}\"},\"name\":{\"const\":\"api-suite-fixture-child\"}}}}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/page-types/{{parentTypeGuid}}/allowed-children"
         },
         {
             "id": "c8e6a0db-7c36-4f98-8912-f73464438a97",
             "name": "not found",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "61ce7b14-9760-4a64-9703-a5b1dc203317"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -145,21 +132,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page type not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/page-types/00000000-0000-4000-8000-000000000000/allowed-children"
         },
         {
             "id": "b6f2db59-d8d2-435d-9667-8c0657dc4933",
             "name": "non-guid is bad request",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "2cdc7ff8-34eb-47d5-ba1e-2bd9055f1d4b"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -187,7 +168,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/page-types/not-a-guid/allowed-children"
         },
         {
             "id": "299c2612-4b3d-45bf-8c78-1f93e7cddb67",

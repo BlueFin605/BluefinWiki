@@ -33,14 +33,7 @@
             "name": "not found",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "00000000-0000-4000-8000-000000000000",
-                    "active": true,
-                    "id": "d256611c-fb41-4a97-8da6-bef19e574a3a"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -68,21 +61,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page type not found\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/page-types/00000000-0000-4000-8000-000000000000"
         },
         {
             "id": "6945e42b-15bc-41b7-bb0e-5c0999e2a47a",
             "name": "non-guid is bad request",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "pageTypeGuid",
-                    "value": "not-a-guid",
-                    "active": true,
-                    "id": "ea0e3cb5-d226-4b3f-9602-25b96afef58c"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -110,7 +97,8 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Invalid GUID format\"}}}"
                 }
-            }
+            },
+            "url": "{{baseUrl}}/page-types/not-a-guid"
         },
         {
             "id": "de3d3410-af42-4c59-8c06-43d77e162763",
@@ -188,5 +176,6 @@
         "headers": [],
         "body": "None",
         "httpCode": 200
-    }
+    },
+    "runsOnly": true
 }

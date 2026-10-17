@@ -1,0 +1,40 @@
+{
+    "id": "c7a4881c-fec0-4b2c-99a0-8b75e2fc3ac4",
+    "name": "31-delete page type created defaults",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types/{{createdDefaultsTypeGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"deleted\",\"guid\"],\"properties\":{\"deleted\":{\"const\":true}}}"
+        }
+    }
+}

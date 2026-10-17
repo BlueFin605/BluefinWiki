@@ -1,0 +1,40 @@
+{
+    "id": "320398da-ee8f-4d95-bc3b-aaafbe2ff4e2",
+    "name": "33-delete page type fixture parent",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types/{{parentTypeGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"deleted\",\"guid\"],\"properties\":{\"deleted\":{\"const\":true}}}"
+        }
+    }
+}

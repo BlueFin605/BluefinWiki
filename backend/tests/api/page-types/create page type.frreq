@@ -34,14 +34,7 @@
             "name": "created full",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"name\":\"api-suite-created-full\",\"icon\":\"flask\",\"properties\":[{\"name\":\"release-date\",\"type\":\"date\",\"required\":true},{\"name\":\"genre\",\"type\":\"tags\",\"required\":false,\"defaultValue\":[\"a\"]}],\"allowedChildTypes\":[\"154136cb-4ab5-48f7-8d99-b8739c62f33b\"],\"allowWikiPageChildren\":false,\"allowedParentTypes\":[\"3c8587ae-7d9a-46f9-8485-e9f0ec2c7889\"],\"allowAnyParent\":false}",
-                    "active": true,
-                    "id": "603ec01b-738d-45e4-80c5-1bae23f8b663"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -67,9 +60,21 @@
                 "body": "JsonSchema",
                 "httpCode": 201,
                 "jsonSchema": {
-                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"properties\",\"allowedChildTypes\",\"allowWikiPageChildren\",\"allowedParentTypes\",\"allowAnyParent\",\"createdBy\",\"createdAt\",\"updatedAt\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\"},\"name\":{\"const\":\"api-suite-created-full\"},\"icon\":{\"const\":\"flask\"},\"properties\":{\"type\":\"array\",\"minItems\":2,\"maxItems\":2},\"allowedChildTypes\":{\"const\":[\"154136cb-4ab5-48f7-8d99-b8739c62f33b\"]},\"allowWikiPageChildren\":{\"const\":false},\"allowedParentTypes\":{\"const\":[\"3c8587ae-7d9a-46f9-8485-e9f0ec2c7889\"]},\"allowAnyParent\":{\"const\":false},\"createdBy\":{\"const\":\"local-dev-user-id\"}}}"
+                    "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"properties\",\"allowedChildTypes\",\"allowWikiPageChildren\",\"allowedParentTypes\",\"allowAnyParent\",\"createdBy\",\"createdAt\",\"updatedAt\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\"},\"name\":{\"const\":\"api-suite-created-full\"},\"icon\":{\"const\":\"flask\"},\"properties\":{\"type\":\"array\",\"minItems\":2,\"maxItems\":2},\"allowedChildTypes\":{\"const\":[\"{{childTypeGuid}}\"]},\"allowWikiPageChildren\":{\"const\":false},\"allowedParentTypes\":{\"const\":[\"3c8587ae-7d9a-46f9-8485-e9f0ec2c7889\"]},\"allowAnyParent\":{\"const\":false},\"createdBy\":{\"const\":\"local-dev-user-id\"}}}"
                 }
-            }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"name\":\"api-suite-created-full\",\"icon\":\"flask\",\"properties\":[{\"name\":\"release-date\",\"type\":\"date\",\"required\":true},{\"name\":\"genre\",\"type\":\"tags\",\"required\":false,\"defaultValue\":[\"a\"]}],\"allowedChildTypes\":[\"{{childTypeGuid}}\"],\"allowWikiPageChildren\":false,\"allowedParentTypes\":[\"3c8587ae-7d9a-46f9-8485-e9f0ec2c7889\"],\"allowAnyParent\":false}"
+            },
+            "capture": [
+                {
+                    "variable": "createdFullTypeGuid",
+                    "from": "body",
+                    "path": "$.guid",
+                    "id": "978d60b4-4ea7-4c97-bb63-1a664a0a2397"
+                }
+            ]
         },
         {
             "id": "22530c1b-1f49-4a3c-812e-fe2ab1e86450",
@@ -111,7 +116,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"name\",\"properties\",\"allowedChildTypes\",\"allowWikiPageChildren\",\"allowedParentTypes\",\"allowAnyParent\"],\"properties\":{\"name\":{\"const\":\"api-suite-created-defaults\"},\"properties\":{\"const\":[]},\"allowedChildTypes\":{\"const\":[]},\"allowWikiPageChildren\":{\"const\":true},\"allowedParentTypes\":{\"const\":[]},\"allowAnyParent\":{\"const\":true}}}"
                 }
-            }
+            },
+            "capture": [
+                {
+                    "variable": "createdDefaultsTypeGuid",
+                    "from": "body",
+                    "path": "$.guid",
+                    "id": "9e115ea4-58f0-4fe9-baf8-ddd4df35dcaa"
+                }
+            ]
         },
         {
             "id": "6d19540c-2384-447a-80c5-67bf2a0f7187",
@@ -153,7 +166,15 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"guid\",\"name\",\"createdBy\"],\"properties\":{\"name\":{\"const\":\"api-suite-created-by-standard\"},\"createdBy\":{\"const\":\"std-user-id\"}}}"
                 }
-            }
+            },
+            "capture": [
+                {
+                    "variable": "createdStandardTypeGuid",
+                    "from": "body",
+                    "path": "$.guid",
+                    "id": "841f03d1-c1a4-4664-9ecb-766a2bce8aa9"
+                }
+            ]
         },
         {
             "id": "97b3a252-d068-4b9f-a2f4-e5cc6dd250b3",

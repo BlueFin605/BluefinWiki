@@ -1,0 +1,40 @@
+{
+    "id": "e4315f51-1133-4576-ac1f-07079377a4f9",
+    "name": "12-delete page type again 404",
+    "verb": "delete",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types/{{delTypeGuid}}",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 404,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Page type not found\"}}}"
+        }
+    }
+}

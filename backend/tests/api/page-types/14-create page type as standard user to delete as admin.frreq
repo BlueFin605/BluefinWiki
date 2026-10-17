@@ -1,0 +1,49 @@
+{
+    "id": "14a929cc-0d49-4a8a-8377-4a1f38bb64a4",
+    "name": "14-create page type as standard user to delete as admin",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"name\":\"api-suite-type-by-standard\",\"icon\":\"flask\"}"
+    },
+    "authentication": {
+        "authentication": "bearertoken",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": "{{standardToken}}"
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"createdBy\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\"},\"name\":{\"const\":\"api-suite-type-by-standard\"},\"icon\":{\"const\":\"flask\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "stdTypeGuid",
+            "from": "body",
+            "path": "$.guid",
+            "id": "823ff337-a9b2-4b91-aab0-d270aba64fda"
+        }
+    ]
+}

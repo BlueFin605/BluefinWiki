@@ -30,18 +30,58 @@
     },
     "runs": [
         {
+            "id": "bb37d0b8-4ff1-4c8c-953c-457f2ca2351e",
+            "name": "created",
+            "parameters": [],
+            "headers": [],
+            "variables": [],
+            "secrets": [],
+            "authentication": {
+                "authentication": "inherit",
+                "awsSig": {
+                    "signUrl": false,
+                    "accessKey": "",
+                    "secretKey": "",
+                    "sessionToken": "",
+                    "awsRegion": "eu-central-1",
+                    "serviceName": ""
+                },
+                "basicAuth": {
+                    "userName": "",
+                    "password": ""
+                },
+                "bearerToken": {
+                    "token": ""
+                }
+            },
+            "validation": {
+                "type": "Body",
+                "headers": [],
+                "body": "JsonSchema",
+                "httpCode": 201,
+                "jsonSchema": {
+                    "schema": "{\"type\":\"object\",\"required\":[\"scope\",\"tag\",\"createdAt\",\"createdBy\",\"usageCount\"],\"properties\":{\"scope\":{\"const\":\"api-suite\"},\"tag\":{\"type\":\"string\",\"pattern\":\"^api-[0-9a-f-]{36}$\"},\"createdBy\":{\"const\":\"local-dev-user-id\"},\"usageCount\":{\"const\":0}}}"
+                }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"tag\":\"api-{{$guid}}\",\"scope\":\"api-suite\"}"
+            },
+            "capture": [
+                {
+                    "variable": "tagName",
+                    "from": "body",
+                    "path": "$.tag",
+                    "id": "6cbf3b8c-bca0-4c65-baf6-a0368ba456f8"
+                }
+            ]
+        },
+        {
             "id": "c3ff1ad8-68b7-4adf-ad7f-4d1148e1bb5d",
             "name": "duplicate conflict",
             "parameters": [],
             "headers": [],
-            "variables": [
-                {
-                    "variable": "payload",
-                    "value": "{\"tag\":\"api-suite-fixture\",\"scope\":\"api-suite\"}",
-                    "active": true,
-                    "id": "c8918798-fe04-4d4d-b3e2-54373dbe0409"
-                }
-            ],
+            "variables": [],
             "secrets": [],
             "authentication": {
                 "authentication": "inherit",
@@ -69,6 +109,10 @@
                 "jsonSchema": {
                     "schema": "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Tag already exists\"}}}"
                 }
+            },
+            "body": {
+                "contentType": "application/json",
+                "body": "{\"tag\":\"{{tagName}}\",\"scope\":\"api-suite\"}"
             }
         },
         {

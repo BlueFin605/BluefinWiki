@@ -1,0 +1,49 @@
+{
+    "id": "68bedd03-78fe-4640-85f7-26ad3e7fa3bc",
+    "name": "03-create fixture parent type",
+    "verb": "post",
+    "protocol": "http",
+    "url": "{{baseUrl}}/page-types",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "application/json",
+        "body": "{\"name\":\"api-suite-fixture-parent\",\"icon\":\"flask\",\"allowedChildTypes\":[\"{{childTypeGuid}}\"],\"allowWikiPageChildren\":false}"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 201,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"guid\",\"name\",\"icon\",\"createdBy\"],\"properties\":{\"guid\":{\"type\":\"string\",\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\"},\"name\":{\"const\":\"api-suite-fixture-parent\"},\"icon\":{\"const\":\"flask\"}}}"
+        }
+    },
+    "capture": [
+        {
+            "variable": "parentTypeGuid",
+            "from": "body",
+            "path": "$.guid",
+            "id": "85c02204-6260-4330-9ca4-8c92e82c92a3"
+        }
+    ]
+}
