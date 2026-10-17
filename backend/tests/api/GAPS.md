@@ -52,3 +52,15 @@
 - Empty body `{"body":""}` returns zod `Validation failed` with details (the INVALID_COMMENT code only fires for whitespace-only bodies): two different 400 shapes for the same mistake.
 - PUT/DELETE comments on a non-existent page are not asserted precisely (update `page not found` accepts PAGE_NOT_FOUND or COMMENT_NOT_FOUND 404).
 - Malformed JSON on POST comments returns Express HTML 400 rather than the JSON error shape (header check in `malformed body` run).
+
+## Ticket 52e19d59 (attachments requests)
+- Multipart upload 201/415/413 on `POST /pages/:guid/attachments` is not expressible: the body is text and the handler requires CRLF line breaks, but `set_body` text is stored with LF, so a hand-written multipart body gets 500 "No file found in multipart payload"; there is also no file/binary part type, so the oversize (10MB image / 50MB document) upload cases cannot be built.
+- Known failure: malformed multipart (no parseable file part) returns 500 instead of 400 (run `KNOWN FAILURE LF-delimited multipart returns 500 not 400`).
+- A run cannot override the url, so invalid-guid runs override the `crudPageGuid` variable with `not-a-guid`.
+- `GET/POST/DELETE` attachment 200 cases depend on a hand-created fixture `api-suite-fixture.txt` (21 bytes, text/plain) on `crudPageGuid`, uploaded by curl multipart; re-create it if the local stack is reset. The `confirm > confirmed` run hard-codes the fixture page guid in `attachmentKey` (nested variables are not expanded).
+- Confirm 413 (stored object over the limit) is untested: needs an oversize object put into storage. Real DELETE of an existing attachment is untested (it would consume the fixture and cannot be re-created inside the suite).
+- Suspected backend/LocalStack bug: the presigned PUT URL embeds `x-amz-checksum-crc32=AAAAAA==` (checksum of an empty body), so a PUT of any non-empty file is rejected by LocalStack with 400 InvalidRequest; the presign -> PUT -> confirm flow cannot be exercised locally.
+- `DELETE /pages/:guid/attachments/:filename` for a missing file returns 200 success (idempotent), not 404; covered as `missing file is idempotent 200`.
+- Malformed JSON on presign/confirm returns Express HTML 400 with a stack trace including local file paths (header check in `malformed body` runs); wrong Content-Type on the upload route (JSON) is parsed by body-parser first, so the handler's "Content-Type must be multipart/form-data" 400 is only reachable with a non-JSON type (run uses text/plain).
+- "Request body is required" 400 on presign/confirm is untested (runs cannot send an empty body).
+- Download/list/delete/upload on a non-existent page: list returns 404 PAGE_NOT_FOUND and presign 404; other routes' unknown-page behaviour is not asserted.
