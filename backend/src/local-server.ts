@@ -308,7 +308,7 @@ app.delete('/page-types/:guid', wrapLambdaHandler(pageTypesDelete));
 
 app.get('/search', wrapLambdaHandler(searchQuery));
 app.post('/fetch-url', wrapLambdaHandler(proxyFetchUrl));
-app.post('/imdb/show-details', wrapLambdaHandler(imdbShowDetails));
+app.get('/imdb/show-details', wrapLambdaHandler(imdbShowDetails));
 
 // ============================================================================
 // MCP server (no API key locally — prod is guarded by an API Gateway key)
@@ -608,7 +608,7 @@ async function startServer() {
   console.log('   GET    /pages/search');
   console.log('   GET    /search');
   console.log('   POST   /fetch-url');
-  console.log('   POST   /imdb/show-details');
+  console.log('   GET    /imdb/show-details');
   console.log('   POST   /pages/links/resolve');
   console.log('   POST   /auth/register');
   console.log('   GET    /auth/me');

@@ -1,7 +1,7 @@
 {
     "id": "ff3dcb49-bce1-4199-8846-a24030517d2e",
     "name": "imdb show details",
-    "verb": "post",
+    "verb": "get",
     "protocol": "http",
     "url": "{{baseUrl}}/imdb/show-details",
     "headers": [],

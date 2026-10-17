@@ -86,7 +86,7 @@
 
 ## Ticket 78935bf7 (search, fetch-url, imdb and admin rebuild requests)
 - Fixed (d40def49): `POST /admin/rebuild-page-index` was unauthenticated in local-server.ts; it now uses the deployed handler (withAuth + withRole Admin), and the three cases assert 401/401/403.
-- Known failure: `GET /imdb/show-details` is not routed locally (404 "Route GET ... not found"); local-server registers `POST /imdb/show-details` while the handler (and its doc comment) reads query-string params as a GET, so the POST must carry `?query=` and a JSON body is ignored. Run `KNOWN FAILURE GET not routed locally` expects the handler's 400.
+- Fixed (8ac985b8): local-server registered `POST /imdb/show-details` while the deployed API (UnifiedStack.cs) and the frontend (`ai-tools.ts`) use GET only; it now registers `GET`, the POST route is gone, and the collection's `imdb show details` request is a GET (the duplicate `imdb show details GET` request was removed; its 400 case is `missing query and imdbId`).
 - `GET /search?q=<non-empty>` returns 500 "Search unavailable" locally (Bedrock embeddings not supported by LocalStack), so result shape, `scope`, `limit` and `offset` paging are untested; only empty/missing/sanitised-to-empty q (200 empty) and auth are covered. The 500 is asserted as the documented local behaviour.
 - `GET /pages/search` cases stay in the pages folder (shadowing fixed); nothing duplicated here.
 - fetch-url 200, 502 and imdb 200/404 hit the public internet (example.com, TVmaze/IMDb) so they can fail offline; 502 from redirect/oversize/unsupported-content-type/timeout and the local `ALLOW_HTTP` path are untested (no controllable upstream); an unresolvable host and a non-https scheme return 400, not 502.

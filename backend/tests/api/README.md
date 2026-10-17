@@ -17,7 +17,7 @@ The same run is available from the FullyRested MCP `run` tool with `all: true`, 
 
 ## Reading the counts
 
-Baseline: 296 passed, 2 failed (298 cases; includes the page-type `non-guid is bad request` cases from 45bf3c1e; verified by a full run against localhost:3000 on 2026-10-17 after the 37db7698, 763fc0e6 (JSON error handler, all `malformed body` runs assert `{error, code: INVALID_JSON}`) and 2680a20e (admin/profile zod 400 now carries `details`; schemas require it) fixes; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 2 failures means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
+Baseline: 296 passed, 1 failed (297 cases; includes the page-type `non-guid is bad request` cases from 45bf3c1e; verified by a full run against localhost:3000 on 2026-10-17 after the 8ac985b8 (GET /imdb/show-details routed locally; duplicate imdb GET request removed),  37db7698, 763fc0e6 (JSON error handler, all `malformed body` runs assert `{error, code: INVALID_JSON}`) and 2680a20e (admin/profile zod 400 now carries `details`; schemas require it) fixes; the two ws trigger requests count as 2 of the passes; a first run once showed one transient extra failure that did not recur). Any other failure is a regression. Anything fewer than 1 failure means a bug was fixed: rename the case (drop `KNOWN FAILURE`) and remove it from the list.
 
 Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki bug, so they fail until it is fixed. Do not delete them.
 
@@ -26,7 +26,6 @@ Cases named `KNOWN FAILURE` assert the correct behaviour of a real BlueFinWiki b
 Bug tickets are on the Kanban board (story "BlueFinWiki full API suite", WebSocket Support initiative).
 
 - `pages/board-order backfill > existing page` - not a bug: seeded `pageGuid` is missing locally; c54a2220-2f4b-41e7-b16c-ef2d2636e36a (re-point off the seeded guid)
-- `search-and-utilities/imdb show details GET > KNOWN FAILURE GET not routed locally should be 400 missing params` - 8ac985b8-880d-4a84-ab3f-03ffa947d0a8
 
 ## Fixtures and tokens
 

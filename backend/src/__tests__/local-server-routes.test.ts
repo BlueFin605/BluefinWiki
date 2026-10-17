@@ -16,3 +16,14 @@ describe('local-server route order', () => {
     expect(search).toBeLessThan(guid);
   });
 });
+
+// The deployed API (UnifiedStack.cs) exposes /imdb/show-details as GET only,
+// and the frontend calls it with GET + query-string params.
+describe('local-server imdb route', () => {
+  const source = readFileSync(join(__dirname, '..', 'local-server.ts'), 'utf8');
+
+  it('registers GET /imdb/show-details and no POST', () => {
+    expect(source).toContain("app.get('/imdb/show-details'");
+    expect(source).not.toContain("app.post('/imdb/show-details'");
+  });
+});
