@@ -65,7 +65,7 @@
         },
         {
             "id": "eddd94a8-2ef7-4c97-a767-0adfdfc754b0",
-            "name": "KNOWN FAILURE unauthenticated should be 401",
+            "name": "unauthenticated is 401",
             "parameters": [],
             "headers": [],
             "variables": [],
@@ -100,7 +100,7 @@
         },
         {
             "id": "93e3ded8-d6f7-41e0-a144-4859e1079ca2",
-            "name": "KNOWN FAILURE invalid token should be 401",
+            "name": "invalid token is 401",
             "parameters": [],
             "headers": [],
             "variables": [],
@@ -135,7 +135,7 @@
         },
         {
             "id": "2c7a83b1-53df-464b-ada6-08b91a880a2f",
-            "name": "KNOWN FAILURE non-admin should be 403",
+            "name": "non-admin is 403",
             "parameters": [],
             "headers": [],
             "variables": [],

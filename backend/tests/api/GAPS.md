@@ -9,7 +9,7 @@
 ## BlueFinWiki behaviour (confirmed by request against localhost:3000)
 - CONFIRMED: `GET /pages/search?q=a` returns 400 "Invalid GUID format" (route shadowed by `GET /pages/:guid`).
 - CONFIRMED: `DELETE /admin/invitations/<code>` returns 400 "Invitation code is required" (param not passed to handler).
-- CONFIRMED: `POST /admin/rebuild-page-index` with no Authorization header returns 200 (no auth).
+- FIXED (d40def49): `POST /admin/rebuild-page-index` was unauthenticated locally; now routed through the deployed withAuth+withRole handler (401/401/403 asserted).
 - `pages/board-order backfill` has an unauthenticated case; confirm that route's auth expectation when the pages ticket is done.
 
 ## Ticket 9bd37d0d (health and auth/profile)
@@ -86,7 +86,7 @@
 - Zod 400 on tags/page-types includes `details` (zod format object), unlike admin handlers which omit it (inconsistent shape).
 
 ## Ticket 78935bf7 (search, fetch-url, imdb and admin rebuild requests)
-- Known failure: `POST /admin/rebuild-page-index` has no auth in local-server.ts (inline route, not wrapped in withAuth/withRole): returns 200 with no token, an invalid token, and a Standard token; three KNOWN FAILURE runs expect 401/401/403.
+- Fixed (d40def49): `POST /admin/rebuild-page-index` was unauthenticated in local-server.ts; it now uses the deployed handler (withAuth + withRole Admin), and the three cases assert 401/401/403.
 - Known failure: `GET /imdb/show-details` is not routed locally (404 "Route GET ... not found"); local-server registers `POST /imdb/show-details` while the handler (and its doc comment) reads query-string params as a GET, so the POST must carry `?query=` and a JSON body is ignored. Run `KNOWN FAILURE GET not routed locally` expects the handler's 400.
 - `GET /search?q=<non-empty>` returns 500 "Search unavailable" locally (Bedrock embeddings not supported by LocalStack), so result shape, `scope`, `limit` and `offset` paging are untested; only empty/missing/sanitised-to-empty q (200 empty) and auth are covered. The 500 is asserted as the documented local behaviour.
 - `GET /pages/search` cases stay in the pages folder (route shadowed by `GET /pages/:guid`); nothing duplicated here.

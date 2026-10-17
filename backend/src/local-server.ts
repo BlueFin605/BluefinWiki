@@ -59,6 +59,7 @@ import { handler as adminUsersSuspend } from './auth/admin-users-suspend.js';
 import { handler as adminUsersActivate } from './auth/admin-users-activate.js';
 import { handler as adminUsersDelete } from './auth/admin-users-delete.js';
 import { handler as authProfileUpdate } from './auth/auth-profile-update.js';
+import { handler as adminRebuildPageIndex } from './storage/rebuild-page-index.js';
 import { handler as searchQuery } from './search/search-query.js';
 import { handler as proxyFetchUrl } from './proxy/fetch-url.js';
 import { handler as imdbShowDetails } from './proxy/imdb-show-details.js';
@@ -316,15 +317,8 @@ app.post('/mcp', wrapLambdaHandler(mcpHandler));
 // Admin: Rebuild Page Index
 // ============================================================================
 
-app.post('/admin/rebuild-page-index', async (_req, res) => {
-  try {
-    const { rebuildPageIndex } = await import('./storage/rebuild-page-index.js');
-    const result = await rebuildPageIndex();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
+// Same handler as deployed: withAuth + withRole(['Admin']).
+app.post('/admin/rebuild-page-index', wrapLambdaHandler(adminRebuildPageIndex));
 
 // ============================================================================
 // Health Check
