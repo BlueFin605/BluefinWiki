@@ -227,7 +227,7 @@ export class PageTreeItem {
 
   readonly pageSelect = output<string>();
   readonly renameRequested = output<{ guid: string; title: string }>();
-  readonly deleteRequested = output<{ guid: string; hasChildren: boolean }>();
+  readonly deleteRequested = output<{ guid: string; title: string; hasChildren: boolean }>();
   readonly newChildRequested = output<string>();
   readonly sortRequested = output<{ guid: string; direction: 'asc' | 'desc' }>();
   readonly moveRequested = output<string>();
@@ -445,7 +445,7 @@ export class PageTreeItem {
       case 'newChild': this.newChildRequested.emit(event.guid); break;
       case 'sort': this.sortRequested.emit({ guid: event.guid, direction: event.direction }); break;
       case 'move': this.moveRequested.emit(event.guid); break;
-      case 'delete': this.deleteRequested.emit({ guid: event.guid, hasChildren: this.page().hasChildren }); break;
+      case 'delete': this.deleteRequested.emit({ guid: event.guid, title: this.page().title, hasChildren: this.page().hasChildren }); break;
     }
   }
 

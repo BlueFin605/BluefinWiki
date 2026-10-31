@@ -23,6 +23,7 @@ import { PagesView } from './pages-view';
 import { TicketKeys } from '../ticket-keys/ticket-keys';
 import { Pages } from './pages';
 import { ConfirmDialog } from '../../shared/components/confirm-dialog';
+import { TypedConfirmDialog } from '../../shared/components/typed-confirm-dialog';
 import { PageContext } from './page-context';
 import { PageTree } from './page-tree';
 import { ResizeDivider } from '../../shared/components/resize-divider';
@@ -1269,7 +1270,7 @@ describe('PagesView', () => {
   // ---- Step 2.8: Delete via ConfirmDialog (leaf vs has-children copy) -------
 
   interface DeleteHandle {
-    onDeleteRequested(req: { guid: string; hasChildren: boolean }): Promise<void>;
+    onDeleteRequested(req: { guid: string; title: string; hasChildren: boolean }): Promise<void>;
   }
 
   function stubConfirm(result: boolean): jest.SpyInstance {
@@ -1301,7 +1302,7 @@ describe('PagesView', () => {
     const deleteSpy = jest.spyOn(pages, 'deletePage').mockResolvedValue(undefined);
     const openSpy = stubConfirm(true);
 
-    await cmp.onDeleteRequested({ guid: 'leaf-1', hasChildren: false });
+    await cmp.onDeleteRequested({ guid: 'leaf-1', title: 'Leaf', hasChildren: false });
     await settle();
 
     expect(lastConfirmData(openSpy).message).toBe('Delete this page?');
@@ -1311,20 +1312,38 @@ describe('PagesView', () => {
     http.match(() => true).forEach((r) => r.flush(null));
   });
 
-  it('has-children: opens ConfirmDialog with the count-free child-aware copy and deletes with recursive:true', async () => {
+  it('has-children: opens TypedConfirmDialog with the recovery copy and deletes with recursive:true', async () => {
     const { fixture, http } = await renderShell();
     const cmp = fixture.componentInstance as unknown as DeleteHandle;
     const pages = TestBed.inject(Pages);
     const deleteSpy = jest.spyOn(pages, 'deletePage').mockResolvedValue(undefined);
     const openSpy = stubConfirm(true);
 
-    await cmp.onDeleteRequested({ guid: 'parent-1', hasChildren: true });
+    await cmp.onDeleteRequested({ guid: 'parent-1', title: 'Parent', hasChildren: true });
     await settle();
 
-    expect(lastConfirmData(openSpy).message).toBe(
-      'Delete this page and all its child pages? This action cannot be undone.',
+    const call = (openSpy.mock.calls as [unknown, { data: ConfirmDataProbe }][]).at(-1)!;
+    expect(call[0]).toBe(TypedConfirmDialog);
+    expect(call[1].data.title).toBe('Parent');
+    expect(call[1].data.message).toBe(
+      'Delete this page and all its child pages? Deleted pages are kept for 30 days and can be recovered by an admin.',
     );
     expect(deleteSpy).toHaveBeenCalledWith('parent-1', { recursive: true });
+
+    http.match(() => true).forEach((r) => r.flush(null));
+  });
+
+  it('has-children: dismissing the TypedConfirmDialog does NOT call deletePage', async () => {
+    const { fixture, http } = await renderShell();
+    const cmp = fixture.componentInstance as unknown as DeleteHandle;
+    const pages = TestBed.inject(Pages);
+    const deleteSpy = jest.spyOn(pages, 'deletePage').mockResolvedValue(undefined);
+    stubConfirm(false);
+
+    await cmp.onDeleteRequested({ guid: 'parent-1', title: 'Parent', hasChildren: true });
+    await settle();
+
+    expect(deleteSpy).not.toHaveBeenCalled();
 
     http.match(() => true).forEach((r) => r.flush(null));
   });
@@ -1336,7 +1355,7 @@ describe('PagesView', () => {
     const deleteSpy = jest.spyOn(pages, 'deletePage').mockResolvedValue(undefined);
     stubConfirm(false);
 
-    await cmp.onDeleteRequested({ guid: 'leaf-1', hasChildren: false });
+    await cmp.onDeleteRequested({ guid: 'leaf-1', title: 'Leaf', hasChildren: false });
     await settle();
 
     expect(deleteSpy).not.toHaveBeenCalled();
@@ -1735,7 +1754,7 @@ describe('PagesView', () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     stubConfirm(true);
 
-    await cmp.onDeleteRequested({ guid: 'leaf-1', hasChildren: false });
+    await cmp.onDeleteRequested({ guid: 'leaf-1', title: 'Leaf', hasChildren: false });
     await settle();
 
     expect(snackSpy).toHaveBeenCalledWith(
