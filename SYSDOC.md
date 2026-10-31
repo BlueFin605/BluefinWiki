@@ -17,7 +17,6 @@ Purpose: a private, serverless family wiki with a built-in Kanban board system. 
 - `infrastructure/` — AWS CDK app (single Unified Stack). See `infrastructure/SYSDOC.md`.
 - `aspire/` — local dev orchestration (AppHost). See `aspire/SYSDOC.md`.
 - `e2e/` — Playwright suite against the running dev stack. See `e2e/SYSDOC.md`.
-- `docs/flows/angular-parity-plan/` — project-plan docs for the React→Angular migration, not architecture docs.
 
 ## Realtime updates
 
