@@ -2931,6 +2931,139 @@ describe('PageDetail', () => {
       expect(fixture.componentInstance.content()).toBe('# My draft');
     });
 
+    describe('own writes from other components (root-scoped registry)', () => {
+      /** Reload the open page with the server's post-write copy. */
+      async function reloadWith(
+        fixture: { detectChanges: () => void },
+        http: HttpTestingController,
+        page: Record<string, unknown>,
+      ) {
+        await bumpPage(fixture);
+        http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(page);
+        await settle();
+        fixture.detectChanges();
+        await settle();
+      }
+
+      it('a tree rename of the open dirty page (title changes) raises no banner', async () => {
+        const { fixture, http } = await load();
+        const ctx = TestBed.inject(PageContext);
+        await typeEdit(fixture, '# My draft');
+
+        // The tree's inline rename calls Pages.updatePage({ title }) directly.
+        const renamed = { ...serverPage, title: 'Renamed in tree', modifiedAt: '2026-04-04T00:00:00Z' };
+        const put = TestBed.inject(Pages).updatePage('g1', { title: 'Renamed in tree' });
+        http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush(renamed);
+        await put;
+        await settle();
+        http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(renamed);
+        await settle();
+        fixture.detectChanges();
+
+        expect(ctx.remoteChange()).toBe(false);
+        expect(screen.queryByText(BANNER)).toBeNull();
+        expect(fixture.componentInstance.content()).toBe('# My draft');
+      });
+
+      it('a tree move of the open dirty page raises no banner', async () => {
+        const { fixture, http } = await load();
+        const ctx = TestBed.inject(PageContext);
+        await typeEdit(fixture, '# My draft');
+
+        const move = TestBed.inject(Pages).movePage('g1', { newParentGuid: 'p2' });
+        http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1/move').flush(null);
+        await move;
+        await settle();
+        // movePage bumps page:g1 itself; the move bumped modifiedAt server-side.
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1')
+          .flush({ ...serverPage, folderId: 'p2', modifiedAt: '2026-04-04T00:00:00Z' });
+        await settle();
+        fixture.detectChanges();
+
+        expect(ctx.remoteChange()).toBe(false);
+        expect(screen.queryByText(BANNER)).toBeNull();
+      });
+
+      it('a move does not hide a remote content edit that lands with it', async () => {
+        const { fixture, http } = await load();
+        const ctx = TestBed.inject(PageContext);
+        await typeEdit(fixture, '# My draft');
+
+        const move = TestBed.inject(Pages).movePage('g1', { newParentGuid: 'p2' });
+        http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1/move').flush(null);
+        await move;
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1')
+          .flush({ ...serverPage, content: '# Theirs', modifiedAt: '2026-04-04T00:00:00Z' });
+        await settle();
+        fixture.detectChanges();
+
+        expect(ctx.remoteChange()).toBe(true);
+      });
+
+      it('a card-summary edit on the open dirty page raises no banner', async () => {
+        const { fixture, http } = await load();
+        const ctx = TestBed.inject(PageContext);
+        await typeEdit(fixture, '# My draft');
+
+        // The card-summary dialog writes a property through Pages.updatePage.
+        const edited = { ...serverPage, properties: { summary: 'New summary' }, modifiedAt: '2026-04-04T00:00:00Z' };
+        const put = TestBed.inject(Pages).updatePage('g1', { properties: { summary: 'New summary' } });
+        http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush(edited);
+        await put;
+        await settle();
+        http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(edited);
+        await settle();
+        fixture.detectChanges();
+
+        expect(ctx.remoteChange()).toBe(false);
+        expect(screen.queryByText(BANNER)).toBeNull();
+      });
+
+      it('a genuine foreign change still raises the banner after an unrelated own write', async () => {
+        const { fixture, http } = await load();
+        const ctx = TestBed.inject(PageContext);
+        await typeEdit(fixture, '# My draft');
+
+        const put = TestBed.inject(Pages).updatePage('g1', { properties: { summary: 'Mine' } });
+        http
+          .expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1')
+          .flush({ ...serverPage, properties: { summary: 'Mine' }, modifiedAt: '2026-04-04T00:00:00Z' });
+        await put;
+        await settle();
+        http
+          .expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1')
+          .flush({ ...serverPage, properties: { summary: 'Mine' }, modifiedAt: '2026-04-04T00:00:00Z' });
+        await settle();
+        expect(ctx.remoteChange()).toBe(false);
+
+        // A different modifiedAt nobody in this tab wrote.
+        await reloadWith(fixture, http, { ...serverPage, content: '# Theirs', modifiedAt: '2026-05-05T00:00:00Z' });
+
+        expect(ctx.remoteChange()).toBe(true);
+        expect(screen.getByText(BANNER)).toBeInTheDocument();
+      });
+
+      it('a foreign edit that lands before our rename (title written, body changed) still raises the banner', async () => {
+        const { fixture, http } = await load();
+        const ctx = TestBed.inject(PageContext);
+        await typeEdit(fixture, '# My draft');
+
+        const saved = { ...serverPage, title: 'Renamed', content: '# Theirs', modifiedAt: '2026-04-04T00:00:00Z' };
+        const put = TestBed.inject(Pages).updatePage('g1', { title: 'Renamed' });
+        http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush(saved);
+        await put;
+        await settle();
+        http.expectOne((r) => r.method === 'GET' && r.url === '/api/pages/g1').flush(saved);
+        await settle();
+        fixture.detectChanges();
+
+        expect(ctx.remoteChange()).toBe(true);
+      });
+    });
+
     it('a successful save re-baselines at once, so nothing is stashed while the page reloads', async () => {
       const { fixture, http } = await load();
       jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);

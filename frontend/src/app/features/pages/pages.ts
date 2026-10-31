@@ -95,6 +95,42 @@ export class Pages {
   private readonly upserts = inject(PageUpserts);
 
   /**
+   * Root-scoped own-write registry. Every `updatePage` result is remembered by
+   * `guid|modifiedAt` together with the body fields it wrote, and every
+   * `movePage` marks the guid for a short window (a move returns no body, so
+   * its new `modifiedAt` is unknown). An open, dirty page-detail consults
+   * {@link ownWriteFields} so a reload landing on a write made by ANY
+   * component in this tab (tree rename/move, card summary, board, AI runner)
+   * doesn't raise the "changed elsewhere" banner.
+   */
+  private readonly ownWrites = new Map<string, ReadonlySet<string>>();
+  private readonly ownMoves = new Map<string, number>();
+  private static readonly OWN_WRITE_LIMIT = 200;
+  private static readonly OWN_MOVE_TTL_MS = 15_000;
+
+  /**
+   * Whether `modifiedAt` of page `guid` came from a write made in this tab.
+   * Returns the body fields that write changed (the caller exempts them from
+   * its "someone else edited this" comparison), or `null` when it isn't ours.
+   */
+  ownWriteFields(guid: string, modifiedAt: string): ReadonlySet<string> | null {
+    const hit = this.ownWrites.get(`${guid}|${modifiedAt}`);
+    if (hit) return hit;
+    const movedAt = this.ownMoves.get(guid);
+    if (movedAt !== undefined && Date.now() - movedAt <= Pages.OWN_MOVE_TTL_MS) return new Set();
+    return null;
+  }
+
+  private recordOwnWrite(guid: string, modifiedAt: string | undefined, fields: Iterable<string>): void {
+    if (!modifiedAt) return;
+    this.ownWrites.set(`${guid}|${modifiedAt}`, new Set(fields));
+    if (this.ownWrites.size > Pages.OWN_WRITE_LIMIT) {
+      const oldest = this.ownWrites.keys().next().value;
+      if (oldest !== undefined) this.ownWrites.delete(oldest);
+    }
+  }
+
+  /**
    * Reactive children resource. `parentGuid` is a signal so consumers can
    * switch the request without recreating the resource. Pass `null` for the
    * root level (the React app's `/pages/root/children` endpoint). Pass
@@ -388,6 +424,7 @@ export class Pages {
    */
   async updatePage(guid: string, body: UpdatePageRequest): Promise<PageContent> {
     const result = await firstValueFrom(this.http.put<PageContent>(`/api/pages/${guid}`, body));
+    this.recordOwnWrite(guid, result.modifiedAt, Object.keys(body));
     const tags = [pageTag(guid)];
     if (result.status === 'published') {
       this.upserts.emit([pageToUpsert(result)], 'local');
@@ -416,6 +453,7 @@ export class Pages {
    */
   async movePage(guid: string, body: MovePageRequest): Promise<void> {
     await firstValueFrom(this.http.put<void>(`/api/pages/${guid}/move`, body));
+    this.ownMoves.set(guid, Date.now());
     this.bus.bumpMany([
       childrenAnyTag(),
       ancestorsTag(guid),

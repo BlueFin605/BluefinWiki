@@ -170,11 +170,11 @@ function workingCopyDiverges(content: string, m: PageMetadata, page: PageContent
 }
 
 /** Whether two server pages differ in a field only Save writes (body, title, tags, status). */
-function editableFieldsDiffer(a: PageContent, b: PageContent): boolean {
-  return (a.content ?? '') !== (b.content ?? '')
-    || a.title !== b.title
-    || a.status !== b.status
-    || JSON.stringify(a.tags ?? []) !== JSON.stringify(b.tags ?? []);
+function editableFieldsDiffer(a: PageContent, b: PageContent, ignore: ReadonlySet<string> = new Set()): boolean {
+  return (!ignore.has('content') && (a.content ?? '') !== (b.content ?? ''))
+    || (!ignore.has('title') && a.title !== b.title)
+    || (!ignore.has('status') && a.status !== b.status)
+    || (!ignore.has('tags') && JSON.stringify(a.tags ?? []) !== JSON.stringify(b.tags ?? []));
 }
 
 /**
@@ -1019,13 +1019,6 @@ export class PageDetail {
   private readonly base = signal<{ guid: string; page: PageContent } | null>(null);
 
   /**
-   * `modifiedAt` values produced by this component's own writes (Save, page
-   * type change, Board settings). A re-resolve landing on one of these is
-   * this tab's own change, not a change made elsewhere.
-   */
-  private readonly ownModifiedAts = new Set<string>();
-
-  /**
    * The server `modifiedAt` the working copy is based on, as far as the user
    * knows: it follows {@link base} except while a "changed elsewhere" banner is
    * unacknowledged. Stored in drafts as `baseModifiedAt`, so a View/Edit toggle
@@ -1329,7 +1322,8 @@ export class PageDetail {
       this.resetWorkingCopyToServer(page);
       return;
     }
-    const ownWrite = this.ownModifiedAts.has(page.modifiedAt) && !editableFieldsDiffer(base.page, page);
+    const ownFields = this.pages.ownWriteFields(currentGuid, page.modifiedAt);
+    const ownWrite = ownFields !== null && !editableFieldsDiffer(base.page, page, ownFields);
     if (page.modifiedAt !== base.page.modifiedAt && !ownWrite) {
       this.pageContext.remoteChange.set(true);
     }
@@ -1341,11 +1335,6 @@ export class PageDetail {
   dismissRemoteChange(): void {
     this.pageContext.remoteChange.set(false);
     this.syncedModifiedAt = this.base()?.page.modifiedAt ?? this.syncedModifiedAt;
-  }
-
-  /** Remember the `modifiedAt` of a write this component made itself. */
-  private recordOwnWrite(result: PageContent | null | undefined): void {
-    if (result?.modifiedAt) this.ownModifiedAts.add(result.modifiedAt);
   }
 
   /**
@@ -1613,7 +1602,7 @@ export class PageDetail {
       : { pageType: null };
 
     try {
-      this.recordOwnWrite(await this.pages.updatePage(g, body));
+      await this.pages.updatePage(g, body);
       // Keep a live draft in step with what was just persisted so a reload
       // can't resurrect the previous type from localStorage.
       if (this.drafts.hasDraft(g)) {
@@ -1864,9 +1853,7 @@ export class PageDetail {
       if (result.action === 'saveAsDefault' && type) {
         await this.pageTypes.updatePageType(type.guid, { boardDefaults: withoutPageOnly(result.config) });
         try {
-          this.recordOwnWrite(
-            await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) }),
-          );
+          await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) });
         } catch {
           this.snack.open(
             `Saved the ${type.name} defaults, but couldn't clear this page's overrides.`,
@@ -1875,9 +1862,7 @@ export class PageDetail {
           );
         }
       } else if (result.action === 'reset') {
-        this.recordOwnWrite(
-          await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) }),
-        );
+        await this.pages.updatePage(page.guid, { boardConfig: withPageOnly(null, result.config) });
       } else {
         // Without type defaults the result (prefix included) is stored as-is.
         const boardConfig = defaults
@@ -1886,7 +1871,7 @@ export class PageDetail {
               result.config,
             )
           : result.config;
-        this.recordOwnWrite(await this.pages.updatePage(page.guid, { boardConfig }));
+        await this.pages.updatePage(page.guid, { boardConfig });
       }
     } catch {
       this.snack.open('Failed to save board settings.', 'Dismiss', { duration: 4000 });
@@ -1930,7 +1915,6 @@ export class PageDetail {
         ...(m.pageType !== undefined ? { pageType: m.pageType || null } : {}),
         ...(properties ? { properties } : {}),
       });
-      this.recordOwnWrite(saved);
       // What was sent is now the server state: re-baseline at once, so the
       // working copy reads clean through the reload that updatePage kicked
       // off (the destroy-time stash would otherwise re-save it as a draft).
