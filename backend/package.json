@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "node --enable-source-maps --watch --import tsx src/local-server.ts",
     "dev:debug": "node --enable-source-maps --inspect --watch --import tsx src/local-server.ts",
-    "build": "tsc",
+    "build": "node scripts/bundle.mjs",
+    "verify:dist": "node scripts/verify-dist.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
@@ -52,6 +53,7 @@
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "@typescript-eslint/parser": "^8.58.2",
     "aws-sdk-client-mock": "^4.0.0",
+    "esbuild": "^0.28.2",
     "eslint": "^10.4.0",
     "globals": "^17.6.0",
     "tsx": "^4.7.0",
