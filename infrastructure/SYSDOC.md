@@ -2,6 +2,8 @@
 
 What this is: the AWS CDK app that deploys BlueFinWiki to real AWS. Everything lives in one CloudFormation stack (`UnifiedStack.cs`) covering storage (S3), database (DynamoDB), auth (Cognito), compute (Lambda + API Gateway), and CDN (CloudFront + S3 static hosting for the frontend).
 
+The REST API reaches one `api-router` Lambda through `{proxy+}` catch-alls; only routes declared with `RouteToFunction`/`RouteWithApiKey` in `UnifiedStack.cs` have their own Lambdas. `backend/src/router/__tests__/cdk-parity.test.ts` checks the stack and the backend route table agree.
+
 Built with: AWS CDK v2, C#, .NET 10.
 
 `infrastructure/README.md` is the unedited CDK-init boilerplate; `INFRASTRUCTURE.md` in this same folder is the real, detailed reference (stack contents, context parameters, environment differences, cost estimates, deploy/destroy commands, troubleshooting) — read that instead of expecting detail here.

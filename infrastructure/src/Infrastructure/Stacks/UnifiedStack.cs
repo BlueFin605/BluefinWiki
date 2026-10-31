@@ -994,13 +994,14 @@ namespace Infrastructure.Stacks
 
             // S3 Vectors names — deterministic, reused below where the bucket/index are
             // actually created. Declared here so commonEnvVars can ship them to every
-            // Lambda that uses vector search (e.g. SearchQueryFunction).
+            // Lambda that uses vector search (e.g. the api-router for /search).
             var vectorBucketName = $"{config.Prefix}-vectors-{config.Name}";
             var vectorIndexName = "wiki-pages";
 
             // Common Lambda environment variables
             var commonEnvVars = new Dictionary<string, string>
             {
+                { "NODE_OPTIONS", "--enable-source-maps" }, // bundle.mjs ships sourcemaps; readable stack traces
                 { "PAGES_BUCKET", PagesBucket.BucketName },
                 { "COGNITO_USER_POOL_ID", UserPool.UserPoolId },
                 { "COGNITO_CLIENT_ID", WebClient.UserPoolClientId },
@@ -1127,148 +1128,28 @@ namespace Infrastructure.Stacks
             });
 
             // =============================================================================
+            // API router Lambda: serves every REST route except the few routed to their own
+            // functions below. Route table: backend/src/router/routes.ts.
+            // =============================================================================
+            var apiRouterFunction = new LambdaFunction(this, "ApiRouterFunction", new LambdaFunctionProps
+            {
+                FunctionName = $"{config.Prefix}-{config.Name}-api-router",
+                Runtime = lambdaProps.Runtime,
+                Handler = "router/lambda.handler",
+                Code = lambdaProps.Code,
+                Role = lambdaProps.Role,
+                Environment = lambdaProps.Environment,
+                Timeout = lambdaProps.Timeout,
+                MemorySize = lambdaProps.MemorySize,
+                Tracing = lambdaProps.Tracing,
+                LogRetention = lambdaProps.LogRetention,
+                Description = "API router: dispatches REST routes to the backend handlers"
+            });
+
+            // =============================================================================
             // Pages Lambda Functions (Task 3.3)
             // =============================================================================
             
-            var pagesCreateFunction = new LambdaFunction(this, "PagesCreateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-create",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-create.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Create new page"
-            });
-            
-            var pagesGetFunction = new LambdaFunction(this, "PagesGetFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-get",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-get.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Get page by GUID"
-            });
-            
-            var pagesUpdateFunction = new LambdaFunction(this, "PagesUpdateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-update",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-update.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Update page content and metadata"
-            });
-            
-            var pagesDeleteFunction = new LambdaFunction(this, "PagesDeleteFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-delete",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-delete.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Delete page (with optional recursive deletion)"
-            });
-            
-            var pagesListChildrenFunction = new LambdaFunction(this, "PagesListChildrenFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-list-children",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-list-children.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "List child pages of a parent"
-            });
-            
-            var pagesMoveFunction = new LambdaFunction(this, "PagesMoveFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-move",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-move.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Move page to new parent location"
-            });
-            
-            var pagesReorderFunction = new LambdaFunction(this, "PagesReorderFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-reorder",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-reorder.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Reorder sibling pages under a shared parent"
-            });
-
-            var pagesSearchFunction = new LambdaFunction(this, "PagesSearchFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-search",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-search.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Search pages by title (for link autocomplete)"
-            });
-
-            // Semantic search via Bedrock Titan V2 + S3 Vectors. Embeds the query and
-            // returns the top-K matches with metadata-derived snippets. IAM grants for
-            // bedrock:InvokeModel and s3vectors:QueryVectors are added to lambdaRole
-            // alongside the vector bucket definition further down in this method.
-            var searchQueryFunction = new LambdaFunction(this, "SearchQueryFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-search-query",
-                Runtime = lambdaProps.Runtime,
-                Handler = "search/search-query.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = Duration.Seconds(30),
-                MemorySize = 512,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Semantic search over wiki pages (Bedrock + S3 Vectors)"
-            });
-
             // Dedicated minimal IAM role for the URL-fetch proxy — defense in depth
             // against SSRF: even if an attacker steers the AI to a private IP somehow,
             // a credential leak from this Lambda yields no AWS access beyond logs.
@@ -1301,66 +1182,6 @@ namespace Infrastructure.Stacks
                 Description = "SSRF-hardened URL fetch proxy for the AI assistant"
             });
 
-            var imdbShowDetailsFunction = new LambdaFunction(this, "ImdbShowDetailsFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-imdb-show-details",
-                Runtime = lambdaProps.Runtime,
-                Handler = "proxy/imdb-show-details.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = Duration.Seconds(15),
-                MemorySize = 256,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Fetch IMDb TV show synopsis, seasons, and rating"
-            });
-
-            var pagesBacklinksFunction = new LambdaFunction(this, "PagesBacklinksFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-backlinks",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-backlinks.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Get backlinks for a page"
-            });
-
-            var pagesAncestorsFunction = new LambdaFunction(this, "PagesAncestorsFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-ancestors",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-ancestors.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Get ancestor pages for breadcrumb navigation"
-            });
-
-            var ticketKeysResolveFunction = new LambdaFunction(this, "TicketKeysResolveFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-ticket-keys-resolve",
-                Runtime = lambdaProps.Runtime,
-                Handler = "ticket-keys/ticket-keys-resolve.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Resolve a ticket key to its page"
-            });
-
             var ticketKeysBackfillFunction = new LambdaFunction(this, "TicketKeysBackfillFunction", new LambdaFunctionProps
             {
                 FunctionName = $"{config.Prefix}-{config.Name}-ticket-keys-backfill",
@@ -1391,363 +1212,6 @@ namespace Infrastructure.Stacks
                 Description = "Backfill boardOrder for cards beneath a page (admin only)"
             });
 
-            var pagesAttachmentsUploadFunction = new LambdaFunction(this, "PagesAttachmentsUploadFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-upload",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-attachments-upload.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Upload page attachment"
-            });
-
-            var pagesAttachmentsPresignFunction = new LambdaFunction(this, "PagesAttachmentsPresignFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-presign",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-attachments-presign.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Generate presigned URL for attachment upload"
-            });
-
-            var pagesAttachmentsConfirmFunction = new LambdaFunction(this, "PagesAttachmentsConfirmFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-confirm",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-attachments-confirm.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Confirm attachment upload and save metadata"
-            });
-
-            var pagesAttachmentsDownloadFunction = new LambdaFunction(this, "PagesAttachmentsDownloadFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-download",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-attachments-download.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Download page attachment"
-            });
-
-            var pagesAttachmentsListFunction = new LambdaFunction(this, "PagesAttachmentsListFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-list",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-attachments-list.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "List page attachments"
-            });
-
-            var pagesAttachmentsDeleteFunction = new LambdaFunction(this, "PagesAttachmentsDeleteFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-attachments-delete",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-attachments-delete.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Delete page attachment"
-            });
-
-            var pagesCommentsListFunction = new LambdaFunction(this, "PagesCommentsListFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-list",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-comments-list.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "List comments on a page"
-            });
-
-            var pagesCommentsCreateFunction = new LambdaFunction(this, "PagesCommentsCreateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-create",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-comments-create.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Create a comment or reply on a page"
-            });
-
-            var pagesCommentsUpdateFunction = new LambdaFunction(this, "PagesCommentsUpdateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-update",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-comments-update.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Edit your own comment on a page"
-            });
-
-            var pagesCommentsDeleteFunction = new LambdaFunction(this, "PagesCommentsDeleteFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-comments-delete",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/pages-comments-delete.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Delete your own comment (or any comment, as Admin)"
-            });
-
-            var tagsListFunction = new LambdaFunction(this, "TagsListFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-tags-list",
-                Runtime = lambdaProps.Runtime,
-                Handler = "tags/tags-list.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "List tags for autocomplete"
-            });
-
-            var tagsCreateFunction = new LambdaFunction(this, "TagsCreateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-tags-create",
-                Runtime = lambdaProps.Runtime,
-                Handler = "tags/tags-create.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Create a new tag"
-            });
-
-            // =============================================================================
-            // Page Types Lambda Functions
-            // =============================================================================
-
-            var pageTypesListFunction = new LambdaFunction(this, "PageTypesListFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-page-types-list",
-                Runtime = lambdaProps.Runtime,
-                Handler = "page-types/page-types-list.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "List all page type definitions"
-            });
-
-            var pageTypesGetFunction = new LambdaFunction(this, "PageTypesGetFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-page-types-get",
-                Runtime = lambdaProps.Runtime,
-                Handler = "page-types/page-types-get.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Get a page type definition by GUID"
-            });
-
-            var pageTypesCreateFunction = new LambdaFunction(this, "PageTypesCreateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-page-types-create",
-                Runtime = lambdaProps.Runtime,
-                Handler = "page-types/page-types-create.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Create a new page type definition"
-            });
-
-            var pageTypesUpdateFunction = new LambdaFunction(this, "PageTypesUpdateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-page-types-update",
-                Runtime = lambdaProps.Runtime,
-                Handler = "page-types/page-types-update.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Update a page type definition"
-            });
-
-            var pageTypesDeleteFunction = new LambdaFunction(this, "PageTypesDeleteFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-page-types-delete",
-                Runtime = lambdaProps.Runtime,
-                Handler = "page-types/page-types-delete.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Delete a page type definition"
-            });
-
-            var pageTypesAllowedChildrenFunction = new LambdaFunction(this, "PageTypesAllowedChildrenFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-page-types-allowed-children",
-                Runtime = lambdaProps.Runtime,
-                Handler = "page-types/page-types-allowed-children.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Get allowed child types for a page type"
-            });
-
-            // =============================================================================
-            // Auth Lambda Functions (register, me)
-            // =============================================================================
-
-            var authRegisterFunction = new LambdaFunction(this, "AuthRegisterFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-auth-register",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/auth-register.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Register new user with invitation code"
-            });
-
-            var authMeFunction = new LambdaFunction(this, "AuthMeFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-auth-me",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/auth-me.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Get current user profile"
-            });
-
-            // =============================================================================
-            // Admin Invitation Lambda Functions
-            // =============================================================================
-
-            var adminCreateInvitationFunction = new LambdaFunction(this, "AdminCreateInvitationFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-create-invitation",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-create-invitation.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Create invitation code (admin only)"
-            });
-
-            var adminListInvitationsFunction = new LambdaFunction(this, "AdminListInvitationsFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-list-invitations",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-list-invitations.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "List invitation codes (admin only)"
-            });
-
-            var adminRevokeInvitationFunction = new LambdaFunction(this, "AdminRevokeInvitationFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-revoke-invitation",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-revoke-invitation.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Revoke invitation code (admin only)"
-            });
-
             // =============================================================================
             // Admin: Rebuild Page Index Lambda
             // =============================================================================
@@ -1768,563 +1232,6 @@ namespace Infrastructure.Stacks
                 Tracing = lambdaProps.Tracing,
                 LogRetention = lambdaProps.LogRetention,
                 Description = "Rebuild page index from S3 + drop orphan rows (admin only)"
-            });
-
-            // =============================================================================
-            // Pages Links Resolve Lambda Function
-            // =============================================================================
-
-            var pagesLinksResolveFunction = new LambdaFunction(this, "PagesLinksResolveFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-pages-links-resolve",
-                Runtime = lambdaProps.Runtime,
-                Handler = "pages/links-resolve.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Resolve page links by title"
-            });
-
-            // =============================================================================
-            // Admin User Management Lambda Functions
-            // =============================================================================
-
-            var adminUsersListFunction = new LambdaFunction(this, "AdminUsersListFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-list",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-users-list.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "List all users (admin only)"
-            });
-
-            var adminUsersGetFunction = new LambdaFunction(this, "AdminUsersGetFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-get",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-users-get.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Get user details (admin only)"
-            });
-
-            var adminUsersUpdateFunction = new LambdaFunction(this, "AdminUsersUpdateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-update",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-users-update.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Update user role or display name (admin only)"
-            });
-
-            var adminUsersSuspendFunction = new LambdaFunction(this, "AdminUsersSuspendFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-suspend",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-users-suspend.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Suspend a user (admin only)"
-            });
-
-            var adminUsersActivateFunction = new LambdaFunction(this, "AdminUsersActivateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-activate",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-users-activate.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Activate a suspended user (admin only)"
-            });
-
-            var adminUsersDeleteFunction = new LambdaFunction(this, "AdminUsersDeleteFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-admin-users-delete",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/admin-users-delete.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Delete a user (admin only)"
-            });
-
-            // =============================================================================
-            // Self-Service Profile Lambda Functions
-            // =============================================================================
-
-            var authProfileUpdateFunction = new LambdaFunction(this, "AuthProfileUpdateFunction", new LambdaFunctionProps
-            {
-                FunctionName = $"{config.Prefix}-{config.Name}-auth-profile-update",
-                Runtime = lambdaProps.Runtime,
-                Handler = "auth/auth-profile-update.handler",
-                Code = lambdaProps.Code,
-                Role = lambdaProps.Role,
-                Environment = lambdaProps.Environment,
-                Timeout = lambdaProps.Timeout,
-                MemorySize = lambdaProps.MemorySize,
-                Tracing = lambdaProps.Tracing,
-                LogRetention = lambdaProps.LogRetention,
-                Description = "Update own display name"
-            });
-
-            // =============================================================================
-            // API Gateway Routes - /pages
-            // =============================================================================
-            
-            // Create /pages resource
-            var pagesResource = Api.Root.AddResource("pages");
-            
-            // POST /pages - Create new page
-            pagesResource.AddMethod("POST", new LambdaIntegration(pagesCreateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = new CognitoUserPoolsAuthorizer(this, "PagesCreateAuthorizer", new CognitoUserPoolsAuthorizerProps
-                {
-                    CognitoUserPools = new[] { UserPool }
-                })
-            });
-            
-            // /pages/{guid} resource
-            var pageGuidResource = pagesResource.AddResource("{guid}");
-            
-            // Cognito authorizer for authenticated endpoints
-            var cognitoAuthorizer = new CognitoUserPoolsAuthorizer(this, "PagesAuthorizer", new CognitoUserPoolsAuthorizerProps
-            {
-                CognitoUserPools = new[] { UserPool }
-            });
-
-            // GET /pages/children - List root pages (legacy alias)
-            var pagesChildrenResource = pagesResource.AddResource("children");
-            pagesChildrenResource.AddMethod("GET", new LambdaIntegration(pagesListChildrenFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-            
-            // GET /pages/{guid} - Get page by GUID
-            pageGuidResource.AddMethod("GET", new LambdaIntegration(pagesGetFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-            
-            // PUT /pages/{guid} - Update page
-            pageGuidResource.AddMethod("PUT", new LambdaIntegration(pagesUpdateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-            
-            // DELETE /pages/{guid} - Delete page
-            pageGuidResource.AddMethod("DELETE", new LambdaIntegration(pagesDeleteFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-            
-            // GET /pages/{guid}/children - List child pages
-            var childrenResource = pageGuidResource.AddResource("children");
-            childrenResource.AddMethod("GET", new LambdaIntegration(pagesListChildrenFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-            
-            // PUT /pages/{guid}/move - Move page to new parent
-            var moveResource = pageGuidResource.AddResource("move");
-            moveResource.AddMethod("PUT", new LambdaIntegration(pagesMoveFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /pages/{guid}/ancestors - Get ancestor pages for breadcrumbs
-            var ancestorsResource = pageGuidResource.AddResource("ancestors");
-            ancestorsResource.AddMethod("GET", new LambdaIntegration(pagesAncestorsFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /pages/{guid}/ticket-keys/backfill - Assign/repair ticket keys under an Initiative (admin only)
-            pageGuidResource.AddResource("ticket-keys").AddResource("backfill").AddMethod("POST", new LambdaIntegration(ticketKeysBackfillFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /pages/{guid}/board-order/backfill - Backfill boardOrder for cards beneath a page (admin only)
-            pageGuidResource.AddResource("board-order").AddResource("backfill").AddMethod("POST", new LambdaIntegration(boardOrderBackfillFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /pages/{guid}/backlinks - Get pages that link to this page
-            var backlinksResource = pageGuidResource.AddResource("backlinks");
-            backlinksResource.AddMethod("GET", new LambdaIntegration(pagesBacklinksFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /pages/links/resolve - Resolve page links by title
-            var linksResource = pagesResource.AddResource("links");
-            var linksResolveResource = linksResource.AddResource("resolve");
-            linksResolveResource.AddMethod("POST", new LambdaIntegration(pagesLinksResolveFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /pages/search - Search pages by title
-            var searchResource = pagesResource.AddResource("search");
-            searchResource.AddMethod("GET", new LambdaIntegration(pagesSearchFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /ticket-keys/{key} - Resolve a ticket key to its page
-            var ticketKeysResource = Api.Root.AddResource("ticket-keys");
-            ticketKeysResource.AddResource("{key}").AddMethod("GET", new LambdaIntegration(ticketKeysResolveFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /search - Semantic search over wiki pages
-            var searchTopLevelResource = Api.Root.AddResource("search");
-            searchTopLevelResource.AddMethod("GET", new LambdaIntegration(searchQueryFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /fetch-url - SSRF-hardened URL fetch proxy for the AI assistant
-            var fetchUrlResource = Api.Root.AddResource("fetch-url");
-            fetchUrlResource.AddMethod("POST", new LambdaIntegration(proxyFetchUrlFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /imdb/show-details - Fetch IMDb TV show details for AI enrichment
-            var imdbResource = Api.Root.AddResource("imdb");
-            var imdbShowDetailsResource = imdbResource.AddResource("show-details");
-            imdbShowDetailsResource.AddMethod("GET", new LambdaIntegration(imdbShowDetailsFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // PUT /pages/reorder - Reorder sibling pages
-            var reorderResource = pagesResource.AddResource("reorder");
-            reorderResource.AddMethod("PUT", new LambdaIntegration(pagesReorderFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /pages/{guid}/attachments - Upload attachment
-            var attachmentsResource = pageGuidResource.AddResource("attachments");
-            attachmentsResource.AddMethod("POST", new LambdaIntegration(pagesAttachmentsUploadFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /pages/{guid}/attachments - List attachments
-            attachmentsResource.AddMethod("GET", new LambdaIntegration(pagesAttachmentsListFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /pages/{guid}/attachments/presign - Get presigned upload URL
-            var attachmentsPresignResource = attachmentsResource.AddResource("presign");
-            attachmentsPresignResource.AddMethod("POST", new LambdaIntegration(pagesAttachmentsPresignFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /pages/{guid}/attachments/confirm - Confirm upload and save metadata
-            var attachmentsConfirmResource = attachmentsResource.AddResource("confirm");
-            attachmentsConfirmResource.AddMethod("POST", new LambdaIntegration(pagesAttachmentsConfirmFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /pages/{guid}/attachments/{attachmentGuid} - Download attachment
-            var attachmentGuidResource = attachmentsResource.AddResource("{attachmentGuid}");
-            attachmentGuidResource.AddMethod("GET", new LambdaIntegration(pagesAttachmentsDownloadFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // DELETE /pages/{guid}/attachments/{attachmentGuid} - Delete attachment
-            attachmentGuidResource.AddMethod("DELETE", new LambdaIntegration(pagesAttachmentsDeleteFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /pages/{guid}/comments - List comments on a page
-            var commentsResource = pageGuidResource.AddResource("comments");
-            commentsResource.AddMethod("GET", new LambdaIntegration(pagesCommentsListFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /pages/{guid}/comments - Create a comment or reply
-            commentsResource.AddMethod("POST", new LambdaIntegration(pagesCommentsCreateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // PUT /pages/{guid}/comments/{commentId} - Edit your own comment
-            var commentIdResource = commentsResource.AddResource("{commentId}");
-            commentIdResource.AddMethod("PUT", new LambdaIntegration(pagesCommentsUpdateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // DELETE /pages/{guid}/comments/{commentId} - Delete your own comment (or any, as Admin)
-            commentIdResource.AddMethod("DELETE", new LambdaIntegration(pagesCommentsDeleteFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // =============================================================================
-            // API Gateway Routes - /tags
-            // =============================================================================
-
-            var tagsResource = Api.Root.AddResource("tags");
-
-            // GET /tags - List tags for autocomplete
-            tagsResource.AddMethod("GET", new LambdaIntegration(tagsListFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /tags - Create a new tag
-            tagsResource.AddMethod("POST", new LambdaIntegration(tagsCreateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // =============================================================================
-            // API Gateway Routes - /page-types
-            // =============================================================================
-
-            var pageTypesResource = Api.Root.AddResource("page-types");
-
-            // GET /page-types - List all page type definitions
-            pageTypesResource.AddMethod("GET", new LambdaIntegration(pageTypesListFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /page-types - Create a new page type definition
-            pageTypesResource.AddMethod("POST", new LambdaIntegration(pageTypesCreateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // /page-types/{guid} resource
-            var pageTypeGuidResource = pageTypesResource.AddResource("{guid}");
-
-            // GET /page-types/{guid} - Get a page type definition
-            pageTypeGuidResource.AddMethod("GET", new LambdaIntegration(pageTypesGetFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // PUT /page-types/{guid} - Update a page type definition
-            pageTypeGuidResource.AddMethod("PUT", new LambdaIntegration(pageTypesUpdateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // DELETE /page-types/{guid} - Delete a page type definition
-            pageTypeGuidResource.AddMethod("DELETE", new LambdaIntegration(pageTypesDeleteFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // GET /page-types/{guid}/allowed-children - Get allowed child types
-            var allowedChildrenResource = pageTypeGuidResource.AddResource("allowed-children");
-            allowedChildrenResource.AddMethod("GET", new LambdaIntegration(pageTypesAllowedChildrenFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // =============================================================================
-            // API Gateway Routes - /admin/users
-            // =============================================================================
-
-            var adminResource = Api.Root.AddResource("admin");
-            var adminUsersResource = adminResource.AddResource("users");
-
-            // GET /admin/users - List all users
-            adminUsersResource.AddMethod("GET", new LambdaIntegration(adminUsersListFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // /admin/users/{userId} resource
-            var adminUserIdResource = adminUsersResource.AddResource("{userId}");
-
-            // GET /admin/users/{userId} - Get user details
-            adminUserIdResource.AddMethod("GET", new LambdaIntegration(adminUsersGetFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // PUT /admin/users/{userId} - Update user
-            adminUserIdResource.AddMethod("PUT", new LambdaIntegration(adminUsersUpdateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // DELETE /admin/users/{userId} - Delete user
-            adminUserIdResource.AddMethod("DELETE", new LambdaIntegration(adminUsersDeleteFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /admin/users/{userId}/suspend - Suspend user
-            var adminUserSuspendResource = adminUserIdResource.AddResource("suspend");
-            adminUserSuspendResource.AddMethod("POST", new LambdaIntegration(adminUsersSuspendFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /admin/users/{userId}/activate - Activate user
-            var adminUserActivateResource = adminUserIdResource.AddResource("activate");
-            adminUserActivateResource.AddMethod("POST", new LambdaIntegration(adminUsersActivateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // =============================================================================
-            // API Gateway Routes - /admin/invitations
-            // =============================================================================
-
-            var adminInvitationsResource = adminResource.AddResource("invitations");
-
-            // GET /admin/invitations - List invitations
-            adminInvitationsResource.AddMethod("GET", new LambdaIntegration(adminListInvitationsFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /admin/invitations - Create invitation
-            adminInvitationsResource.AddMethod("POST", new LambdaIntegration(adminCreateInvitationFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // /admin/invitations/{invitationCode}
-            var adminInvitationCodeResource = adminInvitationsResource.AddResource("{invitationCode}");
-
-            // DELETE /admin/invitations/{invitationCode} - Revoke invitation
-            adminInvitationCodeResource.AddMethod("DELETE", new LambdaIntegration(adminRevokeInvitationFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // POST /admin/rebuild-page-index - Rebuild DynamoDB page index from S3
-            var adminRebuildPageIndexResource = adminResource.AddResource("rebuild-page-index");
-            adminRebuildPageIndexResource.AddMethod("POST", new LambdaIntegration(adminRebuildPageIndexFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // =============================================================================
-            // API Gateway Routes - /auth/profile
-            // =============================================================================
-
-            var authResource = Api.Root.AddResource("auth");
-
-            // POST /auth/register - Register new user (public, no auth required)
-            var authRegisterResource = authResource.AddResource("register");
-            authRegisterResource.AddMethod("POST", new LambdaIntegration(authRegisterFunction));
-
-            // GET /auth/me - Get current user profile
-            var authMeResource = authResource.AddResource("me");
-            authMeResource.AddMethod("GET", new LambdaIntegration(authMeFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
-            });
-
-            // PUT /auth/profile - Update own profile
-            var authProfileResource = authResource.AddResource("profile");
-            authProfileResource.AddMethod("PUT", new LambdaIntegration(authProfileUpdateFunction), new MethodOptions
-            {
-                AuthorizationType = AuthorizationType.COGNITO,
-                Authorizer = cognitoAuthorizer
             });
 
             // =============================================================================
@@ -2394,7 +1301,7 @@ namespace Infrastructure.Stacks
                 Resources = new[] { $"arn:aws:bedrock:{stackRegion}::foundation-model/amazon.titan-embed-text-v2:0" }
             }));
 
-            // The shared lambdaRole (used by SearchQueryFunction) needs the same grants
+            // The shared lambdaRole (used by the api-router for /search) needs the same grants
             lambdaRole.AddToPolicy(new PolicyStatement(new PolicyStatementProps
             {
                 Effect = Effect.ALLOW,
@@ -2438,18 +1345,64 @@ namespace Infrastructure.Stacks
                 Description = "MCP server for AI read/write access to wiki pages"
             });
 
-            // API Gateway route: /mcp (POST and GET) with API key auth
-            var mcpResource = Api.Root.AddResource("mcp");
-
-            mcpResource.AddMethod("POST", new LambdaIntegration(mcpFunction), new MethodOptions
+            // =============================================================================
+            // API Gateway routes. API Gateway picks the most specific explicit resource and
+            // does not fall back to a shallower {proxy+}, so the parents of every explicit
+            // path also get router methods. Parsed by backend/src/router/__tests__/cdk-parity.test.ts:
+            // keep one call per line with literal strings, and add methods only via these helpers.
+            // =============================================================================
+            var cognitoAuthorizer = new CognitoUserPoolsAuthorizer(this, "PagesAuthorizer", new CognitoUserPoolsAuthorizerProps
             {
-                ApiKeyRequired = true
+                CognitoUserPools = new[] { UserPool }
             });
+            var routerIntegration = new LambdaIntegration(apiRouterFunction, new LambdaIntegrationOptions { AllowTestInvoke = false });
 
-            mcpResource.AddMethod("GET", new LambdaIntegration(mcpFunction), new MethodOptions
+            Amazon.CDK.AWS.APIGateway.IResource ApiPath(string path)
             {
-                ApiKeyRequired = true
-            });
+                Amazon.CDK.AWS.APIGateway.IResource current = Api.Root;
+                foreach (var part in path.Split('/', System.StringSplitOptions.RemoveEmptyEntries))
+                {
+                    current = current.GetResource(part) ?? current.AddResource(part);
+                }
+                return current;
+            }
+
+            void RouteToRouter(string path) =>
+                ApiPath(path).AddMethod("ANY", routerIntegration, new MethodOptions
+                {
+                    AuthorizationType = AuthorizationType.COGNITO,
+                    Authorizer = cognitoAuthorizer
+                });
+
+            void RouteToFunction(string method, string path, Amazon.CDK.AWS.Lambda.IFunction function) =>
+                ApiPath(path).AddMethod(method, new LambdaIntegration(function), new MethodOptions
+                {
+                    AuthorizationType = AuthorizationType.COGNITO,
+                    Authorizer = cognitoAuthorizer
+                });
+
+            void RoutePublic(string method, string path, Amazon.CDK.AWS.Lambda.IFunction function) =>
+                ApiPath(path).AddMethod(method, new LambdaIntegration(function));
+
+            void RouteWithApiKey(string method, string path, Amazon.CDK.AWS.Lambda.IFunction function) =>
+                ApiPath(path).AddMethod(method, new LambdaIntegration(function), new MethodOptions
+                {
+                    ApiKeyRequired = true
+                });
+
+            RouteToRouter("{proxy+}");
+            RouteToRouter("pages");
+            RouteToRouter("pages/{guid}");
+            RouteToRouter("pages/{guid}/{proxy+}");
+            RouteToRouter("admin/{proxy+}");
+            RouteToRouter("auth/{proxy+}");
+            RoutePublic("POST", "auth/register", apiRouterFunction);
+            RouteToFunction("POST", "pages/{guid}/ticket-keys/backfill", ticketKeysBackfillFunction);
+            RouteToFunction("POST", "pages/{guid}/board-order/backfill", boardOrderBackfillFunction);
+            RouteToFunction("POST", "admin/rebuild-page-index", adminRebuildPageIndexFunction);
+            RouteToFunction("POST", "fetch-url", proxyFetchUrlFunction);
+            RouteWithApiKey("POST", "mcp", mcpFunction);
+            RouteWithApiKey("GET", "mcp", mcpFunction);
 
             // Usage plan and API key for MCP access
             var mcpApiKey = Api.AddApiKey("McpApiKey", new ApiKeyOptions

@@ -100,7 +100,7 @@ BlueFinWiki is a monorepo with four packages:
 ```
 bluefinwiki/
 ├── frontend/         Angular 21 + TypeScript + Angular Material
-├── backend/          AWS Lambda functions (Node.js 20, TypeScript)
+├── backend/          AWS Lambda functions (Node.js 24, TypeScript)
 ├── infrastructure/   AWS CDK (C#) — Infrastructure as Code
 └── aspire/           Microsoft Aspire for local dev orchestration
 ```
@@ -114,7 +114,7 @@ flowchart LR
     Static["S3<br/>static site"]
     REST["API Gateway<br/>REST API"]
     WSAPI["API Gateway<br/>WebSocket API"]
-    Lambda["Lambda (Node.js)<br/>one handler per endpoint"]
+    Lambda["Lambda (Node.js)<br/>router over per-endpoint handlers"]
     Pages["S3<br/>page content"]
     Dynamo["DynamoDB<br/>metadata and indexes"]
     Cognito["Cognito<br/>auth"]
@@ -129,7 +129,7 @@ flowchart LR
 ```
 
 - **Frontend**: Angular SPA served via CloudFront CDN
-- **Backend**: Lambda functions behind API Gateway — each endpoint is a separate handler
+- **Backend**: Lambda behind API Gateway — one router function dispatches each endpoint to its handler module; a few jobs keep separate Lambdas
 - **Storage**: S3 for page content (Markdown + YAML frontmatter), DynamoDB for metadata, indexes, page types, tags, user profiles, invitations, and activity logs
 - **Auth**: AWS Cognito with invite-only registration and optional Google login
 - **Search**: Client-side full-text index built from backend data, with background refresh

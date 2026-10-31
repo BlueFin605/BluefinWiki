@@ -48,17 +48,11 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build
+      - name: Build (esbuild bundle)
         run: npm run build
 
-      - name: Install production dependencies into dist
-        run: |
-          # tsc emits ESM (module: NodeNext + "type": "module"), so the deployed
-          # package.json must keep "type": "module" or Lambda's Node runtime will
-          # treat .js as CommonJS and fail with "Cannot use import statement outside a module".
-          node -e "const p=require('./package.json'); delete p.scripts; delete p.devDependencies; require('fs').writeFileSync('dist/package.json', JSON.stringify(p, null, 2))"
-          cp package-lock.json dist/
-          cd dist && npm ci --omit=dev
+      - name: Verify Lambda entries load from dist
+        run: npm run verify:dist
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
