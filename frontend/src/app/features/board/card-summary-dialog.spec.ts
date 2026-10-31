@@ -72,7 +72,7 @@ describe('CardSummaryDialog', () => {
   it('renders an editable Title field seeded with the card title', async () => {
     await renderDialog({ card: card({ title: 'Hello card' }), pageType: null });
     await settle();
-    const titleInput = screen.getByLabelText(/title/i);
+    const titleInput = screen.getByLabelText<HTMLInputElement>(/title/i);
     expect(titleInput.value).toBe('Hello card');
   });
 

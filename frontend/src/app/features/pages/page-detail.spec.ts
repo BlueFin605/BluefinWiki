@@ -3010,7 +3010,7 @@ describe('PageDetail', () => {
 
         // The card-summary dialog writes a property through Pages.updatePage.
         const edited = { ...serverPage, properties: { summary: 'New summary' }, modifiedAt: '2026-04-04T00:00:00Z' };
-        const put = TestBed.inject(Pages).updatePage('g1', { properties: { summary: 'New summary' } });
+        const put = TestBed.inject(Pages).updatePage('g1', { properties: { summary: 'New summary' } as unknown as Record<string, PageProperty> });
         http.expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1').flush(edited);
         await put;
         await settle();
@@ -3027,7 +3027,7 @@ describe('PageDetail', () => {
         const ctx = TestBed.inject(PageContext);
         await typeEdit(fixture, '# My draft');
 
-        const put = TestBed.inject(Pages).updatePage('g1', { properties: { summary: 'Mine' } });
+        const put = TestBed.inject(Pages).updatePage('g1', { properties: { summary: 'Mine' } as unknown as Record<string, PageProperty> });
         http
           .expectOne((r) => r.method === 'PUT' && r.url === '/api/pages/g1')
           .flush({ ...serverPage, properties: { summary: 'Mine' }, modifiedAt: '2026-04-04T00:00:00Z' });

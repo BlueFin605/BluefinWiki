@@ -43,6 +43,7 @@ function authStub(over: {
     jest.fn((displayName: string) => {
       const current = userSignal();
       if (current) userSignal.set({ ...current, displayName });
+      return Promise.resolve();
     });
   return {
     user: userSignal,

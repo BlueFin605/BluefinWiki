@@ -484,11 +484,11 @@ describe('PageTreeItem', () => {
     };
   }
 
-  function dragOverEvent(clientY: number, top: number, height: number): MouseEvent {
+  function dragOverEvent(clientY: number, top: number, height: number): PointerEvent {
     return {
       clientY,
       currentTarget: { getBoundingClientRect: () => domRect(top, height) },
-    } as unknown as MouseEvent;
+    } as unknown as PointerEvent;
   }
 
   function dropEvent(moving: Partial<PageSummary>, target: Partial<PageSummary>) {

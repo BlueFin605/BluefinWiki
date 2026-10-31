@@ -28,7 +28,7 @@ describe('WikiMermaid', () => {
   });
 
   it('invokes mermaid.render with the chart input', async () => {
-    const mermaid = (await import('mermaid')).default as { render: jest.Mock };
+    const mermaid = (await import('mermaid')).default as unknown as { render: jest.Mock };
     await render(WikiMermaid, { inputs: { chart: 'graph LR; A-->B' } });
     await flush();
     expect(mermaid.render).toHaveBeenCalledWith(
@@ -38,7 +38,7 @@ describe('WikiMermaid', () => {
   });
 
   it('shows an error block when mermaid.render rejects', async () => {
-    const mermaid = (await import('mermaid')).default as { render: jest.Mock };
+    const mermaid = (await import('mermaid')).default as unknown as { render: jest.Mock };
     mermaid.render.mockRejectedValueOnce(new Error('Parse error on line 3'));
     await render(WikiMermaid, { inputs: { chart: 'not a diagram' } });
     await flush();

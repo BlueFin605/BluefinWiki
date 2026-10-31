@@ -184,7 +184,7 @@ describe('toWireProperties', () => {
   it('does not mutate its input', () => {
     const props = { rated: { type: 'tags' as const, value: ['pg'] } };
     const out = toWireProperties(props);
-    expect(out.rated.value).not.toBe(props.rated.value);
+    expect(out["rated"].value).not.toBe(props.rated.value);
     expect(props).toEqual({ rated: { type: 'tags', value: ['pg'] } });
   });
 });

@@ -140,8 +140,8 @@ describe('BoardView', () => {
       properties: Record<string, { type: string; value: unknown }>;
       boardOrder: number;
     };
-    expect(body.properties.state).toEqual({ type: 'string', value: 'Done' });
-    expect(body.properties.owner).toEqual({ type: 'string', value: 'Dean' });
+    expect(body.properties["state"]).toEqual({ type: 'string', value: 'Done' });
+    expect(body.properties["owner"]).toEqual({ type: 'string', value: 'Dean' });
     // "Done" was empty, so the dropped card gets the base boardOrder.
     expect(body.boardOrder).toBe(1000);
     updateReq.flush({
@@ -461,8 +461,8 @@ describe('BoardView', () => {
     const body = updateReq.request.body as {
       properties: Record<string, { type: string; value: unknown }>;
     };
-    expect(body.properties.state).toEqual({ type: 'string', value: 'Done' });
-    expect(body.properties.owner).toEqual({ type: 'string', value: 'Dean' });
+    expect(body.properties["state"]).toEqual({ type: 'string', value: 'Done' });
+    expect(body.properties["owner"]).toEqual({ type: 'string', value: 'Dean' });
 
     updateReq.flush({
       guid: 'card-opt', title: 'Optimistic Card', content: '', folderId: 'parent-optimistic', tags: [],
@@ -915,7 +915,7 @@ describe('BoardView', () => {
       properties: Record<string, { type: string; value: unknown }>;
     };
     expect(body.boardOrder).toBe(0); // 1000 - 1000
-    expect(body.properties.state).toEqual({ type: 'string', value: 'Done' });
+    expect(body.properties["state"]).toEqual({ type: 'string', value: 'Done' });
 
     updateReq.flush({
       guid: 'card-moving', title: 'Moving Card', content: '', folderId: 'f', tags: [],
@@ -1069,7 +1069,7 @@ describe('BoardView', () => {
       properties: Record<string, { type: string; value: unknown }>;
     };
     expect(moverBody.boardOrder).toBeUndefined();
-    expect(moverBody.properties.state).toEqual({ type: 'string', value: 'Done' });
+    expect(moverBody.properties["state"]).toEqual({ type: 'string', value: 'Done' });
 
     reqY.flush({
       guid: 'card-y', title: 'Card Y', content: '', folderId: 'f', tags: [],
@@ -1756,7 +1756,7 @@ describe('BoardView', () => {
       await settle();
 
       expect(sawFailed).toBe(true);
-      const accumulated = fixture.componentInstance.accumulated();
+      const accumulated = (fixture.componentInstance as unknown as { accumulated: () => PageChildDetail[] }).accumulated();
       const reverted = accumulated.find((c) => c.guid === failed);
       // The failed card goes back to having no boardOrder at all, which is
       // what it had before the drop.
