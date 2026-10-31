@@ -21,7 +21,7 @@ export interface TypedConfirmDialogData {
     <mat-dialog-content>
       <p>{{ data.message }}</p>
       <mat-form-field appearance="outline" class="w-full">
-        <mat-label>Type "{{ data.title }}" to confirm</mat-label>
+        <mat-label>Type "{{ expected }}" to confirm</mat-label>
         <input
           matInput
           type="text"
@@ -51,8 +51,10 @@ export class TypedConfirmDialog {
   private readonly dialogRef = inject<MatDialogRef<TypedConfirmDialog, boolean>>(MatDialogRef);
 
   protected readonly typed = signal('');
+  /** The phrase to type; a page with a blank title falls back to "delete" so the gate can't be empty. */
+  protected readonly expected = this.data.title.trim() || 'delete';
   protected readonly matches = computed(
-    () => this.typed().trim().toLowerCase() === this.data.title.trim().toLowerCase(),
+    () => this.typed().trim().toLowerCase() === this.expected.toLowerCase(),
   );
 
   cancel(): void {

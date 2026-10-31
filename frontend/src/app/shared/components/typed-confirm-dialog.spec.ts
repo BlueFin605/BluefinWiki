@@ -4,7 +4,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { TypedConfirmDialog } from './typed-confirm-dialog';
 
-async function renderDialog() {
+async function renderDialog(title = 'Project Plan') {
   const ref = { close: jest.fn() };
   await render(TypedConfirmDialog, {
     providers: [
@@ -12,7 +12,7 @@ async function renderDialog() {
       { provide: MatDialogRef, useValue: ref },
       {
         provide: MAT_DIALOG_DATA,
-        useValue: { title: 'Project Plan', message: 'Deletes all child pages too.' },
+        useValue: { title, message: 'Deletes all child pages too.' },
       },
     ],
   });
@@ -49,6 +49,26 @@ describe('TypedConfirmDialog', () => {
   it('matches ignoring case and surrounding whitespace', async () => {
     const { user } = await renderDialog();
     await user.type(screen.getByRole('textbox'), '  project plan  ');
+    expect(deleteButton()).toBeEnabled();
+  });
+
+  it('Enter confirms only when the text matches', async () => {
+    const { user, ref } = await renderDialog();
+    const input = screen.getByRole('textbox');
+    await user.type(input, 'wrong{Enter}');
+    expect(ref.close).not.toHaveBeenCalled();
+    await user.clear(input);
+    await user.type(input, 'Project Plan{Enter}');
+    expect(ref.close).toHaveBeenCalledWith(true);
+  });
+
+  it('a blank page title requires typing "delete", never an empty match', async () => {
+    const { user, ref } = await renderDialog('   ');
+    const input = screen.getByRole('textbox');
+    expect(deleteButton()).toBeDisabled();
+    await user.type(input, '{Enter}');
+    expect(ref.close).not.toHaveBeenCalled();
+    await user.type(input, 'delete');
     expect(deleteButton()).toBeEnabled();
   });
 
