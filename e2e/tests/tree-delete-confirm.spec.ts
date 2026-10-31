@@ -61,10 +61,48 @@ test.describe('Delete confirmation', () => {
 
     const dialog = page.getByRole('dialog', { name: 'Delete page' });
     await expect(
-      dialog.getByText('Delete this page and all its child pages? This action cannot be undone.'),
+      dialog.getByText(
+        'Delete this page and all its child pages? Deleted pages are kept for 30 days and can be recovered by an admin.',
+      ),
     ).toBeVisible();
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByRole('treeitem', { name: parentTitle })).toBeVisible();
+  });
+
+  test('deleting a page with children requires typing the title, then removes the subtree', async ({
+    page,
+    pageTree,
+    request,
+  }) => {
+    const prefix = `E2E-${pageTree.runId}`;
+    const parentTitle = `${prefix} Typed Parent`;
+    const parentGuid = await createPage(request, parentTitle, { parentGuid: pageTree.rootGuid });
+    await createPage(request, `${prefix} Typed Child`, { parentGuid });
+
+    await page.goto(`/pages/${pageTree.rootGuid}`);
+    await page
+      .getByRole('treeitem', { name: `${pageTree.runId} Root` })
+      .getByRole('button', { name: 'Expand' })
+      .click();
+
+    await page.getByRole('treeitem', { name: parentTitle }).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Delete page' });
+    const deleteBtn = dialog.getByRole('button', { name: 'Delete', exact: true });
+    const input = dialog.getByRole('textbox');
+    await expect(deleteBtn).toBeDisabled();
+
+    await input.fill('not the title');
+    await expect(deleteBtn).toBeDisabled();
+
+    await input.fill(parentTitle);
+    await expect(deleteBtn).toBeEnabled();
+    await deleteBtn.click();
+
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('treeitem', { name: parentTitle })).toHaveCount(0);
+    await expect(page.getByRole('treeitem', { name: `${prefix} Typed Child` })).toHaveCount(0);
   });
 
   test('a server error on delete is surfaced', async ({ page, pageTree, request }) => {

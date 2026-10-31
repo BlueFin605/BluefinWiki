@@ -439,7 +439,9 @@ export class Pages {
    * `backlinks:any` — removing a page drops the link-graph edges it owned.
    */
   async deletePage(guid: string, body: DeletePageRequest = {}): Promise<void> {
-    await firstValueFrom(this.http.delete<void>(`/api/pages/${guid}`, { body }));
+    // The backend reads `recursive` from the query string, not the body.
+    const url = body.recursive ? `/api/pages/${guid}?recursive=true` : `/api/pages/${guid}`;
+    await firstValueFrom(this.http.delete<void>(url, { body }));
     this.bus.bumpMany([childrenAnyTag(), pageTag(guid), backlinksAnyTag()]);
   }
 }
