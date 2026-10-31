@@ -1,0 +1,47 @@
+{
+    "id": "31bc2946-6aad-4e6e-b9a0-a981505283dd",
+    "name": "static segment beats guid",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/search",
+    "headers": [],
+    "parameters": [
+        {
+            "key": "q",
+            "value": "zz-router-check",
+            "active": true,
+            "id": "6d3d8834-6c7c-4bbf-ad96-e3a10551675c"
+        }
+    ],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"results\"],\"properties\":{\"results\":{\"type\":\"array\"}}}"
+        }
+    }
+}

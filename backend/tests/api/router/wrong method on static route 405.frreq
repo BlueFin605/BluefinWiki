@@ -1,0 +1,40 @@
+{
+    "id": "ca0962f6-e160-41f6-8c44-bd5f97743138",
+    "name": "wrong method on static route 405",
+    "verb": "put",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/search",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 405,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\"],\"properties\":{\"error\":{\"const\":\"Method Not Allowed\"}}}"
+        }
+    }
+}

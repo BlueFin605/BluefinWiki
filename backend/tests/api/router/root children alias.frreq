@@ -1,0 +1,40 @@
+{
+    "id": "fa89540d-312b-4e94-b0e6-b1c43f95be0c",
+    "name": "root children alias",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/pages/root/children",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 200,
+        "jsonSchema": {
+            "schema": "{\n    \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n    \"title\": \"PageChildrenResponse\",\n    \"type\": \"object\",\n    \"required\": [\"parentGuid\", \"children\", \"count\", \"hasMore\", \"nextCursor\"],\n    \"properties\": {\n        \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n        \"count\": { \"type\": \"integer\", \"minimum\": 0 },\n        \"hasMore\": { \"type\": \"boolean\" },\n        \"nextCursor\": { \"type\": [\"string\", \"null\"] },\n        \"children\": {\n            \"type\": \"array\",\n            \"items\": {\n                \"type\": \"object\",\n                \"required\": [\"guid\", \"title\", \"parentGuid\", \"status\", \"createdBy\", \"modifiedAt\", \"modifiedBy\", \"hasChildren\"],\n                \"not\": { \"required\": [\"properties\"] },\n                \"properties\": {\n                    \"guid\": { \"type\": \"string\", \"pattern\": \"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$\" },\n                    \"title\": { \"type\": \"string\", \"minLength\": 1 },\n                    \"parentGuid\": { \"type\": [\"string\", \"null\"] },\n                    \"status\": { \"enum\": [\"draft\", \"published\", \"archived\"] },\n                    \"sortOrder\": { \"type\": \"number\" },\n                    \"boardOrder\": { \"type\": \"number\" },\n                    \"ticketKey\": { \"type\": \"string\" },\n                    \"createdBy\": { \"type\": \"string\" },\n                    \"modifiedAt\": { \"type\": \"string\" },\n                    \"modifiedBy\": { \"type\": \"string\" },\n                    \"hasChildren\": { \"type\": \"boolean\" },\n                    \"pageType\": { \"type\": \"string\" },\n                    \"tags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n                }\n            }\n        }\n    }\n}"
+        }
+    }
+}

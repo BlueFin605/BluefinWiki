@@ -1,0 +1,40 @@
+{
+    "id": "b2acc625-e549-46ad-bccd-14178f051df7",
+    "name": "unknown route 404",
+    "verb": "get",
+    "protocol": "http",
+    "url": "{{baseUrl}}/no-such-route",
+    "headers": [],
+    "parameters": [],
+    "body": {
+        "contentType": "none"
+    },
+    "authentication": {
+        "authentication": "inherit",
+        "awsSig": {
+            "signUrl": false,
+            "accessKey": "",
+            "secretKey": "",
+            "sessionToken": "",
+            "awsRegion": "eu-central-1",
+            "serviceName": ""
+        },
+        "basicAuth": {
+            "userName": "",
+            "password": ""
+        },
+        "bearerToken": {
+            "token": ""
+        }
+    },
+    "runs": [],
+    "validation": {
+        "type": "Body",
+        "headers": [],
+        "body": "JsonSchema",
+        "httpCode": 404,
+        "jsonSchema": {
+            "schema": "{\"type\":\"object\",\"required\":[\"error\",\"message\"],\"properties\":{\"error\":{\"const\":\"Not Found\"},\"message\":{\"type\":\"string\"}}}"
+        }
+    }
+}
