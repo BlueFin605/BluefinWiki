@@ -5,7 +5,7 @@ Purpose: a private, serverless family wiki with a built-in Kanban board system. 
 ## Tech stack
 
 - Frontend: Angular 21 + Angular Material + TypeScript (see `frontend/SYSDOC.md`)
-- Backend: AWS Lambda handlers, Node.js 20 + TypeScript, run locally via an Express wrapper (see `backend/SYSDOC.md`)
+- Backend: AWS Lambda (one API router function over per-endpoint handler modules), Node.js 24 + TypeScript, run locally via an Express wrapper (see `backend/SYSDOC.md`)
 - Infrastructure: AWS CDK, C# (see `infrastructure/SYSDOC.md`)
 - Local orchestration: Microsoft Aspire (see `aspire/SYSDOC.md`)
 - E2E: Playwright (see `e2e/SYSDOC.md`)
