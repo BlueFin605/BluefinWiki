@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, type RenderResult } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { provideRouter, Router } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -33,7 +33,7 @@ async function renderBreadcrumbs(opts: {
   currentTitle?: string;
   ancestors: unknown[];
   isDesktop?: boolean;
-}): Promise<Awaited<ReturnType<typeof render>>> {
+}): Promise<RenderResult<Breadcrumbs>> {
   bpStub = provideBreakpointStub(opts.isDesktop ?? true);
   const view = await render(Breadcrumbs, {
     inputs: { guid: 'g1', currentTitle: opts.currentTitle ?? 'Current Page' },
