@@ -7,7 +7,6 @@ const WRAPPER_CLASS = 'table-scroll';
 function classListOf(node: Element): string[] {
   const cn = node.properties?.['className'];
   if (Array.isArray(cn)) return cn.map(String);
-  if (typeof cn === 'string') return cn.split(/\s+/);
   return [];
 }
 

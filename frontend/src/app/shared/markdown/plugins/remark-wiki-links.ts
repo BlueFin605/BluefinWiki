@@ -128,7 +128,7 @@ const remarkWikiLinks: Plugin<[WikiLinksOptions?], Root> = (options = {}) => {
       children: [{ type: 'text', value: displayText }],
       data: {
         hProperties: {
-          className: broken ? brokenLinkClassName : linkClassName,
+          className: [broken ? brokenLinkClassName : linkClassName],
           // Use camelCase keys so that mdast-util-to-hast copies them verbatim
           // onto the HAST element's `properties` map. property-information maps
           // both `data-wiki-link` and `dataWikiLink` to the same attribute, so
