@@ -13,64 +13,15 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import http from 'node:http';
 import { attachRealtime, originMiddleware } from './realtime/local-ws.js';
-import { APIGatewayProxyEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 import { initializeStoragePlugin, StoragePluginRegistry } from './storage/index.js';
 import { S3StoragePlugin } from './storage/S3StoragePlugin.js';
 
 // Register storage plugins
 StoragePluginRegistry.register('s3', S3StoragePlugin as never);
 
-// Import Lambda handlers
-import { handler as pagesCreate } from './pages/pages-create.js';
-import { handler as pagesGet } from './pages/pages-get.js';
-import { handler as pagesUpdate } from './pages/pages-update.js';
-import { handler as pagesDelete } from './pages/pages-delete.js';
-import { handler as pagesListChildren } from './pages/pages-list-children.js';
-import { handler as pagesMove } from './pages/pages-move.js';
-import { handler as pagesReorder } from './pages/pages-reorder.js';
-import { handler as pagesSearch } from './pages/pages-search.js';
-import { handler as pagesBacklinks } from './pages/pages-backlinks.js';
-import { handler as pagesAncestors } from './pages/pages-ancestors.js';
-import { handler as ticketKeysResolve } from './ticket-keys/ticket-keys-resolve.js';
-import { handler as ticketKeysBackfill } from './ticket-keys/ticket-keys-backfill-handler.js';
-import { handler as boardOrderBackfill } from './pages/board-order-backfill-handler.js';
-import {
-  pagesAttachmentsUpload,
-  pagesAttachmentsDownload,
-  pagesAttachmentsList,
-  pagesAttachmentsDelete,
-  pagesAttachmentsPresign,
-  pagesAttachmentsConfirm,
-  pagesCommentsList,
-  pagesCommentsCreate,
-  pagesCommentsUpdate,
-  pagesCommentsDelete,
-} from './pages/index.js';
-import { handler as linksResolve } from './pages/links-resolve.js';
-import { handler as authRegister } from './auth/auth-register.js';
-import { handler as authMe } from './auth/auth-me.js';
-import { handler as adminCreateInvitation } from './auth/admin-create-invitation.js';
-import { handler as adminListInvitations } from './auth/admin-list-invitations.js';
-import { handler as adminRevokeInvitation } from './auth/admin-revoke-invitation.js';
-import { handler as adminUsersList } from './auth/admin-users-list.js';
-import { handler as adminUsersGet } from './auth/admin-users-get.js';
-import { handler as adminUsersUpdate } from './auth/admin-users-update.js';
-import { handler as adminUsersSuspend } from './auth/admin-users-suspend.js';
-import { handler as adminUsersActivate } from './auth/admin-users-activate.js';
-import { handler as adminUsersDelete } from './auth/admin-users-delete.js';
-import { handler as authProfileUpdate } from './auth/auth-profile-update.js';
-import { handler as searchQuery } from './search/search-query.js';
-import { handler as proxyFetchUrl } from './proxy/fetch-url.js';
-import { handler as imdbShowDetails } from './proxy/imdb-show-details.js';
-import { handler as mcpHandler } from './mcp/mcp-handler.js';
-import { handler as tagsList } from './tags/tags-list.js';
-import { handler as tagsCreate } from './tags/tags-create.js';
-import { handler as pageTypesList } from './page-types/page-types-list.js';
-import { handler as pageTypesGet } from './page-types/page-types-get.js';
-import { handler as pageTypesCreate } from './page-types/page-types-create.js';
-import { handler as pageTypesUpdate } from './page-types/page-types-update.js';
-import { handler as pageTypesDelete } from './page-types/page-types-delete.js';
-import { handler as pageTypesAllowedChildren } from './page-types/page-types-allowed-children.js';
+import { ROUTES } from './router/routes.js';
+import { createRouter } from './router/dispatch.js';
+import { expressAdapter } from './local-adapter.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -93,261 +44,33 @@ app.use((req, _res, next) => {
   next();
 });
 
-/**
- * Convert Express request to Lambda APIGatewayProxyEvent
- */
-function toLambdaEvent(req: Request): APIGatewayProxyEvent {
-  const headers: { [key: string]: string } = {};
-  Object.entries(req.headers).forEach(([key, value]) => {
-    if (typeof value === 'string') {
-      headers[key] = value;
-    } else if (Array.isArray(value)) {
-      headers[key] = value[0];
-    }
-  });
-
-  const event: APIGatewayProxyEvent = {
-    body: req.body
-      ? Buffer.isBuffer(req.body)
-        ? req.body.toString('base64')
-        : typeof req.body === 'string'
-          ? req.body
-          : JSON.stringify(req.body)
-      : null,
-    headers,
-    multiValueHeaders: {},
-    httpMethod: req.method,
-    isBase64Encoded: Buffer.isBuffer(req.body),
-    path: req.path,
-    pathParameters: req.params as { [name: string]: string } | null,
-    queryStringParameters: req.query as { [name: string]: string } | null,
-    multiValueQueryStringParameters: null,
-    stageVariables: null,
-    requestContext: {
-      accountId: 'local',
-      apiId: 'local',
-      protocol: 'HTTP/1.1',
-      httpMethod: req.method,
-      path: req.path,
-      stage: 'local',
-      requestId: `local-${Date.now()}`,
-      requestTime: new Date().toISOString(),
-      requestTimeEpoch: Date.now(),
-      resourceId: 'local',
-      resourcePath: req.path,
-      authorizer: undefined,
-      identity: {
-        accessKey: null,
-        accountId: null,
-        apiKey: null,
-        apiKeyId: null,
-        caller: null,
-        clientCert: null,
-        cognitoAuthenticationProvider: headers['x-cognito-authentication-provider'] || null,
-        cognitoAuthenticationType: headers['x-cognito-authentication-type'] || null,
-        cognitoIdentityId: headers['x-cognito-identity-id'] || null,
-        cognitoIdentityPoolId: headers['x-cognito-identity-pool-id'] || null,
-        principalOrgId: null,
-        sourceIp: req.ip || '127.0.0.1',
-        user: null,
-        userAgent: req.get('user-agent') || null,
-        userArn: null,
-      },
-    },
-    resource: req.path,
-  };
-
-  return event;
-}
-
-/**
- * Mock Lambda context
- */
-const lambdaContext: Context = {
-  callbackWaitsForEmptyEventLoop: true,
-  functionName: 'local-dev',
-  functionVersion: '$LATEST',
-  invokedFunctionArn: 'arn:aws:lambda:local:123456789012:function:local-dev',
-  memoryLimitInMB: '1024',
-  awsRequestId: 'local-request-id',
-  logGroupName: '/aws/lambda/local-dev',
-  logStreamName: 'local-stream',
-  getRemainingTimeInMillis: () => 300000,
-  done: () => {},
-  fail: () => {},
-  succeed: () => {},
-};
-
-/**
- * Wrap Lambda handler for Express
- */
-function wrapLambdaHandler(handler: (event: APIGatewayProxyEvent, context: Context) => Promise<APIGatewayProxyResult>) {
-  return async (req: Request, res: Response) => {
-    try {
-      const event = toLambdaEvent(req);
-      const result = await handler(event, lambdaContext);
-
-      // Set response headers
-      if (result.headers) {
-        Object.entries(result.headers).forEach(([key, value]) => {
-          res.setHeader(key, String(value));
-        });
-      }
-
-      // Ensure Content-Type is set for attachment downloads
-      if (req.path.includes('/attachments/') && req.method === 'GET') {
-        const contentType = res.getHeader('Content-Type');
-        if (!contentType) {
-          res.setHeader('Content-Type', 'application/octet-stream');
-        }
-      }
-
-      // Send response
-      const body = result.isBase64Encoded 
-        ? Buffer.from(result.body || '', 'base64')
-        : result.body;
-
-      res.status(result.statusCode).send(body);
-    } catch (error) {
-      console.error('Lambda handler error:', error);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  };
-}
 
 // ============================================================================
-// API Routes - Pages
+// Multipart uploads arrive as raw bytes; the handler parses the base64 body.
 // ============================================================================
 
-app.post('/pages', wrapLambdaHandler(pagesCreate));
-app.get('/pages/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages
-app.get('/pages/root/children', wrapLambdaHandler(pagesListChildren)); // Root-level pages alias
-app.put('/pages/reorder', wrapLambdaHandler(pagesReorder));
-app.get('/pages/:guid', wrapLambdaHandler(pagesGet));
-app.put('/pages/:guid', wrapLambdaHandler(pagesUpdate));
-app.delete('/pages/:guid', wrapLambdaHandler(pagesDelete));
-app.get('/pages/:guid/children', wrapLambdaHandler(pagesListChildren));
-app.put('/pages/:guid/move', wrapLambdaHandler(pagesMove));
-app.get('/pages/:guid/ancestors', wrapLambdaHandler(pagesAncestors));
-app.get('/ticket-keys/:key', wrapLambdaHandler(ticketKeysResolve));
-app.post('/pages/:guid/ticket-keys/backfill', wrapLambdaHandler(ticketKeysBackfill));
-app.post('/pages/:guid/board-order/backfill', wrapLambdaHandler(boardOrderBackfill));
-app.get('/pages/:guid/backlinks', wrapLambdaHandler(pagesBacklinks));
-app.get('/pages/search', wrapLambdaHandler(pagesSearch));
-app.post('/pages/links/resolve', wrapLambdaHandler(linksResolve));
-app.post('/pages/:pageGuid/attachments/presign', wrapLambdaHandler(pagesAttachmentsPresign));
-app.post('/pages/:pageGuid/attachments/confirm', wrapLambdaHandler(pagesAttachmentsConfirm));
-app.post(
-  '/pages/:pageGuid/attachments',
-  express.raw({ type: () => true, limit: '60mb' }),
-  wrapLambdaHandler(pagesAttachmentsUpload)
-);
-app.get('/pages/:pageGuid/attachments', wrapLambdaHandler(pagesAttachmentsList));
-app.get('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDownload));
-app.delete('/pages/:pageGuid/attachments/:filename', wrapLambdaHandler(pagesAttachmentsDelete));
-app.get('/pages/:pageGuid/comments', wrapLambdaHandler(pagesCommentsList));
-app.post('/pages/:pageGuid/comments', wrapLambdaHandler(pagesCommentsCreate));
-app.put('/pages/:pageGuid/comments/:commentId', wrapLambdaHandler(pagesCommentsUpdate));
-app.delete('/pages/:pageGuid/comments/:commentId', wrapLambdaHandler(pagesCommentsDelete));
+app.post('/pages/:guid/attachments', express.raw({ type: () => true, limit: '60mb' }));
 
 // ============================================================================
-// API Routes - Authentication
-// ============================================================================
-
-app.post('/auth/register', wrapLambdaHandler(authRegister));
-app.get('/auth/me', wrapLambdaHandler(authMe));
-app.put('/auth/profile', wrapLambdaHandler(authProfileUpdate));
-
-// ============================================================================
-// API Routes - Admin
-// ============================================================================
-
-app.post('/admin/invitations', wrapLambdaHandler(adminCreateInvitation));
-app.get('/admin/invitations', wrapLambdaHandler(adminListInvitations));
-app.delete('/admin/invitations/:invitationCode', wrapLambdaHandler(adminRevokeInvitation));
-
-// ============================================================================
-// API Routes - Admin User Management
-// ============================================================================
-
-app.get('/admin/users', wrapLambdaHandler(adminUsersList));
-app.get('/admin/users/:userId', wrapLambdaHandler(adminUsersGet));
-app.put('/admin/users/:userId', wrapLambdaHandler(adminUsersUpdate));
-app.post('/admin/users/:userId/suspend', wrapLambdaHandler(adminUsersSuspend));
-app.post('/admin/users/:userId/activate', wrapLambdaHandler(adminUsersActivate));
-app.delete('/admin/users/:userId', wrapLambdaHandler(adminUsersDelete));
-
-// ============================================================================
-// API Routes - Tags
-// ============================================================================
-
-app.get('/tags', wrapLambdaHandler(tagsList));
-app.post('/tags', wrapLambdaHandler(tagsCreate));
-
-// ============================================================================
-// API Routes - Page Types
-// ============================================================================
-
-app.get('/page-types', wrapLambdaHandler(pageTypesList));
-app.post('/page-types', wrapLambdaHandler(pageTypesCreate));
-app.get('/page-types/:guid/allowed-children', wrapLambdaHandler(pageTypesAllowedChildren));
-app.get('/page-types/:guid', wrapLambdaHandler(pageTypesGet));
-app.put('/page-types/:guid', wrapLambdaHandler(pageTypesUpdate));
-app.delete('/page-types/:guid', wrapLambdaHandler(pageTypesDelete));
-
-// ============================================================================
-// API Routes - Semantic Search
-// ============================================================================
-
-app.get('/search', wrapLambdaHandler(searchQuery));
-app.post('/fetch-url', wrapLambdaHandler(proxyFetchUrl));
-app.post('/imdb/show-details', wrapLambdaHandler(imdbShowDetails));
-
-// ============================================================================
-// MCP server (no API key locally — prod is guarded by an API Gateway key)
-// ============================================================================
-
-app.post('/mcp', wrapLambdaHandler(mcpHandler));
-
-// ============================================================================
-// Admin: Rebuild Page Index
-// ============================================================================
-
-app.post('/admin/rebuild-page-index', async (_req, res) => {
-  try {
-    const { rebuildPageIndex } = await import('./storage/rebuild-page-index.js');
-    const result = await rebuildPageIndex();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-// ============================================================================
-// Health Check
+// Health Check (local only)
 // ============================================================================
 
 app.get('/health', (_req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
     environment: 'local-development',
   });
 });
 
 // ============================================================================
-// 404 Handler
+// API: every route goes through the shared route table (src/router/routes.ts),
+// exactly as in production. Locally it also serves the routes that have their
+// own Lambda in production (MCP, fetch-url, the 5-minute jobs). The router
+// answers unknown routes with 404 / 405.
 // ============================================================================
 
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.method} ${req.path} not found`,
-  });
-});
+app.use(expressAdapter(createRouter(ROUTES)));
 
 // ============================================================================
 // Error Handler
@@ -603,40 +326,7 @@ async function startServer() {
       console.log('📋 Available Routes:');
       console.log('   GET    /health');
       console.log('   WS     /ws');
-      console.log('   POST   /pages');
-  console.log('   GET    /pages/:guid');
-  console.log('   PUT    /pages/:guid');
-  console.log('   DELETE /pages/:guid');
-  console.log('   GET    /pages/:guid/children');
-  console.log('   PUT    /pages/:guid/move');
-  console.log('   GET    /pages/:guid/ancestors');
-  console.log('   GET    /ticket-keys/:key');
-  console.log('   POST   /pages/:guid/ticket-keys/backfill');
-  console.log('   POST   /pages/:guid/board-order/backfill');
-  console.log('   GET    /pages/:guid/backlinks');
-  console.log('   GET    /pages/search');
-  console.log('   GET    /search');
-  console.log('   POST   /fetch-url');
-  console.log('   POST   /imdb/show-details');
-  console.log('   POST   /pages/links/resolve');
-  console.log('   POST   /auth/register');
-  console.log('   GET    /auth/me');
-  console.log('   PUT    /auth/profile');
-  console.log('   GET    /admin/users');
-  console.log('   GET    /admin/users/:userId');
-  console.log('   PUT    /admin/users/:userId');
-  console.log('   POST   /admin/users/:userId/suspend');
-  console.log('   POST   /admin/users/:userId/activate');
-  console.log('   DELETE /admin/users/:userId');
-  console.log('   POST   /admin/invitations');
-  console.log('   GET    /admin/invitations');
-  console.log('   DELETE /admin/invitations/:invitationCode');
-  console.log('   GET    /page-types');
-  console.log('   POST   /page-types');
-  console.log('   GET    /page-types/:guid');
-  console.log('   PUT    /page-types/:guid');
-  console.log('   DELETE /page-types/:guid');
-  console.log('   GET    /page-types/:guid/allowed-children');
+      for (const route of ROUTES) console.log(`   ${route.method.padEnd(6)} ${route.pattern}`);
   console.log('');
   console.log('Press Ctrl+C to stop');
   console.log('════════════════════════════════════════════════════════════════');
