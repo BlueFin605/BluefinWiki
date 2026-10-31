@@ -200,8 +200,8 @@ describe('PageTree', () => {
     const cases: { name: string; payload: unknown }[] = [
       { name: 'pageSelect', payload: 'c1' },
       { name: 'renameRequested', payload: { guid: 'c1', title: 'Child' } },
-      // The {guid, hasChildren} delete payload (step 2.8) at the nested level.
-      { name: 'deleteRequested', payload: { guid: 'c1', hasChildren: true } },
+      // The {guid, title, hasChildren} delete payload (step 2.8) at the nested level.
+      { name: 'deleteRequested', payload: { guid: 'c1', title: 'Child', hasChildren: true } },
       { name: 'newChildRequested', payload: 'c1' },
       { name: 'sortRequested', payload: { guid: 'c1', direction: 'asc' } },
       { name: 'moveRequested', payload: 'c1' },

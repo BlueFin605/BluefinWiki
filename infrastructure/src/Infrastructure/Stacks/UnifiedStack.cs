@@ -580,7 +580,8 @@ namespace Infrastructure.Stacks
                     new LifecycleRule
                     {
                         Id = "DeleteOldVersions",
-                        NoncurrentVersionExpiration = Duration.Days(365),
+                        NoncurrentVersionExpiration = Duration.Days(30),
+                        ExpiredObjectDeleteMarker = true,
                         Enabled = config.EnableVersioning
                     }
                 },

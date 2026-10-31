@@ -10,6 +10,7 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ConfirmDialog, type ConfirmDialogData } from '../../shared/components/confirm-dialog';
+import { TypedConfirmDialog, type TypedConfirmDialogData } from '../../shared/components/typed-confirm-dialog';
 import { Auth } from '../../core/auth/auth';
 import { Layout } from '../../core/layout/layout';
 import { Breakpoint } from '../../core/layout/breakpoint';
@@ -734,18 +735,27 @@ export class PagesView {
    * generic string. Per-resource cache invalidation is handled inside
    * `Pages.deletePage` (step 1.2 — `children:any` + `page:<guid>`).
    */
-  async onDeleteRequested(req: { guid: string; hasChildren: boolean }): Promise<void> {
-    const { guid, hasChildren } = req;
+  async onDeleteRequested(req: { guid: string; title: string; hasChildren: boolean }): Promise<void> {
+    const { guid, title, hasChildren } = req;
 
-    const data: ConfirmDialogData = {
-      title: 'Delete page',
-      message: hasChildren
-        ? 'Delete this page and all its child pages? This action cannot be undone.'
-        : 'Delete this page?',
-      confirmLabel: 'Delete',
-      destructive: true,
-    };
-    const ref = this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, { data });
+    // A page with children needs the page title typed to confirm; a leaf keeps
+    // the plain confirm.
+    const ref = hasChildren
+      ? this.dialog.open<TypedConfirmDialog, TypedConfirmDialogData, boolean>(TypedConfirmDialog, {
+          data: {
+            title,
+            message:
+              'Delete this page and all its child pages? Deleted pages are kept for 30 days and can be recovered by an admin.',
+          },
+        })
+      : this.dialog.open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, {
+          data: {
+            title: 'Delete page',
+            message: 'Delete this page?',
+            confirmLabel: 'Delete',
+            destructive: true,
+          },
+        });
     if (!(await firstValueFrom(ref.afterClosed()))) return;
 
     try {

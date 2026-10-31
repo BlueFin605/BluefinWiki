@@ -344,7 +344,7 @@ describe('Pages service', () => {
 
     it('deletePage sends DELETE with body', async () => {
       const promise = pages.deletePage('g1', { recursive: true });
-      const req = http.expectOne('/api/pages/g1');
+      const req = http.expectOne('/api/pages/g1?recursive=true');
       expect(req.request.method).toBe('DELETE');
       expect(req.request.body).toEqual({ recursive: true });
       req.flush(null);
