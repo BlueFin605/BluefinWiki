@@ -1001,6 +1001,7 @@ namespace Infrastructure.Stacks
             // Common Lambda environment variables
             var commonEnvVars = new Dictionary<string, string>
             {
+                { "NODE_OPTIONS", "--enable-source-maps" }, // bundle.mjs ships sourcemaps; readable stack traces
                 { "PAGES_BUCKET", PagesBucket.BucketName },
                 { "COGNITO_USER_POOL_ID", UserPool.UserPoolId },
                 { "COGNITO_CLIENT_ID", WebClient.UserPoolClientId },

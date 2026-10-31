@@ -98,7 +98,8 @@ export function createRouter(routes: readonly RouteDef[], options: RouterOptions
       const handler = await load(route);
       result = await runInRoute(routeKey, () => handler(shaped, context));
     } catch (error) {
-      console.error(`Unhandled error in ${routeKey}:`, error);
+      // Log inside the route context so the line carries the route prefix like handler logs do.
+      await runInRoute(routeKey, async () => { console.error(`Unhandled error in ${routeKey}:`, error); });
       result = withRouterCors(event, json(500, { error: 'Internal server error' }));
     }
     summary(routeKey, requestId, result.statusCode, startedAt);

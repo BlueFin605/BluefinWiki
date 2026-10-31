@@ -8,15 +8,27 @@ import { LAMBDA_ENTRIES } from '../../../scripts/lambda-entries.mjs';
 const STACK = fileURLToPath(new URL('../../../../infrastructure/src/Infrastructure/Stacks/UnifiedStack.cs', import.meta.url));
 const source = readFileSync(STACK, 'utf8');
 
-type Explicit = { kind: 'function' | 'public' | 'apikey'; method: string; path: string };
+type Explicit = { kind: 'function' | 'public' | 'apikey'; method: string; path: string; fn: string };
 interface ApiNode { path: string; children: Map<string, ApiNode>; methods: Set<string>; router: boolean }
 
 const routerPaths = [...source.matchAll(/RouteToRouter\("([^"]+)"\);/g)].map((m) => '/' + m[1]);
-const explicit: Explicit[] = [...source.matchAll(/Route(ToFunction|Public|WithApiKey)\("(\w+)", "([^"]+)", \w+\);/g)].map((m) => ({
+const explicit: Explicit[] = [...source.matchAll(/Route(ToFunction|Public|WithApiKey)\("(\w+)", "([^"]+)", (\w+)\);/g)].map((m) => ({
   kind: m[1] === 'ToFunction' ? 'function' : m[1] === 'Public' ? 'public' : 'apikey',
   method: m[2],
   path: '/' + m[3],
+  fn: m[4],
 }));
+
+/** Expected wiring of every explicit API Gateway method: auth kind and the Lambda it invokes. */
+const EXPECTED_EXPLICIT: Record<string, { kind: Explicit['kind']; fn: string }> = {
+  'POST /auth/register': { kind: 'public', fn: 'apiRouterFunction' },
+  'POST /pages/{guid}/ticket-keys/backfill': { kind: 'function', fn: 'ticketKeysBackfillFunction' },
+  'POST /pages/{guid}/board-order/backfill': { kind: 'function', fn: 'boardOrderBackfillFunction' },
+  'POST /admin/rebuild-page-index': { kind: 'function', fn: 'adminRebuildPageIndexFunction' },
+  'POST /fetch-url': { kind: 'function', fn: 'proxyFetchUrlFunction' },
+  'POST /mcp': { kind: 'apikey', fn: 'mcpFunction' },
+  'GET /mcp': { kind: 'apikey', fn: 'mcpFunction' },
+};
 const handlers = [...source.matchAll(/Handler = \$?"([^"]+)\.handler"/g)].map((m) => m[1]);
 
 function buildTree(): ApiNode {
@@ -72,8 +84,22 @@ describe('UnifiedStack.cs <-> routes.ts parity', () => {
     expect(fromTable).toEqual(fromStack);
   });
 
+  it('explicit routes have the expected auth kind and Lambda', () => {
+    const actual = Object.fromEntries(explicit.map((e) => [key(e.method, e.path), { kind: e.kind, fn: e.fn }]));
+    expect(actual).toEqual(EXPECTED_EXPLICIT);
+  });
+
+  it('the only public route is POST /auth/register, served by the router Lambda', () => {
+    const publics = explicit.filter((x) => x.kind === 'public');
+    expect(publics.length).toBeGreaterThan(0);
+    expect(publics.map((e) => key(e.method, e.path))).toEqual(['POST /auth/register']);
+    expect(publics[0].fn).toBe('apiRouterFunction');
+  });
+
   it('public routes in the stack are router routes in the table', () => {
-    for (const e of explicit.filter((x) => x.kind === 'public')) {
+    const publics = explicit.filter((x) => x.kind === 'public');
+    expect(publics.length).toBeGreaterThan(0);
+    for (const e of publics) {
       expect(ROUTES.find((r) => r.method === e.method && r.pattern === e.path)?.deployment, key(e.method, e.path)).toBe('router');
     }
   });

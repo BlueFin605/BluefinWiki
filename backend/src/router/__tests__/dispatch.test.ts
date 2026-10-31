@@ -89,6 +89,19 @@ describe('createRouter', () => {
     expect(res.headers?.['Access-Control-Allow-Origin']).toBe('https://wiki.example.com');
   });
 
+  it('logs the unhandled error inside the route context', async () => {
+    let inRoute = false;
+    const seen: boolean[] = [];
+    vi.spyOn(console, 'error').mockImplementation(() => { seen.push(inRoute); });
+    const runInRoute = async <T,>(_k: string, fn: () => Promise<T>): Promise<T> => {
+      inRoute = true;
+      try { return await fn(); } finally { inRoute = false; }
+    };
+    const router = createRouter([{ method: 'GET', pattern: '/boom', deployment: 'router', load: async () => { throw new Error('load failed'); } }], { ...quiet, runInRoute });
+    expect((await router(event('GET', '/boom'), ctx)).statusCode).toBe(500);
+    expect(seen).toEqual([true]);
+  });
+
   it('500 when the handler module fails to load, then retries the import', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const load = vi.fn().mockRejectedValueOnce(new Error('import failed')).mockResolvedValue(async () => ok());
