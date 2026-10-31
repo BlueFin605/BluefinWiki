@@ -255,6 +255,46 @@ describe('kanbanInitiatives', () => {
     const out = await kanbanInitiatives(wiki, { includeDone: true });
     expect(out.split('\n')).toContain('init3 · Shipped · Done · 0 open');
   });
+
+  it('counts a wide tree with bounded listChildren concurrency and loads only the initiatives', async () => {
+    for (let i = 0; i < 40; i++) {
+      wiki.add(`w${i}`, 'init2', 'Epic', i % 4 === 0 ? 'Done' : 'Ready', `W${i}`);
+      wiki.add(`wt${i}`, `w${i}`, 'Task', 'Ready', `WT${i}`);
+    }
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const loaded: string[] = [];
+    const spy = {
+      ...wiki,
+      listChildren: async (g: string | null) => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise(r => setTimeout(r, 1));
+        inFlight--;
+        return wiki.listChildren(g);
+      },
+      loadPage: async (g: string) => {
+        loaded.push(g);
+        return wiki.loadPage(g);
+      },
+    } as typeof wiki;
+    const out = await kanbanInitiatives(spy, {});
+    expect(out.split('\n')).toContain('init2 · Nested · Ready · 70 open');
+    expect(maxInFlight).toBeLessThanOrEqual(8);
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(loaded.sort()).toEqual(['init', 'init2']);
+  });
+
+  it('propagates a listChildren failure from the count walk', async () => {
+    const spy = {
+      ...wiki,
+      listChildren: async (g: string | null) => {
+        if (g === 'epicA') throw new Error('boom');
+        return wiki.listChildren(g);
+      },
+    } as typeof wiki;
+    await expect(kanbanInitiatives(spy, {})).rejects.toThrow('boom');
+  });
 });
 
 describe('tags', () => {

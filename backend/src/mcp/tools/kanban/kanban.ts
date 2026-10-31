@@ -121,6 +121,48 @@ async function loadInitiative(deps: KanbanDeps, types: TypeInfo, guid: string): 
   return buildTree(deps, types, page);
 }
 
+/** Max concurrent `listChildren` calls during a count-only walk (keeps S3 bursts bounded). */
+const COUNT_WALK_CONCURRENCY = 8;
+
+/**
+ * Count the not-Done ticket descendants of `rootGuid` without materialising
+ * Ticket objects. Breadth-first with a bounded worker pool; each node costs one
+ * `listChildren` and no `loadPage`.
+ */
+async function countOpenDescendants(deps: KanbanDeps, types: TypeInfo, rootGuid: string): Promise<number> {
+  const queue: string[] = [rootGuid];
+  let active = 0;
+  let open = 0;
+  let firstError: unknown;
+
+  async function worker(): Promise<void> {
+    while (firstError === undefined) {
+      const guid = queue.shift();
+      if (guid === undefined) {
+        // Queue momentarily empty: other workers may still add children.
+        if (active === 0) return;
+        await new Promise(resolve => setImmediate(resolve));
+        continue;
+      }
+      active++;
+      try {
+        for (const child of await ticketChildren(deps, types, guid)) {
+          if (stateOf(child) !== 'Done') open++;
+          queue.push(child.guid);
+        }
+      } catch (err) {
+        firstError ??= err;
+      } finally {
+        active--;
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: COUNT_WALK_CONCURRENCY }, worker));
+  if (firstError !== undefined) throw firstError;
+  return open;
+}
+
 function descendants(t: Ticket): Ticket[] {
   return t.children.flatMap(c => [c, ...descendants(c)]);
 }
@@ -181,9 +223,12 @@ export async function kanbanInitiatives(
       if (page.pageType && types.byGuid.get(page.pageType)?.name === INITIATIVE) {
         const state = stateOf(page);
         if (state === 'Done' && !input.includeDone) continue;
-        const tree = await buildTree(deps, types, page);
-        const open = descendants(tree).filter(t => t.state !== 'Done').length;
-        const prefix = (await deps.loadPage(page.guid)).boardConfig?.keyPrefix;
+        // boardConfig isn't on PageSummary, so the prefix still needs one loadPage;
+        // run it alongside the count-only walk.
+        const [open, prefix] = await Promise.all([
+          countOpenDescendants(deps, types, page.guid),
+          deps.loadPage(page.guid).then(p => p.boardConfig?.keyPrefix),
+        ]);
         found.push(`${page.guid} · ${prefix ? `[${prefix}] ` : ''}${page.title} · ${state} · ${open} open`);
       } else if (page.hasChildren) {
         await walk(page.guid);

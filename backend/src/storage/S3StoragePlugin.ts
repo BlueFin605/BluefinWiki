@@ -1083,8 +1083,9 @@ export class S3StoragePlugin extends BaseStoragePlugin {
 
           const response: ListObjectsV2CommandOutput = await this.s3Client.send(listCommand);
 
-          console.log(`[listChildren] CommonPrefixes:`, response.CommonPrefixes?.map(p => p.Prefix));
-          console.log(`[listChildren] Contents:`, response.Contents?.map(c => c.Key));
+          console.log(
+            `[listChildren] CommonPrefixes: ${response.CommonPrefixes?.length ?? 0}, Contents: ${response.Contents?.length ?? 0}`,
+          );
 
           // Get child folders (CommonPrefixes)
           if (response.CommonPrefixes) {
